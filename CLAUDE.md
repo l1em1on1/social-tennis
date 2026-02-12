@@ -16,6 +16,7 @@ Easy to use mobile first web application to manage social leagues, gather match 
 - Testing: Jest + React Testing Library
 - Linting: ESLint with @typescript-eslint
 - Formatting: Prettier
+- Mocking: Mock Service Worker - https://mswjs.io/
 
 ## Testing Practices
 - Testing Library: @testing-library/react
@@ -35,6 +36,10 @@ Easy to use mobile first web application to manage social leagues, gather match 
 - Avoid any type, use unknown or strict generics
 - Group imports: react → next → libraries → local
 
+## Project strucutre
+- UI separate from logic
+- data fetching services with abstraction to allow an easy use of mock service
+
 ## Security
 - Validate all server-side inputs (API routes)
 - Use HTTPS-only cookies and CSRF tokens when applicable
@@ -43,6 +48,10 @@ Easy to use mobile first web application to manage social leagues, gather match 
 ## Additional Info
 - @package.json for available npm commands.
 - @docs/authentication.md for auth flow details
+- @docs/data.md for data storage solution
+- @docs/models.md for data structure
+- @docs/features.md for summary of functionallity
+- @docs/sitemap.md for pages list
 
 ### Custom Slash Commands
 Stored in .claude/commands/:
