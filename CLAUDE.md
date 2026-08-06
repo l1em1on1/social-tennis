@@ -6,3 +6,17 @@ Easy to use mobile first web application to manage social leagues, gather match 
 
 - **License**: GPLv3
 - **Repository**: `git@github.com:l1em1on1/social-tennis.git`
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub Issues in this repo (l1em1on1/social-tennis), using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical roles, label string equal to role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
