@@ -103,6 +103,12 @@
       "skillPath": "skills/engineering/to-spec/SKILL.md",
       "computedHash": "144cf30cf527faff7f9211ae81ad3de5aaa6390f639b87ca5a48f5e818a8d33e"
     },
+    "to-tickets": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-tickets/SKILL.md",
+      "computedHash": "e817ecc8ffbb51dd5edd7cc141fe209f31c298dfd66b886e0c6c9aba2dd70266"
+    },
     "triage": {
       "source": "mattpocock/skills",
       "sourceType": "github",
