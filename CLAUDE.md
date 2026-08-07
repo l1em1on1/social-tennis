@@ -7,6 +7,16 @@ Easy to use mobile first web application to manage social leagues, gather match 
 - **License**: GPLv3
 - **Repository**: `git@github.com:l1em1on1/social-tennis.git`
 
+## Everything runs in Docker
+
+**Never run `dotnet`, `npm`, `node`, `npx`, or EF tooling directly on the host machine.** The host has Docker and an editor; it does not have the toolchain, and must not be assumed to.
+
+Every build, test, migration, package install, and codegen run executes inside a container — `docker compose run --rm <service> <command>`, or the equivalent from inside the Dev Container. This applies to agents exactly as it does to humans.
+
+When adding a workflow, document it as a container invocation. A bare `dotnet test` or `npm install` in a README, script, or CI step is a bug.
+
+Stack is a Next.js BFF (`web/`) proxying to an ASP.NET Core Web API (`api/`) over Postgres. See `docs/adr/` — ADR-0001 for the split, ADR-0005 for the Docker requirement.
+
 ## Agent skills
 
 ### Issue tracker
