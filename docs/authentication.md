@@ -1,1 +1,0 @@
-Authentication should be easy, by sending a link to user's whatsapp, or using CLTC authentication.
