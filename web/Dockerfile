@@ -1,3 +1,4 @@
+# Base image tags are pinned deliberately — see docs/architecture.md "Versions".
 FROM node:24-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
