@@ -1,3 +1,4 @@
+# Base image tags are pinned deliberately — see docs/architecture.md "Versions".
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY . .
