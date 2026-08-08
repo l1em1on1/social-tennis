@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: tennis
+      POSTGRES_PASSWORD: tennis
+      POSTGRES_DB: tennis
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tennis -d tennis"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: ./api
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Database=tennis;Username=tennis;Password=tennis"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    environment:
+      API_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  # One-shot test runner: docker compose run --rm api-tests
+  api-tests:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: ["test"]
+    working_dir: /src
+    volumes:
+      - ./api:/src
+      - nuget:/root/.nuget/packages
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Database=tennis_test;Username=tennis;Password=tennis"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: dotnet test
+
+volumes:
+  pgdata:
+  nuget:

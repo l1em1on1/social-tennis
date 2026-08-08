@@ -1,0 +1,13 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node / Next.js — web/.gitignore (from create-next-app) covers web/ in detail;
+# these cover any future JS tooling elsewhere.
+node_modules/
+.next/
+
+# OS noise
+.DS_Store
+Thumbs.db

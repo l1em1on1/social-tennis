@@ -1,0 +1,30 @@
+# Dev overlay: source bind-mounted, hot reload, no image rebuild needed.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    build: !reset null
+    working_dir: /src
+    volumes:
+      - ./api:/src
+      - nuget:/root/.nuget/packages
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Database=tennis;Username=tennis;Password=tennis"
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_USE_POLLING_FILE_WATCHER: "true"
+    command: dotnet watch --project src/SocialTennis.Api run --urls http://0.0.0.0:8080
+
+  web:
+    image: node:24-alpine
+    build: !reset null
+    working_dir: /src
+    volumes:
+      - ./web:/src
+      - web_node_modules:/src/node_modules
+    environment:
+      API_URL: http://api:8080
+      WATCHPACK_POLLING: "true"
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+
+volumes:
+  web_node_modules:

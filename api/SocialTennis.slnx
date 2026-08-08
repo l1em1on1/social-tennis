@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SocialTennis.Api/SocialTennis.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SocialTennis.Api.IntegrationTests/SocialTennis.Api.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
