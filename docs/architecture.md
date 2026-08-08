@@ -53,7 +53,7 @@ flowchart LR
     DOC -->|"npm run api:generate<br/>(openapi-typescript, in-container)"| SCHEMA["web/src/lib/api/schema.d.ts<br/>(committed, reproducible)"]
     SCHEMA --> CLIENT["web/src/lib/api/client.ts<br/>createClient&lt;paths&gt; (openapi-fetch)"]
     CLIENT --> PAGES["server components / route handlers"]
-    SCHEMA -.->|"regen + git diff --exit-code<br/>= drift check"| CI["CI (#20)"]
+    SCHEMA -.->|"regen + git diff --exit-code<br/>= drift check"| CI["CI: api.yml client-drift job"]
 ```
 
 Regenerating with no API change produces no diff — verified property, and the basis of the drift check.
@@ -119,6 +119,24 @@ flowchart LR
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
 
+## CI
+
+Two path-triggered GitHub Actions workflows (ADR-0002), every step a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner:
+
+```mermaid
+flowchart LR
+    subgraph apiwf ["api.yml — api/**, compose, contract inputs"]
+        T1["integration-tests<br/>docker compose run --rm api-tests"]
+        T2["client-drift<br/>up api → regen client → git diff --exit-code"]
+    end
+    subgraph webwf ["web.yml — web/**, compose"]
+        T3["build<br/>docker compose build web"]
+    end
+    PR[Pull request / push to main] --> apiwf & webwf
+```
+
+Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its checks *pending* — if these jobs are ever made **required** checks in branch protection, docs-only PRs would block; at that point drop the paths filters or add no-op twin workflows with the same job names.
+
 ## Versions and notable pins
 
 | Component | Version | Note |
@@ -133,4 +151,4 @@ The test host runs the real `Program.cs` — including startup migration — aga
 
 ## Where this goes next
 
-The skeleton exists so every following ticket only adds domain, never plumbing: #3 adds the BFF-held session (magic link), #18 the Admin/Club bootstrap, #20 turns the drift check and test suite into PR gates. The ticket graph and its dependencies are wired as native GitHub issue dependencies on #2–#22.
+The skeleton exists so every following ticket only adds domain, never plumbing: #3 adds the BFF-held session (magic link), #18 the Admin/Club bootstrap. The ticket graph and its dependencies are wired as native GitHub issue dependencies on #2–#22.

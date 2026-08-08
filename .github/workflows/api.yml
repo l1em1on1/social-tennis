@@ -1,0 +1,66 @@
+# API CI — every step runs through Docker Compose with the same images and
+# invocations as local dev (CLAUDE.md: nothing runs bare on the runner).
+#
+# Path-triggered per ADR-0002. The drift job also watches web's package files
+# and the generated client, since those are inputs/outputs of the contract.
+#
+# NOTE (from GitHub docs): a workflow skipped by path filtering leaves its
+# checks "pending". If these jobs are ever made *required* checks in branch
+# protection, docs-only PRs would block — at that point drop the paths filter
+# or add a no-op twin workflow with the same job names.
+name: api
+
+on:
+  pull_request:
+    paths:
+      - "api/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "web/src/lib/api/**"
+      - "web/package.json"
+      - "web/package-lock.json"
+      - ".github/workflows/api.yml"
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - "web/src/lib/api/**"
+      - "web/package.json"
+      - "web/package-lock.json"
+      - ".github/workflows/api.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-tests:
+    name: integration tests (HTTP vs real Postgres)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run the suite exactly as documented for local dev
+        run: docker compose run --rm api-tests
+
+  client-drift:
+    name: OpenAPI client drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start the API (production image; migrates on boot)
+        run: docker compose up -d --build api
+      - name: Regenerate the TS client in-container
+        run: >-
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml
+          run --rm --no-deps web sh -c
+          "npm ci --no-audit --no-fund &&
+           i=0; until wget -q --spider http://api:8080/openapi/v1.json;
+           do i=$((i+1)); [ $i -ge 30 ] && echo 'api never came up' && exit 1; sleep 2; done &&
+           npm run api:generate"
+      - name: Fail if the committed client is out of date
+        run: git diff --exit-code -- web/src/lib/api/schema.d.ts

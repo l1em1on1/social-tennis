@@ -1,0 +1,37 @@
+# Web CI — the gate is the production image build (npm ci + next build run
+# inside web/Dockerfile), so CI exercises the same path `docker compose up
+# --build` uses. Nothing runs bare on the runner (CLAUDE.md).
+#
+# Path-triggered per ADR-0002. Same required-checks caveat as api.yml.
+name: web
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - ".github/workflows/web.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+      - ".github/workflows/web.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: production image build (next build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the web image exactly as `docker compose up --build` does
+        run: docker compose build web
