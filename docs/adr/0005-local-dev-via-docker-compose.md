@@ -1,3 +1,5 @@
 # Local dev: full suite runnable via Docker
 
 Postgres, the .NET API, and the Next.js app must all be runnable locally via Docker (a single `docker-compose.yml`), so any contributor can clone and run the whole stack with one command.
+
+**Amended (2026-08-08) — nothing on the host but Docker.** The requirement is stronger than "runnable via Docker": the toolchain never touches the host machine. No .NET SDK, Node, npm, or EF tooling is installed locally — the host has Docker and an editor, and must not be assumed to have anything else. Every build, test, migration, package install, and codegen run executes inside a container (`docker compose run --rm <service> <command>`), and every documented workflow — README, scripts, CI — is written as a container invocation; a bare `dotnet` or `npm` anywhere is a bug. The editor experience comes from a Dev Container layered over the same compose stack, carrying both toolchains so IntelliSense and debugging resolve in-container. This applies to agents working on the repo exactly as it does to humans (see `CLAUDE.md`).

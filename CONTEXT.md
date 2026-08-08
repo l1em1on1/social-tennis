@@ -11,14 +11,14 @@ A tennis club running leagues and socials. Owns Leagues, Socials, and Players vi
 The authentication identity — owns login/session. A User doesn't need a Player profile (e.g. a Manager-only account) and may hold more than one Player (e.g. a parent managing their children's Players).
 
 **Player**:
-A tennis domain profile — name, gender, level, Rating — participating in Clubs, Leagues, and Socials, used for ranking and league assignment. Held by a User (a User may hold several Players; a Player is held by exactly one User). A Player may belong to more than one Club (many-to-many), though in practice this is infrequent — typically one, rarely more than two or three.
+A tennis domain profile — name, gender, Level, Rating — participating in Clubs, Leagues, and Socials, used for ranking and league assignment. Level (1–5) is the club's informal grouping, informational only — nothing computes from it. Held by a User (a User may hold several Players; a Player is held by exactly one User). A Player may belong to more than one Club (many-to-many), though in practice this is infrequent — typically one, rarely more than two or three.
 
 **Player Rating**:
-A Player's overall skill/ranking number, entered and edited manually by a Manager — nothing computes it in v1 (deriving it from League Game history is a wanted future direction, deliberately deferred). A Player may be unrated; consumers of Rating (Bracket seeding, Social pairing) must handle that deterministically. Renamed from the original "Score" field on Player to avoid colliding with the per-game Score entity below — they are unrelated concepts that happened to share a name.
+A Player's overall skill/ranking number, entered and edited manually by a Manager — nothing computes it in v1 (deriving it from League Game history is a wanted future direction, deliberately deferred — ADR-0007). Defaults to 1 for a new Player, so no Player is ever unrated; consumers of Rating (Bracket seeding, Social pairing) break the resulting ties deterministically. Renamed from the original "Score" field on Player to avoid colliding with the per-game Score entity below — they are unrelated concepts that happened to share a name.
 _Avoid_: Score (on Player specifically — reserved for the per-game result)
 
 **Game**:
-Two sides playing a match on a Date at a Court — 1 Player per side for Singles, 2 per side otherwise (Doubles/Mixed/Foursomes). A Game belongs to either a Divisional League's Stage or a Social, never both — the same entity serves both contexts. Score is optional on a Game: League Games always record one (standings/Relegation depend on it), but Social Games often don't — some social events don't collect scores at all.
+Two sides playing a match on a Date — 1 Player per side for Singles, 2 per side otherwise (Doubles/Mixed/Foursomes). Court is an optional free-text label, not an entity (ADR-0006): on League Games the players arrange their court outside the app and may note it (e.g. "6 - astro"); on Social Games the Manager sets it so players know where to go. A Game belongs to either a Divisional League's Stage or a Social, never both — the same entity serves both contexts. Score is optional on a Game: League Games always record one (standings/Relegation depend on it), but Social Games often don't — some social events don't collect scores at all.
 
 **Score**:
 The recorded result of a single Game, when tracked: which Player submitted it, ScoreA, ScoreB, Date, and — for League Games — the Reactions cast on it while it settles. A League Game's Score settles by the agreement protocol (see Reaction); a Social Game's Score is final on submission, no protocol.
@@ -34,7 +34,7 @@ _Avoid_: Pair (use Team even for singles, to keep one term across League Types)
 The unit that occupies one of a Division's slots and accrues the result Relegation acts on. A Team for most League Types; an individual Player for `Foursomes`, which has no fixed Team (see League Type).
 
 **Substitute**:
-A Player standing in for a Team's regular Player in one specific League Game — one-off, doesn't change Team membership going forward. Only applies where Teams exist: League-only, and not for `Foursomes` (no fixed Team to substitute into) or Socials (no persistent Team at all).
+A Player standing in for a Team's regular Player in one specific League Game — one-off, doesn't change Team membership going forward. Any Player of the same Club is eligible. Nominating one creates a proposal the opposing side may reject within a configurable window; silence is acceptance. Substitution closes once a Score is submitted for the Game. Only applies where Teams exist: League-only, and not for `Foursomes` (no fixed Team to substitute into) or Socials (no persistent Team at all).
 
 **League Structure**:
 How a League organizes competition, orthogonal to League Type (who plays): `Divisional` (Competitors sit in Divisions of ~4, round-robin, automatic per-Stage Relegation) or `Knockout` (single-elimination Bracket, no Divisions or Relegation). A League has both a Structure and a Type — e.g. a `DoublesMen` League can be either `Divisional` or `Knockout`.
@@ -54,6 +54,9 @@ A time-boxed period (StartDate, EndDate) with a deadline for its Games to be com
 
 **Availability**:
 A Player's set of free dates during a Stage, used to suggest a common date on which to arrange a Game against an opposing Competitor before the Stage's deadline. Today this coordination happens manually over WhatsApp; Availability replaces that. Distinct from RSVP — it's not a sign-up queue, just a scheduling aid between two already-determined Competitors.
+
+**Withdrawal**:
+A Competitor leaving a League mid-season. The Player files a request in-app; nothing changes until the Manager accepts it. On acceptance the Competitor is marked Withdrawn, their unplayed fixtures go to the Manager resolution queue to be settled as walkovers or voids, and the Manager may rebalance Divisions with the mid-League movement tools. Settled results are never rewritten.
 
 **Relegation**:
 `Divisional`-only: the automatic, end-of-every-Stage movement of the winning Competitor up and the losing Competitor down to the adjacent Division. Distinct from the ad-hoc Division movement triggered by a Competitor dropping out (see Division) — Relegation is routine, drop-out movement is exceptional. `Knockout` Leagues have no Relegation — a losing Competitor is simply eliminated from the Bracket.
