@@ -23,6 +23,10 @@ Before writing, changing, or reviewing code that touches a library or framework 
 
 Next.js additionally ships in-package agent docs at `web/node_modules/next/dist/docs/` — read the relevant guide before writing Next.js code; conventions may differ from training data.
 
+## Keep `docs/architecture.md` current
+
+`docs/architecture.md` is the technical documentation of the system as built — topology, request flow, contract pipeline, repo layout, runtime configurations, testing seam, version pins. **Any change that alters one of those must update the document (including its mermaid diagrams) in the same commit.** Concretely: adding/removing a service or endpoint surface, changing how the TS client is generated, moving folders, changing compose/devcontainer behaviour, bumping a pinned version, or changing how tests run. A stale architecture doc is a bug, same as a stale README command.
+
 ## Agent skills
 
 ### Issue tracker
