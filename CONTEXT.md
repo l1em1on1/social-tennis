@@ -7,6 +7,12 @@ Domain glossary for the app that organizes and plans league and social tennis ga
 **Club**:
 A tennis club running leagues and socials. Owns Leagues, Socials, and Players via membership.
 
+**League**:
+A Club competition combining a League Type (who plays) with a League Structure (how competition is organized), run by a Manager over a set duration as a sequence of Stages.
+
+**Social**:
+A one-off Club event on a fixed Date where RSVP'd Players are allocated into Games — informal, no standings or Relegation. Unlike a Stage's asynchronously arranged Games, a Social's Games all happen on its single Date.
+
 **User**:
 The authentication identity — owns login/session. A User doesn't need a Player profile (e.g. a Manager-only account) and may hold more than one Player (e.g. a parent managing their children's Players).
 
@@ -18,23 +24,32 @@ A Player's overall skill/ranking number, entered and edited manually by a Manage
 _Avoid_: Score (on Player specifically — reserved for the per-game result)
 
 **Game**:
-Two sides playing a match on a Date — 1 Player per side for Singles, 2 per side otherwise (Doubles/Mixed/Foursomes). Court is an optional free-text label, not an entity (ADR-0006): on League Games the players arrange their court outside the app and may note it (e.g. "6 - astro"); on Social Games the Manager sets it so players know where to go. A Game belongs to either a Divisional League's Stage or a Social, never both — the same entity serves both contexts. Score is optional on a Game: League Games always record one (standings/Relegation depend on it), but Social Games often don't — some social events don't collect scores at all.
+Two sides playing a match on a Date — 1 Player per side for Singles, 2 per side otherwise (Doubles/Mixed/Foursomes). Court is an optional free-text label, not an entity (ADR-0006): on League Games the players arrange their court outside the app and may note it (e.g. "6 - astro"); on Social Games the Manager sets it so players know where to go. A Game belongs to either a League Stage (Divisional or Knockout) or a Social, never both — the same entity serves both contexts. Score is optional on a Game: League Games always record one (standings/Relegation depend on it), but Social Games often don't — some social events don't collect scores at all. A Game is either **played** or **unplayed**, and the distinction survives resolution: a result awarded by Walkover is not a played result.
 
 **Score**:
 The recorded result of a single Game, when tracked: which Player submitted it, ScoreA, ScoreB, Date, and — for League Games — the Reactions cast on it while it settles. A League Game's Score settles by the agreement protocol (see Reaction); a Social Game's Score is final on submission, no protocol.
 
 **Reaction**:
-A vote cast on a submitted League Game Score by a Player who played that Game (both sides vote; a Substitute votes in place of the Player they replaced): approve, or dispute with an optional Comment and optionally a proposed corrected Score. Silence is an abstention, not a vote. The Score settles at a voting deadline (a configured number of days after submission, or Stage close, whichever is sooner): if no votes were cast the submitted Score stands; otherwise the proposal with the majority of cast votes wins — so a lone uncontested counter-proposal wins. A tie is a **Deadlock**, resolved by a Player changing their vote or by the Manager (whose resolution queue also gates Stage close on Games with no Score at all). The voter set is fixed once a Score is submitted — substitution closes at that point. Social Games have no Reactions.
+A vote cast on a submitted League Game Score by a Player who played that Game: approve, or dispute with an optional Comment and optionally a proposed corrected Score. Settlement rules (silence is abstention, majority of cast votes wins, ties Deadlock to the Manager's resolution queue) are ADR-0008; Social Games have no Reactions.
+
+**Deadlock**:
+A tied Reaction vote on a Score. Broken by a Player changing their vote, or resolved by the Manager — whose resolution queue gates Stage close (ADR-0008).
+
+**Walkover**:
+A Manager resolution of an unplayed Game awarding the result to one side without play — used at Stage close or on a Withdrawal.
+
+**Void**:
+A Manager resolution cancelling an unplayed Game entirely — it counts for nothing in standings.
 
 **Team**:
-A League-scoped pairing of 1 or 2 Players (depending on League Type) who compete together across a Stage. Predetermined by the manager, not re-formed per Game. Not used by Socials (a Social's Games are assembled directly from RSVP'd Players each time, no persistent Team) or by `Foursomes` Leagues (see League Type) — a Team requires a fixed partner across the Stage, which `Foursomes` doesn't have. A Team has no Rating of its own — it's always derived from its Players' Ratings (average, for now), never independently tracked.
+A League-scoped pairing of 1 or 2 Players (depending on League Type) who compete together for the life of the League — changing partner means a Withdrawal plus a fresh join, never an in-place re-pair. Predetermined by the manager, not re-formed per Game. Not used by Socials (a Social's Games are assembled directly from RSVP'd Players each time, no persistent Team) or by `Foursomes` Leagues (see League Type) — a Team requires a fixed partner, which `Foursomes` doesn't have. A Team has no Rating of its own — it's always derived from its Players' Ratings (average, for now), never independently tracked.
 _Avoid_: Pair (use Team even for singles, to keep one term across League Types)
 
 **Competitor**:
 The unit that occupies one of a Division's slots and accrues the result Relegation acts on. A Team for most League Types; an individual Player for `Foursomes`, which has no fixed Team (see League Type).
 
 **Substitute**:
-A Player standing in for a Team's regular Player in one specific League Game — one-off, doesn't change Team membership going forward. Any Player of the same Club is eligible. Nominating one creates a proposal the opposing side may reject within a configurable window; silence is acceptance. Substitution closes once a Score is submitted for the Game. Only applies where Teams exist: League-only, and not for `Foursomes` (no fixed Team to substitute into) or Socials (no persistent Team at all).
+A Player standing in for a Team's regular Player in one specific League Game — one-off, doesn't change Team membership going forward. Singles Teams included: the Substitute plays that Game as the whole side, and the result still counts to the regular Competitor. Any Player of the same Club is eligible. Nominating one creates a proposal the opposing side may reject within a configurable window; silence is acceptance. Substitution closes once a Score is submitted for the Game. Only applies where Teams exist: League-only, and not for `Foursomes` (no fixed Team to substitute into) or Socials (no persistent Team at all).
 
 **League Structure**:
 How a League organizes competition, orthogonal to League Type (who plays): `Divisional` (Competitors sit in Divisions of ~4, round-robin, automatic per-Stage Relegation) or `Knockout` (single-elimination Bracket, no Divisions or Relegation). A League has both a Structure and a Type — e.g. a `DoublesMen` League can be either `Divisional` or `Knockout`.
@@ -62,7 +77,7 @@ A Competitor leaving a League mid-season. The Player files a request in-app; not
 `Divisional`-only: the automatic, end-of-every-Stage movement of the winning Competitor up and the losing Competitor down to the adjacent Division. Distinct from the ad-hoc Division movement triggered by a Competitor dropping out (see Division) — Relegation is routine, drop-out movement is exceptional. `Knockout` Leagues have no Relegation — a losing Competitor is simply eliminated from the Bracket.
 
 **League Type**:
-The player composition a League runs: `SinglesMen`, `SinglesWomen`, `SinglesMixed`, `DoublesMen`, `DoublesWomen`, `DoublesMix`, `Foursomes`. Independent of League Structure (see above), with one exception: `Foursomes` is `Divisional`-only — its Division-of-4 partner rotation has no meaning in a single-elimination Bracket, so a `Foursomes` `Knockout` League is invalid. In `SinglesMen`/`SinglesWomen`/`SinglesMixed`/`DoublesMen`/`DoublesWomen`/`DoublesMix`, Competitors are fixed Teams. `Foursomes` is structurally different: within a `Divisional` League, a Division is 4 individual Players (no Team) who rotate doubles partners across the Stage — with 4 players, exactly 3 Games are needed for every player to partner with every other player once. Each Player's own Score is summed across their 3 Games to rank them within the Division; Relegation then promotes/demotes the top/bottom individual Player rather than a Team.
+The player composition a League runs: `SinglesMen`, `SinglesWomen`, `SinglesMixed`, `DoublesMen`, `DoublesWomen`, `DoublesMix`, `Foursomes`. Independent of League Structure (see above), with one exception: `Foursomes` is `Divisional`-only — its Division-of-4 partner rotation has no meaning in a single-elimination Bracket, so a `Foursomes` `Knockout` League is invalid. In `SinglesMen`/`SinglesWomen`/`SinglesMixed`/`DoublesMen`/`DoublesWomen`/`DoublesMix`, Competitors are fixed Teams. `Foursomes` is structurally different: within a `Divisional` League, a Division is 4 individual Players (no Team) who rotate doubles partners across the Stage — with 4 players, exactly 3 Games are needed for every player to partner with every other player once. Each Player banks the games their side won in each of their 3 Games, and the summed total ranks them within the Division; Relegation then promotes/demotes the top/bottom individual Player rather than a Team.
 
 **Admin**:
 The top permissions role, held by a User — not a separate entity. An Admin creates Clubs and grants/revokes roles (Manager, Admin). The first Admin is seeded at deployment so the system is never admin-less. Effectively global in v1's single-Club world; per-Club scoping is deferred (ADR-0003).
