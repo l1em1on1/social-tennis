@@ -10,11 +10,15 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Schema is applied by the app itself so `docker compose up` needs no
-// separate migration step (ADR-0005).
-using (var scope = app.Services.CreateScope())
+// Schema is applied by the app itself so `docker compose up` needs no separate
+// migration step (ADR-0005). EF Core guidance endorses this for dev/test and
+// single-instance deployments — which v1 is; move to scripted migrations
+// (`dotnet ef migrations script`) before scaling to multiple API instances.
+// The IsDesignTime guard keeps `dotnet ef` tooling from triggering it.
+if (!EF.IsDesignTime)
 {
-    scope.ServiceProvider.GetRequiredService<TennisDbContext>().Database.Migrate();
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<TennisDbContext>().Database.MigrateAsync();
 }
 
 // Served unconditionally: the TS client is generated from /openapi/v1.json
