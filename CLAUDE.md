@@ -37,6 +37,10 @@ Issues live as GitHub Issues in this repo (l1em1on1/social-tennis), using the `g
 
 Default five canonical roles, label string equal to role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
+### API endpoints
+
+One static class per endpoint in a feature folder — never lambdas in `Program.cs` or in the feature extension. See `docs/agents/api-endpoints.md` (reasoning: ADR-0010).
+
 ### Domain docs
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

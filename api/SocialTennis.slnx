@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SocialTennis.Api.IntegrationTests/SocialTennis.Api.IntegrationTests.csproj" />
+    <Project Path="tests/SocialTennis.Api.UnitTests/SocialTennis.Api.UnitTests.csproj" />
   </Folder>
 </Solution>

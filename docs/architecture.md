@@ -43,6 +43,41 @@ sequenceDiagram
     Note over B,A: The browser never talks to the api service
 ```
 
+## Authentication
+
+Passwordless magic-link login (ADR-0004), with the session held as an **opaque, revocable API credential** — no JWTs, no key management; logout is a row update and takes effect immediately.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant W as web (BFF)
+    participant A as api
+    participant P as Postgres
+
+    B->>W: submit email on /login
+    W->>A: POST /auth/magic-link { email }
+    A->>P: upsert User, store SHA-256(link token), expiry
+    A-->>W: 202 (always — no user enumeration)
+    Note over A: IMagicLinkSender delivers the link<br/>(v1: logged; real email is #19)
+    B->>W: GET /auth/verify?token=…
+    W->>A: POST /auth/sessions { token }
+    A->>P: token unused + unexpired? mark used, create session (hashed)
+    A-->>W: 200 { session token, expiresAt }
+    W-->>B: 307 / + HttpOnly st_session cookie
+    B->>W: any page
+    W->>A: Authorization: Bearer session token
+    Note over B,W: Browser holds only the HttpOnly cookie —<br/>never sees an API credential it can read
+```
+
+Mechanics worth knowing:
+
+- **Tokens at rest are SHA-256 hashes** (`MagicLinkTokens`, `SessionTokens`); the raw values exist only in the emailed link and the cookie. A database leak leaks nothing redeemable.
+- **Magic links are single-use and expiring** (config: `Auth:MagicLinkLifetimeMinutes`, default 15); sessions expire after `Auth:SessionLifetimeDays` (default 30) and die instantly on logout (`RevokedAt`).
+- **Two gates on the web side**: `src/proxy.ts` (Next 16's renamed middleware) redirects visitors with no session cookie to `/login` — a presence check only; real validity is enforced per request by the API's `SessionToken` Bearer scheme, and a 401 sends the page back to `/login`.
+- **Redirect origins** come from `PUBLIC_BASE_URL` (compose env), because a containerized server's own origin is its bind address — unroutable from a browser.
+- **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
+- **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
+
 ## Contract pipeline
 
 The API is the source of truth for the contract. Types flow one way, C# → TypeScript, and the generated client is **committed** so drift is detectable (a CI gate once #20 lands).
@@ -64,8 +99,8 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0008
-│   ├── agents/                 agent workflow docs (issue tracker, triage, domain)
+│   ├── adr/                    architecture decision records 0001–0010
+│   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   └── architecture.md         this file
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
@@ -75,17 +110,27 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
 │   ├── dotnet-tools.json       local tool manifest (dotnet-ef)
 │   ├── src/SocialTennis.Api/
-│   │   ├── Program.cs          minimal API: DI, migrate-on-start, /clubs, OpenAPI
-│   │   ├── Domain/             entities (Club, ...)
+│   │   ├── Program.cs          minimal API: DI, migrate-on-start, feature registration, OpenAPI
+│   │   ├── Domain/             entities (Club, User, ExternalLogin, tokens, ...)
 │   │   ├── Data/               TennisDbContext + seed
-│   │   └── Migrations/         EF Core migrations (InitialCreate)
-│   └── tests/SocialTennis.Api.IntegrationTests/
+│   │   ├── Features/           vertical slices: handler per endpoint + routing table (ADR-0010)
+│   │   │   ├── Auth/           magic-link request/redeem, current user, logout
+│   │   │   └── Clubs/          club listing
+│   │   ├── Validation/         IValidatable, ValidationFilter<T>, ValidatesBody<T>()
+│   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
+│   │   └── Migrations/         EF Core migrations
+│   └── tests/
+│       ├── SocialTennis.Api.IntegrationTests/   HTTP + real Postgres
+│       └── SocialTennis.Api.UnitTests/          pure logic only, no DbContext
 └── web/
     ├── Dockerfile              multi-stage: node:24 build → standalone runtime
     ├── next.config.ts          output: "standalone"
     └── src/
-        ├── app/                App Router pages (server components)
-        └── lib/api/            generated schema.d.ts + client.ts seam
+        ├── proxy.ts            route gate (Next 16 middleware successor)
+        ├── app/                App Router: / (authed), /login, /auth/verify
+        └── lib/
+            ├── api/            generated schema.d.ts, client.ts, server.ts (session-aware)
+            └── session.ts      cookie name + public-origin helper
 ```
 
 ## Runtime configurations
@@ -109,12 +154,15 @@ New migrations are generated in-container — see the [README](../README.md) for
 
 ## Testing seam
 
-One seam, per the spec's Testing Decisions (issue #1): integration tests drive the API **over its HTTP boundary against a real Postgres** — no mocked repositories, no in-memory provider.
+The default seam, per the spec's Testing Decisions (issue #1): integration tests drive the API **over its HTTP boundary against a real Postgres** — no mocked repositories, no in-memory provider. Anything touching the database is tested this way.
+
+ADR-0010 adds one narrow exception rather than a second general seam. Because endpoint handlers and contract `Validate()` methods are now directly callable, pure logic **with no `DbContext`** may be unit-tested in `SocialTennis.Api.UnitTests`. That project references no test host, so the boundary is structural: if a test needs the database, it cannot live there.
 
 ```mermaid
 flowchart LR
     T["api-tests (compose profile)<br/>dotnet test in sdk:10.0"] -->|WebApplicationFactory&lt;Program&gt;| H["in-proc API host<br/>full Program.cs incl. migration"]
     H -->|Npgsql| DB[("postgres service<br/>database: tennis_test")]
+    T -->|direct call, no host| U["UnitTests<br/>pure logic only"]
 ```
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
