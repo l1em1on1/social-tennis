@@ -43,6 +43,41 @@ sequenceDiagram
     Note over B,A: The browser never talks to the api service
 ```
 
+## Authentication
+
+Passwordless magic-link login (ADR-0004), with the session held as an **opaque, revocable API credential** — no JWTs, no key management; logout is a row update and takes effect immediately.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant W as web (BFF)
+    participant A as api
+    participant P as Postgres
+
+    B->>W: submit email on /login
+    W->>A: POST /auth/magic-link { email }
+    A->>P: upsert User, store SHA-256(link token), expiry
+    A-->>W: 202 (always — no user enumeration)
+    Note over A: IMagicLinkSender delivers the link<br/>(v1: logged; real email is #19)
+    B->>W: GET /auth/verify?token=…
+    W->>A: POST /auth/sessions { token }
+    A->>P: token unused + unexpired? mark used, create session (hashed)
+    A-->>W: 200 { session token, expiresAt }
+    W-->>B: 307 / + HttpOnly st_session cookie
+    B->>W: any page
+    W->>A: Authorization: Bearer session token
+    Note over B,W: Browser holds only the HttpOnly cookie —<br/>never sees an API credential it can read
+```
+
+Mechanics worth knowing:
+
+- **Tokens at rest are SHA-256 hashes** (`MagicLinkTokens`, `SessionTokens`); the raw values exist only in the emailed link and the cookie. A database leak leaks nothing redeemable.
+- **Magic links are single-use and expiring** (config: `Auth:MagicLinkLifetimeMinutes`, default 15); sessions expire after `Auth:SessionLifetimeDays` (default 30) and die instantly on logout (`RevokedAt`).
+- **Two gates on the web side**: `src/proxy.ts` (Next 16's renamed middleware) redirects visitors with no session cookie to `/login` — a presence check only; real validity is enforced per request by the API's `SessionToken` Bearer scheme, and a 401 sends the page back to `/login`.
+- **Redirect origins** come from `PUBLIC_BASE_URL` (compose env), because a containerized server's own origin is its bind address — unroutable from a browser.
+- **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
+- **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
+
 ## Contract pipeline
 
 The API is the source of truth for the contract. Types flow one way, C# → TypeScript, and the generated client is **committed** so drift is detectable (a CI gate once #20 lands).
@@ -75,17 +110,21 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
 │   ├── dotnet-tools.json       local tool manifest (dotnet-ef)
 │   ├── src/SocialTennis.Api/
-│   │   ├── Program.cs          minimal API: DI, migrate-on-start, /clubs, OpenAPI
-│   │   ├── Domain/             entities (Club, ...)
+│   │   ├── Program.cs          minimal API: DI, migrate-on-start, endpoints, OpenAPI
+│   │   ├── Domain/             entities (Club, User, ExternalLogin, tokens, ...)
 │   │   ├── Data/               TennisDbContext + seed
-│   │   └── Migrations/         EF Core migrations (InitialCreate)
+│   │   ├── Auth/               endpoints, session Bearer scheme, sender seam, options
+│   │   └── Migrations/         EF Core migrations
 │   └── tests/SocialTennis.Api.IntegrationTests/
 └── web/
     ├── Dockerfile              multi-stage: node:24 build → standalone runtime
     ├── next.config.ts          output: "standalone"
     └── src/
-        ├── app/                App Router pages (server components)
-        └── lib/api/            generated schema.d.ts + client.ts seam
+        ├── proxy.ts            route gate (Next 16 middleware successor)
+        ├── app/                App Router: / (authed), /login, /auth/verify
+        └── lib/
+            ├── api/            generated schema.d.ts, client.ts, server.ts (session-aware)
+            └── session.ts      cookie name + public-origin helper
 ```
 
 ## Runtime configurations

@@ -23,6 +23,7 @@ services:
       - web_node_modules:/src/node_modules
     environment:
       API_URL: http://api:8080
+      PUBLIC_BASE_URL: http://localhost:3000
       WATCHPACK_POLLING: "true"
     command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
 
