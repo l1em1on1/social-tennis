@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using SocialTennis.Api.Auth;
+using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
-using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Auth;
+using SocialTennis.Api.Features.Clubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,9 +69,10 @@ app.UseAuthorization();
 // inside the compose network (see web's api:generate script).
 app.MapOpenApi();
 
-app.MapGet("/clubs", async (TennisDbContext db) => await db.Clubs.OrderBy(c => c.Name).ToListAsync())
-    .WithName("GetClubs");
-
+// Registration order is reflected in the OpenAPI document's path order, and
+// therefore in the generated TS client — keep it stable to keep client diffs
+// meaningful.
+app.MapClubsEndpoints();
 app.MapAuthEndpoints();
 
 app.Run();

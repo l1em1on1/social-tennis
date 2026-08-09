@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SocialTennis.Api.Data;
 
-namespace SocialTennis.Api.Auth;
+namespace SocialTennis.Api.Authentication;
 
 /// <summary>
 /// Authenticates requests carrying "Authorization: Bearer &lt;session token&gt;"

@@ -3,14 +3,16 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using SocialTennis.Api.Auth;
+using SocialTennis.Api.Authentication;
 
 namespace SocialTennis.Api.IntegrationTests;
 
 /// <summary>
 /// Captures magic links instead of sending them — the only service the tests
-/// replace. Everything else (HTTP boundary, real Postgres) stays real, per the
-/// project's one testing seam.
+/// replace. Everything else (HTTP boundary, real Postgres) stays real: anything
+/// touching the database is tested here, over HTTP, never against a fake or
+/// in-memory provider. Pure logic with no DbContext may instead be unit-tested
+/// in SocialTennis.Api.UnitTests (ADR-0010).
 /// </summary>
 public class CapturingMagicLinkSender : IMagicLinkSender
 {

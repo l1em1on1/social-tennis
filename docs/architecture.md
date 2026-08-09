@@ -99,8 +99,8 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0008
-│   ├── agents/                 agent workflow docs (issue tracker, triage, domain)
+│   ├── adr/                    architecture decision records 0001–0010
+│   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   └── architecture.md         this file
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
@@ -110,12 +110,18 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
 │   ├── dotnet-tools.json       local tool manifest (dotnet-ef)
 │   ├── src/SocialTennis.Api/
-│   │   ├── Program.cs          minimal API: DI, migrate-on-start, endpoints, OpenAPI
+│   │   ├── Program.cs          minimal API: DI, migrate-on-start, feature registration, OpenAPI
 │   │   ├── Domain/             entities (Club, User, ExternalLogin, tokens, ...)
 │   │   ├── Data/               TennisDbContext + seed
-│   │   ├── Auth/               endpoints, session Bearer scheme, sender seam, options
+│   │   ├── Features/           vertical slices: handler per endpoint + routing table (ADR-0010)
+│   │   │   ├── Auth/           magic-link request/redeem, current user, logout
+│   │   │   └── Clubs/          club listing
+│   │   ├── Validation/         IValidatable, ValidationFilter<T>, ValidatesBody<T>()
+│   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
 │   │   └── Migrations/         EF Core migrations
-│   └── tests/SocialTennis.Api.IntegrationTests/
+│   └── tests/
+│       ├── SocialTennis.Api.IntegrationTests/   HTTP + real Postgres
+│       └── SocialTennis.Api.UnitTests/          pure logic only, no DbContext
 └── web/
     ├── Dockerfile              multi-stage: node:24 build → standalone runtime
     ├── next.config.ts          output: "standalone"
@@ -148,12 +154,15 @@ New migrations are generated in-container — see the [README](../README.md) for
 
 ## Testing seam
 
-One seam, per the spec's Testing Decisions (issue #1): integration tests drive the API **over its HTTP boundary against a real Postgres** — no mocked repositories, no in-memory provider.
+The default seam, per the spec's Testing Decisions (issue #1): integration tests drive the API **over its HTTP boundary against a real Postgres** — no mocked repositories, no in-memory provider. Anything touching the database is tested this way.
+
+ADR-0010 adds one narrow exception rather than a second general seam. Because endpoint handlers and contract `Validate()` methods are now directly callable, pure logic **with no `DbContext`** may be unit-tested in `SocialTennis.Api.UnitTests`. That project references no test host, so the boundary is structural: if a test needs the database, it cannot live there.
 
 ```mermaid
 flowchart LR
     T["api-tests (compose profile)<br/>dotnet test in sdk:10.0"] -->|WebApplicationFactory&lt;Program&gt;| H["in-proc API host<br/>full Program.cs incl. migration"]
     H -->|Npgsql| DB[("postgres service<br/>database: tennis_test")]
+    T -->|direct call, no host| U["UnitTests<br/>pure logic only"]
 ```
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.

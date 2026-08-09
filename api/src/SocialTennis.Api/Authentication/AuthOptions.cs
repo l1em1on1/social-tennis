@@ -1,4 +1,4 @@
-namespace SocialTennis.Api.Auth;
+namespace SocialTennis.Api.Authentication;
 
 /// <summary>Bound from the "Auth" configuration section.</summary>
 public class AuthOptions

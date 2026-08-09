@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 
-namespace SocialTennis.Api.Auth;
+namespace SocialTennis.Api.Authentication;
 
 public static class Tokens
 {

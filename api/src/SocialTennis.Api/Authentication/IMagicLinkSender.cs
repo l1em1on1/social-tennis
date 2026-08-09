@@ -1,4 +1,4 @@
-namespace SocialTennis.Api.Auth;
+namespace SocialTennis.Api.Authentication;
 
 /// <summary>
 /// Delivery seam for magic links. v1 registers only the logging implementation
