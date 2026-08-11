@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
+using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.Features.Auth;
 

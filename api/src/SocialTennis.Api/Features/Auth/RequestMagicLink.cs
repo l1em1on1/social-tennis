@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.Features.Auth;
 

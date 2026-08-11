@@ -2,6 +2,8 @@
 
 Minimal API endpoints are declared as **one static class per endpoint**, in a feature folder, each holding a single `HandleAsync`. **Routing is separate from handling**: every route, verb, filter, and authorization policy for a feature is declared in that feature's `<Feature>Endpoints.cs`, which acts as the feature's routing table. Request and response contracts live in the feature's `Contracts.cs`.
 
+> **Refinement**: contracts are now one record per file in a `Contracts/` **folder** (namespace `…Features.<Feature>.Contracts`), rather than a single `Contracts.cs`. The reasoning below is unchanged — contracts still live outside the endpoint file and outside the routing table; the folder only keeps a feature's top level readable as its HTTP surface once contract counts grow. See `docs/agents/api-endpoints.md`.
+
 The starting point was four auth endpoints as inline lambdas inside one `MapAuthEndpoints` extension, plus a fifth lambda in `Program.cs`. Lambdas gave the handlers no name to navigate to, no signature to call from a test, and no obvious place to stop growing. The unit of organisation is now a file: adding an endpoint means adding one file and one line in the routing table.
 
 Keeping the route out of the endpoint class is what makes the routing table worth having. An endpoint class that declared its own `Map` would scatter the HTTP surface across as many files as there are endpoints, so answering "what does `/auth` expose, and which parts of it require authorization?" would mean opening all of them. Handlers are passed as method groups, so the wiring is still compiler-checked; the cost is that a route and its handler are no longer adjacent, which is the trade made deliberately.
@@ -19,6 +21,8 @@ Registration is explicit rather than assembly-scanned. The endpoint classes are 
 - **MVC controllers** — rejected; discards the minimal-API basis of the contract pipeline.
 
 ## Validation
+
+> **Superseded in part by [ADR-0011](0011-fluentvalidation-for-request-validation.md).** The filter and `ValidatesBody<T>()` survive; `IValidatable` was replaced by a FluentValidation `AbstractValidator` nested in the contract. The section below is the original reasoning, kept as written.
 
 Shape validation runs in an endpoint filter, not in the handler. A request contract implements `IValidatable`, and a single generic `ValidationFilter<T>` short-circuits with `TypedResults.ValidationProblem`. Rules stay readable C# on the record rather than attribute metadata.
 
