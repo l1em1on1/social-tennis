@@ -88,10 +88,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ClubResponse: {
+        ClubSummary: {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        GetClubsResponse: {
+            clubs: components["schemas"]["ClubSummary"][];
+            page: components["schemas"]["PageInfo"];
         };
         GetCurrentUserResponse: {
             /** Format: uuid */
@@ -111,6 +115,10 @@ export interface components {
         };
         MagicLinkRequest: {
             email: string;
+        };
+        PageInfo: {
+            /** Format: int32 */
+            total: number | string;
         };
         RedeemMagicLinkRequest: {
             token: string;
@@ -144,7 +152,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClubResponse"][];
+                    "application/json": components["schemas"]["GetClubsResponse"];
                 };
             };
         };

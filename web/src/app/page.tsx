@@ -27,7 +27,9 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { data: clubs, error } = await api.GET("/clubs");
+  // List endpoints return an envelope, not the array itself (ADR-0012) — the
+  // collection is one property of it, alongside `page`.
+  const { data: clubList, error } = await api.GET("/clubs");
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col gap-6 p-6">
@@ -42,7 +44,7 @@ export default async function Home() {
 
       <p className="text-sm text-gray-500">Signed in as {me.email}</p>
 
-      {error || !clubs ? (
+      {error || !clubList ? (
         <p role="alert" className="text-red-600">
           The API is not reachable right now.
         </p>
@@ -52,7 +54,7 @@ export default async function Home() {
             Clubs
           </h2>
           <ul className="divide-y rounded-lg border">
-            {clubs.map((club) => (
+            {clubList.clubs.map((club) => (
               <li key={club.id} className="p-4">
                 {club.name}
               </li>
