@@ -99,7 +99,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0010
+│   ├── adr/                    architecture decision records 0001–0011
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   └── architecture.md         this file
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
@@ -115,8 +115,9 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   │   ├── Data/               TennisDbContext + seed
 │   │   ├── Features/           vertical slices: handler per endpoint + routing table (ADR-0010)
 │   │   │   ├── Auth/           magic-link request/redeem, current user, logout
+│   │   │   │   └── Contracts/  one file per request/response record
 │   │   │   └── Clubs/          club listing
-│   │   ├── Validation/         IValidatable, ValidationFilter<T>, ValidatesBody<T>()
+│   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
 │   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
 │   │   └── Migrations/         EF Core migrations
 │   └── tests/
@@ -156,7 +157,7 @@ New migrations are generated in-container — see the [README](../README.md) for
 
 The default seam, per the spec's Testing Decisions (issue #1): integration tests drive the API **over its HTTP boundary against a real Postgres** — no mocked repositories, no in-memory provider. Anything touching the database is tested this way.
 
-ADR-0010 adds one narrow exception rather than a second general seam. Because endpoint handlers and contract `Validate()` methods are now directly callable, pure logic **with no `DbContext`** may be unit-tested in `SocialTennis.Api.UnitTests`. That project references no test host, so the boundary is structural: if a test needs the database, it cannot live there.
+ADR-0010 adds one narrow exception rather than a second general seam. Because endpoint handlers and request validators are directly callable, pure logic **with no `DbContext`** may be unit-tested in `SocialTennis.Api.UnitTests`. That project references no test host, so the boundary is structural: if a test needs the database, it cannot live there. For validators the boundary is stronger still — ADR-0011's `new()` constraint means a validator cannot take a `DbContext` even in principle.
 
 ```mermaid
 flowchart LR
@@ -192,6 +193,7 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | .NET / ASP.NET Core / EF Core | 10.0 (LTS) | Solution uses the `.slnx` format (SDK 10 default) |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.x | EF Relational pinned explicitly to 10.0.10 to unify versions |
 | Microsoft.OpenApi | 2.11.0 | Template's 2.0.0 has GHSA-v5pm-xwqc-g5wc; 3.x breaks the .NET 10 OpenAPI source generator |
+| FluentValidation | 12.1.1 | Core package only — validators are constructed, not DI-resolved (ADR-0011) |
 | Next.js / React | 16.3 / 19.2 | `output: "standalone"` for the Docker runtime image |
 | Node | 24 (LTS) | Container-only, never on the host |
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |

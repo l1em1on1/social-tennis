@@ -1,3 +1,4 @@
+using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Features.Auth;
@@ -23,7 +24,7 @@ public static class AuthEndpoints
         var group = app.MapGroup("/auth");
 
         group.MapPost("/magic-link", RequestMagicLink.HandleAsync)
-            .ValidatesBody<MagicLinkRequest>()
+            .ValidatesBody<MagicLinkRequest, MagicLinkRequest.Validator>()
             .WithName(nameof(RequestMagicLink));
 
         group.MapPost("/sessions", RedeemMagicLink.HandleAsync)

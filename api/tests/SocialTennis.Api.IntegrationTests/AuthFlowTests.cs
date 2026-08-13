@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
-using SocialTennis.Api.Features.Auth;
+using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
 
