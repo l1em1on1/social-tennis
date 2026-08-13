@@ -1,17 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using SocialTennis.Api.Data;
-using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.Features.Clubs;
 
 public static class GetClubs
 {
-    // Returns the Club entity rather than a response contract — the one place
-    // the wire format is still coupled to the EF model. Deliberately left as-is
-    // by the endpoint restructure so the existing contract is unchanged; the
-    // ClubResponse DTO lands separately — issue #28.
-    public static async Task<List<Club>> HandleAsync(
+    // Project before materialising: EF translates the Select into the SELECT
+    // list, so only the published columns leave Postgres and nothing is
+    // change-tracked (EF Core docs, "Efficient querying" / "Tracking").
+    public static async Task<List<ClubResponse>> HandleAsync(
         TennisDbContext db,
         CancellationToken cancellationToken) =>
-        await db.Clubs.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+        await db.Clubs
+            .OrderBy(c => c.Name)
+            .Select(c => new ClubResponse(c.Id, c.Name))
+            .ToListAsync(cancellationToken);
 }

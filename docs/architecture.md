@@ -117,6 +117,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   │   │   ├── Auth/           magic-link request/redeem, current user, logout
 │   │   │   │   └── Contracts/  one file per request/response record
 │   │   │   └── Clubs/          club listing
+│   │   │       └── Contracts/  one file per request/response record
 │   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
 │   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
 │   │   └── Migrations/         EF Core migrations

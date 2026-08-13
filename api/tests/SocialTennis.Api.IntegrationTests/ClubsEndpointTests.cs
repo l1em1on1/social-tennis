@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
-using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
 
@@ -22,7 +22,7 @@ public class ClubsEndpointTests(WebApplicationFactory<Program> factory)
         var response = await client.GetAsync("/clubs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var clubs = await response.Content.ReadFromJsonAsync<List<Club>>();
+        var clubs = await response.Content.ReadFromJsonAsync<List<ClubResponse>>();
         Assert.NotNull(clubs);
         var club = Assert.Single(clubs);
         Assert.Equal("Social Tennis Club", club.Name);

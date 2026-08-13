@@ -93,7 +93,3 @@ Integration tests over HTTP against real Postgres are the default seam, and the 
 `SocialTennis.Api.UnitTests` exists for pure logic only. The rule is exactly: **if it needs a `DbContext`, it does not go there.** Validators and helpers like `Tokens` qualify; a handler that queries qualifies for an integration test instead. The project deliberately has no test-host reference, so this can't be worked around by accident.
 
 Validator tests use FluentValidation's `TestHelper`, asserting on the **wire** field name rather than the property expression — `.OverridePropertyName` decouples the two, so `ShouldHaveValidationErrorFor("email")` matches while `ShouldHaveValidationErrorFor(r => r.Email)` does not.
-
-## Known exception
-
-`GET /clubs` returns the `Club` entity rather than a response contract, so the EF model is currently the public wire format for that endpoint. Don't copy the pattern; new endpoints get contracts. Tracked as issue #28.
