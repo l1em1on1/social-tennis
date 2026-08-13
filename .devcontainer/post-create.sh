@@ -19,6 +19,13 @@ npm install -g typescript-language-server typescript@5
 
 npm install -g @anthropic-ai/claude-code
 
+# Wire the language servers and Context7 into Claude Code. Enabling a plugin in
+# .claude/settings.json is not enough on its own — the plugin still has to be
+# installed, or its LSP/MCP tools never register.
+claude plugin install csharp-lsp@claude-plugins-official -y
+claude plugin install typescript-lsp@claude-plugins-official -y
+claude plugin install context7@claude-plugins-official -y
+
 dotnet --info
 node --version
 csharp-ls --version
