@@ -14,7 +14,14 @@
   "forwardPorts": [3000, 8080, 5432],
   "remoteEnv": {
     // dotnet global tools (csharp-ls) land here.
-    "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools"
+    "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools",
+    // Read by docker-compose.yml/docker-compose.dev.yml's bind-mount-writing
+    // services (api-tests, dev api, dev web) as a `user:` override, so
+    // dotnet/npm write obj/bin/.next as this container's vscode user (1000)
+    // instead of root. Unset elsewhere (CI, a bare host terminal), where
+    // those services fall back to their default root user, unchanged.
+    "DEV_UID": "1000",
+    "DEV_GID": "1000"
   },
   "mounts": [
     // Keeps Claude Code's auth and plugin cache across rebuilds. Plugins
