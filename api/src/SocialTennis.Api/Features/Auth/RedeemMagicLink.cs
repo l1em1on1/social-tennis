@@ -14,8 +14,8 @@ namespace SocialTennis.Api.Features.Auth;
 /// </summary>
 public static class RedeemMagicLink
 {
-    public static async Task<Results<Ok<SessionResponse>, UnauthorizedHttpResult>> HandleAsync(
-        RedeemRequest request,
+    public static async Task<Results<Ok<RedeemMagicLinkResponse>, UnauthorizedHttpResult>> HandleAsync(
+        RedeemMagicLinkRequest request,
         TennisDbContext db,
         IOptions<AuthOptions> authOptions,
         CancellationToken cancellationToken)
@@ -44,6 +44,6 @@ public static class RedeemMagicLink
         });
         await db.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(new SessionResponse(rawSession, expiresAt));
+        return TypedResults.Ok(new RedeemMagicLinkResponse(rawSession, expiresAt));
     }
 }

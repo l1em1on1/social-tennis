@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
-using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
 
@@ -22,21 +22,20 @@ public class ClubsEndpointTests(WebApplicationFactory<Program> factory)
         var response = await client.GetAsync("/clubs");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var clubs = await response.Content.ReadFromJsonAsync<List<Club>>();
-        Assert.NotNull(clubs);
-        var club = Assert.Single(clubs);
+        var body = await response.Content.ReadFromJsonAsync<GetClubsResponse>();
+        Assert.NotNull(body);
+        var club = Assert.Single(body.Clubs);
         Assert.Equal("Social Tennis Club", club.Name);
     }
 
     [Fact]
-    public async Task OpenApi_document_is_served()
+    public async Task GetClubs_reports_the_total_matching_the_query()
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/openapi/v1.json");
+        var body = await client.GetFromJsonAsync<GetClubsResponse>("/clubs");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var doc = await response.Content.ReadAsStringAsync();
-        Assert.Contains("\"/clubs\"", doc);
+        Assert.NotNull(body);
+        Assert.Equal(body.Clubs.Count, body.Page.Total);
     }
 }

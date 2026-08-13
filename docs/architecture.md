@@ -38,7 +38,7 @@ sequenceDiagram
     W->>A: GET http://api:8080/clubs (openapi-fetch, typed)
     A->>P: SELECT ... FROM "Clubs" (EF Core)
     P-->>A: rows
-    A-->>W: 200 JSON [{ id, name }]
+    A-->>W: 200 JSON { clubs: [{ id, name }], page: { total } }
     W-->>B: HTML (server-rendered)
     Note over B,A: The browser never talks to the api service
 ```
@@ -99,7 +99,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0011
+│   ├── adr/                    architecture decision records 0001–0012
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   └── architecture.md         this file
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
@@ -117,6 +117,8 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   │   │   ├── Auth/           magic-link request/redeem, current user, logout
 │   │   │   │   └── Contracts/  one file per request/response record
 │   │   │   └── Clubs/          club listing
+│   │   │       └── Contracts/  one file per request/response record
+│   │   ├── Contracts/          cross-feature contracts — PageInfo (ADR-0012)
 │   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
 │   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
 │   │   └── Migrations/         EF Core migrations
@@ -167,6 +169,8 @@ flowchart LR
 ```
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
+
+`OpenApiContractTests` uses the same host but asserts on the **generated OpenAPI document** rather than on any endpoint's behaviour — currently that no 2xx JSON response is a bare array (ADR-0012). This is where repo-wide contract rules get enforced when no type-level mechanism can express them; it tests the published wire surface, so it holds regardless of how the C# is written.
 
 ## CI
 

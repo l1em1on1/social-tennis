@@ -88,10 +88,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        Club: {
+        ClubSummary: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             name: string;
+        };
+        GetClubsResponse: {
+            clubs: components["schemas"]["ClubSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        GetCurrentUserResponse: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -107,15 +116,14 @@ export interface components {
         MagicLinkRequest: {
             email: string;
         };
-        MeResponse: {
-            /** Format: uuid */
-            userId: string;
-            email: string;
+        PageInfo: {
+            /** Format: int32 */
+            total: number | string;
         };
-        RedeemRequest: {
+        RedeemMagicLinkRequest: {
             token: string;
         };
-        SessionResponse: {
+        RedeemMagicLinkResponse: {
             token: string;
             /** Format: date-time */
             expiresAt: string;
@@ -144,7 +152,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Club"][];
+                    "application/json": components["schemas"]["GetClubsResponse"];
                 };
             };
         };
@@ -189,7 +197,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RedeemRequest"];
+                "application/json": components["schemas"]["RedeemMagicLinkRequest"];
             };
         };
         responses: {
@@ -199,7 +207,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionResponse"];
+                    "application/json": components["schemas"]["RedeemMagicLinkResponse"];
                 };
             };
         };
@@ -219,7 +227,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MeResponse"];
+                    "application/json": components["schemas"]["GetCurrentUserResponse"];
                 };
             };
         };
