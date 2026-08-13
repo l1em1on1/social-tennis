@@ -104,7 +104,9 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   └── architecture.md         this file
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
-├── .devcontainer/              VS Code Dev Container (.NET 10 + Node 24 toolchains)
+├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
+│   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
+│   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
@@ -145,9 +147,17 @@ One compose file is the truth for topology; overlays change *how* services run, 
 | api | Built image (publish, `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Editor toolchain; stack still via compose |
 | web | Built image (standalone `server.js`) | `node:24-alpine` + bind mount + `next dev` | 〃 |
 | postgres | `postgres:18-alpine`, `pgdata` volume | same | same |
-| Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals |
+| Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents |
 
 Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount).
+
+### Dev Container
+
+The Dev Container is where editors *and* coding agents run, so that ADR-0005's "nothing on the host but Docker" survives contact with tooling that expects a local SDK. `post-create.sh` installs `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), and the Claude Code CLI. Those are read-only code intelligence and an agent front-end — not a build path. Listing a plugin in `.claude/settings.json`'s `enabledPlugins` does not install it — Claude Code only registers a plugin's tools (LSP or MCP) once it's actually installed — so `post-create.sh` also runs `claude plugin install` for `csharp-lsp`, `typescript-lsp`, and `context7`, after the CLI itself is on `PATH`.
+
+It uses the **docker-in-docker** feature rather than docker-outside-of-docker. Both compose files bind-mount by relative path (`./api:/src`); an inner daemon resolves them against the container's filesystem, whereas the host daemon would be handed `/workspaces/social-tennis/api` — a path that does not exist on a Windows host. The cost is a second image cache, kept in a per-container `dind-var-lib-docker-*` volume so it survives rebuilds. `social-tennis-claude-home` holds Claude Code's auth across rebuilds; plugin installs live there too, so a cold volume relies on `post-create.sh`'s `claude plugin install` calls to re-fetch them rather than on `.claude/settings.json` alone.
+
+The three services that write into a bind mount (`api-tests`, and the dev overlay's `api` and `web`) take a `user: "${DEV_UID:-}:${DEV_GID:-}"` override. `devcontainer.json` sets `DEV_UID`/`DEV_GID` to `1000` (the Dev Container's `vscode` user) via `remoteEnv`, so `dotnet`/`npm` write `obj`/`bin`/`.next` as that user instead of root — root-owned output otherwise blocks `csharp-ls` (and the editor generally) from writing generated files back into the same tree. CI and any bare host terminal leave both vars unset, which resolves to an empty `user: ":"` — Docker's way of saying "no override" — so those paths keep running as root, unchanged.
 
 ## Database and migrations
 

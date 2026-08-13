@@ -5,6 +5,8 @@ services:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     build: !reset null
     working_dir: /src
+    # See docker-compose.yml's api-tests for why: unset in CI/bare host -> root, unchanged.
+    user: "${DEV_UID:-}:${DEV_GID:-}"
     volumes:
       - ./api:/src
       - nuget:/root/.nuget/packages
@@ -18,6 +20,8 @@ services:
     image: node:24-alpine
     build: !reset null
     working_dir: /src
+    # See docker-compose.yml's api-tests for why: unset in CI/bare host -> root, unchanged.
+    user: "${DEV_UID:-}:${DEV_GID:-}"
     volumes:
       - ./web:/src
       - web_node_modules:/src/node_modules

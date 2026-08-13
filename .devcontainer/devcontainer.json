@@ -3,9 +3,35 @@
   "image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "24" },
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+    // docker-in-docker, not docker-outside-of-docker: compose bind mounts are
+    // relative (./api:/src), and an inner daemon resolves them against this
+    // container's filesystem. Handing them to the host daemon would send it
+    // /workspaces/social-tennis/api, which does not exist on a Windows host.
+    // The feature sets privileged itself and keeps /var/lib/docker in a named
+    // volume, so the image cache survives rebuilds.
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {}
   },
   "forwardPorts": [3000, 8080, 5432],
+  "remoteEnv": {
+    // dotnet global tools (csharp-ls) land here.
+    "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools",
+    // Read by docker-compose.yml/docker-compose.dev.yml's bind-mount-writing
+    // services (api-tests, dev api, dev web) as a `user:` override, so
+    // dotnet/npm write obj/bin/.next as this container's vscode user (1000)
+    // instead of root. Unset elsewhere (CI, a bare host terminal), where
+    // those services fall back to their default root user, unchanged.
+    "DEV_UID": "1000",
+    "DEV_GID": "1000"
+  },
+  "mounts": [
+    // Keeps Claude Code's auth and plugin cache across rebuilds. Plugins
+    // themselves come from .claude/settings.json, so a cold volume self-heals.
+    {
+      "source": "social-tennis-claude-home",
+      "target": "/home/vscode/.claude",
+      "type": "volume"
+    }
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,5 +42,5 @@
       ]
     }
   },
-  "postCreateCommand": "dotnet --info && node --version"
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
 }
