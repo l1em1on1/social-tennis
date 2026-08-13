@@ -1,0 +1,5 @@
+* text=auto
+
+# Everything executable here runs in a Linux container. Checked out with CRLF
+# on a Windows working copy and then bind-mounted in, bash fails on the shebang.
+*.sh text eol=lf

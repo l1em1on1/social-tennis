@@ -31,16 +31,11 @@ The `csharp-lsp` and `typescript-lsp` plugins are installed. Use the `LSP` tool 
 - **`goToDefinition` / `hover`** to resolve what a type actually is, rather than tracing `using` and `import` chains by hand.
 - **`hover` for a type question on `.cs`**, where it pays most: checking it by compiling costs a `docker compose run`, and hover costs nothing.
 
-This is **not** a loophole in the Docker rule. A language server is read-only code intelligence — the same category as the editor that rule already allows on the host. Builds, tests, migrations, and package installs still run in containers, always.
+This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Dev Container** — `.devcontainer/post-create.sh` installs `csharp-ls`, `typescript-language-server`, and the Claude Code CLI itself, so an agent gets symbol intelligence with nothing but Docker on the host. Builds, tests, migrations, and package installs still run as compose services, always.
 
-The servers are host binaries, installed once by a human alongside Docker — never by an agent, which would be running `dotnet`/`npm` on the host:
+The container uses **docker-in-docker**, so `docker compose` works unchanged from a container terminal: the inner daemon resolves the relative bind mounts (`./api:/src`) against the container's own filesystem. Running compose from *outside* the container works too, from a host terminal.
 
-```sh
-dotnet tool install --global csharp-ls
-npm install -g typescript-language-server typescript
-```
-
-An LSP call failing with "command not found" means either that setup hasn't been done, or that the session started before it did — both installers extend the user PATH, and a running process keeps the PATH it launched with. Check with `csharp-ls --version` / `typescript-language-server --version`: if those work, the fix is restarting the session, not installing again. Either way, say which it is and fall back to grep.
+An LSP call failing with "command not found" means the session is running on the host rather than in the Dev Container — reopen in the container. Do not install the servers to fix it: `dotnet tool install` and `npm install -g` on the host are exactly what the Docker rule forbids. Say which it is and fall back to grep.
 
 ## Keep `docs/architecture.md` current
 
