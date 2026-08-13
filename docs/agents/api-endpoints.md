@@ -43,7 +43,7 @@ A new feature also needs a `<Feature>Endpoints.cs` with its `MapGroup` prefix, a
 
 ## Return types
 
-Return `TypedResults` unions — `Task<Results<Ok<SessionResponse>, UnauthorizedHttpResult>>` — not `IResult`. The union is what puts response codes and schemas into the OpenAPI document, and therefore into the generated client. A handler returning `IResult` produces an endpoint the TS client knows nothing about.
+Return `TypedResults` unions — `Task<Results<Ok<RedeemMagicLinkResponse>, UnauthorizedHttpResult>>` — not `IResult`. The union is what puts response codes and schemas into the OpenAPI document, and therefore into the generated client. A handler returning `IResult` produces an endpoint the TS client knows nothing about.
 
 ## Validation
 
@@ -79,6 +79,15 @@ What belongs here: length, format, required-ness, ranges — anything answerable
 ## Naming
 
 The class name is the file name is the `WithName` is the OpenAPI `operationId` is the key in `web/src/lib/api/schema.d.ts`. One identifier the whole way through, so a generated operation name leads straight to the C# file. Always write `.WithName(nameof(TheClass))` rather than a string literal.
+
+**Contracts follow the same principle: a contract is named for the endpoint it serves, plus `Request` or `Response`** — `GetCurrentUserResponse`, `RedeemMagicLinkRequest`. Record names *are* OpenAPI schema names, so this is what a web-side reader sees; a contract named for anything else forces them to guess which endpoint produced it.
+
+Two carve-outs, both of which exist in the codebase:
+
+- **Don't stutter.** When the endpoint name already contains the direction word, drop the duplicate: `RequestMagicLink` takes `MagicLinkRequest`, not `RequestMagicLinkRequest`.
+- **Collections name the element, not the envelope.** An endpoint returning a list names its contract for the resource: `GetClubs` returns `List<ClubResponse>`, not `GetClubsResponse` — the record describes one Club, and `GetClubsResponse` would be a lie about what it holds. This is also what lets a second endpoint (`GetClub`, later) return the same record honestly.
+
+Renaming a contract is a **wire-visible change**: the OpenAPI schema key moves, so `npm run api:generate` and the regenerated `schema.d.ts` belong in the same commit as the rename.
 
 ## Route groups
 

@@ -34,6 +34,6 @@ The knock-on is that `TestHelper`'s expression overload (`ShouldHaveValidationEr
 
 ## Consequences
 
-`Validation/IValidatable.cs` is deleted; `ValidationFilter` and `EndpointValidationExtensions` gain a second type parameter. `MagicLinkRequest` is the only contract converted — `RedeemRequest` stays unvalidated, so an empty token still returns **401** rather than 400, which is the right answer for a credential endpoint and keeps this change free of wire-contract movement.
+`Validation/IValidatable.cs` is deleted; `ValidationFilter` and `EndpointValidationExtensions` gain a second type parameter. `MagicLinkRequest` is the only contract converted — `RedeemMagicLinkRequest` (named `RedeemRequest` until #29) stays unvalidated, so an empty token still returns **401** rather than 400, which is the right answer for a credential endpoint and keeps this change free of wire-contract movement.
 
 Status codes and schemas are unchanged: `docker compose run --rm web npm run api:generate` reproduces `web/src/lib/api/schema.d.ts` with identical content. The one visible behaviour change is that the single message `"A valid email address is required."` becomes two — an absent address and a malformed one now read differently. The recipe is `docs/agents/api-endpoints.md`.

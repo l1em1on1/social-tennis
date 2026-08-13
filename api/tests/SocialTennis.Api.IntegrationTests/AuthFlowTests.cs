@@ -17,11 +17,11 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         return factory.Sender.TokenFor(email);
     }
 
-    private static async Task<SessionResponse> RedeemAsync(HttpClient client, string token)
+    private static async Task<RedeemMagicLinkResponse> RedeemAsync(HttpClient client, string token)
     {
         var response = await client.PostAsJsonAsync("/auth/sessions", new { token });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var session = await response.Content.ReadFromJsonAsync<SessionResponse>();
+        var session = await response.Content.ReadFromJsonAsync<RedeemMagicLinkResponse>();
         Assert.NotNull(session);
         return session;
     }
@@ -39,7 +39,7 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         var session = await RedeemAsync(client, token);
 
         UseSession(client, session.Token);
-        var me = await client.GetFromJsonAsync<MeResponse>("/auth/me");
+        var me = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
         Assert.NotNull(me);
         Assert.Equal(email, me.Email);
     }
@@ -52,11 +52,11 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
 
         var firstSession = await RedeemAsync(client, await RequestTokenAsync(client, email));
         UseSession(client, firstSession.Token);
-        var firstMe = await client.GetFromJsonAsync<MeResponse>("/auth/me");
+        var firstMe = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
 
         var secondSession = await RedeemAsync(client, await RequestTokenAsync(client, email));
         UseSession(client, secondSession.Token);
-        var secondMe = await client.GetFromJsonAsync<MeResponse>("/auth/me");
+        var secondMe = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
 
         Assert.NotNull(firstMe);
         Assert.NotNull(secondMe);
