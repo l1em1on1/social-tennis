@@ -26,6 +26,14 @@ claude plugin install csharp-lsp@claude-plugins-official -y
 claude plugin install typescript-lsp@claude-plugins-official -y
 claude plugin install context7@claude-plugins-official -y
 
+# Install RTK and initialize the global config. The install script is a
+# convenience wrapper around the RTK CLI, which is what actually does the work.
+curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+rtk init -g
+
+
+#ctx7 setup --project --yes
+
 dotnet --info
 node --version
 csharp-ls --version
