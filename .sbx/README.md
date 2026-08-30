@@ -22,6 +22,11 @@ docker save social-tennis-sbx:latest -o social-tennis-sbx.tar
 sbx template load social-tennis-sbx.tar          # into the sandbox image store
 ```
 
+
+```bash
+sbx secret set-custom -g --host mcp.context7.com --env CONTEXT7_API_KEY --value "Bearer ctx7sk-..."
+```
+
 Then create the sandbox with the kit attached:
 
 ```bash

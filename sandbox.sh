@@ -1,72 +1,42 @@
 #!/usr/bin/env bash
 #
-# sandbox.sh — run the project's Docker Sandbox, creating it (and its template)
-# on first use. Wraps the manual steps in .sbx/README.md.
+# sandbox.sh — create the project's Docker Sandbox if it doesn't exist, then run it.
+# Runs on the HOST. Needs `docker`, `sbx`, and `gh` (logged in).
 #
-# Usage:
-#   ./sandbox.sh                     # ensure template + sandbox exist, then attach
-#   ./sandbox.sh --rebuild           # rebuild + reload the template image first
-#   ./sandbox.sh -- claude "prompt"  # pass a command through to `sbx run`
+#   ./sandbox.sh            create if missing, then attach
+#   ./sandbox.sh --rebuild  rebuild the template image first
 #
-# Runs on the HOST (needs `sbx` and `docker`); nothing here touches the project
-# toolchain directly — that all lives inside the sandbox.
-
 set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
-SBX_NAME="social-tennis"
-TEMPLATE="social-tennis-sbx"
+NAME=social-tennis
+TEMPLATE=social-tennis-sbx
+KITS=(
+  ./.sbx/kits/context7
+)
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SBX_DIR="$SCRIPT_DIR/.sbx"
-KIT_DIR="$SBX_DIR/kits/context7"
+# --- secrets: set globally in sbx if not already stored ---------------------
+have_secret() { sbx secret ls 2>/dev/null | grep -qw "$1"; }
 
-REBUILD=0
-RUN_ARGS=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --rebuild) REBUILD=1; shift ;;
-    --) shift; RUN_ARGS=("$@"); break ;;
-    -h|--help)
-      sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
-      exit 0 ;;
-    *) echo "sandbox.sh: unknown argument '$1' (use -- to pass args to sbx run)" >&2; exit 2 ;;
-  esac
-done
+have_secret github || sbx secret set -g github -t "$(gh auth token)"
 
-die() { echo "sandbox.sh: $*" >&2; exit 1; }
+have_secret CONTEXT7_API_KEY || sbx secret set-custom -g \
+  --host mcp.context7.com --env CONTEXT7_API_KEY \
+  --value "Bearer ${CONTEXT7_API_KEY:?export CONTEXT7_API_KEY=ctx7sk-... first}"
 
-command -v docker >/dev/null 2>&1 || die "docker not found on PATH"
-command -v sbx    >/dev/null 2>&1 || die "sbx not found on PATH — install Docker Sandboxes"
-
-if [[ -z "${CONTEXT7_API_KEY:-}" ]]; then
-  echo "sandbox.sh: warning — CONTEXT7_API_KEY is not set; the Context7 MCP kit" >&2
-  echo "            will fail to authenticate. See .sbx/README.md." >&2
-fi
-
-# --- template ---------------------------------------------------------------
-if [[ "$REBUILD" -eq 1 ]] || ! sbx template ls 2>/dev/null | grep -qw "$TEMPLATE"; then
-  echo "==> Building template image '$TEMPLATE'"
-  docker build -t "$TEMPLATE:latest" "$SBX_DIR"
-
-  tar="$(mktemp -t "${TEMPLATE}.XXXXXX.tar")"
-  trap 'rm -f "$tar"' EXIT
-  echo "==> Exporting and loading into the sandbox image store"
-  docker save "$TEMPLATE:latest" -o "$tar"
+# --- template: build + load if missing (sbx has its own image store) -------
+if [[ "${1:-}" == --rebuild ]] || ! sbx template ls 2>/dev/null | grep -qw "$TEMPLATE"; then
+  docker build -t "$TEMPLATE" .sbx
+  tar=$(mktemp).tar
+  docker save "$TEMPLATE" -o "$tar"
   sbx template load "$tar"
   rm -f "$tar"
-  trap - EXIT
-else
-  echo "==> Template '$TEMPLATE' already loaded"
 fi
 
-# --- sandbox ---------------------------------------------------------------
-if sbx ls 2>/dev/null | grep -qw "$SBX_NAME"; then
-  echo "==> Sandbox '$SBX_NAME' exists"
-else
-  echo "==> Creating sandbox '$SBX_NAME'"
-  sbx create --name "$SBX_NAME" -t "$TEMPLATE" --kit "$KIT_DIR" claude "$SCRIPT_DIR"
+# --- sandbox: create if missing, then run ---------------------------------
+if ! sbx ls 2>/dev/null | grep -qw "$NAME"; then
+  kit_args=(); for k in "${KITS[@]}"; do kit_args+=(--kit "$k"); done
+  sbx create --name "$NAME" -t "$TEMPLATE" "${kit_args[@]}" claude .
 fi
 
-# --- run -----------------------------------------------------------------
-echo "==> sbx run --name $SBX_NAME ${RUN_ARGS[*]:-}"
-exec sbx run --name "$SBX_NAME" "${RUN_ARGS[@]}"
+exec sbx run --name "$NAME"
