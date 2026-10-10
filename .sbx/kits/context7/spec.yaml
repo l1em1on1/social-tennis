@@ -6,7 +6,7 @@ description: "Context7 remote MCP server, with the API key held by the sandbox p
 
 # Sandboxes deny egress by default, so the MCP endpoint has to be named
 # explicitly or every tool call fails at the proxy rather than at Context7.
-caps:
+permissions:
   network:
     allow:
       - mcp.context7.com
@@ -30,21 +30,22 @@ credentials:
           header: Authorization
           format: Bearer %s
 
-commands:
+setup:
   install:
     - command: "claude plugin install context7@claude-plugins-official"
       user: "1000"
       description: Register the Context7 MCP server with Claude Code
 
-agentContext: |
-  Context7 is available as an MCP server (`resolve-library-id`, `query-docs`).
+agentInstructions:
+  content: |
+    Context7 is available as an MCP server (`resolve-library-id`, `query-docs`).
 
-  Per CLAUDE.md, query it before writing, changing, or reviewing code that
-  touches a library or framework — Next.js, React, EF Core, ASP.NET Core,
-  Npgsql, openapi-fetch/openapi-typescript, Tailwind, xUnit. One focused
-  question per concept. Where Context7's docs and training data disagree, the
-  docs win; cite the doc-backed reason in the code comment or PR description.
+    Per CLAUDE.md, query it before writing, changing, or reviewing code that
+    touches a library or framework — Next.js, React, EF Core, ASP.NET Core,
+    Npgsql, openapi-fetch/openapi-typescript, Tailwind, xUnit. One focused
+    question per concept. Where Context7's docs and training data disagree, the
+    docs win; cite the doc-backed reason in the code comment or PR description.
 
-  The API key is injected by the sandbox proxy. `CONTEXT7_API_KEY` reads as a
-  proxy-managed sentinel inside the sandbox — that is correct, not a broken
-  config, and there is nothing to fix by setting it to the real key.
+    The API key is injected by the sandbox proxy. `CONTEXT7_API_KEY` reads as a
+    proxy-managed sentinel inside the sandbox — that is correct, not a broken
+    config, and there is nothing to fix by setting it to the real key.

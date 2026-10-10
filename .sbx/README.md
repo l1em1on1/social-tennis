@@ -8,6 +8,13 @@ host — the same constraint ADR-0005 places on the Dev Container.
   the `csharp-lsp`/`typescript-lsp` plugins, and the Context7 plugin.
 - `kits/context7/` — kit wiring the Context7 MCP server's API key through the
   sandbox proxy.
+- `kits/github/` — kit giving the sandbox `gh` (issues, PRs) and `git push` to
+  github.com over HTTPS, with the token held by the sandbox proxy.
+
+Kits use the `schemaVersion: "2"` field names — `permissions.network`,
+`setup.install`, `agentInstructions.content`. The v1 names (`caps`, `commands`,
+`agentContext`) are rejected by `sbx kit inspect` on current sbx; run it after
+editing a kit, since `sbx kit validate` alone has let them through.
 
 ## Running
 
@@ -22,19 +29,26 @@ docker save social-tennis-sbx:latest -o social-tennis-sbx.tar
 sbx template load social-tennis-sbx.tar          # into the sandbox image store
 ```
 
-Store the Context7 key under the kit's service name (raw key, no `Bearer `;
-see [Context7 API key](#context7-api-key)):
+Store the secrets — both prompt for the value (see
+[GitHub access](#github-access) and [Context7 API key](#context7-api-key)):
 
 ```bash
-sbx secret set -g context7        # prompts for the value
+sbx secret set -g github          # fine-grained PAT, github_pat_...
+sbx secret set -g context7        # raw key, no `Bearer `
 ```
 
-Then create the sandbox with the kit attached:
+Then create the sandbox with the kits attached:
 
 ```bash
-sbx create --name social-tennis -t social-tennis-sbx --kit ./.sbx/kits/context7 claude .
+sbx create --name social-tennis -t social-tennis-sbx \
+  --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github claude .
 sbx run --name social-tennis
 ```
+
+Kits are attached at creation only. To give an existing sandbox a new kit,
+`sbx kit add social-tennis ./.sbx/kits/<kit>` recreates its container with the
+kit appended, or `sbx rm social-tennis` and run `../sandbox.sh` again. The
+workspace is a bind mount, so neither touches the repo.
 
 Re-run the build/save/load trio after any change to `Dockerfile`; `sbx template
 ls` shows what the sandbox runtime actually holds.
@@ -43,9 +57,10 @@ ls` shows what the sandbox runtime actually holds.
 attaching, so the sandbox never lags behind the template's Claude Code version.
 A failed update (e.g. offline) prints a warning and attaches anyway.
 
-The kit's `agentContext` is written to a generated `CLAUDE.md` one directory
-*above* the workspace inside the sandbox, so the repo's own tracked `CLAUDE.md`
-is never modified. Claude Code reads both.
+Each mixin kit's `agentInstructions` goes into a per-kit memory file that sbx
+links from a `## Kits` section of its generated `CLAUDE.md`, outside the
+workspace, so the repo's own tracked `CLAUDE.md` is never modified. Claude
+Code reads both.
 
 ## Context7 API key
 
@@ -67,8 +82,8 @@ files, so an exported `CONTEXT7_API_KEY` on the host does nothing
 `../sandbox.sh` asks for the key (from the [Context7 dashboard](https://context7.com/dashboard))
 with a hidden prompt the first time and stores it with `sbx secret set -g
 context7`, piped on stdin. Later runs reuse the stored secret without asking.
-`../sandbox.sh --rebuild` asks again so the key can be rotated; press Enter to
-keep the stored one. Store the raw `ctx7sk-...` key — the kit's `format: Bearer
+To rotate it, `../sandbox.sh --set-secret context7` asks for the new key,
+replaces the stored one, and exits. Store the raw `ctx7sk-...` key — the kit's `format: Bearer
 %s` adds the prefix.
 
 `sbx secret import` will not help here: it only recognises its built-in services
@@ -83,7 +98,7 @@ Context7 plugin sends `Authorization: ${CONTEXT7_API_KEY}` to
 `Bearer <real key>` on the way out. A shell inside the sandbox cannot read the
 key, and neither can anything the agent runs.
 
-`caps.network.allow` lists `mcp.context7.com` because sandbox egress denies by
+`permissions.network.allow` lists `mcp.context7.com` because sandbox egress denies by
 default — without it, tool calls fail at the proxy rather than at Context7.
 
 ### Why a kit credential rather than `sbx secret set-custom`
@@ -120,3 +135,44 @@ kit credentials that used `scheme: bearer` without an explicit `header:`
 ([sbx-releases#490](https://github.com/docker/sbx-releases/issues/490)). This
 kit names `header: Authorization`, so it should not hit that bug, but the fix
 is where kit-declared services were confirmed working.
+## GitHub access
+
+The `github` kit lets the agent read and update issues with `gh`, and push
+branches with `git`. It reuses sbx's built-in `github` service secret, which the
+proxy injects into requests to `github.com` and `api.github.com`
+([credentials](https://docs.docker.com/ai/sandboxes/security/credentials/)). The
+token never enters the container.
+
+The token is a **fine-grained personal access token**, entered by hand exactly
+like the Context7 key: `../sandbox.sh` asks for it (hidden) when none is stored,
+and pipes it to `sbx secret set -g github` on stdin. A stored token is never
+asked for again; to replace it, run `../sandbox.sh --set-secret github`.
+
+Create it at [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens):
+
+- **Repository access:** only `l1em1on1/social-tennis`.
+- **Permissions:** Contents — read and write (push branches); Issues — read
+  and write; Pull requests — read and write, if the agent should open PRs.
+  Metadata — read is added automatically.
+- **Expiration:** set one. When it lapses, `gh` and `git push` start failing
+  with 401; run `../sandbox.sh --set-secret github` and paste a new token.
+
+A PAT rather than your `gh auth token`: that one is your full `gh` login, so the
+agent could do anything you can across all your repos. The PAT limits it to
+this repo and these permissions. Pair it with a branch rule on `main` so a
+push can only land through a PR — the kit's "never push to `main`" line is an
+instruction to the agent, not an enforcement.
+
+Two gaps the kit closes, both found by probing a sandbox:
+
+- **`gh` refuses to run without a token in its environment**, even though the
+  proxy rewrites the `Authorization` header anyway. The kit sets
+  `GH_TOKEN=proxy-managed`; any non-empty value works.
+- **SSH to GitHub is blocked** — the policy denies `github.com:22` — and this
+  repo's `origin` is `git@github.com:...`. The kit's install step adds
+  `url.https://github.com/.insteadOf git@github.com:` to the agent's *global*
+  git config, so pushes go over HTTPS. The repo's own `.git/config` is shared
+  with the host through the bind mount and stays on SSH.
+
+Commit identity comes from the repo's git config, so sandbox commits are
+authored as you.
