@@ -17,7 +17,9 @@ caps:
 #
 # Docker MCP Toolkit's own copy of this key (docker/mcp/context7.api_key) cannot
 # be reused: `docker mcp secret` has no export and the credential helper refuses
-# the read. The key is supplied to sbx separately — see README.md.
+# the read. The value comes from sbx's secret store, matched by `service:` —
+# store the raw key with `sbx secret set -g context7` (sandbox.sh prompts for
+# it). See README.md.
 credentials:
   - service: context7
     apiKey:
