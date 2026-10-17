@@ -10,6 +10,8 @@ host — the same constraint ADR-0005 places on the Dev Container.
   sandbox proxy.
 - `kits/github/` — kit giving the sandbox `gh` (issues, PRs) and `git push` to
   github.com over HTTPS, with the token held by the sandbox proxy.
+- `kits/nuget/` — kit allowing egress to `api.nuget.org`, so `dotnet restore`
+  works and `csharp-ls` can resolve packages. See [NuGet restore](#nuget-restore).
 
 Kits use the `schemaVersion: "2"` field names — `permissions.network`,
 `setup.install`, `agentInstructions.content`. The v1 names (`caps`, `commands`,
@@ -41,7 +43,8 @@ Then create the sandbox with the kits attached:
 
 ```bash
 sbx create --name social-tennis -t social-tennis-sbx \
-  --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github claude .
+  --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github \
+  --kit ./.sbx/kits/nuget claude .
 sbx run --name social-tennis
 ```
 
@@ -176,3 +179,24 @@ Two gaps the kit closes, both found by probing a sandbox:
 
 Commit identity comes from the repo's git config, so sandbox commits are
 authored as you.
+
+## NuGet restore
+
+`csharp-ls` resolves NuGet packages and sibling projects from each project's
+`obj/project.assets.json`. Without egress to nuget.org, `dotnet restore` fails
+with `NU1301 ... 403 (Forbidden)` and the C# language server can still parse
+files but flags every package type (`WebApplicationFactory`, `Fact`, `Assert`)
+as missing. The `nuget` kit allows `api.nuget.org`, which serves both the
+service index and the package downloads.
+
+An existing sandbox predates the kit; add it with
+`sbx kit add social-tennis ./.sbx/kits/nuget` (recreates the container), or
+approve the pending `api.nuget.org` request via `sbx policy approval ls`.
+
+**`obj/` is shared.** `project.assets.json` holds absolute paths — the package
+folder and the project path. The workspace bind mount means the sandbox
+(`/c/Users/.../social-tennis`, packages in `/home/agent/.nuget`) and the Dev
+Container (`/workspaces/social-tennis`, packages in `/home/vscode/.nuget`)
+overwrite each other's restore output. Whichever restored last has working C#
+LSP; the other needs `dotnet restore api/SocialTennis.slnx` again. Even a
+*failed* restore rewrites the file, with an empty package list.

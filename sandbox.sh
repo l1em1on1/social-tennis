@@ -19,6 +19,7 @@ TEMPLATE=social-tennis-sbx
 KITS=(
   ./.sbx/kits/context7
   ./.sbx/kits/github
+  ./.sbx/kits/nuget
 )
 
 SECRETS=(github context7)
