@@ -107,6 +107,12 @@ Regenerating with no API change produces no diff — verified property, and the 
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
 │   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
 │   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI
+├── sandbox.sh                  host entry point for the Docker Sandbox: secrets, template, create, run
+├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
+│   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins
+│   └── kits/                   mixin kits attached at sandbox creation
+│       ├── context7/           Context7 MCP egress + proxy-injected API key
+│       └── github/             gh + git push over HTTPS, proxy-injected PAT
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
@@ -142,12 +148,12 @@ Regenerating with no API change produces no diff — verified property, and the 
 
 One compose file is the truth for topology; overlays change *how* services run, never *what* they are (ADR-0005 as amended: nothing on the host but Docker).
 
-| | Base (`docker compose up`) | Dev overlay (`-f docker-compose.dev.yml`) | Dev Container |
-|---|---|---|---|
-| api | Built image (publish, `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Editor toolchain; stack still via compose |
-| web | Built image (standalone `server.js`) | `node:24-alpine` + bind mount + `next dev` | 〃 |
-| postgres | `postgres:18-alpine`, `pgdata` volume | same | same |
-| Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents |
+| | Base (`docker compose up`) | Dev overlay (`-f docker-compose.dev.yml`) | Dev Container | Docker Sandbox (`./sandbox.sh`) |
+|---|---|---|---|---|
+| api | Built image (publish, `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Editor toolchain; stack still via compose | Agent toolchain in the sbx template |
+| web | Built image (standalone `server.js`) | `node:24-alpine` + bind mount + `next dev` | 〃 | 〃 |
+| postgres | `postgres:18-alpine`, `pgdata` volume | same | same | same |
+| Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents | Isolated autonomous agents, deny-by-default egress |
 
 Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount).
 
@@ -158,6 +164,40 @@ The Dev Container is where editors *and* coding agents run, so that ADR-0005's "
 It uses the **docker-in-docker** feature rather than docker-outside-of-docker. Both compose files bind-mount by relative path (`./api:/src`); an inner daemon resolves them against the container's filesystem, whereas the host daemon would be handed `/workspaces/social-tennis/api` — a path that does not exist on a Windows host. The cost is a second image cache, kept in a per-container `dind-var-lib-docker-*` volume so it survives rebuilds. `social-tennis-claude-home` holds Claude Code's auth across rebuilds; plugin installs live there too, so a cold volume relies on `post-create.sh`'s `claude plugin install` calls to re-fetch them rather than on `.claude/settings.json` alone.
 
 The three services that write into a bind mount (`api-tests`, and the dev overlay's `api` and `web`) take a `user: "${DEV_UID:-}:${DEV_GID:-}"` override. `devcontainer.json` sets `DEV_UID`/`DEV_GID` to `1000` (the Dev Container's `vscode` user) via `remoteEnv`, so `dotnet`/`npm` write `obj`/`bin`/`.next` as that user instead of root — root-owned output otherwise blocks `csharp-ls` (and the editor generally) from writing generated files back into the same tree. CI and any bare host terminal leave both vars unset, which resolves to an empty `user: ":"` — Docker's way of saying "no override" — so those paths keep running as root, unchanged.
+
+### Docker Sandbox
+
+A second way to run an agent, alongside the Dev Container: Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) (`sbx`). It meets the same ADR-0005 rule (nothing on the host but Docker and `sbx`) and adds two kinds of isolation the Dev Container lacks. Network egress is **deny-by-default**, and **credentials never enter the container**. The workspace is bind-mounted, so the sandbox edits the real repo. [`.sbx/README.md`](../.sbx/README.md) is the canonical reference for commands and setup. This section covers the mechanism.
+
+`sandbox.sh` (run on the host) is idempotent. Each step runs only when its output is missing:
+
+1. **Secrets**: prompts with hidden input for any of `github` and `context7` that is missing from sbx's global secret store, and pipes each value in on stdin. `--set-secret <service>` replaces one secret.
+2. **Template**: `sbx` has its own image store, separate from the Docker daemon's. A plain `docker build` is invisible to it, and `sbx create -t` would try to pull from Docker Hub and get 403. So the script runs `docker build` → `docker save` into a temp dir → `sbx template load`, and an EXIT trap removes the tarball if a step fails. It runs when the template is missing or `--rebuild` is passed.
+3. **Sandbox**: `sbx create` with both kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
+4. **Run**: `claude update` inside the sandbox (a failure only warns), then `exec sbx run`.
+
+The template (`.sbx/Dockerfile`) extends `docker/sandbox-templates:claude-code-docker` with the .NET 10 SDK and the same language servers and plugins the Dev Container installs: `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (same reason as above), and the `csharp-lsp`, `typescript-lsp` and `context7` plugins. As in the Dev Container, `PATH` gets the user's `~/.dotnet/tools` (`ENV` in the image), because the LSP plugin starts `csharp-ls` from Claude Code's environment, not a login shell.
+
+Integrations are **schema-v2 mixin kits**, so their wiring lives in the repo and the only per-machine step is storing the secret values. Each kit declares its egress allow-list, a proxy-managed credential, its setup commands, and agent instructions. sbx writes those instructions into its own generated `CLAUDE.md` outside the workspace, so the tracked `CLAUDE.md` is never modified.
+
+```mermaid
+flowchart LR
+    subgraph host ["Host"]
+        S["sandbox.sh"] -->|"stdin"| SS[("sbx secret store<br/>github · context7")]
+    end
+    subgraph sbx ["Docker Sandbox: social-tennis"]
+        C["Claude Code<br/>GH_TOKEN=proxy-managed<br/>CONTEXT7_API_KEY=sentinel"]
+    end
+    PX["sbx egress proxy<br/>deny-by-default allow-list"]
+    C -->|"gh / git over HTTPS"| PX
+    C -->|"MCP"| PX
+    SS -.->|"real value, injected<br/>into Authorization"| PX
+    PX -->|"github.com · api.github.com"| GH[GitHub]
+    PX -->|"mcp.context7.com"| C7[Context7]
+```
+
+- **`github` kit** uses sbx's built-in `github` service with a fine-grained PAT scoped to this repo. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
+- **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
 
 ## Database and migrations
 
@@ -212,6 +252,8 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | Node | 24 (LTS) | Container-only, never on the host |
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
+| TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
+| sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
 ## Where this goes next
 
