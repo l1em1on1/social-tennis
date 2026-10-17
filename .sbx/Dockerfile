@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y \
 USER agent
 
 RUN dotnet tool install --global csharp-ls
+# dotnet global tools (csharp-ls) land here. Set in the image, not a profile
+# script: the LSP plugin spawns the server from Claude Code's own environment,
+# which is not a login shell. Same fix as .devcontainer/devcontainer.json.
+ENV PATH="${PATH}:/home/agent/.dotnet/tools"
 RUN npm install -g typescript-language-server typescript@5
 
 RUN claude plugin marketplace add anthropics/claude-plugins-official

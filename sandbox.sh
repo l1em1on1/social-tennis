@@ -84,10 +84,15 @@ for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
 # --- template: build + load if missing (sbx has its own image store) -------
 if $REBUILD || ! sbx template ls 2>/dev/null | grep -qw "$TEMPLATE"; then
   docker build -t "$TEMPLATE" .sbx
-  tar=$(mktemp).tar
-  docker save "$TEMPLATE" -o "$tar"
-  sbx template load "$tar"
-  rm -f "$tar"
+  # A temp dir, not `$(mktemp).tar`: that leaks the file mktemp made. The trap
+  # covers a failed save/load under `set -e`; the explicit rm covers success,
+  # because the closing `exec` replaces the shell before EXIT traps would run.
+  tardir=$(mktemp -d)
+  trap 'rm -rf "$tardir"' EXIT
+  docker save "$TEMPLATE" -o "$tardir/$TEMPLATE.tar"
+  sbx template load "$tardir/$TEMPLATE.tar"
+  rm -rf "$tardir"
+  trap - EXIT
 fi
 
 # --- sandbox: create if missing, then run ---------------------------------
