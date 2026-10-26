@@ -118,7 +118,7 @@ flowchart TB
 | Scores | Any player in the match can correct the score until the month closes | Player |
 | Scores | Every change is kept and shown: who, when, from what to what | Everyone |
 | Scores | Manager can override any score | Manager |
-| Standings | Live standings per division: matches won, then games difference, then head-to-head | App |
+| Standings | Live standings per division: singles/doubles use matches won, then games difference, then head-to-head; foursomes uses games banked, then head-to-head; remaining ties go to the Manager | App |
 | Month end | To-do list of anything unsettled: matches with no score, ties the app can't break | Manager |
 | Month end | Settle a missing match as a walkover (one side awarded it) or void it (counts for nothing) | Manager |
 | Month end | Month can't close until the to-do list is empty, so the ladder never moves on a wrong result | App |
