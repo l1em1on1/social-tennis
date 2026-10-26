@@ -191,7 +191,7 @@ service index and the package downloads.
 
 An existing sandbox predates the kit; add it with
 `sbx kit add social-tennis ./.sbx/kits/nuget` (recreates the container), or
-approve the pending `api.nuget.org` request via `sbx policy approval ls`.
+or approve the pending `api.nuget.org` request with `sbx policy approval respond <approval-id> --option allow` (list the ID with `sbx policy approval ls`).
 
 **`obj/` is shared.** `project.assets.json` holds absolute paths — the package
 folder and the project path. The workspace bind mount means the sandbox
