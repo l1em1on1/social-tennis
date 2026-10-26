@@ -1,0 +1,31 @@
+schemaVersion: "2"
+kind: mixin
+name: nuget
+displayName: NuGet package restore
+description: "Egress to nuget.org, so dotnet restore works and csharp-ls can resolve packages"
+
+# Sandboxes deny egress by default. Without this, `dotnet restore` fails with
+# NU1301 / 403 on every package, and csharp-ls reports every NuGet type
+# (WebApplicationFactory, Fact, Assert, ...) as missing. api.nuget.org serves
+# both the service index and the flat-container package downloads.
+permissions:
+  network:
+    allow:
+      - api.nuget.org
+
+agentInstructions:
+  content: |
+    nuget.org is reachable from this sandbox, so `dotnet restore` works.
+
+    csharp-ls resolves packages and project references from each project's
+    `obj/project.assets.json`. Those files record absolute paths (the NuGet
+    package folder, the project path), and `obj/` sits on the bind-mounted
+    workspace shared with the host and the Dev Container. A restore done
+    elsewhere — e.g. in the Dev Container at /workspaces/social-tennis with
+    packages under /home/vscode/.nuget — leaves paths that do not exist here,
+    and C# LSP then flags every NuGet type as missing.
+
+    If C# LSP reports NuGet types or sibling-project types as missing, run
+    `dotnet restore api/SocialTennis.slnx` once in this sandbox, then retry.
+    That rewrites `obj/` for this sandbox's paths, which in turn breaks C# LSP
+    in the Dev Container until it restores again — say so when you do it.

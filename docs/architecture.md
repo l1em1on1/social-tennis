@@ -112,7 +112,8 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins
 │   └── kits/                   mixin kits attached at sandbox creation
 │       ├── context7/           Context7 MCP egress + proxy-injected API key
-│       └── github/             gh + git push over HTTPS, proxy-injected PAT
+│       ├── github/             gh + git push over HTTPS, proxy-injected PAT
+│       └── nuget/              nuget.org egress for dotnet restore / csharp-ls
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
@@ -173,12 +174,12 @@ A second way to run an agent, alongside the Dev Container: Claude Code inside a 
 
 1. **Secrets**: prompts with hidden input for any of `github` and `context7` that is missing from sbx's global secret store, and pipes each value in on stdin. `--set-secret <service>` replaces one secret.
 2. **Template**: `sbx` has its own image store, separate from the Docker daemon's. A plain `docker build` is invisible to it, and `sbx create -t` would try to pull from Docker Hub and get 403. So the script runs `docker build` → `docker save` into a temp dir → `sbx template load`, and an EXIT trap removes the tarball if a step fails. It runs when the template is missing or `--rebuild` is passed.
-3. **Sandbox**: `sbx create` with both kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
+3. **Sandbox**: `sbx create` with all three kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
 4. **Run**: `claude update` inside the sandbox (a failure only warns), then `exec sbx run`.
 
 The template (`.sbx/Dockerfile`) extends `docker/sandbox-templates:claude-code-docker` with the .NET 10 SDK and the same language servers and plugins the Dev Container installs: `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (same reason as above), and the `csharp-lsp`, `typescript-lsp` and `context7` plugins. As in the Dev Container, `PATH` gets the user's `~/.dotnet/tools` (`ENV` in the image), because the LSP plugin starts `csharp-ls` from Claude Code's environment, not a login shell.
 
-Integrations are **schema-v2 mixin kits**, so their wiring lives in the repo and the only per-machine step is storing the secret values. Each kit declares its egress allow-list, a proxy-managed credential, its setup commands, and agent instructions. sbx writes those instructions into its own generated `CLAUDE.md` outside the workspace, so the tracked `CLAUDE.md` is never modified.
+Integrations are **schema-v2 mixin kits**, so their wiring lives in the repo and the only per-machine step is storing the secret values. Each kit declares its egress allow-list, agent instructions, and where needed a proxy-managed credential and setup commands. sbx writes those instructions into its own generated `CLAUDE.md` outside the workspace, so the tracked `CLAUDE.md` is never modified.
 
 ```mermaid
 flowchart LR
@@ -191,12 +192,15 @@ flowchart LR
     PX["sbx egress proxy<br/>deny-by-default allow-list"]
     C -->|"gh / git over HTTPS"| PX
     C -->|"MCP"| PX
+    C -->|"dotnet restore"| PX
     SS -.->|"real value, injected<br/>into Authorization"| PX
     PX -->|"github.com · api.github.com"| GH[GitHub]
     PX -->|"mcp.context7.com"| C7[Context7]
+    PX -->|"api.nuget.org"| NG[NuGet]
 ```
 
 - **`github` kit** uses sbx's built-in `github` service with a fine-grained PAT scoped to this repo. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
+- **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths, and the bind-mounted `obj/` is shared with the Dev Container, so the two environments overwrite each other's restore output.
 - **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
 
 ## Database and migrations
