@@ -5,13 +5,15 @@ Runs Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/
 host — the same constraint ADR-0005 places on the Dev Container.
 
 - `Dockerfile` — sandbox template image: .NET SDK, the language servers behind
-  the `csharp-lsp`/`typescript-lsp` plugins, and the Context7 plugin.
+  the `csharp-lsp`/`typescript-lsp` plugins, the Context7 plugin, and RTK.
 - `kits/context7/` — kit wiring the Context7 MCP server's API key through the
   sandbox proxy.
 - `kits/github/` — kit giving the sandbox `gh` (issues, PRs) and `git push` to
   github.com over HTTPS, with the token held by the sandbox proxy.
 - `kits/nuget/` — kit allowing egress to `api.nuget.org`, so `dotnet restore`
   works and `csharp-ls` can resolve packages. See [NuGet restore](#nuget-restore).
+- `kits/rtk/` — kit registering RTK's Claude Code hook at sandbox creation; the
+  `rtk` binary itself is baked into the template.
 
 Kits use the `schemaVersion: "2"` field names — `permissions.network`,
 `setup.install`, `agentInstructions.content`. The v1 names (`caps`, `commands`,
@@ -44,7 +46,7 @@ Then create the sandbox with the kits attached:
 ```bash
 sbx create --name social-tennis -t social-tennis-sbx \
   --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github \
-  --kit ./.sbx/kits/nuget claude .
+  --kit ./.sbx/kits/nuget --kit ./.sbx/kits/rtk claude .
 sbx run --name social-tennis
 ```
 

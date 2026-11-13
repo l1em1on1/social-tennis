@@ -1,0 +1,22 @@
+schemaVersion: "2"
+kind: mixin
+name: rtk
+displayName: RTK command-output compaction
+description: "Registers RTK's Claude Code hook, which rewrites Bash commands to compact their output"
+
+# The rtk binary is baked into the template (.sbx/Dockerfile). The hook lives
+# in ~/.claude/settings.json, which sbx writes when it creates the sandbox, so
+# it is registered here, after that, rather than in the image. --auto-patch:
+# setup has no TTY, and the interactive prompt would default to "no".
+setup:
+  install:
+    - command: "/home/agent/.local/bin/rtk init -g --auto-patch"
+      user: "1000"
+      description: Register RTK's PreToolUse hook in Claude Code's global settings
+
+agentInstructions:
+  content: |
+    RTK is installed and hooked into Claude Code: Bash commands such as
+    `git status` are rewritten to `rtk git status` automatically, so their
+    output arrives compacted. `rtk proxy <cmd>` runs a command with raw,
+    unfiltered output when the compact form hides something you need.

@@ -141,14 +141,15 @@ Regenerating with no API change produces no diff — verified property, and the 
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
 │   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
-│   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI
+│   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI, RTK
 ├── sandbox.sh                  host entry point for the Docker Sandbox: secrets, template, create, run
 ├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
-│   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins
+│   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins, RTK
 │   └── kits/                   mixin kits attached at sandbox creation
 │       ├── context7/           Context7 MCP egress + proxy-injected API key
 │       ├── github/             gh + git push over HTTPS, proxy-injected PAT
-│       └── nuget/              nuget.org egress for dotnet restore / csharp-ls
+│       ├── nuget/              nuget.org egress for dotnet restore / csharp-ls
+│       └── rtk/                registers RTK's Claude Code hook at creation
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
@@ -210,7 +211,7 @@ Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget`
 
 ### Dev Container
 
-The Dev Container is where editors *and* coding agents run, so that ADR-0005's "nothing on the host but Docker" survives contact with tooling that expects a local SDK. `post-create.sh` installs `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), and the Claude Code CLI. Those are read-only code intelligence and an agent front-end — not a build path. Listing a plugin in `.claude/settings.json`'s `enabledPlugins` does not install it — Claude Code only registers a plugin's tools (LSP or MCP) once it's actually installed — so `post-create.sh` also runs `claude plugin install` for `csharp-lsp`, `typescript-lsp`, and `context7`, after the CLI itself is on `PATH`.
+The Dev Container is where editors *and* coding agents run, so that ADR-0005's "nothing on the host but Docker" survives contact with tooling that expects a local SDK. `post-create.sh` installs `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), the Claude Code CLI, and RTK 1.2.0 (agent-facing output compaction; installer pinned to the v1.2.0 commit, binary in `~/.local/bin`, which `devcontainer.json` adds to `PATH`; `rtk init -g --auto-patch` registers its Claude Code hook). Those are read-only code intelligence, an agent front-end and an output filter — not a build path. Listing a plugin in `.claude/settings.json`'s `enabledPlugins` does not install it — Claude Code only registers a plugin's tools (LSP or MCP) once it's actually installed — so `post-create.sh` also runs `claude plugin install` for `csharp-lsp`, `typescript-lsp`, and `context7`, after the CLI itself is on `PATH`.
 
 It uses the **docker-in-docker** feature rather than docker-outside-of-docker. Both compose files bind-mount by relative path (`./api:/src`); an inner daemon resolves them against the container's filesystem, whereas the host daemon would be handed `/workspaces/social-tennis/api` — a path that does not exist on a Windows host. The cost is a second image cache, kept in a per-container `dind-var-lib-docker-*` volume so it survives rebuilds. `social-tennis-claude-home` holds Claude Code's auth across rebuilds; plugin installs live there too, so a cold volume relies on `post-create.sh`'s `claude plugin install` calls to re-fetch them rather than on `.claude/settings.json` alone.
 
@@ -224,10 +225,10 @@ A second way to run an agent, alongside the Dev Container: Claude Code inside a 
 
 1. **Secrets**: prompts with hidden input for any of `github` and `context7` that is missing from sbx's global secret store, and pipes each value in on stdin. `--set-secret <service>` replaces one secret.
 2. **Template**: `sbx` has its own image store, separate from the Docker daemon's. A plain `docker build` is invisible to it, and `sbx create -t` would try to pull from Docker Hub and get 403. So the script runs `docker build` → `docker save` into a temp dir → `sbx template load`, and an EXIT trap removes the tarball if a step fails. It runs when the template is missing or `--rebuild` is passed.
-3. **Sandbox**: `sbx create` with all three kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
+3. **Sandbox**: `sbx create` with all four kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
 4. **Run**: `claude update` inside the sandbox (a failure only warns), then `exec sbx run`.
 
-The template (`.sbx/Dockerfile`) extends `docker/sandbox-templates:claude-code-docker` with the .NET 10 SDK and the same language servers and plugins the Dev Container installs: `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (same reason as above), and the `csharp-lsp`, `typescript-lsp` and `context7` plugins. As in the Dev Container, `PATH` gets the user's `~/.dotnet/tools` (`ENV` in the image), because the LSP plugin starts `csharp-ls` from Claude Code's environment, not a login shell.
+The template (`.sbx/Dockerfile`) extends `docker/sandbox-templates:claude-code-docker` with the .NET 10 SDK and the same language servers and plugins the Dev Container installs: `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (same reason as above), and the `csharp-lsp`, `typescript-lsp` and `context7` plugins, plus the RTK binary at the same pin. RTK's Claude Code hook is registered by the `rtk` kit's setup command at creation, not in the image, because sbx writes `~/.claude/settings.json` when it creates the sandbox. As in the Dev Container, `PATH` gets the user's `~/.dotnet/tools` and `~/.local/bin` (`ENV` in the image), because the LSP plugin starts `csharp-ls` from Claude Code's environment, not a login shell.
 
 Integrations are **schema-v2 mixin kits**, so their wiring lives in the repo and the only per-machine step is storing the secret values. Each kit declares its egress allow-list, agent instructions, and where needed a proxy-managed credential and setup commands. sbx writes those instructions into its own generated `CLAUDE.md` outside the workspace, so the tracked `CLAUDE.md` is never modified.
 
@@ -252,6 +253,7 @@ flowchart LR
 - **`github` kit** uses sbx's built-in `github` service with a fine-grained PAT scoped to this repo. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
 - **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths, and the bind-mounted `obj/` is shared with the Dev Container, so the two environments overwrite each other's restore output.
 - **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
+- **`rtk` kit** has no egress or credential. Its setup command runs `rtk init -g --auto-patch` as the agent user, registering RTK's PreToolUse hook in `~/.claude/settings.json` after sbx has written that file. The binary comes from the template, so nothing is fetched at creation.
 
 ## Database and migrations
 
@@ -330,6 +332,7 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
+| RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
 ## Where this goes next

@@ -20,6 +20,7 @@ KITS=(
   ./.sbx/kits/context7
   ./.sbx/kits/github
   ./.sbx/kits/nuget
+  ./.sbx/kits/rtk
 )
 
 SECRETS=(github context7)

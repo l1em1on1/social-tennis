@@ -26,7 +26,18 @@ claude plugin install csharp-lsp@claude-plugins-official -y
 claude plugin install typescript-lsp@claude-plugins-official -y
 claude plugin install context7@claude-plugins-official -y
 
+# RTK compacts command output for agents (see CLAUDE.md). Pinned twice: the
+# installer script at the v1.2.0 commit, and RTK_VERSION, which the installer
+# otherwise resolves to whatever is latest. It installs to ~/.local/bin
+# (also on PATH via devcontainer.json); called by absolute path here so this
+# script doesn't depend on that.
+RTK_INSTALLER_SHA=e288a18c04452fd26192f59132e5324a8bb6924d # tag v1.2.0
+curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_INSTALLER_SHA}/install.sh" | RTK_VERSION=v1.2.0 sh
+# --auto-patch: no TTY here, and the settings.json prompt would default to "no".
+"$HOME/.local/bin/rtk" init -g --auto-patch
+
 dotnet --info
 node --version
 csharp-ls --version
 typescript-language-server --version
+"$HOME/.local/bin/rtk" --version

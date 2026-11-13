@@ -58,3 +58,15 @@ One static class per endpoint in a feature folder — never lambdas in `Program.
 ### Domain docs
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Compact command output with RTK
+
+The Dev Container and the Docker Sandbox install RTK (`rtk`), which compresses command output so it costs less context. Its Claude Code hook rewrites Bash commands automatically (`git status` → `rtk git status`); call it explicitly for the wrappers below, and `rtk proxy <cmd>` when you need the raw output.
+
+RTK filters output and runs the command exactly where it stands, so the Docker rule above still decides *where* things run. Wrap the compose invocation itself:
+
+```bash
+rtk test docker compose --profile e2e run --rm e2e       # Playwright, failures only
+rtk test docker compose run --rm api-tests                # xUnit, failures only
+rtk err docker compose build web                          # build errors only
+```
