@@ -50,6 +50,60 @@ services:
         condition: service_healthy
     command: dotnet test
 
+  # ---- Frontend E2E (ADR-0014): docker compose --profile e2e run --rm e2e ----
+  # Two production builds of web, both served under their compose hostnames:
+  # web-e2e talks to the real api; web-mock has the MSW mocks baked in and no
+  # api at all. Neither publishes a port; only the e2e runner reaches them.
+  web-e2e:
+    build: ./web
+    profiles: ["e2e"]
+    environment:
+      API_URL: http://api:8080
+      PUBLIC_BASE_URL: http://web-e2e:3000
+    depends_on:
+      - api
+
+  web-mock:
+    build:
+      context: ./web
+      args:
+        MOCK_API: "1"
+    profiles: ["e2e"]
+    environment:
+      # Never contacted: MSW answers every call to this origin in-process.
+      API_URL: http://api:8080
+      PUBLIC_BASE_URL: http://web-mock:3000
+
+  # One-shot Playwright runner. The image tag must equal the @playwright/test
+  # version in web/package.json (browsers are baked into the image).
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    profiles: ["e2e"]
+    working_dir: /src
+    # No DEV_UID override here, unlike api-tests: node_modules lives in a
+    # fresh named volume, which Docker creates root-owned.
+    volumes:
+      - ./web:/src
+      # Own volume, not web_node_modules: that one holds Alpine (musl) native
+      # binaries for the dev server; this image is Ubuntu (glibc).
+      - e2e_node_modules:/src/node_modules
+    environment:
+      CI: ${CI:-}
+      # Real-API logins seed the magic-link token here (e2e/support/auth.ts).
+      DATABASE_URL: postgres://tennis:tennis@postgres:5432/tennis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web-e2e:
+        condition: service_started
+      web-mock:
+        condition: service_started
+    # Install first, then run the command; `run --rm e2e <args>` replaces only
+    # the command, e.g. `npx playwright test --project=mock`.
+    entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
+    command: ["npx", "playwright", "test"]
+
 volumes:
   pgdata:
   nuget:
+  e2e_node_modules:

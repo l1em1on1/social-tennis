@@ -25,6 +25,14 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app hot-reloads (`next dev`).
 
+### Web only, against a mocked API
+
+```sh
+MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
+```
+
+The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the persona: `manager@…` and `admin@…` get those roles, and `parent@…` holds two child Players. Every primitive is shown at http://localhost:3000/dev/ui.
+
 ## Tests
 
 Integration tests drive the API over HTTP against the real compose Postgres (the project's one testing seam — no mocked repositories):
@@ -32,6 +40,14 @@ Integration tests drive the API over HTTP against the real compose Postgres (the
 ```sh
 docker compose run --rm api-tests
 ```
+
+Frontend end-to-end tests run Playwright in a container against two production builds of the web app, one with the API mocked and one with the real API and Postgres. Accessibility checks (axe) run as part of them:
+
+```sh
+docker compose --profile e2e run --rm e2e
+```
+
+The HTML report lands in `web/playwright-report/`. Pass Playwright arguments after the service name, e.g. `docker compose --profile e2e run --rm e2e npx playwright test --project=mock`. After changing web code, rebuild the images first with `docker compose --profile e2e build`.
 
 ## Regenerate the TypeScript API client
 
