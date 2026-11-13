@@ -273,6 +273,13 @@ fi
 say "Resource group:  $STATE_RG"
 say "Storage account: $TFSTATE_STORAGE_ACCOUNT"
 if confirm "Create them (skips anything that already exists)?"; then
+  # A new subscription has no resource providers registered, and Azure
+  # reports that, misleadingly, as "SubscriptionNotFound". Register the ones
+  # this setup and the Terraform need. Each can take a minute or two.
+  for namespace in Microsoft.Storage Microsoft.App Microsoft.OperationalInsights Microsoft.Consumption; do
+    note "Registering $namespace…"
+    az provider register --namespace "$namespace" --wait --output none
+  done
   az group create --name "$STATE_RG" --location uksouth --output none
   az storage account create --name "$TFSTATE_STORAGE_ACCOUNT" --resource-group "$STATE_RG" \
     --location uksouth --sku Standard_LRS --min-tls-version TLS1_2 \
