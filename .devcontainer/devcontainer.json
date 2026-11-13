@@ -24,8 +24,9 @@
     "DEV_GID": "1000"
   },
   "mounts": [
-    // Keeps Claude Code's auth and plugin cache across rebuilds. Plugins
-    // themselves come from .claude/settings.json, so a cold volume self-heals.
+    // Keeps Claude Code's auth and plugin installs across rebuilds. Listing a
+    // plugin in .claude/settings.json does not install it, so on a cold volume
+    // post-create.sh's `claude plugin install` calls re-fetch them.
     {
       "source": "social-tennis-claude-home",
       "target": "/home/vscode/.claude",

@@ -10,6 +10,9 @@ A tennis club running leagues and socials. Owns Leagues, Socials, and Players vi
 **League**:
 A Club competition combining a League Type (who plays) with a League Structure (how competition is organized), run by a Manager over a set duration as a sequence of Stages. Players get in by requesting to join (the Manager approves) or by the Manager adding them directly; each participant's join time is recorded. A League starts only when the Manager confirms it — the final approval gate. For `Divisional`, the app proposes the starting ladder ordered by Competitor Rating, ties broken by earliest join time, and the Manager may reorder it or leave Competitors out before confirming (ADR-0013).
 
+**Join Request**:
+A Player asking to enter a League. It stays pending until the Manager approves or rejects it, and both can see its state. An approved request makes the Player a participant, with the request time as their join time. A Manager adding a Player directly creates no Join Request.
+
 **Social**:
 A one-off Club event on a fixed Date where RSVP'd Players are allocated into Games — informal, no standings or Relegation. Unlike a Stage's asynchronously arranged Games, a Social's Games all happen on its single Date.
 
@@ -23,14 +26,24 @@ A tennis domain profile — name, gender, Level, Rating — participating in Clu
 A Player's overall skill/ranking number, entered and edited manually by a Manager — nothing computes it in v1 (deriving it from League Game history is a wanted future direction, deliberately deferred — ADR-0007). Defaults to 1 for a new Player, so no Player is ever unrated; consumers of Rating (Bracket seeding, Social pairing) break the resulting ties deterministically. Renamed from the original "Score" field on Player to avoid colliding with the per-game Score entity below — they are unrelated concepts that happened to share a name.
 _Avoid_: Score (on Player specifically — reserved for the per-game result)
 
+**Acting Player**:
+The one of a User's Players they are currently acting as. A User holding several Players (a parent and their children) switches between them, and every Player-facing screen shows that Player's Leagues and Games. A User with no Player has no Acting Player.
+
 **Game**:
 Two sides playing a match on a Date — 1 Player per side for Singles, 2 per side otherwise (Doubles/Mixed/Foursomes). Court is an optional free-text label, not an entity (ADR-0006): on League Games the players arrange their court outside the app and may note it (e.g. "6 - astro"); on Social Games the Manager sets it so players know where to go. A Game belongs to either a League Stage (Divisional or Knockout) or a Social, never both — the same entity serves both contexts. Score is optional on a Game: League Games always record one (standings/Relegation depend on it), but Social Games often don't — some social events don't collect scores at all. A Game is either **played** or **unplayed**, and the distinction survives resolution: a result awarded by Walkover is not a played result.
+
+**Side**:
+One of the two parties in a Game: one Player in Singles, two otherwise. In Team-based Leagues a Side is a Team (or a Team with a Substitute standing in). In `Foursomes` a Side is two Players paired for that one Game only.
+_Avoid_: Team (for a `Foursomes` pairing — it isn't one)
 
 **Score**:
 The recorded result of a single Game, when tracked: its Sets, the Date played, which Player submitted it, every later edit (who, when, from what to what), and — if the Game ended early — a Retirement. A League Game's Score is editable by any Player who played the Game until its Stage closes, and a Manager can override it; the agreement protocol (see Reaction) is the target model, phased in later (ADR-0008). A Social Game's Score is final on submission, no protocol.
 
 **Set**:
 One set within a Game's Score: the games each side won, plus the tiebreak points when the set went to a tiebreak. Each League fixes its games per Set (usually 6 or 9, with the tiebreak played at one game short of that apiece — 5–5 or 8–8) and its Sets per Game (one, or best of three).
+
+**Score Format**:
+The three settings a League fixes at creation and every Score is validated against: games per Set, Sets per Game (one, or best of three), and whether a best-of-three Game may be decided by a Match Tiebreak.
 
 **Match Tiebreak**:
 A deciding Set played as a single first-to-10 tiebreak instead of a full Set, in a best-of-three League that allows it. Counts as one game wherever games are summed (games banked, games difference).
@@ -43,6 +56,10 @@ A vote cast on a submitted League Game Score by a Player who played that Game: a
 
 **Deadlock**:
 A tied Reaction vote on a Score. Broken by a Player changing their vote, or resolved by the Manager — whose resolution queue gates Stage close (ADR-0008).
+
+**Resolution Queue**:
+A League's list of what awaits the Manager before the current Stage can close: Games with no Score, Standings ties the rules can't break, and (once voting ships) Deadlocks. A Stage cannot close while it is non-empty, and Players see that it is holding the Stage up (ADR-0008).
+_Avoid_: To-do list (the Manager screen's label, not the concept)
 
 **Walkover**:
 A Manager resolution of an unplayed Game awarding the result to one side without play — used at Stage close or on a Withdrawal.
@@ -74,7 +91,7 @@ A `Knockout` League's fixed, single-elimination set of rounds — lose once and 
 A slot that makes the numbers work when Competitors don't fit the structure exactly. In a `Knockout` Bracket, the Competitor drawing it advances to the next round without playing. In a `Divisional` ladder, it is the one Competitor left over when the bottom Division can't be filled: they sit out that Stage without playing and without moving. Team-based Divisional Leagues only — a `Foursomes` ladder has no Bye (see Division).
 
 **Stage**:
-A time-boxed period (StartDate, EndDate) with a deadline for its Games to be completed. Every League configures a Stage length at creation, whatever its Structure — a Stage is always the timeframe Players get to arrange and play their Games. For `Divisional` Leagues, a Stage is a relegation period (in practice usually a month) ending in Relegation. A League either auto-rolls — reaching EndDate triggers a close attempt, but the Stage stays open until nothing awaits the Manager's resolution; it then closes, Relegation runs, and the next Stage opens — or rolls manually, in which case the Stage stays open until the Manager closes it, likewise subject to an empty resolution queue. Scores remain editable by participating Players until the Stage actually closes. For `Knockout` Leagues, a Stage is one Bracket round — split into several Stages so players have time to arrange each round's Games before the next round starts. Either way, a Stage's Games are played asynchronously — opposing Competitors arrange their own match date within the Stage's window — rather than all happening on one fixed date (contrast Social).
+A time-boxed period (StartDate, EndDate) with a deadline for its Games to be completed. Both are calendar dates in the Club's time zone, and the deadline passes at the end of EndDate there (ADR-0016). Every League configures a Stage length at creation, whatever its Structure — a Stage is always the timeframe Players get to arrange and play their Games. For `Divisional` Leagues, a Stage is a relegation period (in practice usually a month) ending in Relegation. A League either auto-rolls — reaching EndDate triggers a close attempt, but the Stage stays open until nothing awaits the Manager's resolution; it then closes, Relegation runs, and the next Stage opens — or rolls manually, in which case the Stage stays open until the Manager closes it, likewise subject to an empty resolution queue. Scores remain editable by participating Players until the Stage actually closes. For `Knockout` Leagues, a Stage is one Bracket round — split into several Stages so players have time to arrange each round's Games before the next round starts. Either way, a Stage's Games are played asynchronously — opposing Competitors arrange their own match date within the Stage's window — rather than all happening on one fixed date (contrast Social).
 
 **Availability**:
 A Player's set of free dates during a Stage, used to suggest a common date on which to arrange a Game against an opposing Competitor before the Stage's deadline. Today this coordination happens manually over WhatsApp; Availability replaces that. Distinct from RSVP — it's not a sign-up queue, just a scheduling aid between two already-determined Competitors.
