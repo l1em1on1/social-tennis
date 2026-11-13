@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Applies to every project under api/. A warning is a failed build, here
+       and in CI, so warnings can't pile up unread. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+</Project>

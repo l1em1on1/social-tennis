@@ -301,22 +301,28 @@ The test host runs the real `Program.cs` — including startup migration — aga
 
 ## CI
 
-Two path-triggered GitHub Actions workflows (ADR-0002), every step a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner:
+Two GitHub Actions workflows, one per half of the repo (ADR-0002), every step a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner. Both run on every PR and every push to `main`; a first `changed paths` job in each decides whether the others have anything to do:
 
 ```mermaid
 flowchart LR
     subgraph apiwf ["api.yml — api/**, compose, contract inputs"]
+        T0["format<br/>dotnet format --verify-no-changes"]
         T1["integration-tests<br/>docker compose run --rm api-tests"]
         T2["client-drift<br/>up api → regen client → git diff --exit-code"]
     end
     subgraph webwf ["web.yml — web/**, api/**, compose"]
+        T5["lint<br/>npm run lint (eslint)"]
         T3["build<br/>docker compose build web<br/>+ assert no MSW in the image"]
         T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>then run --rm --no-deps chromatic (if token set)<br/>report uploaded on failure"]
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
 
-Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its checks *pending* — if these jobs are ever made **required** checks in branch protection, docs-only PRs would block; at that point drop the paths filters or add no-op twin workflows with the same job names.
+**Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`.
+
+**Build hygiene.** `api/Directory.Build.props` turns warnings into errors with the recommended analyzers, and `api/.editorconfig` holds the C# style rules `dotnet format` checks. It lives under `api/` because the compose services mount `./api` alone. EF Core's generated migrations are marked `generated_code`. ESLint runs in its own job because `next build` no longer lints.
+
+**Dependency updates.** Dependabot (`.github/dependabot.yml`) opens weekly grouped PRs for npm, NuGet, GitHub Actions and the Docker base images. The Playwright image tag is excluded, because it must equal the `@playwright/test` version: bump it by hand on the npm PR.
 
 ## Versions and notable pins
 

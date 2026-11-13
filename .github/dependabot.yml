@@ -1,0 +1,45 @@
+# Weekly update PRs, grouped so one ecosystem is one PR to review.
+#
+# Versions that must move together:
+#   @playwright/test (npm) and the mcr.microsoft.com/playwright image tag in
+#   docker-compose.yml must be equal: the browsers ship in the image. Dependabot
+#   can't put an npm package and a compose image in one PR, so the image is
+#   ignored below. The npm PR's e2e job fails until the image tag is bumped on
+#   that same branch by hand.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directory: /api
+    schedule:
+      interval: weekly
+    groups:
+      api-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories: [/api, /web]
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: mcr.microsoft.com/playwright
