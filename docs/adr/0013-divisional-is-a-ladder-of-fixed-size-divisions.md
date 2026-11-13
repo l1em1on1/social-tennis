@@ -13,3 +13,9 @@ Chosen because this is how the club actually runs its leagues. The original mode
 ## Consequences
 
 Most Competitors move every Stage, so Relegation is the heartbeat of the League rather than an edge event. Fixture generation is trivial (1 or 3 Games per Division) and Standings in a 2-Competitor Division reduce to the Game's result — ties only arise in `Foursomes` or through unplayed Games, both of which go to the Manager. Stages can auto-roll or be rolled by the Manager, a per-League switch.
+
+## Amendment (2026-11-13): starting ladder, and Foursomes has no Bye
+
+**Starting ladder.** Starting a `Divisional` League proposes a ladder ordered by Competitor Rating (a Team's is the average of its Players'), ties broken by earliest join time — every participant's join time is recorded for this. The Manager may reorder Competitors or leave some out, and the League starts only when the Manager confirms: the Manager is always the final approval gate. Rating-first gives a sensible default with no effort; the Manager's override covers what Rating can't see (Rating defaults to 1, so early on the proposal is mostly join order).
+
+**Foursomes has no Bye.** With Divisions of 4, between 1 and 3 Players can be left over, and sitting several out every Stage isn't how the club runs it. A `Foursomes` ladder always holds a multiple of 4 Players: when the count doesn't fit, the Manager decides at start who doesn't make the cut — in practice after trying to recruit Players to fill the gap. The single-Competitor Bye above still applies to Singles and Doubles Types.

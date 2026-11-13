@@ -2,7 +2,7 @@
 
 > **Maintenance contract**: this document describes the system *as built* and must change in the same commit as the code that invalidates it — see `CLAUDE.md` ("Keep `docs/architecture.md` current"). If a diagram here disagrees with the code, the document is wrong: fix it with the change that made it wrong.
 
-Technical documentation for the system as built. The **domain** lives in [CONTEXT.md](../CONTEXT.md), the **decisions and their rationale** in [docs/adr/](adr/), the **plan** in the [GitHub issues](https://github.com/l1em1on1/social-tennis/issues) (#1 is the spec; #2–#22 the tracer-bullet tickets). This file documents the *mechanism*: what runs where, and how the pieces talk.
+Technical documentation for the system as built. The **domain** lives in [CONTEXT.md](../CONTEXT.md), the **decisions and their rationale** in [docs/adr/](adr/), the **plan** in the [GitHub issues](https://github.com/l1em1on1/social-tennis/issues) (#1 is the spec; the rest are tracer-bullet tickets, grouped by milestone). This file documents the *mechanism*: what runs where, and how the pieces talk.
 
 ## System topology
 
@@ -80,7 +80,7 @@ Mechanics worth knowing:
 
 ## Contract pipeline
 
-The API is the source of truth for the contract. Types flow one way, C# → TypeScript, and the generated client is **committed** so drift is detectable (a CI gate once #20 lands).
+The API is the source of truth for the contract. Types flow one way, C# → TypeScript, and the generated client is **committed** so drift is detectable (the CI client-drift job).
 
 ```mermaid
 flowchart LR
@@ -99,7 +99,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0013
+│   ├── adr/                    architecture decision records 0001–0014
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   └── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
@@ -262,4 +262,4 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 
 ## Where this goes next
 
-The skeleton exists so every following ticket only adds domain, never plumbing: #3 adds the BFF-held session (magic link), #18 the Admin/Club bootstrap. The ticket graph and its dependencies are wired as native GitHub issue dependencies on #2–#22.
+The skeleton exists so every following ticket only adds domain, never plumbing: #3 adds the BFF-held session (magic link), #18 the Admin/Club bootstrap. The ticket graph and its dependencies are wired as native GitHub issue dependencies.
