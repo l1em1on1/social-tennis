@@ -206,6 +206,9 @@ export MSYS2_ARG_CONV_EXCL="*"
 # handle is invalid" error. Plain progress output needs no console.
 export COMPOSE_PROGRESS=plain
 export BUILDKIT_PROGRESS=plain
+# Newer Compose hands image builds to `docker buildx bake`, which asks for the
+# console itself and ignores the two settings above. Build the classic way.
+export COMPOSE_BAKE=false
 
 # Azure CLI, in the toolbox container.
 #   -T, --interactive=false, </dev/null: no pseudo-terminal and no attached
@@ -238,7 +241,9 @@ pause "Subscription ready?"
 # ── 2. Sign the toolbox in ────────────────────────────────────────────────
 stage "Sign in to Azure from the toolbox"
 say "First the infra image is built (a minute or two the first time)."
-docker compose -f infra/compose.yml build infra </dev/null
+# Plain `docker build`, tagged with the name Compose gives this service's
+# image, so the Compose commands below find it and never build anything.
+docker build --progress plain --tag infra-infra infra </dev/null
 say "Now a code and a URL are printed."
 step "Open the URL, enter the code, and pick the account from stage 1."
 # The code and URL are printed on stderr, so they still show.
