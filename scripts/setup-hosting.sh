@@ -196,9 +196,32 @@ finish() {
 TOTAL_STAGES=8
 ENV_FILE="infra/.env"
 
-# Azure CLI, in the toolbox container. `-T` keeps captured output clean.
-az()  { docker compose -f infra/compose.yml run --rm infra az "$@"; }
-azq() { docker compose -f infra/compose.yml run --rm -T infra az "$@" | tr -d '\r'; }
+# Git Bash on Windows rewrites arguments that look like Unix paths, which
+# would turn an Azure scope such as /subscriptions/<id> into a Windows path.
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL="*"
+
+# Compose draws its build and start-up progress on a Windows console, and
+# Git Bash's terminal isn't one: that is the "failed to get console: The
+# handle is invalid" error. Plain progress output needs no console.
+export COMPOSE_PROGRESS=plain
+export BUILDKIT_PROGRESS=plain
+# Newer Compose hands image builds to `docker buildx bake`, which asks for the
+# console itself and ignores the two settings above. Build the classic way.
+export COMPOSE_BAKE=false
+
+# Azure CLI, in the toolbox container.
+#   -T, --interactive=false, </dev/null: no pseudo-terminal and no attached
+#       stdin. Nothing here reads input, and attaching either is another way
+#       to hit the console error above.
+#   AZURE_CORE_LOGIN_EXPERIENCE_V2=off: `az login` would otherwise stop at an
+#       interactive subscription picker, which can't work without a terminal.
+_az() {
+  docker compose -f infra/compose.yml run --rm -T --interactive=false \
+    -e AZURE_CORE_LOGIN_EXPERIENCE_V2=off infra az "$@" </dev/null
+}
+az()  { _az "$@"; }
+azq() { _az "$@" | tr -d '\r'; }
 
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 STATE_RG="social-tennis-tfstate"
@@ -217,8 +240,13 @@ pause "Subscription ready?"
 
 # ── 2. Sign the toolbox in ────────────────────────────────────────────────
 stage "Sign in to Azure from the toolbox"
-say "This builds the infra image the first time, then prints a code and a URL."
+say "First the infra image is built (a minute or two the first time)."
+# Plain `docker build`, tagged with the name Compose gives this service's
+# image, so the Compose commands below find it and never build anything.
+docker build --progress plain --tag infra-infra infra </dev/null
+say "Now a code and a URL are printed."
 step "Open the URL, enter the code, and pick the account from stage 1."
+# The code and URL are printed on stderr, so they still show.
 az login --use-device-code >/dev/null
 ARM_SUBSCRIPTION_ID="$(azq account show --query id -o tsv)"
 ARM_TENANT_ID="$(azq account show --query tenantId -o tsv)"
@@ -245,6 +273,13 @@ fi
 say "Resource group:  $STATE_RG"
 say "Storage account: $TFSTATE_STORAGE_ACCOUNT"
 if confirm "Create them (skips anything that already exists)?"; then
+  # A new subscription has no resource providers registered, and Azure
+  # reports that, misleadingly, as "SubscriptionNotFound". Register the ones
+  # this setup and the Terraform need. Each can take a minute or two.
+  for namespace in Microsoft.Storage Microsoft.App Microsoft.OperationalInsights Microsoft.Consumption; do
+    note "Registering $namespace…"
+    az provider register --namespace "$namespace" --wait --output none
+  done
   az group create --name "$STATE_RG" --location uksouth --output none
   az storage account create --name "$TFSTATE_STORAGE_ACCOUNT" --resource-group "$STATE_RG" \
     --location uksouth --sku Standard_LRS --min-tls-version TLS1_2 \
