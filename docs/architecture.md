@@ -142,7 +142,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0018 (0016–0018 proposed)
+│   ├── adr/                    architecture decision records 0001–0019 (0016–0018 proposed)
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
