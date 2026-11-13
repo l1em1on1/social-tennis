@@ -61,7 +61,7 @@ Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs
 
 ## Compact command output with RTK
 
-The Dev Container installs RTK (`rtk`), which compresses command output so it costs less context; `rtk init -g` puts its full command list in the user-global `~/.claude/CLAUDE.md`. Prefix inspection and VCS commands with it: `rtk git status`, `rtk gh pr view 44`, `rtk grep <pattern>`, `rtk docker compose logs api`.
+The Dev Container and the Docker Sandbox install RTK (`rtk`), which compresses command output so it costs less context. Its Claude Code hook rewrites Bash commands automatically (`git status` → `rtk git status`); call it explicitly for the wrappers below, and `rtk proxy <cmd>` when you need the raw output.
 
 RTK filters output and runs the command exactly where it stands, so the Docker rule above still decides *where* things run. Wrap the compose invocation itself:
 

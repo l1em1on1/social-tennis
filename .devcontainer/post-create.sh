@@ -33,7 +33,8 @@ claude plugin install context7@claude-plugins-official -y
 # script doesn't depend on that.
 RTK_INSTALLER_SHA=e288a18c04452fd26192f59132e5324a8bb6924d # tag v1.2.0
 curl -fsSL "https://raw.githubusercontent.com/rtk-ai/rtk/${RTK_INSTALLER_SHA}/install.sh" | RTK_VERSION=v1.2.0 sh
-"$HOME/.local/bin/rtk" init -g
+# --auto-patch: no TTY here, and the settings.json prompt would default to "no".
+"$HOME/.local/bin/rtk" init -g --auto-patch
 
 dotnet --info
 node --version
