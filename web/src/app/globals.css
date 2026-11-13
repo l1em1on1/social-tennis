@@ -13,6 +13,11 @@
  *
  * Every foreground/background pairing used by the primitives meets WCAG AA
  * (4.5:1) in both themes; the Playwright axe checks enforce it.
+ *
+ * Two border tokens: `border` is decorative (card edges, separators) and may
+ * be faint; `border-strong` outlines form controls, so it keeps 3:1 against
+ * both `surface` and `bg` (WCAG 1.4.11, non-text contrast) — axe doesn't
+ * check borders, so that one is on us.
  */
 
 :root {
@@ -22,6 +27,7 @@
   --st-fg: #1a1d17;
   --st-fg-muted: #555c4f;
   --st-border: #d3d8cc;
+  --st-border-strong: #7d8575; /* 3.8:1 on surface, 3.6:1 on bg */
 
   --st-accent: #2f6b1f;
   --st-accent-hover: #255617;
@@ -49,6 +55,7 @@
     --st-fg: #eef1ea;
     --st-fg-muted: #aab2a2;
     --st-border: #3a4233;
+    --st-border-strong: #727d68; /* 3.9:1 on surface, 4.3:1 on bg */
 
     --st-accent: #8fd16f;
     --st-accent-hover: #a6dd8b;
@@ -81,6 +88,7 @@
   --color-fg: var(--st-fg);
   --color-fg-muted: var(--st-fg-muted);
   --color-border: var(--st-border);
+  --color-border-strong: var(--st-border-strong);
 
   --color-accent: var(--st-accent);
   --color-accent-hover: var(--st-accent-hover);

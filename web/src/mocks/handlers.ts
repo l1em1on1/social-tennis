@@ -55,11 +55,13 @@ export const handlers = [
 
   // Last: only the API is mocked. Next.js also fetches its own origin
   // server-side (a server action's redirect loads the target's RSC payload),
-  // and that must reach the real server. Anything else unmatched on the API
-  // origin falls through to `onUnhandledFrame: "error"` — a gap in the mocks.
-  untypedHttp.all("*", ({ request }) => {
-    if (new URL(request.url).origin !== apiOrigin) {
-      return passthrough();
-    }
-  }),
+  // and that must reach the real server. The predicate keeps this handler off
+  // the API origin entirely: a handler that *matches* and returns nothing
+  // counts as handled and lets the request through, so an API miss would
+  // silently reach the network. Unmatched, it hits `onUnhandledFrame: "error"`
+  // — a gap in the mocks (MSW docs, custom predicate).
+  untypedHttp.all(
+    ({ request }) => new URL(request.url).origin !== apiOrigin,
+    () => passthrough(),
+  ),
 ];
