@@ -97,6 +97,32 @@ Migrations apply on API startup — there is no separate `database update` step.
 docker compose down -v   # removes the pgdata volume; next start recreates and re-migrates
 ```
 
+## Hosting (PoC)
+
+The PoC runs on Azure Container Apps with a Neon Postgres database, both scaled to zero when idle (ADR-0019). Terraform in `infra/` creates all of it, run from a toolbox image so nothing is installed on the host.
+
+One-time setup, for the steps only a person can do (accounts, state storage, the GitHub identity):
+
+```sh
+bash scripts/setup-hosting.sh
+```
+
+Then, from the repo root:
+
+```sh
+docker compose -f infra/compose.yml run --rm infra ./init.sh
+docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
+```
+
+`terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
+
+There is no real email yet, so a tester's sign-in link is read from the API's logs:
+
+```sh
+docker compose -f infra/compose.yml run --rm infra \
+  az containerapp logs show --name api --resource-group social-tennis --tail 50
+```
+
 ## License
 
 GPLv3

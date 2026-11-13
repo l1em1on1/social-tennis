@@ -33,11 +33,19 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: docker
-    directories: [/api, /web]
+    directories: [/api, /web, /infra]
     schedule:
       interval: weekly
     groups:
       base-images:
+        patterns: ["*"]
+
+  - package-ecosystem: terraform
+    directory: /infra
+    schedule:
+      interval: weekly
+    groups:
+      terraform-providers:
         patterns: ["*"]
 
   - package-ecosystem: docker-compose
