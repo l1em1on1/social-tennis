@@ -61,7 +61,7 @@ The typed client (`web/src/lib/api/schema.d.ts`) is generated from the API's Ope
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web npm run api:generate
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web sh -c "npm install && npm run api:generate"
 ```
 
 Drift check (CI runs this): regenerate, then `git diff --exit-code web/src/lib/api/schema.d.ts`.

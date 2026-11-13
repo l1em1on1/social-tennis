@@ -44,8 +44,10 @@ The top-level `Contracts/` is the narrow exception to "contracts are feature-sco
 
    ```sh
    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web npm run api:generate
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web sh -c "npm install && npm run api:generate"
    ```
+
+   `npm install` is part of the command because `docker compose run` replaces the service's own command, which is what normally installs dependencies. On a fresh `web_node_modules` volume there would otherwise be no `openapi-typescript`.
 
 A new feature also needs a `<Feature>Endpoints.cs` with its `MapGroup` prefix, and one line in `Program.cs`. Registration order in `Program.cs` determines path order in the OpenAPI document and therefore in the generated client — append rather than reorder, so client diffs stay meaningful.
 
