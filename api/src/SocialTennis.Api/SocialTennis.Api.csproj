@@ -20,7 +20,7 @@
     <!-- Pinned to latest 2.x: template's transitive 2.0.0 has GHSA-v5pm-xwqc-g5wc,
          and 3.x changes IOpenApiMediaType, breaking the .NET 10 OpenAPI source
          generator. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+    <PackageReference Include="Microsoft.OpenApi" Version="3.11.0" />
     <!-- Explicit to unify EF Core at 10.0.10 (Npgsql's floor is 10.0.4, Design
          brings 10.0.10 — without this the build warns MSB3277). -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
