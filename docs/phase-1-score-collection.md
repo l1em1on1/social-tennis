@@ -1,6 +1,6 @@
 # Social Tennis — Phase 1: Score Collection
 
-_As of 2026-10-26. Plain-language overview for non-technical readers. Domain terms are defined in `CONTEXT.md`; the decisions behind this scope are ADR-0008 (Phasing) and ADR-0013._
+_As of 2026-11-13. Plain-language overview for non-technical readers. Domain terms are defined in `CONTEXT.md`; the decisions behind this scope are ADR-0008 (Phasing) and ADR-0013._
 
 ## At a glance
 
@@ -30,7 +30,7 @@ A league is a **ladder**: a column of small divisions, Division 1 at the top. Ea
 
 - **Singles and doubles leagues:** each division holds 2 sides, so there is exactly one match per month.
 - **Foursomes leagues:** each division holds 4 players who play 3 doubles matches, partnering each of the others once. Each player's games won are added up to rank them.
-- **Odd numbers:** if one side is left over, they sit out that month at the bottom of the ladder (a *bye*), neither moving up nor down.
+- **Odd numbers:** in singles and doubles, if one side is left over, they sit out that month at the bottom of the ladder (a *bye*), neither moving up nor down. Foursomes has no bye: the Manager makes the numbers a multiple of 4 before the league starts, usually by finding extra players, otherwise by deciding who doesn't make the cut.
 - **The ends stay put:** the winner of Division 1 and the loser of the bottom division don't move.
 
 ```mermaid
@@ -77,10 +77,12 @@ flowchart TB
 
     subgraph MANAGER["Managers only"]
         SETUP["League setup<br/>type, score format,<br/>month length"]
-        PLAYERS["Players<br/>add by name + email"]
+        PLAYERS["Players<br/>add by name + email,<br/>approve join requests"]
+        START["Start the league<br/>review proposed ladder,<br/>reorder, confirm"]
         TODO["To-do list<br/>missing scores, ties"]
         CLOSE["Close the month<br/>preview who moves"]
         SETUP --> PLAYERS
+        PLAYERS --> START
         TODO --> CLOSE
     end
 
@@ -99,6 +101,7 @@ flowchart TB
 | Match | Both sides, the score set by set, who entered it and every later change | Enter the score; correct it until the month closes |
 | League ladder | Every division with this month's results; earlier months | Tap any match to see its score |
 | My profiles | The player profiles on your login | Switch which player you're acting as |
+| Manager: Start the league | The proposed ladder, strongest first by rating | Reorder, leave players out, and confirm to start |
 | Manager: To-do | Matches with no score, tied divisions | Override a score, award a walkover, void a match, pick a winner |
 | Manager: Close the month | Who will move up and down | Confirm, and the next month opens |
 
@@ -112,6 +115,8 @@ flowchart TB
 | League setup | Create a ladder league: singles, doubles, mixed or foursomes | Manager |
 | League setup | Choose the score format: 6- or 9-game sets, one set or best of three, match tiebreak allowed or not | Manager |
 | League setup | Choose month length and whether months close automatically on their end date or only when the Manager says so | Manager |
+| League setup | Players ask to join a league; the Manager approves or rejects | Player, Manager |
+| League setup | App proposes the starting ladder by rating (earliest joiner first on a tie); the Manager can reorder it, leave players out, and must confirm before the league starts | App, Manager |
 | League setup | App places everyone into divisions and creates the month's matches | App |
 | Scores | Any player in a match enters the score, set by set, with the date played | Player |
 | Scores | Record a retirement: score as it stood plus the winner | Player |
@@ -137,7 +142,10 @@ sequenceDiagram
     actor P as Player
     M->>App: Create league (type, score format, month length)
     M->>App: Add players (name + email)
-    M->>App: Start the league
+    P->>App: Or: ask to join the league
+    M->>App: Approve join requests
+    App-->>M: Proposed ladder, by rating
+    M->>App: Reorder if needed, confirm start
     App->>App: Place players into divisions,<br/>create this month's matches
     P->>App: Enter email on login page
     App-->>P: Email with a login link
