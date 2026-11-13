@@ -46,7 +46,7 @@ export function Field({ id, label, hint, error, children }: FieldProps) {
 }
 
 export const controlClasses = cx(
-  "min-h-11 w-full rounded-xl border border-border bg-surface px-3 text-base text-fg",
+  "min-h-11 w-full rounded-xl border border-border-strong bg-surface px-3 text-base text-fg",
   "placeholder:text-fg-muted aria-invalid:border-danger",
 );
 
