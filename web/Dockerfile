@@ -1,5 +1,5 @@
 # Base image tags are pinned deliberately — see docs/architecture.md "Versions".
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -10,7 +10,7 @@ ARG MOCK_API=""
 ENV MOCK_API=$MOCK_API
 RUN npm run build
 
-FROM node:24-alpine
+FROM node:25-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 # The standalone server binds to $HOSTNAME, which Docker would otherwise set to
