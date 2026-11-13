@@ -196,9 +196,19 @@ finish() {
 TOTAL_STAGES=8
 ENV_FILE="infra/.env"
 
-# Azure CLI, in the toolbox container. `-T` keeps captured output clean.
-az()  { docker compose -f infra/compose.yml run --rm infra az "$@"; }
-azq() { docker compose -f infra/compose.yml run --rm -T infra az "$@" | tr -d '\r'; }
+# Git Bash on Windows rewrites arguments that look like Unix paths, which
+# would turn an Azure scope such as /subscriptions/<id> into a Windows path.
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL="*"
+
+# Azure CLI, in the toolbox container.
+#   -T: no pseudo-terminal. Nothing here needs one, and on Windows asking for
+#       one while output is redirected fails with "failed to get console".
+#   AZURE_CORE_LOGIN_EXPERIENCE_V2=off: `az login` would otherwise stop at an
+#       interactive subscription picker, which can't work without a terminal.
+_az() { docker compose -f infra/compose.yml run --rm -T -e AZURE_CORE_LOGIN_EXPERIENCE_V2=off infra az "$@"; }
+az()  { _az "$@"; }
+azq() { _az "$@" | tr -d '\r'; }
 
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 STATE_RG="social-tennis-tfstate"
@@ -219,6 +229,7 @@ pause "Subscription ready?"
 stage "Sign in to Azure from the toolbox"
 say "This builds the infra image the first time, then prints a code and a URL."
 step "Open the URL, enter the code, and pick the account from stage 1."
+# The code and URL are printed on stderr, so they still show.
 az login --use-device-code >/dev/null
 ARM_SUBSCRIPTION_ID="$(azq account show --query id -o tsv)"
 ARM_TENANT_ID="$(azq account show --query tenantId -o tsv)"
