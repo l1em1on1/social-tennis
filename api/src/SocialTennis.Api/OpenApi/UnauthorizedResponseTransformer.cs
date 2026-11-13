@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -31,7 +32,7 @@ internal sealed class UnauthorizedResponseTransformer : IOpenApiOperationTransfo
         {
             operation.Responses ??= [];
             operation.Responses.TryAdd(
-                StatusCodes.Status401Unauthorized.ToString(),
+                StatusCodes.Status401Unauthorized.ToString(CultureInfo.InvariantCulture),
                 new OpenApiResponse { Description = "Unauthorized" });
         }
 
