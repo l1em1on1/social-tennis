@@ -16,4 +16,20 @@ public class AuthOptions
     /// ?token=. The link lands on the BFF, never on this API (ADR-0001).
     /// </summary>
     public string VerifyUrlBase { get; set; } = "http://localhost:3000/auth/verify";
+
+    /// <summary>Name of the rate-limiting policy on the magic-link request route.</summary>
+    public const string MagicLinkRateLimitPolicy = "magic-link";
+
+    /// <summary>
+    /// Ceiling on magic-link requests per minute across all callers; beyond it
+    /// the API answers 429.
+    /// </summary>
+    public int MagicLinkRequestsPerMinute { get; set; } = 60;
+
+    /// <summary>
+    /// How many live (unused, unexpired) magic links one address may hold. A
+    /// request beyond it is answered 202 like any other, but sends nothing, so
+    /// an address can't be mail-bombed and the response still reveals nothing.
+    /// </summary>
+    public int MaxLiveMagicLinksPerAddress { get; set; } = 5;
 }

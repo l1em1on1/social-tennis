@@ -14,6 +14,7 @@ public static class Logout
     public static async Task<Results<NoContent, UnauthorizedHttpResult>> HandleAsync(
         HttpContext context,
         TennisDbContext db,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         string? header = context.Request.Headers.Authorization;
@@ -27,7 +28,7 @@ public static class Logout
             .SingleOrDefaultAsync(s => s.TokenHash == hash && s.RevokedAt == null, cancellationToken);
         if (session is not null)
         {
-            session.RevokedAt = DateTimeOffset.UtcNow;
+            session.RevokedAt = clock.GetUtcNow();
             await db.SaveChangesAsync(cancellationToken);
         }
 

@@ -41,8 +41,7 @@ export const handlers = [
   http.get("/auth/me", ({ request, response }) => {
     const bearer = request.headers.get("Authorization")?.replace(/^Bearer /, "");
     if (!bearer?.startsWith(SESSION_PREFIX)) {
-      // The schema declares only 200, but the real API answers 401 here; untyped on purpose.
-      return response.untyped(new Response(null, { status: 401 }));
+      return response(401).empty();
     }
     const remembered = Buffer.from(bearer.slice(SESSION_PREFIX.length), "base64url").toString();
     return response(200).json({

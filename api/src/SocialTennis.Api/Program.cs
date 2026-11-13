@@ -1,16 +1,32 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Features.Auth;
 using SocialTennis.Api.Features.Clubs;
+using SocialTennis.Api.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<TennisDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddOperationTransformer<UnauthorizedResponseTransformer>());
+
+// One clock for the whole app. Nothing reads DateTimeOffset.UtcNow directly, so
+// a test can replace this and stand either side of a deadline (ADR-0016).
+builder.Services.AddSingleton(TimeProvider.System);
+
+// Every error response gets an RFC 9457 body: unhandled exceptions through
+// UseExceptionHandler, bodiless 4xx/5xx (the auth 401, the rate limiter's 429)
+// through UseStatusCodePages (ADR-0017).
+builder.Services.AddProblemDetails();
+
+builder.Services.AddHealthChecks().AddDbContextCheck<TennisDbContext>();
 
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddScoped<IMagicLinkSender, LoggingMagicLinkSender>();
@@ -18,7 +34,30 @@ builder.Services
     .AddAuthentication(SessionTokenAuthenticationHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, SessionTokenAuthenticationHandler>(
         SessionTokenAuthenticationHandler.SchemeName, null);
-builder.Services.AddAuthorization();
+
+// Deny by default (ADR-0017): an endpoint that declares nothing requires a
+// signed-in User. Anonymous routes opt out with AllowAnonymous(), so a
+// forgotten declaration fails closed (ASP.NET Core docs, "fallback policy").
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+// A ceiling on magic-link requests across all callers. It is not per client:
+// every request arrives from the BFF, so the API never sees a browser's
+// address. Per-address throttling is in RequestMagicLink; per-client limiting
+// belongs at the edge, where the client's address is known.
+// Configured through IOptions so the limit is read when the limiter is first
+// used, after test hosts have applied their configuration overrides.
+builder.Services.AddRateLimiter(_ => { });
+builder.Services.AddOptions<RateLimiterOptions>().Configure<IOptions<AuthOptions>>((limiter, auth) =>
+{
+    limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    limiter.AddFixedWindowLimiter(AuthOptions.MagicLinkRateLimitPolicy, window =>
+    {
+        window.PermitLimit = auth.Value.MagicLinkRequestsPerMinute;
+        window.Window = TimeSpan.FromMinutes(1);
+        window.QueueLimit = 0;
+    });
+});
 
 var app = builder.Build();
 
@@ -62,12 +101,27 @@ if (!EF.IsDesignTime)
     await db.Database.MigrateAsync();
 }
 
+// The developer exception page already answers API clients with problem
+// details; everywhere else an unhandled exception becomes a bare 500 problem.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler();
+}
+
+app.UseStatusCodePages();
+
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
+
+// Liveness plus "can reach Postgres". Anonymous: compose healthchecks, the
+// E2E runner and the deploy pipeline call it with no session.
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // Served unconditionally: the TS client is generated from /openapi/v1.json
-// inside the compose network (see web's api:generate script).
-app.MapOpenApi();
+// inside the compose network (see web's api:generate script). Anonymous for
+// the same reason; the api service publishes no port (ADR-0001).
+app.MapOpenApi().AllowAnonymous();
 
 // Registration order is reflected in the OpenAPI document's path order, and
 // therefore in the generated TS client — keep it stable to keep client diffs

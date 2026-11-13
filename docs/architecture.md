@@ -79,7 +79,15 @@ Mechanics worth knowing:
 - **Redirect origins** come from `PUBLIC_BASE_URL` (compose env), because a containerized server's own origin is its bind address — unroutable from a browser.
 - **Cookies are `Secure` exactly when `PUBLIC_BASE_URL` is https** (`secureCookies()` in `src/lib/session.ts`), not by `NODE_ENV`. Every image runs as `production`, including over plain http on the compose network, where a browser stores a Secure cookie but never sends it back (only `localhost` is exempt). A TLS deployment must set an https `PUBLIC_BASE_URL` for its redirects anyway, so it gets Secure cookies.
 - **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
+- **Deny by default** (ADR-0017): a fallback authorization policy requires a session on every API endpoint. Only `POST /auth/magic-link`, `POST /auth/sessions`, `/health` and the OpenAPI document opt out with `AllowAnonymous()`. `OpenApiContractTests` calls every published operation anonymously and fails if one outside its allow-list answers.
+- **Abuse limits on requesting a link**: an address holding `Auth:MaxLiveMagicLinksPerAddress` (default 5) unused, unexpired links gets the usual 202 but no new email; and the route has a ceiling of `Auth:MagicLinkRequestsPerMinute` (default 60) across all callers, beyond which it answers 429. The ceiling is not per client: every request reaches the API from the BFF, so the API never sees a browser's address. Per-client limiting belongs at the edge (Go-live).
 - **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
+
+## Errors, health and time
+
+- **Every error has a ProblemDetails body.** `AddProblemDetails` with `UseExceptionHandler` (outside Development, where the developer exception page already answers in the same format) covers unhandled exceptions; `UseStatusCodePages` fills in bodiless 4xx/5xx such as the authorization 401 and the rate limiter's 429.
+- **`GET /health`** (anonymous) reports whether the API is up and can reach Postgres (`AddDbContextCheck`). Compose healthchecks, the E2E runner and the deploy pipeline use it.
+- **One clock.** `TimeProvider` is registered once and injected into handlers and the session scheme; nothing calls `DateTimeOffset.UtcNow` (ADR-0016). Tests can replace it to stand either side of a deadline.
 
 ## Web app shell
 
@@ -106,7 +114,7 @@ flowchart LR
 ```
 
 - **Flag at build time.** `next.config.ts` `env` inlines `MOCK_API`; a build without it compiles the `register()` branch to dead code, so no MSW code ships. CI's `build` job asserts that on the production image.
-- **Typed handlers.** `createOpenApiHttp<paths>` rejects a path, body, or status the contract doesn't declare. The one deliberate escape is `/auth/me`'s 401, which the real API returns but the OpenAPI document doesn't yet declare.
+- **Typed handlers.** `createOpenApiHttp<paths>` rejects a path, body, or status the contract doesn't declare. There are no untyped escapes: the 401 the mocks return for a missing session is in the contract.
 - **Only the API origin is mocked.** A final catch-all handler calls `passthrough()` for any other origin — its predicate excludes the API origin, because a handler that matches and returns nothing lets the request through instead of failing it — because Next fetches its own origin server-side (a server action's redirect loads the target's RSC payload). Unmatched calls to the API origin fail (`onUnhandledFrame: "error"`): that's a gap in the mocks.
 - **Mock auth** accepts any magic-link token and remembers it base64url-encoded in the session token. When the token is an email address, `/auth/me` returns that email, so the stub personas work the same way mocked as against the real API.
 
@@ -125,6 +133,8 @@ flowchart LR
 ```
 
 Regenerating with no API change produces no diff — verified property, and the basis of the drift check.
+
+Statuses that come from middleware rather than a handler are put into the document by `OpenApi/UnauthorizedResponseTransformer`: every operation without `AllowAnonymous()` metadata gets a 401, read from the same metadata the authorization middleware uses, so the client's types can't disagree with the behaviour.
 
 ## Repository layout
 
@@ -155,7 +165,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
 │   ├── dotnet-tools.json       local tool manifest (dotnet-ef)
 │   ├── src/SocialTennis.Api/
-│   │   ├── Program.cs          minimal API: DI, migrate-on-start, feature registration, OpenAPI
+│   │   ├── Program.cs          minimal API: DI, deny-by-default auth, migrate-on-start, feature registration, OpenAPI, /health
 │   │   ├── Domain/             entities (Club, User, ExternalLogin, tokens, ...)
 │   │   ├── Data/               TennisDbContext + seed
 │   │   ├── Features/           vertical slices: handler per endpoint + routing table (ADR-0010)
@@ -166,6 +176,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   │   ├── Contracts/          cross-feature contracts — PageInfo (ADR-0012)
 │   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
 │   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
+│   │   ├── OpenApi/            document transformers (401 on non-anonymous operations)
 │   │   └── Migrations/         EF Core migrations
 │   └── tests/
 │       ├── SocialTennis.Api.IntegrationTests/   HTTP + real Postgres
@@ -206,6 +217,8 @@ One compose file is the truth for topology; overlays change *how* services run, 
 | Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents | Isolated autonomous agents, deny-by-default egress |
 
 **Mocked API.** With `MOCK_API=1` in the environment, the dev overlay's `web` runs with MSW answering every API call. Start it with `--no-deps` and no `api` or `postgres` is needed. The `e2e` profile's `web-mock` service is the production-build equivalent: the same mocks, baked in with the `MOCK_API` build arg.
+
+**Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` probe calls `/health` over bash's `/dev/tcp`, because the runtime image has no curl or wget; a shell-less image (#25) needs a different probe. The web probe requests `/login` on `$HOSTNAME`, since the standalone server binds to the container's name, not loopback. `start_period` is 180s to cover the dev overlay's first restore and compile.
 
 Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries).
 
@@ -292,12 +305,12 @@ flowchart LR
 - **Phone viewport.** 360×780, touch. The shell specs assert there's no horizontal scroll and that nav targets are at least 44px.
 - **Accessibility.** `@axe-core/playwright` fails a test on any *serious* or *critical* WCAG 2.1 A/AA violation. The `/dev/ui` showcase is checked in both colour schemes, and that's what keeps the token pairings at AA contrast.
 - **Real-API login without an inbox.** Until #19 the link is only logged. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows, and redeems it at `/auth/verify`. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
-- **Readiness.** `e2e/support/global-setup.ts` polls both web builds and the API until they answer, because `depends_on` only waits for containers to start.
+- **Readiness.** Compose holds the runner until `web-e2e`, `web-mock` and (through `web-e2e`) `api` are healthy. `e2e/support/global-setup.ts` repeats the wait against `/login` and the API's `/health`, for runs that bypass compose's ordering (`--no-deps`, or `E2E_*_URL` overrides).
 - **Visual review (ADR-0015).** Specs import `test` from `@chromatic-com/playwright`, which archives each mock-project test's final page (plus explicit `takeSnapshot`s). The `chromatic` compose service uploads them; Chromatic diffs against the accepted baselines and its "UI Tests" check gates the PR. The real project doesn't snapshot (its data changes every run), and neither does dark mode (Playwright archives replay without `emulateMedia`). Mock logins use a fixed `<persona>@example.com` so snapshots are stable.
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
 
-`OpenApiContractTests` uses the same host but asserts on the **generated OpenAPI document** rather than on any endpoint's behaviour — currently that no 2xx JSON response is a bare array (ADR-0012). This is where repo-wide contract rules get enforced when no type-level mechanism can express them; it tests the published wire surface, so it holds regardless of how the C# is written.
+`OpenApiContractTests` uses the same host but asserts on the **generated OpenAPI document** rather than on any one endpoint: that no 2xx JSON response is a bare array (ADR-0012), and that every operation outside a short anonymous allow-list both declares a 401 and answers an anonymous call with one (ADR-0017). This is where repo-wide contract rules get enforced when no type-level mechanism can express them; it tests the published wire surface, so it holds regardless of how the C# is written.
 
 ## CI
 

@@ -15,6 +15,7 @@ api/src/SocialTennis.Api/
 │       └── <RecordName>.cs     one file per request/response record
 ├── Contracts/                  contracts shared across features — PageInfo only
 ├── Validation/                 ValidationFilter<TRequest, TValidator>, ValidatesBody<,>()
+├── OpenApi/                    document transformers (the 401 on every non-anonymous operation)
 ├── Authentication/             scheme handler, AuthOptions, Tokens, sender seam
 ├── Data/  Domain/  Migrations/
 ```
@@ -111,7 +112,17 @@ Note for anyone tempted to share shape via inheritance: **it doesn't reach the w
 
 The feature's endpoints class owns the prefix. Use the **empty** pattern for an endpoint at the group root — `MapGet("", …)` under `MapGroup("/clubs")` gives `/clubs`, whereas `MapGet("/", …)` gives `/clubs/`.
 
-Put `RequireAuthorization()` on individual endpoints unless *every* endpoint in the group needs it. `/auth` is a group where it can't be hoisted: requesting and redeeming a magic link are necessarily anonymous.
+## Authorization
+
+**The API denies by default** (ADR-0017). A fallback policy in `Program.cs` requires a signed-in User on every endpoint, so a new route needs no `RequireAuthorization()` and is never public by accident. The 401 is added to the OpenAPI document for you (`OpenApi/UnauthorizedResponseTransformer`), from the same metadata.
+
+- **A route that must be public** says `.AllowAnonymous()` in the routing table, and is added to `AnonymousOperations` in `OpenApiContractTests`. That test calls every published operation with no session and fails on any that answers, so the list is the reviewed record of what is public. Today it is the two magic-link routes.
+- **A route that needs a role** names a policy in the routing table. Don't check roles inside `HandleAsync`.
+- **A status a handler returns that its `Results<>` union doesn't describe** is declared by hand. `UnauthorizedHttpResult` is one: `RedeemMagicLink` answers 401 to a bad token, so its route carries `.Produces(StatusCodes.Status401Unauthorized)`.
+
+## Time
+
+Never read `DateTimeOffset.UtcNow`. Take `TimeProvider` as a handler parameter and call `GetUtcNow()` (ADR-0016), so a test can put the clock either side of a deadline.
 
 ## Testing
 

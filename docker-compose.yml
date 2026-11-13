@@ -1,3 +1,14 @@
+# Shared by the three web services. The standalone server binds to $HOSTNAME
+# (the container's own name), not loopback, so the probe goes there too.
+# /login renders without calling the API, so this is web's own health only.
+x-web-healthcheck: &web-healthcheck
+  test: ["CMD-SHELL", "wget -q --spider http://$$HOSTNAME:3000/login"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 180s
+  start_interval: 2s
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -20,6 +31,24 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # GET /health: up, migrated, and able to reach Postgres. The runtime
+      # image ships no curl or wget, so this speaks HTTP over bash's /dev/tcp.
+      # A shell-less image (#25) will need a different probe.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          head -n1 <&3 | grep -q ' 200 '
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # Generous: under the dev overlay this covers restore + first compile.
+      start_period: 180s
+      start_interval: 2s
 
   web:
     build: ./web
@@ -29,7 +58,9 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck: *web-healthcheck
 
   # One-shot test runner: docker compose run --rm api-tests
   api-tests:
@@ -61,7 +92,9 @@ services:
       API_URL: http://api:8080
       PUBLIC_BASE_URL: http://web-e2e:3000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck: *web-healthcheck
 
   web-mock:
     build:
@@ -73,6 +106,7 @@ services:
       # Never contacted: MSW answers every call to this origin in-process.
       API_URL: http://api:8080
       PUBLIC_BASE_URL: http://web-mock:3000
+    healthcheck: *web-healthcheck
 
   # One-shot Playwright runner. The image tag must equal the @playwright/test
   # version in web/package.json (browsers are baked into the image).
@@ -95,9 +129,9 @@ services:
       postgres:
         condition: service_healthy
       web-e2e:
-        condition: service_started
+        condition: service_healthy
       web-mock:
-        condition: service_started
+        condition: service_healthy
     # Install first, then run the command; `run --rm e2e <args>` replaces only
     # the command, e.g. `npx playwright test --project=mock`.
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]

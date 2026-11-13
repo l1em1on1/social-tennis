@@ -19,11 +19,18 @@ async function requestMagicLink(formData: FormData) {
   }
 
   const { response } = await api.POST("/auth/magic-link", { body: { email } });
+  if (response.status === 429) {
+    redirect("/login?error=try-later");
+  }
   redirect(response.ok ? `/login?sent=${encodeURIComponent(email)}` : "/login?error=invalid-email");
 }
 
 const errors: Record<string, { title: string; description: string }> = {
   "invalid-email": { title: "That email didn't work", description: "Please enter a valid email address." },
+  "try-later": {
+    title: "Too many sign-in requests",
+    description: "Please wait a minute, then try again.",
+  },
   "invalid-link": {
     title: "That sign-in link has expired",
     description: "It's invalid, already used, or too old. Request a fresh one below.",

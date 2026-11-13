@@ -120,6 +120,14 @@ export interface components {
             /** Format: int32 */
             total: number | string;
         };
+        ProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+        };
         RedeemMagicLinkRequest: {
             token: string;
         };
@@ -155,6 +163,13 @@ export interface operations {
                     "application/json": components["schemas"]["GetClubsResponse"];
                 };
             };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     RequestMagicLink: {
@@ -186,6 +201,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
         };
     };
     RedeemMagicLink: {
@@ -210,6 +234,13 @@ export interface operations {
                     "application/json": components["schemas"]["RedeemMagicLinkResponse"];
                 };
             };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     GetCurrentUser: {
@@ -230,6 +261,13 @@ export interface operations {
                     "application/json": components["schemas"]["GetCurrentUserResponse"];
                 };
             };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     Logout: {
@@ -243,6 +281,13 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

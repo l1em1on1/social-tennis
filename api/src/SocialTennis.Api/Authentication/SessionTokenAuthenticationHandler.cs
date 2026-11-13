@@ -17,7 +17,8 @@ public class SessionTokenAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
-    TennisDbContext db)
+    TennisDbContext db,
+    TimeProvider clock)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     public const string SchemeName = "SessionToken";
@@ -31,7 +32,7 @@ public class SessionTokenAuthenticationHandler(
         }
 
         var hash = Tokens.Hash(header["Bearer ".Length..].Trim());
-        var now = DateTimeOffset.UtcNow;
+        var now = clock.GetUtcNow();
         var session = await db.SessionTokens
             .Include(s => s.User)
             .SingleOrDefaultAsync(s => s.TokenHash == hash && s.RevokedAt == null && s.ExpiresAt > now);
