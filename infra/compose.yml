@@ -1,0 +1,39 @@
+# Infrastructure commands, run from the repo root:
+#
+#   docker compose -f infra/compose.yml run --rm infra az login --use-device-code
+#   docker compose -f infra/compose.yml run --rm infra ./init.sh
+#   docker compose -f infra/compose.yml run --rm infra terraform plan
+#
+# Settings come from infra/.env, which scripts/setup-hosting.sh writes and git
+# ignores. CI passes the same names as environment variables instead.
+services:
+  infra:
+    build: .
+    working_dir: /infra
+    volumes:
+      - .:/infra
+      # Keeps the `az login` session between runs.
+      - azure_cli:/root/.azure
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Azure: which subscription, and (in CI) OIDC instead of an az login.
+      ARM_SUBSCRIPTION_ID: ${ARM_SUBSCRIPTION_ID:-}
+      ARM_TENANT_ID: ${ARM_TENANT_ID:-}
+      ARM_CLIENT_ID: ${ARM_CLIENT_ID:-}
+      ARM_USE_OIDC: ${ARM_USE_OIDC:-}
+      ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:-}
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}
+      # Where the Terraform state lives (read by init.sh).
+      TFSTATE_RESOURCE_GROUP: ${TFSTATE_RESOURCE_GROUP:-}
+      TFSTATE_STORAGE_ACCOUNT: ${TFSTATE_STORAGE_ACCOUNT:-}
+      # Neon.
+      NEON_API_KEY: ${NEON_API_KEY:-}
+      TF_VAR_neon_org_id: ${TF_VAR_neon_org_id:-}
+      # Deployment inputs.
+      TF_VAR_alert_email: ${TF_VAR_alert_email:-}
+      TF_VAR_image_tag: ${TF_VAR_image_tag:-}
+
+volumes:
+  azure_cli:

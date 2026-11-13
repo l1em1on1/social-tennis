@@ -1,0 +1,65 @@
+# Infrastructure CI: is the Terraform in infra/ formatted and valid?
+#
+# It runs in the infra toolbox image through compose, like everything else
+# (CLAUDE.md: nothing runs bare on the runner). No cloud credentials are
+# involved: `validate` checks the configuration against the providers'
+# schemas without contacting Azure or Neon. Planning against the real
+# environment happens in the deploy workflow, on main only, so a pull request
+# never holds a credential that can change infrastructure.
+#
+# Runs on every PR and every push to main, and decides per job whether the
+# change touches it, so its check always reports (see api.yml).
+name: infra
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The other job runs unless this one says "false". If it fails or is
+  # cancelled it says nothing, so the job runs: a broken detector must never
+  # let a required check pass by being skipped.
+  changes:
+    name: changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PATTERN: '^(infra/|\.github/workflows/infra\.yml$)'
+        run: |
+          # No usable base (a branch's first push): run everything.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...HEAD" | grep -qE "$PATTERN"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate:
+    name: terraform fmt and validate
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Format check, then validate against the provider schemas
+        run: >-
+          docker compose -f infra/compose.yml run --rm infra sh -c
+          "terraform fmt -check -recursive -diff &&
+           terraform init -backend=false -input=false &&
+           terraform validate"
