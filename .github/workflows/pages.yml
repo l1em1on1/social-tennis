@@ -37,7 +37,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Assemble the site
         # Every HTML file in docs/ui/ is published under its own name, so the
         # deep links in the tickets (phase-1-wireframes.html#score--new) work
@@ -52,9 +52,9 @@ jobs:
           <meta http-equiv="refresh" content="0; url=phase-1-wireframes.html">
           <a href="phase-1-wireframes.html">Phase 1 wireframes</a>
           HTML
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
