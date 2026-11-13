@@ -49,6 +49,12 @@ docker compose --profile e2e run --rm e2e
 
 The HTML report lands in `web/playwright-report/`. Pass Playwright arguments after the service name, e.g. `docker compose --profile e2e run --rm e2e npx playwright test --project=mock`. After changing web code, rebuild the images first with `docker compose --profile e2e build`.
 
+The mocked run also leaves DOM snapshots in `web/test-results/chromatic-archives` for visual review in Chromatic (ADR-0015). CI publishes them when the `CHROMATIC_PROJECT_TOKEN` secret is set. To publish a local run:
+
+```sh
+CHROMATIC_PROJECT_TOKEN=<token> docker compose --profile e2e run --rm --no-deps chromatic
+```
+
 ## Regenerate the TypeScript API client
 
 The typed client (`web/src/lib/api/schema.d.ts`) is generated from the API's OpenAPI document and **committed**. After changing the API surface:

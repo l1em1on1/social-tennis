@@ -103,6 +103,34 @@ services:
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
     command: ["npx", "playwright", "test"]
 
+  # Visual review (ADR-0015): uploads the DOM archives the e2e run left in
+  # web/test-results/chromatic-archives. Run it after `run --rm e2e`:
+  #   CHROMATIC_PROJECT_TOKEN=... docker compose --profile e2e run --rm --no-deps chromatic
+  # Needs the whole repo, not just web/: the CLI reads git history to link the
+  # build to its commit and find baselines. Same image as e2e (it has git).
+  chromatic:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    profiles: ["e2e"]
+    working_dir: /repo/web
+    volumes:
+      - .:/repo
+      - e2e_node_modules:/repo/web/node_modules
+    environment:
+      CHROMATIC_PROJECT_TOKEN: ${CHROMATIC_PROJECT_TOKEN:-}
+      # Set by CI; empty locally, where the CLI reads them from git.
+      CHROMATIC_BRANCH: ${CHROMATIC_BRANCH:-}
+      CHROMATIC_SHA: ${CHROMATIC_SHA:-}
+      CHROMATIC_SLUG: ${CHROMATIC_SLUG:-}
+      # The checkout is owned by the host/runner user, not this container's
+      # root; without this git refuses it as "dubious ownership".
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
+    entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
+    # Changes don't fail the job: they're reviewed and accepted in Chromatic,
+    # whose own "UI Tests" status check gates the PR.
+    command: ["npx", "chromatic", "--playwright", "--exit-zero-on-changes"]
+
 volumes:
   pgdata:
   nuget:

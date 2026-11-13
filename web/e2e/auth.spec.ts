@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
+// see playwright.config.ts). Otherwise identical to @playwright/test.
+import { expect, test } from "@chromatic-com/playwright";
 import { logIn, personaEmail } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -10,7 +12,7 @@ test("an anonymous visitor is sent to the login page", async ({ page }) => {
 });
 
 test("logging in lands on Home, and logging out ends the session", async ({ page }, testInfo) => {
-  await logIn(page, testInfo, personaEmail("player"));
+  await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await expect(page).toHaveTitle("Social Tennis");
   await expect(page.getByRole("heading", { name: "Clubs" })).toBeVisible();
   await expectNoSeriousA11yViolations(page);

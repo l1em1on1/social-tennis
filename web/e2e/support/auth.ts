@@ -3,12 +3,17 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { Client } from "pg";
 
 /**
- * A unique email for one test. The `+tag` keeps real-API runs from sharing a
- * User; the base part picks the stub persona (lib/viewer/stub.ts):
- * "player", "manager", "admin", "parent".
+ * The email a test logs in with. The local part picks the stub persona
+ * (lib/viewer/stub.ts): "player", "manager", "admin", "parent".
+ *
+ * real: a random `+tag` keeps tests from sharing a User in the one database.
+ * mock: no tag. Nothing is shared there, and Chromatic snapshots the mock
+ *   project, so every page that shows the email must render identically.
  */
-export function personaEmail(persona: string): string {
-  return `${persona}+${randomBytes(4).toString("hex")}@example.com`;
+export function personaEmail(testInfo: TestInfo, persona: string): string {
+  return testInfo.project.name === "mock"
+    ? `${persona}@example.com`
+    : `${persona}+${randomBytes(4).toString("hex")}@example.com`;
 }
 
 /**
