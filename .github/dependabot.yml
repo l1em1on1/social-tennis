@@ -36,10 +36,16 @@ updates:
     directories: [/api, /web]
     schedule:
       interval: weekly
+    groups:
+      base-images:
+        patterns: ["*"]
 
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
+    groups:
+      compose-images:
+        patterns: ["*"]
     ignore:
       - dependency-name: mcr.microsoft.com/playwright

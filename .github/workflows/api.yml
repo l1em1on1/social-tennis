@@ -24,6 +24,10 @@ jobs:
   # itself always runs, so every check reports on every PR: a job skipped by
   # `if` counts as passed for a required check, whereas a workflow skipped by
   # a `paths` filter leaves the check pending forever.
+  #
+  # The other jobs run unless this one says "false". If it fails or is
+  # cancelled it says nothing, so they run: a broken detector must never let a
+  # required check pass by being skipped.
   changes:
     name: changed paths
     runs-on: ubuntu-latest
@@ -50,7 +54,7 @@ jobs:
   format:
     name: format and analyzers (dotnet format)
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -60,7 +64,7 @@ jobs:
   integration-tests:
     name: integration tests (HTTP vs real Postgres)
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -70,7 +74,7 @@ jobs:
   client-drift:
     name: OpenAPI client drift
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
