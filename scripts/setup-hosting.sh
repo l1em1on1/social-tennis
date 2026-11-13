@@ -201,12 +201,22 @@ ENV_FILE="infra/.env"
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL="*"
 
+# Compose draws its build and start-up progress on a Windows console, and
+# Git Bash's terminal isn't one: that is the "failed to get console: The
+# handle is invalid" error. Plain progress output needs no console.
+export COMPOSE_PROGRESS=plain
+export BUILDKIT_PROGRESS=plain
+
 # Azure CLI, in the toolbox container.
-#   -T: no pseudo-terminal. Nothing here needs one, and on Windows asking for
-#       one while output is redirected fails with "failed to get console".
+#   -T, --interactive=false, </dev/null: no pseudo-terminal and no attached
+#       stdin. Nothing here reads input, and attaching either is another way
+#       to hit the console error above.
 #   AZURE_CORE_LOGIN_EXPERIENCE_V2=off: `az login` would otherwise stop at an
 #       interactive subscription picker, which can't work without a terminal.
-_az() { docker compose -f infra/compose.yml run --rm -T -e AZURE_CORE_LOGIN_EXPERIENCE_V2=off infra az "$@"; }
+_az() {
+  docker compose -f infra/compose.yml run --rm -T --interactive=false \
+    -e AZURE_CORE_LOGIN_EXPERIENCE_V2=off infra az "$@" </dev/null
+}
 az()  { _az "$@"; }
 azq() { _az "$@" | tr -d '\r'; }
 
@@ -227,7 +237,9 @@ pause "Subscription ready?"
 
 # ── 2. Sign the toolbox in ────────────────────────────────────────────────
 stage "Sign in to Azure from the toolbox"
-say "This builds the infra image the first time, then prints a code and a URL."
+say "First the infra image is built (a minute or two the first time)."
+docker compose -f infra/compose.yml build infra </dev/null
+say "Now a code and a URL are printed."
 step "Open the URL, enter the code, and pick the account from stage 1."
 # The code and URL are printed on stderr, so they still show.
 az login --use-device-code >/dev/null
