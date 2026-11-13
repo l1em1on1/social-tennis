@@ -221,7 +221,7 @@ The three services that write into a bind mount (`api-tests`, and the dev overla
 
 A second way to run an agent, alongside the Dev Container: Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/) (`sbx`). It meets the same ADR-0005 rule (nothing on the host but Docker and `sbx`) and adds two kinds of isolation the Dev Container lacks. Network egress is **deny-by-default**, and **credentials never enter the container**. The workspace is bind-mounted, so the sandbox edits the real repo. [`.sbx/README.md`](../.sbx/README.md) is the canonical reference for commands and setup. This section covers the mechanism.
 
-`sandbox.sh` (run on the host) is idempotent. Each step runs only when its output is missing:
+`sandbox.sh` (run on the host; `--help` lists its options) is idempotent. Each step runs only when its output is missing:
 
 1. **Secrets**: prompts with hidden input for any of `github` and `context7` that is missing from sbx's global secret store, and pipes each value in on stdin. `--set-secret <service>` replaces one secret.
 2. **Template**: `sbx` has its own image store, separate from the Docker daemon's. A plain `docker build` is invisible to it, and `sbx create -t` would try to pull from Docker Hub and get 403. So the script runs `docker build` → `docker save` into a temp dir → `sbx template load`, and an EXIT trap removes the tarball if a step fails. It runs when the template is missing or `--rebuild` is passed.
@@ -250,7 +250,7 @@ flowchart LR
     PX -->|"api.nuget.org"| NG[NuGet]
 ```
 
-- **`github` kit** uses sbx's built-in `github` service with a fine-grained PAT scoped to this repo. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
+- **`github` kit** uses sbx's built-in `github` service with a PAT of `l1em1on1-claude`, a dedicated account with write access to this repo only, and sets `GIT_AUTHOR_*`/`GIT_COMMITTER_*` so sandbox commits are that account's — environment variables, because the bind-mounted `.git/config` holds the host's identity and repo config beats `--global`. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
 - **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths, and the bind-mounted `obj/` is shared with the Dev Container, so the two environments overwrite each other's restore output.
 - **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
 - **`rtk` kit** has no egress or credential. Its setup command runs `rtk init -g --auto-patch` as the agent user, registering RTK's PreToolUse hook in `~/.claude/settings.json` after sbx has written that file. The binary comes from the template, so nothing is fetched at creation.

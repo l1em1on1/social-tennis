@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 #
 # sandbox.sh — create the project's Docker Sandbox if it doesn't exist, then run it.
-# Runs on the HOST. Needs `docker` and `sbx`.
-#
-#   ./sandbox.sh                       create if missing, update Claude Code, then attach
-#   ./sandbox.sh --rebuild             rebuild the template image first
-#   ./sandbox.sh --set-secret SERVICE  replace one stored secret, then exit
-#                                      (SERVICE: github | context7)
-#
-# Missing secrets are asked for on any run; stored ones are only replaced by
-# --set-secret.
+# Runs on the HOST. Needs `docker` and `sbx`. Options: see usage() or --help.
 #
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -25,13 +17,33 @@ KITS=(
 
 SECRETS=(github context7)
 
+usage() {
+  local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
+  cat <<USAGE
+Usage: ./sandbox.sh [--rebuild] [--set-secret SERVICE] [--help]
+
+Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
+Code in it, then attach. Runs on the host; needs docker and sbx.
+
+Options:
+  --rebuild             rebuild and reload the template image first
+  --set-secret SERVICE  replace one stored secret, then exit
+                        (SERVICE: $services)
+  -h, --help            show this help, then exit
+
+Missing secrets are asked for on any run; stored ones are only replaced by
+--set-secret. Kits attach at creation only: after changing one under
+.sbx/kits, run \`sbx rm $NAME\` and then this script again.
+USAGE
+}
+
 # secret_label SERVICE — the prompt for a secret; fails on an unknown service.
 secret_label() {
   case "$1" in
     # Built-in `github` service, used by the `github` kit (gh + git push over
-    # HTTPS). A fine-grained PAT scoped to this repo, so the agent gets only
-    # what the token grants — see .sbx/README.md for the permissions.
-    github)   echo "GitHub fine-grained PAT (github_pat_...)" ;;
+    # HTTPS). A PAT of the l1em1on1-claude account, a write collaborator on
+    # this repo only — see .sbx/README.md for the scopes.
+    github)   echo "GitHub PAT of the l1em1on1-claude account" ;;
     # Bound to the context7 kit's `service: context7` credential. Store the
     # raw key: the kit's `format: Bearer %s` adds the prefix.
     context7) echo "Context7 API key (ctx7sk-...)" ;;
@@ -44,12 +56,13 @@ REBUILD=false
 SET_SECRET=""
 while (($#)); do
   case "$1" in
+    -h|--help) usage; exit 0 ;;
     --rebuild) REBUILD=true ;;
     --set-secret)
       SET_SECRET=${2:-}
       secret_label "$SET_SECRET" >/dev/null || exit 2
       shift ;;
-    *) echo "unknown option: $1" >&2; exit 2 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
