@@ -1,0 +1,60 @@
+# Publishes the clickable wireframes in docs/ui/ to GitHub Pages, so the club
+# can open them from a link: https://l1em1on1.github.io/social-tennis/
+#
+# Runs only on main, and only when the wireframes change. It reports no check
+# on pull requests, so it is not something to require in the ruleset.
+#
+# There is no build: the wireframes are static, self-contained HTML, so the
+# steps only copy files. Nothing here needs a toolchain (ADR-0005).
+#
+# One-time setup, repository owner only: Settings → Pages → Source:
+# "GitHub Actions".
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/ui/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deployment finish; a newer one queues behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: publish wireframes
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Assemble the site
+        # Every HTML file in docs/ui/ is published under its own name, so the
+        # deep links in the tickets (phase-1-wireframes.html#score--new) work
+        # unchanged. The site root redirects to the Phase 1 wireframes.
+        run: |
+          mkdir _site
+          cp docs/ui/*.html _site/
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Social Tennis wireframes</title>
+          <meta http-equiv="refresh" content="0; url=phase-1-wireframes.html">
+          <a href="phase-1-wireframes.html">Phase 1 wireframes</a>
+          HTML
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

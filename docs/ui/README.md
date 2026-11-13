@@ -2,11 +2,11 @@
 
 Clickable mobile wireframes of every Phase 1 screen (issue #41), designed before the screens are built.
 
-**Open [`phase-1-wireframes.html`](phase-1-wireframes.html) in a browser.** It is one self-contained file: no build, no server, nothing to install. Pick a screen on the left, then flip its **State** and **Viewer** (Player, Parent, Manager, Admin). Everything inside the phone is clickable. The notes panel on the right gives each screen's decisions and the open questions for the walkthrough.
+**Open them at <https://l1em1on1.github.io/social-tennis/>**, or open [`phase-1-wireframes.html`](phase-1-wireframes.html) from a clone. It is one self-contained file: no build, no server, nothing to install. The published copy updates whenever this folder changes on `main` (`.github/workflows/pages.yml`). Pick a screen on the left, then flip its **State** and **Viewer** (Player, Parent, Manager, Admin). Everything inside the phone is clickable. The notes panel on the right gives each screen's decisions and the open questions for the walkthrough.
 
 The colours are the app's own tokens from `web/src/app/globals.css` (ADR-0014), and the shell (header, "Playing as" switcher, bottom nav, primitives) mirrors what #40 shipped, so the wireframes look like the real app in both light and dark.
 
-Each screen has a deep link: `phase-1-wireframes.html#<screen>` or `#<screen>--<state>`, e.g. `#score--new`, `#home--held-up`, `#match--locked`. Use these from tickets.
+Each screen has a deep link: `phase-1-wireframes.html#<screen>` or `#<screen>--<state>`, e.g. `#score--new`, `#home--held-up`, `#match--locked`. Use these from tickets. They work on the published site too: `https://l1em1on1.github.io/social-tennis/phase-1-wireframes.html#score--new`.
 
 ## Screens
 
@@ -55,7 +55,7 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 
 ## Walkthrough feedback
 
-To fill in after walking through with the club's Manager (an acceptance criterion of #41). The open questions are listed per screen in the notes panel; the main ones:
+Feedback is ongoing: the wireframes are a living design, updated as screens are built and as the club reacts to them. Send people the published link and record what comes back in the table. The open questions are listed per screen in the notes panel; the main ones, still open:
 
 1. Which score entry variant: A, B, or C (or a mix)?
 2. The tiebreak rule for short sets: at 5–5 to 6–5, or at 6–6 to 7–6?
@@ -65,4 +65,4 @@ To fill in after walking through with the club's Manager (an acceptance criterio
 
 | Date | Who | Feedback | Outcome |
 | --- | --- | --- | --- |
-| | | | |
+| 2026-11-13 | Product owner | Likes the UI as wireframed. Feedback will be ongoing, not a one-off walkthrough. | #41 closed. Wireframes published on GitHub Pages so they are easy to share. The five questions above stay open. |
