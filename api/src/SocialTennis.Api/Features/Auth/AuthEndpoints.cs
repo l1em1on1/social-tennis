@@ -1,3 +1,4 @@
+using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Validation;
 
@@ -19,23 +20,30 @@ public static class AuthEndpoints
     /// </remarks>
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        // Authorization is per-endpoint, not on the group: requesting and
-        // redeeming a link are necessarily anonymous.
+        // The API denies by default (ADR-0017), so only the exceptions are
+        // marked: requesting and redeeming a link are necessarily anonymous.
         var group = app.MapGroup("/auth");
 
         group.MapPost("/magic-link", RequestMagicLink.HandleAsync)
+            .AllowAnonymous()
             .ValidatesBody<MagicLinkRequest, MagicLinkRequest.Validator>()
+            .RequireRateLimiting(AuthOptions.MagicLinkRateLimitPolicy)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
             .WithName(nameof(RequestMagicLink));
 
+        // The 401 here is the handler's answer to a bad token, not the
+        // authorization middleware's, and a Results<> union doesn't describe
+        // UnauthorizedHttpResult — so it is declared by hand. A problem,
+        // because UseStatusCodePages gives the bodiless result a body.
         group.MapPost("/sessions", RedeemMagicLink.HandleAsync)
+            .AllowAnonymous()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithName(nameof(RedeemMagicLink));
 
         group.MapGet("/me", GetCurrentUser.HandleAsync)
-            .RequireAuthorization()
             .WithName(nameof(GetCurrentUser));
 
         group.MapDelete("/sessions/current", Logout.HandleAsync)
-            .RequireAuthorization()
             .WithName(nameof(Logout));
 
         return app;

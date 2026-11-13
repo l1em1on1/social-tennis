@@ -2,6 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
@@ -124,6 +128,104 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
 
         var afterLogout = await client.GetAsync("/auth/me");
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+    }
+
+    [Fact]
+    public async Task Concurrent_first_requests_for_one_address_all_succeed()
+    {
+        // Both see no User and both insert one; the unique index lets one win.
+        using var client = factory.CreateClient();
+        var email = UniqueEmail();
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 4).Select(_ => client.PostAsJsonAsync("/auth/magic-link", new { email })));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Accepted, response.StatusCode));
+        await RedeemAsync(client, factory.Sender.TokenFor(email));
+    }
+
+    [Fact]
+    public async Task An_address_holding_its_quota_of_live_links_gets_202_but_no_more_email()
+    {
+        using var limitedFactory = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Auth:MaxLiveMagicLinksPerAddress", "2"));
+        using var client = limitedFactory.CreateClient();
+        var email = UniqueEmail();
+
+        for (var i = 0; i < 3; i++)
+        {
+            var response = await client.PostAsJsonAsync("/auth/magic-link", new { email });
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        }
+
+        Assert.Equal(2, factory.Sender.SentTo(email));
+    }
+
+    [Fact]
+    public async Task Concurrent_requests_at_the_quota_boundary_do_not_exceed_it()
+    {
+        using var limitedFactory = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Auth:MaxLiveMagicLinksPerAddress", "2"));
+        using var client = limitedFactory.CreateClient();
+        var email = UniqueEmail();
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 8).Select(_ => client.PostAsJsonAsync("/auth/magic-link", new { email })));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Accepted, response.StatusCode));
+        Assert.Equal(2, factory.Sender.SentTo(email));
+    }
+
+    [Fact]
+    public async Task Magic_link_requests_beyond_the_ceiling_are_rate_limited()
+    {
+        using var limitedFactory = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Auth:MagicLinkRequestsPerMinute", "2"));
+        using var client = limitedFactory.CreateClient();
+
+        await client.PostAsJsonAsync("/auth/magic-link", new { email = UniqueEmail() });
+        await client.PostAsJsonAsync("/auth/magic-link", new { email = UniqueEmail() });
+        var third = await client.PostAsJsonAsync("/auth/magic-link", new { email = UniqueEmail() });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.Equal("application/problem+json", third.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task An_unhandled_error_is_a_problem_details_500()
+    {
+        // Production, where the developer exception page is off.
+        using var failingFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment(Environments.Production);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IMagicLinkSender>();
+                services.AddSingleton<IMagicLinkSender, ThrowingMagicLinkSender>();
+            });
+        });
+        using var client = failingFactory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/auth/magic-link", new { email = UniqueEmail() });
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Health_reports_healthy_without_a_session()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private sealed class ThrowingMagicLinkSender : IMagicLinkSender
+    {
+        public Task SendAsync(string email, string link, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The mail provider is down.");
     }
 
     [Fact]

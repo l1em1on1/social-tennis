@@ -18,10 +18,11 @@ public static class RedeemMagicLink
         RedeemMagicLinkRequest request,
         TennisDbContext db,
         IOptions<AuthOptions> authOptions,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         var hash = Tokens.Hash(request.Token);
-        var now = DateTimeOffset.UtcNow;
+        var now = clock.GetUtcNow();
         var magicToken = await db.MagicLinkTokens
             .SingleOrDefaultAsync(t => t.TokenHash == hash && t.UsedAt == null && t.ExpiresAt > now, cancellationToken);
 

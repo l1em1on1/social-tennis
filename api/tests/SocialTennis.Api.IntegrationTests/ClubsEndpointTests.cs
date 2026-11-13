@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
@@ -11,13 +10,12 @@ namespace SocialTennis.Api.IntegrationTests;
 /// service — never mocked repositories. The connection string arrives via
 /// ConnectionStrings__Default from docker-compose's api-tests service.
 /// </summary>
-public class ClubsEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
 {
     [Fact]
     public async Task GetClubs_returns_the_seeded_club_from_postgres()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.GetAsync("/clubs");
 
@@ -31,11 +29,21 @@ public class ClubsEndpointTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task GetClubs_reports_the_total_matching_the_query()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateSignedInClientAsync();
 
         var body = await client.GetFromJsonAsync<GetClubsResponse>("/clubs");
 
         Assert.NotNull(body);
         Assert.Equal(body.Clubs.Count, body.Page.Total);
+    }
+
+    [Fact]
+    public async Task GetClubs_is_refused_without_a_session()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/clubs");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

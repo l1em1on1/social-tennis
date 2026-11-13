@@ -82,6 +82,63 @@ public class OpenApiContractTests(WebApplicationFactory<Program> factory)
             $"These responses are a bare array; wrap each in an envelope (ADR-0012): {string.Join(", ", offenders)}");
     }
 
+    /// <summary>
+    /// ADR-0017: the API denies by default. Every operation the document
+    /// publishes, other than the short list below, must refuse an anonymous
+    /// call with 401 and must say so in the contract.
+    /// </summary>
+    /// <remarks>
+    /// The fallback policy in Program.cs is what enforces this; the test is
+    /// here so that making a new endpoint anonymous is a visible, reviewed
+    /// edit to this list rather than one AllowAnonymous() nobody noticed.
+    /// Authorization runs before model binding, so an empty request with a
+    /// placeholder id is enough to reach it.
+    /// </remarks>
+    private static readonly string[] AnonymousOperations =
+    [
+        "POST /auth/magic-link",
+        "POST /auth/sessions",
+    ];
+
+    [Fact]
+    public async Task Every_operation_outside_the_anonymous_list_requires_a_session()
+    {
+        using var document = await GetDocumentAsync();
+        using var client = factory.CreateClient();
+
+        var open = new List<string>();
+        var undeclared = new List<string>();
+
+        foreach (var path in document.RootElement.GetProperty("paths").EnumerateObject())
+        {
+            foreach (var operation in path.Value.EnumerateObject())
+            {
+                var name = $"{operation.Name.ToUpperInvariant()} {path.Name}";
+                if (!HttpVerbs.Contains(operation.Name) || AnonymousOperations.Contains(name))
+                {
+                    continue;
+                }
+
+                if (!operation.Value.GetProperty("responses").TryGetProperty("401", out _))
+                {
+                    undeclared.Add(name);
+                }
+
+                var url = System.Text.RegularExpressions.Regex.Replace(
+                    path.Name, @"\{[^}]+\}", Guid.Empty.ToString());
+                using var request = new HttpRequestMessage(new HttpMethod(operation.Name), url);
+                using var response = await client.SendAsync(request);
+                if (response.StatusCode != HttpStatusCode.Unauthorized)
+                {
+                    open.Add($"{name} -> {(int)response.StatusCode}");
+                }
+            }
+        }
+
+        Assert.True(open.Count == 0, $"These answered an anonymous call: {string.Join(", ", open)}");
+        Assert.True(undeclared.Count == 0, $"These don't declare their 401: {string.Join(", ", undeclared)}");
+    }
+
     // OpenAPI 3.1 permits "type" to be either a string or an array of strings,
     // and .NET emits both forms — an int32 comes through as ["integer","string"].
     private static bool IsArray(JsonElement schema) =>

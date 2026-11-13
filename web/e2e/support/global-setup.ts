@@ -1,13 +1,13 @@
 /**
- * Compose's `depends_on` only waits for containers to start, not to serve.
- * Wait here until both web builds answer and the api has finished its
- * startup migration, so the first test doesn't race the stack.
+ * Compose already holds the runner back until both web builds and the api
+ * report healthy. This repeats the wait for runs that bypass that: a target
+ * overridden with E2E_*_URL, or `run --no-deps`.
  */
 const targets = [
   process.env.E2E_MOCK_URL ?? "http://web-mock:3000",
   process.env.E2E_REAL_URL ?? "http://web-e2e:3000",
 ].map((origin) => `${origin}/login`);
-targets.push(`${process.env.E2E_API_URL ?? "http://api:8080"}/clubs`);
+targets.push(`${process.env.E2E_API_URL ?? "http://api:8080"}/health`);
 
 async function waitFor(url: string, timeoutMs = 180_000) {
   const deadline = Date.now() + timeoutMs;
