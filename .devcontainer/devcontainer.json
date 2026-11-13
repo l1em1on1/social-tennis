@@ -13,8 +13,8 @@
   },
   "forwardPorts": [3000, 8080, 5432],
   "remoteEnv": {
-    // dotnet global tools (csharp-ls) land here.
-    "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools",
+    // dotnet global tools (csharp-ls) and RTK's installer (~/.local/bin) land here.
+    "PATH": "${containerEnv:PATH}:/home/vscode/.dotnet/tools:/home/vscode/.local/bin",
     // Read by docker-compose.yml/docker-compose.dev.yml's bind-mount-writing
     // services (api-tests, dev api, dev web) as a `user:` override, so
     // dotnet/npm write obj/bin/.next as this container's vscode user (1000)

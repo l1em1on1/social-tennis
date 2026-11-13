@@ -107,7 +107,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
 │   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
-│   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI
+│   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI, RTK
 ├── sandbox.sh                  host entry point for the Docker Sandbox: secrets, template, create, run
 ├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
 │   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins
@@ -161,7 +161,7 @@ Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget`
 
 ### Dev Container
 
-The Dev Container is where editors *and* coding agents run, so that ADR-0005's "nothing on the host but Docker" survives contact with tooling that expects a local SDK. `post-create.sh` installs `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), and the Claude Code CLI. Those are read-only code intelligence and an agent front-end — not a build path. Listing a plugin in `.claude/settings.json`'s `enabledPlugins` does not install it — Claude Code only registers a plugin's tools (LSP or MCP) once it's actually installed — so `post-create.sh` also runs `claude plugin install` for `csharp-lsp`, `typescript-lsp`, and `context7`, after the CLI itself is on `PATH`.
+The Dev Container is where editors *and* coding agents run, so that ADR-0005's "nothing on the host but Docker" survives contact with tooling that expects a local SDK. `post-create.sh` installs `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), the Claude Code CLI, and RTK 1.2.0 (agent-facing output compaction; installer pinned to the v1.2.0 commit, binary in `~/.local/bin`, which `devcontainer.json` adds to `PATH`). Those are read-only code intelligence, an agent front-end and an output filter — not a build path. Listing a plugin in `.claude/settings.json`'s `enabledPlugins` does not install it — Claude Code only registers a plugin's tools (LSP or MCP) once it's actually installed — so `post-create.sh` also runs `claude plugin install` for `csharp-lsp`, `typescript-lsp`, and `context7`, after the CLI itself is on `PATH`.
 
 It uses the **docker-in-docker** feature rather than docker-outside-of-docker. Both compose files bind-mount by relative path (`./api:/src`); an inner daemon resolves them against the container's filesystem, whereas the host daemon would be handed `/workspaces/social-tennis/api` — a path that does not exist on a Windows host. The cost is a second image cache, kept in a per-container `dind-var-lib-docker-*` volume so it survives rebuilds. `social-tennis-claude-home` holds Claude Code's auth across rebuilds; plugin installs live there too, so a cold volume relies on `post-create.sh`'s `claude plugin install` calls to re-fetch them rather than on `.claude/settings.json` alone.
 
@@ -258,6 +258,7 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
+| RTK | 1.2.0 | Dev Container only; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
 ## Where this goes next
