@@ -17,3 +17,7 @@ Chosen because the club's alternative is arguing over WhatsApp with the Manager 
 ## Consequences
 
 Score needs proposal/vote/deadlock state and a settlement clock; the Manager needs a resolution queue surfaced prominently; standings must mark pending results as pending rather than dropping them silently. The N-day window is club-configurable.
+
+## Phasing (2026-10-26)
+
+Score collection was re-prioritised ahead of the agreement machinery. The first release ships a simpler interim model: any Player who played the Game submits the Score, any of them can edit it until the Stage closes, a Manager can override it, and every edit is recorded and shown (who, when, from what to what) — the visible history standing in for Reactions. The voting protocol above remains the target and is layered on the same Score later. The Stage-close resolution queue applies from the first release, for Games with no Score and Standings ties.

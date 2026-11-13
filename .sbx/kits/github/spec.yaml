@@ -1,0 +1,44 @@
+schemaVersion: "2"
+kind: mixin
+name: github
+displayName: GitHub (gh + git over HTTPS)
+description: "gh CLI and git push to github.com, with the token held by the sandbox proxy"
+
+# The token comes from sbx's built-in `github` service secret — a fine-grained
+# PAT scoped to this repo, which sandbox.sh prompts for and stores. The
+# proxy injects it into requests to these hosts; nothing in the container ever
+# holds it. Egress is allow-listed, so the hosts are named here even though the
+# global policy currently allows them too.
+permissions:
+  network:
+    allow:
+      - github.com
+      - api.github.com
+
+# gh refuses to run without a token in its environment, even though the proxy
+# replaces the Authorization header on the way out. Any value works; this one
+# says where the real token lives.
+environment:
+  variables:
+    GH_TOKEN: proxy-managed
+
+# The repo's `origin` is SSH (git@github.com:...), and sandbox egress denies
+# github.com:22. Rewrite to HTTPS in the agent's *global* git config, so the
+# bind-mounted repo's own .git/config — shared with the host — is untouched.
+setup:
+  install:
+    - command: "git config --global url.https://github.com/.insteadOf git@github.com:"
+      user: "1000"
+      description: Route git@github.com remotes over HTTPS, where the proxy injects the token
+
+agentInstructions:
+  content: |
+    GitHub is reachable from this sandbox over HTTPS: `gh` (issues, PRs) and
+    `git fetch`/`git push` to github.com both work.
+
+    `GH_TOKEN` reads `proxy-managed` — that is correct, not a missing login.
+    The sandbox proxy injects the real token; do not run `gh auth login` or
+    set a token yourself. SSH to github.com is blocked by design; `git@github.com:`
+    remotes are rewritten to HTTPS in the global git config.
+
+    Push only to feature branches, never to `main`.
