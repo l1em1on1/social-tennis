@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Features.Auth.Contracts;
@@ -217,9 +218,30 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     {
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/health");
+        var live = await client.GetAsync("/health");
+        var ready = await client.GetAsync("/health/ready");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+    }
+
+    [Fact]
+    public async Task Liveness_ignores_a_failing_readiness_check()
+    {
+        // Stands in for an unreachable database: /health must not run it.
+        using var unreadyFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+                services.AddHealthChecks().AddCheck(
+                    "always-down",
+                    () => HealthCheckResult.Unhealthy(),
+                    tags: [Program.ReadyTag])));
+        using var client = unreadyFactory.CreateClient();
+
+        var live = await client.GetAsync("/health");
+        var ready = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
     }
 
     private sealed class ThrowingMagicLinkSender : IMagicLinkSender

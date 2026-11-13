@@ -1,8 +1,7 @@
-# Shared by the three web services. The standalone server binds to $HOSTNAME
-# (the container's own name), not loopback, so the probe goes there too.
-# /login renders without calling the API, so this is web's own health only.
+# Shared by the three web services. /login renders without calling the API,
+# so this is web's own health only.
 x-web-healthcheck: &web-healthcheck
-  test: ["CMD-SHELL", "wget -q --spider http://$$HOSTNAME:3000/login"]
+  test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/login"]
   interval: 10s
   timeout: 5s
   retries: 3
@@ -32,7 +31,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      # GET /health: up, migrated, and able to reach Postgres. The runtime
+      # GET /health/ready: up, migrated, and able to reach Postgres. The runtime
       # image ships no curl or wget, so this speaks HTTP over bash's /dev/tcp.
       # A shell-less image (#25) will need a different probe.
       test:
@@ -41,7 +40,7 @@ services:
         - -c
         - >-
           exec 3<>/dev/tcp/127.0.0.1/8080 &&
-          printf 'GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
           head -n1 <&3 | grep -q ' 200 '
       interval: 10s
       timeout: 5s

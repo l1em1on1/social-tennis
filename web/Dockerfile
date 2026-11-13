@@ -13,6 +13,10 @@ RUN npm run build
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+# The standalone server binds to $HOSTNAME, which Docker would otherwise set to
+# the container's own name: reachable from other containers, but not on
+# loopback, and not on every host's ingress. Listen on all interfaces.
+ENV HOSTNAME=0.0.0.0
 COPY --from=build /src/.next/standalone ./
 COPY --from=build /src/.next/static ./.next/static
 COPY --from=build /src/public ./public

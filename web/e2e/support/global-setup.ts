@@ -7,7 +7,7 @@ const targets = [
   process.env.E2E_MOCK_URL ?? "http://web-mock:3000",
   process.env.E2E_REAL_URL ?? "http://web-e2e:3000",
 ].map((origin) => `${origin}/login`);
-targets.push(`${process.env.E2E_API_URL ?? "http://api:8080"}/health`);
+targets.push(`${process.env.E2E_API_URL ?? "http://api:8080"}/health/ready`);
 
 async function waitFor(url: string, timeoutMs = 180_000) {
   const deadline = Date.now() + timeoutMs;

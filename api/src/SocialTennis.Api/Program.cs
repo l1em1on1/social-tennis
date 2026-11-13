@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -26,7 +27,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 // through UseStatusCodePages (ADR-0017).
 builder.Services.AddProblemDetails();
 
-builder.Services.AddHealthChecks().AddDbContextCheck<TennisDbContext>();
+// Tagged, so /health/ready runs it and /health doesn't (see the mappings below).
+builder.Services.AddHealthChecks().AddDbContextCheck<TennisDbContext>(tags: [ReadyTag]);
 
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddScoped<IMagicLinkSender, LoggingMagicLinkSender>();
@@ -77,10 +79,14 @@ if (!EF.IsDesignTime)
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
 
+    // The lock database defaults to "postgres" because on a first run the
+    // app's own database may not exist yet. A hosted Postgres (Neon, ADR-0019)
+    // creates the app database up front and may not let the app's role into
+    // "postgres"; there, set Database:MigrationLockDatabase to the app database.
     var lockConnectionString = new NpgsqlConnectionStringBuilder(
         db.Database.GetConnectionString())
     {
-        Database = "postgres",
+        Database = app.Configuration["Database:MigrationLockDatabase"] ?? "postgres",
         // Advisory locks are session-scoped and Npgsql's pool reset does not
         // release them — a pooled return would hold the lock until idle
         // pruning (~5 min). Unpooled, disposal closes the session and frees
@@ -114,9 +120,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
-// Liveness plus "can reach Postgres". Anonymous: compose healthchecks, the
-// E2E runner and the deploy pipeline call it with no session.
-app.MapHealthChecks("/health").AllowAnonymous();
+// Two probes, both anonymous (callers have no session):
+//   /health        the process is up. Runs no checks, so it never touches the
+//                  database. For a host's liveness probe: on a scale-to-zero
+//                  database, a probe that queries it every few seconds keeps
+//                  it awake and spends its compute allowance (ADR-0019).
+//   /health/ready  up, migrated, and able to reach Postgres. For compose
+//                  healthchecks and the E2E runner.
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(ReadyTag),
+}).AllowAnonymous();
 
 // Served unconditionally: the TS client is generated from /openapi/v1.json
 // inside the compose network (see web's api:generate script). Anonymous for
@@ -132,4 +147,8 @@ app.MapAuthEndpoints();
 app.Run();
 
 // Exposes the entry point to WebApplicationFactory in integration tests.
-public partial class Program;
+public partial class Program
+{
+    /// <summary>Tag on health checks that /health/ready runs and /health skips.</summary>
+    public const string ReadyTag = "ready";
+}
