@@ -132,7 +132,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0014
+│   ├── adr/                    architecture decision records 0001–0015
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
@@ -284,6 +284,8 @@ flowchart LR
     E -->|"project: real"| WE["web-e2e<br/>prod build"]
     WE --> A2["api"] --> DB2[("postgres: tennis")]
     E -.->|"real logins: seed the<br/>magic-link token hash"| DB2
+    E -->|"mock project:<br/>DOM archives"| AR[/"web/test-results/<br/>chromatic-archives"/]
+    AR --> C["chromatic (profile e2e)<br/>npx chromatic --playwright"] --> CH(["Chromatic<br/>visual review"])
 ```
 
 - **Two projects, one suite.** Every spec runs against `web-mock` (no API) and `web-e2e` (real API and Postgres) unless it opts out. Both are production builds served under their compose hostnames.
@@ -291,6 +293,7 @@ flowchart LR
 - **Accessibility.** `@axe-core/playwright` fails a test on any *serious* or *critical* WCAG 2.1 A/AA violation. The `/dev/ui` showcase is checked in both colour schemes, and that's what keeps the token pairings at AA contrast.
 - **Real-API login without an inbox.** Until #19 the link is only logged. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows, and redeems it at `/auth/verify`. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
 - **Readiness.** `e2e/support/global-setup.ts` polls both web builds and the API until they answer, because `depends_on` only waits for containers to start.
+- **Visual review (ADR-0015).** Specs import `test` from `@chromatic-com/playwright`, which archives each mock-project test's final page (plus explicit `takeSnapshot`s). The `chromatic` compose service uploads them; Chromatic diffs against the accepted baselines and its "UI Tests" check gates the PR. The real project doesn't snapshot (its data changes every run), and neither does dark mode (Playwright archives replay without `emulateMedia`). Mock logins use a fixed `<persona>@example.com` so snapshots are stable.
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
 
@@ -308,7 +311,7 @@ flowchart LR
     end
     subgraph webwf ["web.yml — web/**, api/**, compose"]
         T3["build<br/>docker compose build web<br/>+ assert no MSW in the image"]
-        T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>report uploaded on failure"]
+        T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>then run --rm --no-deps chromatic (if token set)<br/>report uploaded on failure"]
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
@@ -331,6 +334,7 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | @playwright/test | 1.65.0 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.0-noble` image tag in `docker-compose.yml` (browsers ship in the image) |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
+| chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
