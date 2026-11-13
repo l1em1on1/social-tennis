@@ -152,6 +152,8 @@ Statuses that come from middleware rather than a handler are put into the docume
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
 │   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
 │   └── post-create.sh          csharp-ls, typescript-language-server, claude CLI, RTK
+├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
+├── scripts/setup-hosting.sh    one-time hosting setup wizard (accounts, state storage, GitHub identity)
 ├── sandbox.sh                  host entry point for the Docker Sandbox: secrets, template, create, run
 ├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
 │   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins, RTK
@@ -268,6 +270,49 @@ flowchart LR
 - **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
 - **`rtk` kit** has no egress or credential. Its setup command runs `rtk init -g --auto-patch` as the agent user, registering RTK's PreToolUse hook in `~/.claude/settings.json` after sbx has written that file. The binary comes from the template, so nothing is fetched at creation.
 
+## Deployment (PoC)
+
+The PoC is hosted on Azure Container Apps with Neon for Postgres, both scaled to zero when idle (ADR-0019). The topology is the compose one with the database moved out: `web` is public, `api` has internal ingress only, and nothing else is exposed.
+
+```mermaid
+flowchart LR
+    B[Browser]
+    subgraph aca ["Azure Container Apps environment (UK South)"]
+        W["web<br/>public ingress, https<br/>0–1 replicas"]
+        A["api<br/>internal ingress only<br/>0–1 replicas"]
+    end
+    N[("Neon Postgres<br/>free plan, suspends when idle")]
+    G[["GHCR<br/>web and api images"]]
+    L[["Log Analytics"]]
+
+    B -->|"https://web.&lt;environment domain&gt;"| W
+    W -->|"http://api"| A
+    A -->|"TLS, direct endpoint"| N
+    G -.->|"image pull"| W & A
+    W & A -.->|"logs"| L
+```
+
+- **Scale to zero.** After about five idle minutes both apps stop and Neon suspends its compute. The next request starts `web`, then `api` (which checks migrations), then the database. The first page load after idle has not been measured yet; it is recorded here once the environment exists.
+- **Probes.** Azure probes the API on `/health`, which runs no checks, so probing never wakes the database. The startup probe allows two minutes for a cold start. `web` is probed on `/login`, which calls nothing.
+- **Single replica.** Each app runs at most one replica, because the API migrates on startup. `always_on = true` raises the minimum from 0 to 1.
+- **Database connection.** The API uses Neon's direct endpoint, not its pooler: startup migration holds a session advisory lock, which a pooled connection would break. The lock is taken on the app's own database (`Database__MigrationLockDatabase`), since a Neon role may not be allowed into `postgres`.
+- **Addresses.** `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform from the environment's domain. The public address is https, so session cookies are `Secure`.
+- **No email.** There is no domain, so nothing can be sent. A sign-in link is read from the API's logs (README, "Hosting").
+- **Cost guard.** A budget on the resource group emails when actual or forecast spend reaches the configured amount.
+
+### Terraform (`infra/`)
+
+| Piece | Where | Note |
+|---|---|---|
+| Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
+| Root | `infra/*.tf` | Resource group, the two modules, the budget |
+| `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
+| `modules/compute` | Log Analytics, environment, `web`, `api` | |
+| State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
+| Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
+
+`infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow (#27), which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
+
 ## Database and migrations
 
 EF Core migrations live in the API project; **the API applies them on startup** (`MigrateAsync` behind an `EF.IsDesignTime` guard), so `docker compose up` needs no separate migration step. The step is serialized by an advisory lock taken on the `postgres` maintenance database; `Database:MigrationLockDatabase` changes which database holds the lock, for a hosted Postgres where the app's role can't open `postgres`. Per EF Core guidance this pattern fits dev/test and single-instance deployments — which v1 is; the exit is scripted migrations (`dotnet ef migrations script`) before scaling past one API instance.
@@ -333,6 +378,8 @@ flowchart LR
 
 **Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip`, because Chromatic's own "UI Tests" check is only posted when a build is published and would otherwise stay unreported.
 
+**Infrastructure.** `infra.yml` runs `terraform fmt -check` and `terraform validate` in the toolbox image when `infra/` changes, with the same always-reports structure as the other two.
+
 **Wireframes on GitHub Pages.** A third workflow, `pages.yml`, publishes `docs/ui/*.html` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder. It copies static files and builds nothing. It reports no check on pull requests.
 
 **Build hygiene.** `api/Directory.Build.props` turns warnings into errors with the recommended analyzers, and `api/.editorconfig` holds the C# style rules `dotnet format` checks. It lives under `api/` because the compose services mount `./api` alone. EF Core's generated migrations are marked `generated_code`. ESLint runs in its own job because `next build` no longer lints.
@@ -358,6 +405,8 @@ flowchart LR
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
+| Terraform / azurerm / neon provider | 1.17.2 / ~> 5.14 / 0.18.0 | `infra/` only. The Neon provider is community-maintained and pinned exactly |
+| Azure CLI | 2.92.0 | In the infra toolbox image |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
 ## Where this goes next
