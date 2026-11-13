@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Social Tennis Wireframes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;600&display=swap">
+<!--
+  Phase 1 wireframes (issue #41). A design document, not app code: open this
+  file in a browser (double-click), pick a screen on the left, flip its states.
+  Colours are the app's own tokens from web/src/app/globals.css (ADR-0014), so
+  what you see here is what the real screens will use. Everything is in-memory
+  and fake: no request leaves the page.
+  Layout concept: a control rail beside one 360px phone; the phone holds the screen.
+-->
+<style>
+:root {
+  --bg: #f6f7f4; --surface: #ffffff; --surface-muted: #eceee8;
+  --fg: #1a1d17; --fg-muted: #555c4f; --border: #d3d8cc;
+  --accent: #2f6b1f; --accent-hover: #255617; --accent-fg: #ffffff; --accent-muted: #e2efdb;
+  --success: #1d6a40; --success-muted: #dcf2e5;
+  --warning: #835000; --warning-muted: #fbefd3;
+  --danger: #b42318; --danger-muted: #fde7e4;
+  --info: #1d4f91; --info-muted: #e1ebf8;
+  /* Workbench chrome around the phone, deliberately not an app colour. */
+  --desk: #e4e6df; --desk-fg: #2b2f27; --note: #fffbe8; --note-border: #e8dca4;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11140f; --surface: #1a1e17; --surface-muted: #262b22;
+    --fg: #eef1ea; --fg-muted: #aab2a2; --border: #3a4233;
+    --accent: #8fd16f; --accent-hover: #a6dd8b; --accent-fg: #10200a; --accent-muted: #22381a;
+    --success: #7fd8a2; --success-muted: #153122;
+    --warning: #f2bf62; --warning-muted: #36280c;
+    --danger: #ff9385; --danger-muted: #3d1713;
+    --info: #91bcff; --info-muted: #172a45;
+    --desk: #0b0d0a; --desk-fg: #cfd5c8; --note: #2a2716; --note-border: #4a4426;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11140f; --surface: #1a1e17; --surface-muted: #262b22;
+  --fg: #eef1ea; --fg-muted: #aab2a2; --border: #3a4233;
+  --accent: #8fd16f; --accent-hover: #a6dd8b; --accent-fg: #10200a; --accent-muted: #22381a;
+  --success: #7fd8a2; --success-muted: #153122;
+  --warning: #f2bf62; --warning-muted: #36280c;
+  --danger: #ff9385; --danger-muted: #3d1713;
+  --info: #91bcff; --info-muted: #172a45;
+  --desk: #0b0d0a; --desk-fg: #cfd5c8; --note: #2a2716; --note-border: #4a4426;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--desk); color: var(--desk-fg); font: 14px/1.45 var(--font-sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- workbench ---------- */
+.bench { display: grid; grid-template-columns: minmax(0, 300px) 380px minmax(0, 320px); gap: 24px; justify-content: center; align-items: start; max-width: 1100px; margin: 0 auto; }
+@media (max-width: 1080px) { .bench { grid-template-columns: minmax(0, 300px) 380px; } .notes { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .bench { grid-template-columns: minmax(0, 1fr); } .phone { margin: 0 auto; } }
+.rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rail h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.rail p { margin: 0; color: var(--desk-fg); opacity: .8; }
+.rail h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 6px; opacity: .75; }
+.screens { display: flex; flex-direction: column; gap: 2px; }
+.screens a { color: inherit; text-decoration: none; padding: 5px 8px; border-radius: 6px; display: flex; justify-content: space-between; gap: 8px; }
+.screens a:hover { background: color-mix(in srgb, var(--desk-fg) 8%, transparent); }
+.screens a[aria-current="true"] { background: var(--desk-fg); color: var(--desk); font-weight: 600; }
+.screens .num { font-family: var(--font-mono); font-size: 11px; opacity: .6; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid color-mix(in srgb, var(--desk-fg) 30%, transparent); background: transparent; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+.chip[aria-pressed="true"] { background: var(--desk-fg); color: var(--desk); border-color: var(--desk-fg); }
+.notes { background: var(--note); border: 1px solid var(--note-border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.notes h2 { font-size: 15px; margin: 0 0 6px; }
+.notes h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin: 12px 0 4px; opacity: .75; }
+.notes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.notes .q li::marker { content: "? "; font-weight: 700; }
+
+/* ---------- phone ---------- */
+.phone { width: 380px; max-width: 100%; border-radius: 34px; padding: 10px; background: #1b1d19; box-shadow: 0 20px 50px -20px rgb(0 0 0 / .45); }
+.screen { width: 360px; max-width: 100%; height: 780px; border-radius: 26px; overflow: hidden; background: var(--bg); color: var(--fg); position: relative; display: flex; flex-direction: column; font-size: 15px; }
+.scroll { flex: 1; overflow-y: auto; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+/* app primitives, mirroring web/src/components/ui */
+.hdr { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; background: color-mix(in srgb, var(--bg) 92%, transparent); border-bottom: 1px solid var(--border); min-height: 56px; }
+.brand { font-weight: 700; }
+.switcher { border: 0; background: transparent; text-align: right; line-height: 1.15; padding: 4px 6px; border-radius: 10px; cursor: pointer; min-height: 44px; }
+.switcher small { display: block; color: var(--fg-muted); font-size: 11px; }
+.switcher b { font-size: 14px; }
+.back { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); text-decoration: none; font-weight: 600; min-height: 44px; border: 0; background: none; padding: 0; cursor: pointer; }
+.nav { display: flex; border-top: 1px solid var(--border); background: var(--surface); }
+.nav a { flex: 1; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 500; color: var(--fg-muted); text-decoration: none; }
+.nav a[aria-current="page"] { color: var(--accent); }
+.nav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+h1.t { font-size: 24px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--fg-muted); margin: -10px 0 0; font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.card > h2 { font-size: 16px; margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card.hl { border-color: var(--warning); box-shadow: inset 4px 0 0 var(--warning); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.muted { color: var(--fg-muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid transparent; font-weight: 600; cursor: pointer; text-decoration: none; text-align: center; }
+.btn.full { width: 100%; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover { background: var(--accent-hover); }
+.btn.secondary { background: var(--surface); border-color: var(--border); color: var(--fg); }
+.btn.ghost { background: transparent; color: var(--fg); }
+.btn.danger { background: var(--danger); color: var(--surface); }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-neutral { background: var(--surface-muted); color: var(--fg-muted); }
+.b-accent { background: var(--accent-muted); color: var(--accent); }
+.b-success { background: var(--success-muted); color: var(--success); }
+.b-warning { background: var(--warning-muted); color: var(--warning); }
+.b-danger { background: var(--danger-muted); color: var(--danger); }
+.b-info { background: var(--info-muted); color: var(--info); }
+.banner { border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.banner b { font-size: 15px; }
+.banner.warn { background: var(--warning-muted); color: var(--fg); border: 1px solid var(--warning); }
+.banner.info { background: var(--info-muted); color: var(--fg); border: 1px solid var(--info); }
+.banner.err { background: var(--danger-muted); color: var(--fg); border: 1px solid var(--danger); }
+.banner.ok { background: var(--success-muted); color: var(--fg); border: 1px solid var(--success); }
+.empty { text-align: center; padding: 28px 16px; border: 1px dashed var(--border); border-radius: 16px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.empty b { font-size: 16px; }
+.skel { background: var(--surface-muted); border-radius: 10px; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label, .lbl { font-weight: 600; font-size: 14px; }
+.field .hint { color: var(--fg-muted); font-size: 13px; }
+.field .err { color: var(--danger); font-size: 13px; font-weight: 600; }
+.input { min-height: 44px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 0 12px; width: 100%; }
+.input.bad { border-color: var(--danger); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.seg button { min-height: 44px; border: 0; background: transparent; cursor: pointer; font-weight: 600; padding: 0 6px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.list > li { padding: 10px 0; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.list > li:first-child { border-top: 0; padding-top: 2px; }
+.me { font-weight: 700; }
+.me::after { content: " (you)"; font-weight: 400; color: var(--fg-muted); font-size: 13px; }
+a.lnk { color: var(--accent); font-weight: 600; text-decoration: none; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.switch { width: 50px; height: 30px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-muted); position: relative; cursor: pointer; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--fg-muted); transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"]::after { left: 23px; background: var(--accent-fg); }
+
+/* score table */
+.scoretbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.scoretbl td { padding: 8px 4px; border-top: 1px solid var(--border); }
+.scoretbl tr:first-child td { border-top: 0; }
+.scoretbl td.n { width: 100%; }
+.scoretbl td.s { text-align: center; min-width: 30px; font-family: var(--font-mono); font-size: 17px; }
+.scoretbl td.s sup { font-size: 10px; color: var(--fg-muted); }
+.scoretbl tr.win td { font-weight: 700; }
+.scoretbl tr.win td.n::after { content: "✓"; color: var(--success); margin-left: 6px; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+.timeline li { position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -20px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.diff { font-family: var(--font-mono); font-size: 13px; }
+.diff del { color: var(--danger); }
+.diff ins { color: var(--success); text-decoration: none; font-weight: 600; }
+
+/* steppers */
+.stepper { display: grid; grid-template-columns: 48px 44px 48px; align-items: center; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.stepper button { height: 48px; border: 0; background: var(--surface-muted); font-size: 22px; font-weight: 600; cursor: pointer; }
+.stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.stepper output { text-align: center; font-family: var(--font-mono); font-size: 22px; font-weight: 600; }
+.stepper.big { grid-template-columns: 64px 64px 64px; }
+.stepper.big button { height: 64px; font-size: 28px; }
+.stepper.big output { font-size: 34px; }
+.setcard { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.setcard.ok { border-color: var(--success); }
+.setcard.bad { border-color: var(--danger); }
+.setcard.off { opacity: .5; }
+.setcard header { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; }
+.side { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.side span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb { border-top: 1px dashed var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.msg { font-size: 13px; font-weight: 600; }
+.msg.bad { color: var(--danger); }
+.msg.ok { color: var(--success); }
+.msg.hint { color: var(--fg-muted); font-weight: 500; }
+.pickgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.pick { min-height: 48px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-family: var(--font-mono); font-size: 16px; font-weight: 600; cursor: pointer; }
+.pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.whowon { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.whowon button { min-height: 56px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; cursor: pointer; padding: 6px; }
+.whowon button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.dots { display: flex; gap: 6px; justify-content: center; }
+.dots i { width: 28px; height: 6px; border-radius: 3px; background: var(--surface-muted); }
+.dots i.on { background: var(--accent); }
+.sticky-foot { position: sticky; bottom: -24px; margin: 0 -16px -24px; padding: 12px 16px 16px; background: var(--bg); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.summary { font-family: var(--font-mono); font-size: 14px; }
+
+/* ladder */
+.div { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: stretch; }
+.div .rung { border-radius: 10px; background: var(--surface-muted); display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: var(--font-mono); }
+.div .body { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit; }
+.div.mine .body { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.mv { font-size: 12px; font-weight: 700; }
+.up { color: var(--success); } .down { color: var(--danger); } .stay { color: var(--fg-muted); }
+
+/* sheet */
+.sheet-wrap { position: absolute; inset: 0; background: color-mix(in srgb, var(--fg) 40%, transparent); display: flex; align-items: flex-end; z-index: 5; }
+.sheet { background: var(--surface); width: 100%; border-radius: 24px 24px 0 0; padding: 18px 16px 24px; display: flex; flex-direction: column; gap: 12px; max-height: 85%; overflow-y: auto; }
+.sheet header { display: flex; justify-content: space-between; align-items: center; }
+.sheet h2 { margin: 0; font-size: 18px; }
+.ann { font-size: 12px; color: var(--info); border: 1px dashed var(--info); border-radius: 8px; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<div class="bench">
+  <aside class="rail" aria-label="Wireframe controls">
+    <div>
+      <h1>Social Tennis · Phase 1 wireframes</h1>
+      <p class="small">Issue #41. Every screen in <code>docs/phase-1-score-collection.md</code>. Pick a screen, then a state. Everything inside the phone is clickable and fake.</p>
+    </div>
+    <div id="states"></div>
+    <div id="extras"></div>
+    <nav id="screens" aria-label="Screens"></nav>
+    <div>
+      <h2>Theme</h2>
+      <div class="chips" id="theme"></div>
+    </div>
+  </aside>
+  <div class="phone"><div class="screen" id="screen" aria-live="polite"></div></div>
+  <aside class="notes" id="notes" aria-label="Design notes"></aside>
+</div>
+
+<script>
+"use strict";
+/* ---------------------------------------------------------------- data */
+const ME = "Ben Carter";
+const KIDS = ["Alex Carter", "Mia Carter"];
+const SINGLES = { id: "singles", name: "Men's Singles Ladder", type: "Singles · men", format: { games: 6, bestOf: 3, matchTb: true }, formatText: "Best of 3 sets of 6 · match tiebreak decider", month: "November", deadline: "30 Nov", close: "Manager closes" };
+const FOURS = { id: "fours", name: "Thursday Foursomes", type: "Foursomes", format: { games: 9, bestOf: 1, matchTb: false }, formatText: "One set of 9", month: "November", deadline: "30 Nov", close: "Closes automatically" };
+const LADDER = [
+  { d: 1, a: "Tom Reid", b: "Omar Ali", score: "6–4 6–2", status: "played", win: "a" },
+  { d: 2, a: "Josh Lee", b: "Ravi Rao", status: "pending" },
+  { d: 3, a: ME, b: "Dev Shah", status: "pending", mine: true },
+  { d: 4, a: "Liam Moss", b: "Nate Cole", score: "6–2 2–1 ret.", status: "retirement", win: "a" },
+];
+const BYE = "Gus Ward";
+
+/* ---------------------------------------------------------------- screens */
+const SCREENS = [
+  { id: "login", n: "P1", title: "Log in", group: "Player", states: ["default", "sent", "bad-link"] },
+  { id: "home", n: "P2", title: "Home", group: "Player", states: ["default", "held-up", "bye", "empty", "loading", "error"] },
+  { id: "match", n: "P3", title: "Match", group: "Player", states: ["score-needed", "scored", "locked", "walkover", "loading", "error"] },
+  { id: "score", n: "P4", title: "Score entry", group: "Player", states: ["new", "edit", "server-error"] },
+  { id: "ladder", n: "P5", title: "League ladder", group: "Player", states: ["default", "foursomes", "held-up", "past-month", "not-started", "loading", "error"] },
+  { id: "leagues", n: "P6", title: "Leagues", group: "Player", states: ["default", "empty", "loading", "error"] },
+  { id: "profiles", n: "P7", title: "My profiles", group: "Player", states: ["parent", "single"] },
+  { id: "manage", n: "M1", title: "Manage", group: "Manager", states: ["default", "empty"] },
+  { id: "setup", n: "M2", title: "League setup", group: "Manager", states: ["new", "invalid"] },
+  { id: "players", n: "M3", title: "Players", group: "Manager", states: ["default", "add-player", "empty"] },
+  { id: "start", n: "M4", title: "Start the league", group: "Manager", states: ["singles", "foursomes"] },
+  { id: "todo", n: "M5", title: "To-do", group: "Manager", states: ["default", "walkover", "empty", "loading", "error"] },
+  { id: "close", n: "M6", title: "Close the month", group: "Manager", states: ["ready", "held-up", "closed"] },
+  { id: "admin", n: "A1", title: "Club and roles", group: "Admin", states: ["default", "no-club", "error"] },
+];
+
+const NOTES = {
+  login: { what: "One email field. The link is the password.", decisions: ["After sending, the same screen confirms where the link went, so a typo is obvious.", "An expired or reused link lands back here with a plain explanation and the form ready."], questions: ["Should the confirmation say how long the link lasts (e.g. 15 minutes)?"] },
+  home: { what: "What do I owe this month? One card per League, the Game, the opponent, the deadline.", decisions: ["Games without a Score are the loudest thing on the page (amber edge, \"Score needed\" badge, primary button).", "\"Stage held up\" is a banner above everything, naming what blocks it, so Players stop asking on WhatsApp.", "A Bye is its own card in the League's slot, not a missing card.", "Foursomes lists all three Games with the partner named first."], questions: ["Is the deadline best as a date (\"by 30 Nov\") or a countdown (\"9 days left\")?"] },
+  match: { what: "One Game: both sides, the Score set by set, who entered it, and every change.", decisions: ["The winner row is bold with a tick; the status badge repeats it in words.", "History is a timeline under the Score: who, when, from what to what. It replaces voting in Phase 1 (ADR-0008).", "After the month closes, Players see a lock and the Manager's name; a Manager sees \"Override score\" instead."], questions: ["Should Players see the Manager's override reason, or only that it was overridden?"] },
+  score: { what: "The most-used screen. Three layouts to compare; flip with the Variant chips. All three share the same rules.", decisions: ["Steppers, never free text: no keyboard pops up, no \"6-4\" typing errors.", "The tiebreak row appears only at 5–5 (or 8–8 in sets of 9); the set is then saved as 6–5 plus the tiebreak points.", "In best of 3, the third set only appears at one set all, and becomes a first-to-10 Match Tiebreak where the League allows it.", "Retirement is a toggle at the bottom: the sets as they stood, plus an explicit winner.", "Hints mirror the server's rules; the server still decides, and its message shows as an error banner (state server-error)."], questions: ["Which variant: A (all sets at once), B (who won, then pick the scoreline), or C (one set per step)?", "Is \"tiebreak at 5–5, set ends 6–5\" right for the club's short sets? Or is it 6–6 → 7–6?", "Does the date played need to fall inside the month?"] },
+  ladder: { what: "Every Division this month, top to bottom, with each result and who moves.", decisions: ["Your Division is outlined in green; tap any Division to open its Match.", "Live arrows show who would move up or down if the month closed now.", "The Bye sits under the bottom Division.", "Past months are a picker at the top, read-only."], questions: ["Do Players want the whole ladder, or just their Division plus the ones either side?"] },
+  leagues: { what: "My Leagues, and Leagues I can ask to join.", decisions: ["Replaces the \"Ladder\" tab from #40's shell: with more than one League, a list comes first and each opens its ladder.", "A join request shows as pending on the League until the Manager decides."], questions: ["Should Players see Leagues they can't join (e.g. Women's Singles for a man), greyed out?"] },
+  profiles: { what: "The Players on this login. A parent switches to a child here or from the header.", decisions: ["Matches the shipped #40 screen: the acting Player is marked, the others have a \"Play as\" button."], questions: [] },
+  manage: { what: "The Manager's start page: what needs doing, then each League.", decisions: ["The to-do count leads. Month close is reached from the to-do list, because it can't happen until that list is empty."], questions: [] },
+  setup: { what: "Create a League: type, score format, month length, how the month closes.", decisions: ["The match tiebreak option only appears for best of 3.", "A one-line preview spells out the format in words, e.g. \"Best of 3 sets of 6, tiebreak at 5–5, match tiebreak decider\"."], questions: ["Is month length always one calendar month, or do some Leagues run 3-week Stages?"] },
+  players: { what: "Who is in the League: add by name and email, approve join requests, pair Teams for doubles.", decisions: ["Join requests come first, since they block the start.", "A Player added by email shows \"hasn't logged in yet\" until they claim the profile.", "Doubles: unpaired Players are listed under Teams with a partner picker."], questions: [] },
+  start: { what: "The proposed starting ladder, by Rating, then earliest joiner. Reorder, leave people out, confirm.", decisions: ["Up and down buttons, not drag-and-drop: easier with a thumb and with a screen reader.", "The Divisions it would create are shown live as you change the order.", "Foursomes blocks Confirm until the count is a multiple of 4 and says how many to add or leave out (ADR-0013)."], questions: [] },
+  todo: { what: "Everything that stops the month closing: missing Scores, ties the app can't break.", decisions: ["Each item carries its own actions: enter or override the Score, walkover to one side, void, or pick the order of a tie.", "Players see the same list read-only on Home's held-up banner."], questions: ["Should a walkover need a reason?"] },
+  close: { what: "A preview of who moves, then Confirm. The next month's Games appear straight away.", decisions: ["Closing is blocked, with links to the to-do items, while anything is unsettled.", "Arrows show the move; the ends stay put and the Bye doesn't move."], questions: [] },
+  admin: { what: "Create the Club; give and take Manager and Admin roles.", decisions: ["You can't remove the last Admin, so the club is never locked out."], questions: [] },
+};
+
+/* ---------------------------------------------------------------- state */
+const S = {
+  screen: "home", state: {}, persona: "player", variant: "A", scenario: "bo3-mtb",
+  acting: ME, sheet: null, theme: "system",
+  setup: { type: "SinglesMen", games: 6, bestOf: 3, matchTb: true, auto: false },
+  start: null, score: null, roles: null,
+};
+const SCENARIOS = {
+  "one-set": { label: "One set of 6", games: 6, bestOf: 1, matchTb: false },
+  "bo3": { label: "Best of 3", games: 6, bestOf: 3, matchTb: false },
+  "bo3-mtb": { label: "Best of 3 + match tiebreak", games: 6, bestOf: 3, matchTb: true },
+  "nine": { label: "One set of 9", games: 9, bestOf: 1, matchTb: false },
+};
+const stateOf = (id) => S.state[id] ?? SCREENS.find((s) => s.id === id).states[0];
+
+function freshScore(prefill) {
+  const sets = [0, 1, 2].map(() => ({ a: 0, b: 0, ta: 0, tb: 0 }));
+  if (prefill) { Object.assign(sets[0], { a: 6, b: 4 }); Object.assign(sets[1], { a: 3, b: 6 }); Object.assign(sets[2], { a: 10, b: 7 }); }
+  return { sets, ret: false, retWinner: null, date: "2026-11-12", step: 0, pickWinner: [null, null, null] };
+}
+function freshStart(kind) {
+  const singles = [["Tom Reid", 4.5], ["Omar Ali", 4.2], ["Josh Lee", 3.8], ["Ravi Rao", 3.8], [ME, 3.1], ["Dev Shah", 3.0], ["Liam Moss", 2.4], ["Nate Cole", 2.1], ["Gus Ward", 1]];
+  const fours = [["Anna Price", 4], ["Cara Diaz", 3.9], [ME, 3.6], ["Ed Fox", 3.5], ["Fay Hill", 3.2], ["Hana Ito", 3.1], ["Ian Bell", 3], ["Jo Park", 2.9], ["Kit Moore", 2.6], ["Lou Grant", 2.5], ["Max Webb", 2.2], ["Nia Ross", 2], ["Ola Berg", 1.8], ["Pip Shaw", 1.5]];
+  return { kind, order: (kind === "fours" ? fours : singles).map(([name, r], i) => ({ name, r, joined: i, out: false })), confirmed: false };
+}
+S.score = freshScore();
+S.start = freshStart("singles");
+S.roles = [
+  { name: "Priya Nair", email: "priya@…", manager: true, admin: true, you: true },
+  { name: "Tom Reid", email: "tom@…", manager: true, admin: false },
+  { name: ME, email: "ben@…", manager: false, admin: false },
+  { name: "Anna Price", email: "anna@…", manager: false, admin: false },
+];
+
+/* ---------------------------------------------------------------- score rules (mirror of #38's server validation) */
+function fmt() { return SCENARIOS[S.scenario]; }
+/** Number of set slots the entry shows right now, given the format and what's entered. */
+function visibleSets(f, sets) {
+  if (f.bestOf === 1) return 1;
+  const w = [0, 1].map((i) => setResult(f, sets[i], false).winner);
+  return w[0] && w[1] && w[0] !== w[1] ? 3 : 2;
+}
+/** {state: ok|bad|empty|partial, winner: a|b|null, msg} for one set. */
+function setResult(f, s, isMatchTb) {
+  const N = f.games;
+  if (isMatchTb) {
+    const hi = Math.max(s.a, s.b), lo = Math.min(s.a, s.b);
+    if (hi === 0 && lo === 0) return { state: "empty", winner: null, msg: "First to 10 points, 2 clear." };
+    if (hi < 10) return { state: "partial", winner: null, msg: "A match tiebreak is first to 10." };
+    if (hi - lo < 2) return { state: "bad", winner: null, msg: "Needs a 2-point lead (e.g. 10–8, 11–9)." };
+    if (hi > 10 && hi - lo !== 2) return { state: "bad", winner: null, msg: "Past 10, it ends as soon as someone is 2 clear." };
+    return { state: "ok", winner: s.a > s.b ? "a" : "b", msg: "" };
+  }
+  if (s.a === 0 && s.b === 0) return { state: "empty", winner: null, msg: "" };
+  if (s.a === N - 1 && s.b === N - 1) {
+    const hi = Math.max(s.ta, s.tb), lo = Math.min(s.ta, s.tb);
+    if (hi === 0 && lo === 0) return { state: "partial", winner: null, msg: `At ${N - 1}–${N - 1} it's a tiebreak. Enter the points.` };
+    if (hi < 7) return { state: "partial", winner: null, msg: "A tiebreak is first to 7." };
+    if (hi - lo < 2 || (hi > 7 && hi - lo !== 2)) return { state: "bad", winner: null, msg: "The tiebreak needs a 2-point lead (7–5, 8–6, …)." };
+    return { state: "ok", winner: s.ta > s.tb ? "a" : "b", msg: "", tb: true };
+  }
+  const hi = Math.max(s.a, s.b), lo = Math.min(s.a, s.b);
+  if (hi === N && lo <= N - 2) return { state: "ok", winner: s.a > s.b ? "a" : "b", msg: "" };
+  if (hi === N && lo === N - 1) return { state: "bad", winner: null, msg: `${N}–${N - 1} can't happen: at ${N - 1}–${N - 1} the set goes to a tiebreak.` };
+  return { state: "partial", winner: null, msg: `A set ends at ${N} games, or by tiebreak at ${N - 1}–${N - 1}.` };
+}
+function setLabel(f, s, r, isMatchTb) {
+  if (isMatchTb) return `[${s.a}–${s.b}]`;
+  if (r.tb) { const aw = r.winner === "a"; return `${aw ? f.games : f.games - 1}–${aw ? f.games - 1 : f.games}(${Math.min(s.ta, s.tb)})`; }
+  return `${s.a}–${s.b}`;
+}
+/** Whole-Game verdict: can it be saved, and what would it say. */
+function evaluate() {
+  const f = fmt(), sc = S.score, n = visibleSets(f, sc.sets);
+  const res = sc.sets.slice(0, n).map((s, i) => setResult(f, s, f.matchTb && i === 2));
+  const wins = { a: 0, b: 0 }; res.forEach((r) => r.winner && wins[r.winner]++);
+  const need = f.bestOf === 1 ? 1 : 2;
+  const labels = sc.sets.slice(0, n).map((s, i) => res[i].state === "empty" ? null : setLabel(f, s, res[i], f.matchTb && i === 2)).filter(Boolean);
+  const bad = res.find((r) => r.state === "bad");
+  if (sc.ret) {
+    if (!sc.retWinner) return { ok: false, msg: "Pick who won the retired Game.", labels };
+    if (bad) return { ok: false, msg: bad.msg, labels };
+    return { ok: true, winner: sc.retWinner, labels: [...labels, "ret."], msg: "" };
+  }
+  if (bad) return { ok: false, msg: bad.msg, labels };
+  if (wins.a >= need || wins.b >= need) {
+    const incomplete = res.find((r) => r.state === "partial");
+    if (incomplete) return { ok: false, msg: incomplete.msg, labels };
+    return { ok: true, winner: wins.a >= need ? "a" : "b", labels, msg: "" };
+  }
+  const firstOpen = res.findIndex((r) => r.state !== "ok");
+  return { ok: false, msg: firstOpen >= 0 ? `Set ${firstOpen + 1}: ${res[firstOpen].msg || "enter the games."}` : "Enter the sets.", labels };
+}
+
+/* ---------------------------------------------------------------- tiny view helpers */
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/>',
+  leagues: '<path d="M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10"/>',
+  profiles: '<path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/>',
+  manage: '<path d="M4 6h16M4 12h16M4 18h10M18 16l2 2 3-4"/>',
+  admin: '<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/>',
+};
+const TAB_OF = { home: "home", match: "home", score: "home", ladder: "leagues", leagues: "leagues", profiles: "profiles", manage: "manage", setup: "manage", players: "manage", start: "manage", todo: "manage", close: "manage", admin: "admin" };
+const NAV_TARGET = { home: "home", leagues: "leagues", profiles: "profiles", manage: "manage", admin: "admin" };
+const NAV_LABEL = { home: "Home", leagues: "Leagues", profiles: "Profiles", manage: "Manage", admin: "Admin" };
+
+function navKeys() {
+  const k = ["home", "leagues", "profiles"];
+  if (S.persona === "manager" || S.persona === "admin") k.push("manage");
+  if (S.persona === "admin") k.push("admin");
+  return k;
+}
+function shell(body, { back } = {}) {
+  const parent = S.persona === "parent";
+  const header = back
+    ? `<button class="back" data-go="${back[0]}">‹ ${back[1]}</button>`
+    : `<span class="brand">Social Tennis</span>`;
+  const sw = parent
+    ? `<button class="switcher" data-sheet="switch"><small>Playing as</small><b>${S.acting}</b> ▾</button>`
+    : `<div class="switcher" style="cursor:default"><small>Playing as</small><b>${S.acting}</b></div>`;
+  const tab = TAB_OF[S.screen];
+  const nav = navKeys().map((k) => `<a href="#${NAV_TARGET[k]}" data-go="${NAV_TARGET[k]}"${k === tab ? ' aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>${NAV_LABEL[k]}</a>`).join("");
+  return `<header class="hdr">${header}${sw}</header><div class="scroll" id="scroll">${body}</div><nav class="nav" aria-label="Main">${nav}</nav>${sheet()}`;
+}
+const badge = (tone, text) => `<span class="badge b-${tone}">${text}</span>`;
+const STATUS = { played: ["success", "Played"], retirement: ["accent", "Retirement"], walkover: ["info", "Walkover"], void: ["neutral", "Void"], pending: ["warning", "Score needed"] };
+const statusBadge = (s) => badge(...STATUS[s]);
+const skeleton = (rows = 3) => `<div role="status" aria-label="Loading" style="display:flex;flex-direction:column;gap:12px"><div class="skel" style="height:28px;width:55%"></div>${Array.from({ length: rows }, () => '<div class="skel" style="height:92px"></div>').join("")}</div>`;
+const errorState = (what) => `<div class="banner err" role="alert"><b>${what} didn't load</b><span class="small">Check your connection and try again. If it keeps happening, tell your Manager.</span><div><button class="btn secondary small" data-state="default">Try again</button></div></div>`;
+const stepper = (path, v, max, big) => `<div class="stepper${big ? " big" : ""}" role="group" aria-label="games"><button data-step="${path}" data-d="-1" ${v <= 0 ? "disabled" : ""} aria-label="One less">−</button><output>${v}</output><button data-step="${path}" data-d="1" ${v >= max ? "disabled" : ""} aria-label="One more">+</button></div>`;
+
+/* ---------------------------------------------------------------- sheets */
+function sheet() {
+  if (!S.sheet) return "";
+  if (S.sheet === "switch") {
+    const all = [ME, ...KIDS];
+    return `<div class="sheet-wrap" data-close="1"><div class="sheet" role="dialog" aria-label="Play as"><header><h2>Play as</h2><button class="btn ghost" data-close="1" aria-label="Close">×</button></header>${all.map((p) => `<button class="btn ${p === S.acting ? "primary" : "secondary"} full" style="justify-content:space-between" data-act="as" data-v="${p}">${p}${p === S.acting ? badge("accent", "Current") : ""}</button>`).join("")}<p class="small muted" style="margin:0">Scores you enter are recorded as ${S.acting === ME ? "you" : `you, acting for ${S.acting}`}.</p></div></div>`;
+  }
+  if (S.sheet === "walkover") {
+    return `<div class="sheet-wrap" data-close="1"><div class="sheet" role="dialog" aria-label="Settle without a Score"><header><h2>Settle Division 2</h2><button class="btn ghost" data-close="1" aria-label="Close">×</button></header><p class="muted small" style="margin:0">Josh Lee v Ravi Rao has no Score. If it wasn't played:</p><button class="btn secondary full" data-close="1">Walkover to Josh Lee</button><button class="btn secondary full" data-close="1">Walkover to Ravi Rao</button><button class="btn secondary full" data-close="1">Void it (counts for nothing)</button><p class="small muted" style="margin:0">A walkover counts as a win in the Standings but is not a played result.</p></div></div>`;
+  }
+  return "";
+}
+
+/* ---------------------------------------------------------------- screen renderers */
+const R = {};
+
+R.login = (st) => {
+  const top = `<div class="scroll" style="justify-content:center"><h1 class="t" style="font-size:30px">Social Tennis</h1>`;
+  if (st === "sent") return `${top}<div class="card"><h2>Check your email</h2><p class="muted" style="margin:0">A sign-in link is on its way to <b style="color:var(--fg)">ben@example.com</b>. It works once and expires shortly.</p><button class="btn ghost small" data-state="default">Wrong address? Start again</button></div><button class="btn primary full" data-go="home">(wireframe) Open the link</button></div>`;
+  return `${top}${st === "bad-link" ? `<div class="banner err" role="alert"><b>That sign-in link has expired</b><span class="small">It's invalid, already used, or too old. Request a fresh one below.</span></div>` : ""}<div class="field"><label for="em">Email address</label><span class="hint">We'll email you a link to sign in. No password needed.</span><input class="input" id="em" type="email" placeholder="you@example.com"></div><button class="btn primary full" data-state="sent">Email me a sign-in link</button></div>`;
+};
+
+function gameCard({ league, opp, partner, status, score, hl }) {
+  const vs = partner ? `With <b>${partner}</b> v ${opp}` : `v <b>${opp}</b>`;
+  return `<div class="row"><div style="min-width:0"><div>${vs}</div>${score ? `<div class="mono small muted">${score}</div>` : ""}</div>${statusBadge(status)}</div>`;
+}
+R.home = (st) => {
+  if (st === "loading") return shell(skeleton(2));
+  if (st === "error") return shell(`<h1 class="t">Home</h1>${errorState("Your Games")}`);
+  if (st === "empty") return shell(`<h1 class="t">Home</h1><div class="empty"><b>You're not in a League yet</b><span class="muted small">Ask to join one, or wait for your Manager to add you. Your Games will show here.</span><button class="btn primary" data-go="leagues">Find a League</button></div>`);
+  const kid = S.acting !== ME;
+  if (kid) return shell(`<h1 class="t">Home</h1><p class="sub">${S.acting} · November</p><div class="card hl"><h2>Junior Ladder ${badge("neutral", "Div 2")}</h2><div class="row"><div>v <b>Ruby Chen</b></div>${statusBadge("pending")}</div><div class="small muted">Play by <b>30 Nov</b></div><button class="btn primary full" data-go="score">Enter score</button></div><p class="small muted">Switched to ${S.acting}. Everything on Home now belongs to them.</p>`);
+  const held = st === "held-up" ? `<div class="banner warn" role="status"><b>November is held up</b><span class="small">The month ended on 30 Nov but can't close yet: 2 Games have no Score and Division 5 is tied. Your Manager is settling them. Scores stay editable until it closes.</span><a class="lnk small" data-go="ladder" data-st="held-up" href="#ladder">See what's waiting</a></div>` : "";
+  const singles = st === "bye"
+    ? `<div class="card"><h2>${SINGLES.name} ${badge("info", "Bye")}</h2><p style="margin:0">You sit out November: the numbers were odd and you're bottom of the ladder. You don't move up or down.</p><a class="lnk small" href="#ladder" data-go="ladder">See the ladder</a></div>`
+    : `<div class="card hl"><h2>${SINGLES.name} ${badge("neutral", "Div 3")}</h2>${gameCard({ opp: "Dev Shah", status: "pending" })}<div class="small muted">Play by <b>30 Nov</b> · ${SINGLES.formatText}</div><div class="btns"><button class="btn primary" style="flex:1" data-go="score">Enter score</button><button class="btn secondary" data-go="ladder">Ladder</button></div></div>`;
+  const fours = `<div class="card hl"><h2>${FOURS.name} ${badge("neutral", "Div 2")}</h2><ul class="list"><li>${gameCard({ partner: "Anna Price", opp: "Cara Diaz & Ed Fox", status: "played", score: "9–6" })}</li><li><div style="flex:1"><div class="row"><div>With <b>Cara Diaz</b> v Anna Price & Ed Fox</div>${statusBadge("pending")}</div></div></li><li><div style="flex:1"><div class="row"><div>With <b>Ed Fox</b> v Anna Price & Cara Diaz</div>${statusBadge("pending")}</div></div></li></ul><div class="small muted">Play by <b>30 Nov</b> · You've banked <b>9</b> games</div><div class="btns"><button class="btn primary" style="flex:1" data-go="match" data-st="score-needed">Enter a score</button><button class="btn secondary" data-go="ladder" data-st="foursomes">Ladder</button></div></div>`;
+  return shell(`<h1 class="t">Home</h1><p class="sub">November · 2 Scores needed</p>${held}${singles}${fours}`);
+};
+
+function scoreTable(rows, setsA, setsB, winA) {
+  return `<table class="scoretbl"><tbody><tr class="${winA ? "win" : ""}"><td class="n">${rows[0]}</td>${setsA.map((s) => `<td class="s">${s}</td>`).join("")}</tr><tr class="${winA ? "" : "win"}"><td class="n">${rows[1]}</td>${setsB.map((s) => `<td class="s">${s}</td>`).join("")}</tr></tbody></table>`;
+}
+R.match = (st) => {
+  const back = ["home", "Home"];
+  if (st === "loading") return shell(skeleton(2), { back });
+  if (st === "error") return shell(`<h1 class="t">Match</h1>${errorState("This Match")}`, { back });
+  const head = `<h1 class="t">${ME} v Dev Shah</h1><p class="sub">${SINGLES.name} · Division 3 · November</p>`;
+  const mgr = S.persona !== "player" && S.persona !== "parent";
+  if (st === "score-needed") return shell(`${head}<div class="card hl"><h2>No score yet ${statusBadge("pending")}</h2><p class="muted" style="margin:0">Play by <b>30 Nov</b>. Either of you can enter it. The other can correct it until the month closes.</p><button class="btn primary full" data-go="score">Enter score</button></div><div class="card"><h2>Format</h2><p class="small muted" style="margin:0">${SINGLES.formatText}. Tiebreak at 5–5.</p></div>`, { back });
+  if (st === "walkover") return shell(`${head}<div class="card"><h2>Walkover ${statusBadge("walkover")}</h2><p style="margin:0">Awarded to <b>Dev Shah</b> by Priya Nair (Manager) on 2 Dec. The Game wasn't played.</p><p class="small muted" style="margin:0">Counts as a win for Dev Shah in the Standings.</p></div>`, { back });
+  const locked = st === "locked";
+  const tbl = scoreTable([ME, "Dev Shah"], ["6", "3", "[10]"], ["4", "6", "[7]"], true);
+  const action = locked
+    ? (mgr ? `<button class="btn secondary full" data-go="score" data-st="edit">Override score (Manager)</button><p class="small muted" style="margin:0">November is closed. An override is recorded in the history and re-runs Standings.</p>` : `<div class="banner info"><b>🔒 November is closed</b><span class="small">This Score can't be edited any more. If it's wrong, ask Priya Nair (Manager) to override it.</span></div>`)
+    : `<button class="btn secondary full" data-go="score" data-st="edit">Correct the score</button>`;
+  return shell(`${head}<div class="card"><h2>Score ${statusBadge("played")}</h2>${tbl}<p class="small muted" style="margin:0"><b style="color:var(--fg)">${ME}</b> won · played 12 Nov · entered by Dev Shah</p>${action}</div><div class="card"><h2>History</h2><ol class="timeline"><li><div class="small"><b>Ben Carter</b> corrected it · 13 Nov, 08:12</div><div class="diff"><del>6–4 3–6 [7–10]</del> → <ins>6–4 3–6 [10–7]</ins></div></li><li><div class="small"><b>Dev Shah</b> entered it · 12 Nov, 21:40</div><div class="diff"><ins>6–4 3–6 [7–10]</ins></div></li></ol><p class="small muted" style="margin:0">Every change stays here: who, when, from what to what.</p></div>`, { back });
+};
+
+/* ---- score entry: shared bits */
+function names() { return [S.acting === ME ? ME : S.acting, S.acting === ME ? "Dev Shah" : "Ruby Chen"]; }
+function setBlock(i, f, opts = {}) {
+  const s = S.score.sets[i], mtb = f.matchTb && i === 2, r = setResult(f, s, mtb), [na, nb] = names();
+  const max = mtb ? 30 : f.games;
+  const cls = r.state === "ok" ? "ok" : r.state === "bad" ? "bad" : "";
+  const title = mtb ? "Match tiebreak" : f.bestOf === 1 ? "Set" : `Set ${i + 1}`;
+  const tag = mtb ? badge("info", "First to 10") : r.state === "ok" ? badge("success", setLabel(f, s, r, mtb)) : "";
+  const tbRow = !mtb && s.a === f.games - 1 && s.b === f.games - 1
+    ? `<div class="tb"><div class="lbl">Tiebreak points ${badge("accent", `${f.games - 1}–${f.games - 1}`)}</div><div class="side"><span>${na}</span>${stepper(`${i}.ta`, s.ta, 30)}</div><div class="side"><span>${nb}</span>${stepper(`${i}.tb`, s.tb, 30)}</div></div>` : "";
+  const msg = r.msg ? `<div class="msg ${r.state === "bad" ? "bad" : "hint"}">${r.msg}</div>` : "";
+  return `<section class="setcard ${cls}" aria-label="${title}"><header>${title}${tag}</header><div class="side"><span>${na}</span>${stepper(`${i}.a`, s.a, max, opts.big)}</div><div class="side"><span>${nb}</span>${stepper(`${i}.b`, s.b, max, opts.big)}</div>${tbRow}${msg}</section>`;
+}
+function retirementBlock() {
+  const sc = S.score, [na, nb] = names();
+  return `<div class="card"><div class="toggle"><div><b>Stopped early (retirement)</b><div class="small muted">Injury, rain, court time up. Enter the sets as they stood.</div></div><button class="switch" role="switch" aria-checked="${sc.ret}" aria-label="Stopped early" data-act="ret"></button></div>${sc.ret ? `<div class="lbl">Who won?</div><div class="whowon"><button aria-pressed="${sc.retWinner === "a"}" data-act="retw" data-v="a">${na}</button><button aria-pressed="${sc.retWinner === "b"}" data-act="retw" data-v="b">${nb}</button></div>` : ""}</div>`;
+}
+function footer() {
+  const e = evaluate(), [na, nb] = names();
+  const line = e.labels.length ? e.labels.join(" ") : "—";
+  const who = e.ok ? `<div class="msg ok">${e.winner === "a" ? na : nb} wins${S.score.ret ? " (retirement)" : ""}</div>` : `<div class="msg ${e.msg.includes("can't") || e.msg.includes("lead") || e.msg.includes("Past") ? "bad" : "hint"}">${e.msg}</div>`;
+  return `<div class="sticky-foot"><div class="row"><span class="summary">${line}</span></div>${who}<button class="btn primary full" ${e.ok ? "" : "disabled"} data-act="save">Save score</button></div>`;
+}
+function dateField() {
+  return `<div class="field"><label for="dp">Date played</label><input class="input" id="dp" type="date" value="${S.score.date}" min="2026-11-01" max="2026-11-30"><span class="hint">Within November (1–30 Nov).</span></div>`;
+}
+/* Variant A: every set on one screen as stepper rows. */
+function variantA(f) {
+  const n = visibleSets(f, S.score.sets);
+  let sets = ""; for (let i = 0; i < n; i++) sets += setBlock(i, f);
+  if (f.bestOf === 3 && n === 2) sets += `<div class="setcard off"><header>${f.matchTb ? "Match tiebreak" : "Set 3"} ${badge("neutral", "Only at one set all")}</header></div>`;
+  return `${dateField()}${sets}${retirementBlock()}${footer()}`;
+}
+/* Variant B: per set, tap who won, then tap the loser's games. */
+function variantB(f) {
+  const sc = S.score, n = visibleSets(f, sc.sets), [na, nb] = names(), N = f.games;
+  let out = dateField();
+  for (let i = 0; i < n; i++) {
+    const mtb = f.matchTb && i === 2, s = sc.sets[i], w = sc.pickWinner[i];
+    const title = mtb ? "Match tiebreak" : f.bestOf === 1 ? "Set" : `Set ${i + 1}`;
+    if (mtb) { out += setBlock(i, f); continue; }
+    const chips = w ? Array.from({ length: N }, (_, g) => g).map((g) => {
+      const tb = g === N - 1, label = tb ? `${N}–${N - 1} TB` : `${N}–${g}`;
+      const on = tb ? s.a === N - 1 && s.b === N - 1 : (w === "a" ? s.a === N && s.b === g : s.b === N && s.a === g);
+      return `<button class="pick" aria-pressed="${on}" data-act="chip" data-i="${i}" data-g="${g}">${label}</button>`;
+    }).join("") : "";
+    const r = setResult(f, s, false);
+    const tbRow = s.a === N - 1 && s.b === N - 1 ? `<div class="tb"><div class="lbl">Tiebreak points</div><div class="side"><span>${na}</span>${stepper(`${i}.ta`, s.ta, 30)}</div><div class="side"><span>${nb}</span>${stepper(`${i}.tb`, s.tb, 30)}</div>${r.msg ? `<div class="msg ${r.state === "bad" ? "bad" : "hint"}">${r.msg}</div>` : ""}</div>` : "";
+    out += `<section class="setcard ${r.state === "ok" ? "ok" : ""}"><header>${title}${r.state === "ok" ? badge("success", setLabel(f, s, r, false)) : ""}</header><div class="lbl">Who won the set?</div><div class="whowon"><button aria-pressed="${w === "a"}" data-act="pickw" data-i="${i}" data-v="a">${na}</button><button aria-pressed="${w === "b"}" data-act="pickw" data-i="${i}" data-v="b">${nb}</button></div>${w ? `<div class="lbl">Score</div><div class="pickgrid">${chips}</div>` : ""}${tbRow}</section>`;
+  }
+  if (f.bestOf === 3 && n === 2) out += `<div class="setcard off"><header>${f.matchTb ? "Match tiebreak" : "Set 3"} ${badge("neutral", "Only at one set all")}</header></div>`;
+  out += `<p class="small muted" style="margin:0">Unusual score in a retirement? Switch to the steppers: <button class="btn ghost small" data-variant="A">use steppers</button></p>`;
+  return out + retirementBlock() + footer();
+}
+/* Variant C: one set per step with large steppers, then a review step. */
+function variantC(f) {
+  const sc = S.score, n = visibleSets(f, sc.sets), total = f.bestOf === 1 ? 1 : 3;
+  const steps = n + 1; // sets + review
+  sc.step = Math.min(sc.step, steps - 1);
+  const dots = `<div class="dots" aria-hidden="true">${Array.from({ length: steps }, (_, i) => `<i class="${i <= sc.step ? "on" : ""}"></i>`).join("")}</div>`;
+  if (sc.step < n) {
+    const i = sc.step, r = setResult(f, sc.sets[i], f.matchTb && i === 2);
+    const label = f.matchTb && i === 2 ? "Match tiebreak" : f.bestOf === 1 ? "The set" : `Set ${i + 1} of up to ${total}`;
+    return `${dots}<p class="muted small" style="margin:0;text-align:center">${label}</p>${setBlock(i, f, { big: true })}<div class="btns">${i > 0 ? `<button class="btn secondary" data-act="stepc" data-d="-1">Back</button>` : ""}<button class="btn primary" style="flex:1" data-act="stepc" data-d="1" ${r.state === "ok" || sc.ret ? "" : "disabled"}>${i === n - 1 ? "Review" : "Next set"}</button></div>${retirementBlock()}`;
+  }
+  return `${dots}<p class="muted small" style="margin:0;text-align:center">Check and save</p>${dateField()}<div class="card"><h2>Summary</h2><p class="summary" style="margin:0">${evaluate().labels.join(" ")}</p></div><button class="btn secondary" data-act="stepc" data-d="-1">Back</button>${footer()}`;
+}
+R.score = (st) => {
+  const f = fmt(), [na, nb] = names();
+  const editing = st === "edit";
+  const head = `<h1 class="t">${editing ? "Correct the score" : "Enter score"}</h1><p class="sub">${na} v ${nb} · ${f.label}${f.games === 9 ? ", tiebreak at 8–8" : ", tiebreak at 5–5"}</p>`;
+  const editNote = editing ? `<div class="banner info"><b>Entered by Dev Shah on 12 Nov</b><span class="small">Your change is recorded with your name and the old score, and both of you can see it.</span></div>` : "";
+  const srv = st === "server-error" ? `<div class="banner err" role="alert"><b>The score wasn't saved</b><span class="small">The server says: "Set 2 is 7–5, but this League plays sets of 6." Fix it and save again.</span></div>` : "";
+  const body = { A: variantA, B: variantB, C: variantC }[S.variant](f);
+  return shell(`${head}${editNote}${srv}${body}`, { back: ["match", "Match"] });
+};
+
+function division(dv, opts = {}) {
+  const [aCls, bCls] = [dv.a === ME ? "me" : "", dv.b === ME ? "me" : ""];
+  const top = dv.d === 1, bottom = opts.bottom;
+  let mvA = "", mvB = "";
+  if (dv.win) {
+    const w = dv.win, l = w === "a" ? "b" : "a";
+    const mv = { [w]: top ? '<span class="mv stay">stays</span>' : '<span class="mv up">▲ up</span>', [l]: bottom ? '<span class="mv stay">stays</span>' : '<span class="mv down">▼ down</span>' };
+    mvA = mv.a; mvB = mv.b;
+  }
+  return `<div class="div ${dv.mine ? "mine" : ""}"><div class="rung">${dv.d}</div><a class="body" href="#match" data-go="match" data-st="${dv.status === "pending" ? "score-needed" : "scored"}"><div class="row"><span class="${aCls}">${dv.a}</span>${mvA}</div><div class="row"><span class="${bCls}">${dv.b}</span>${mvB}</div><div class="row"><span class="mono small muted">${dv.score ?? "—"}</span>${statusBadge(dv.status)}</div></a></div>`;
+}
+R.ladder = (st) => {
+  const back = ["leagues", "Leagues"];
+  if (st === "loading") return shell(skeleton(4), { back });
+  if (st === "error") return shell(`<h1 class="t">${SINGLES.name}</h1>${errorState("The ladder")}`, { back });
+  if (st === "not-started") return shell(`<h1 class="t">Winter Singles</h1><div class="empty"><b>This League hasn't started</b><span class="muted small">The Manager is still adding Players. The ladder appears when they confirm the start.</span></div>`, { back });
+  if (st === "foursomes") {
+    const rows = [["Anna Price", 15, "up"], [ME, 9, "stay"], ["Ed Fox", 8, "stay"], ["Cara Diaz", 6, "down"]];
+    return shell(`<h1 class="t">${FOURS.name}</h1><p class="sub">November · Division 2 of 4 · ${FOURS.formatText}</p><div class="card"><h2>Division 2 ${badge("neutral", "1 of 3 Games played")}</h2><table class="scoretbl"><tbody>${rows.map(([n, g, m]) => `<tr><td class="n ${n === ME ? "me" : ""}">${n}</td><td class="s">${g}</td><td><span class="mv ${m}">${m === "up" ? "▲ up" : m === "down" ? "▼ down" : "stays"}</span></td></tr>`).join("")}</tbody></table><p class="small muted" style="margin:0">Ranked by games banked, then head-to-head. The middle two stay.</p></div><div class="card"><h2>Games</h2><ul class="list"><li><span class="small">Ben & Anna v Cara & Ed</span><span class="mono">9–6</span></li><li><span class="small">Ben & Cara v Anna & Ed</span>${statusBadge("pending")}</li><li><span class="small">Ben & Ed v Anna & Cara</span>${statusBadge("pending")}</li></ul></div>`, { back });
+  }
+  const past = st === "past-month";
+  const list = past
+    ? [{ d: 1, a: "Omar Ali", b: "Tom Reid", score: "7–5(3) 6–3", status: "played", win: "b" }, { d: 2, a: "Josh Lee", b: ME, score: "6–1 6–2", status: "played", win: "a" }, { d: 3, a: "Ravi Rao", b: "Dev Shah", status: "walkover", score: "w/o", win: "a" }, { d: 4, a: "Nate Cole", b: "Liam Moss", status: "void", score: "void" }]
+    : LADDER;
+  const held = st === "held-up" ? `<div class="banner warn"><b>November is held up</b><span class="small">Waiting on: Division 2 (no Score), Division 3 (no Score). Your Manager settles these before anyone moves.</span></div>` : "";
+  return shell(`<h1 class="t">${SINGLES.name}</h1><div class="row"><select class="input" aria-label="Month" style="width:auto" data-act="month"><option ${past ? "" : "selected"}>November (now)</option><option ${past ? "selected" : ""}>October</option><option>September</option></select><span class="small muted">${past ? "Closed 31 Oct" : "Play by 30 Nov"}</span></div>${held}${list.map((d, i) => division(d, { bottom: i === list.length - 1 })).join("")}${past ? "" : `<div class="div"><div class="rung" style="font-size:11px">Bye</div><div class="body"><div>${BYE}</div><div class="small muted">Sits out November. Doesn't move.</div></div></div>`}<p class="small muted">${past ? "October is closed: this is how it finished." : "Arrows show who would move if the month closed now."}</p>`, { back });
+};
+
+R.leagues = (st) => {
+  if (st === "loading") return shell(skeleton(3));
+  if (st === "error") return shell(`<h1 class="t">Leagues</h1>${errorState("Leagues")}`);
+  const join = `<h2 style="font-size:16px;margin:0">You can join</h2><div class="card"><h2>Mixed Doubles Ladder ${badge("neutral", "Starts 1 Dec")}</h2><p class="small muted" style="margin:0">Doubles · mixed · One set of 6 · 12 Players so far</p><p class="small" style="margin:0">Your Manager pairs the Teams. Say who you'd like to play with when you ask.</p><button class="btn primary">Ask to join</button></div><div class="card"><h2>Winter Singles ${badge("warning", "Request sent")}</h2><p class="small muted" style="margin:0">Asked 10 Nov · Waiting for Priya Nair to approve</p><button class="btn ghost small">Cancel request</button></div>`;
+  if (st === "empty") return shell(`<h1 class="t">Leagues</h1><div class="empty"><b>You're not in any League</b><span class="muted small">Ask to join one below.</span></div>${join}`);
+  return shell(`<h1 class="t">Leagues</h1><h2 style="font-size:16px;margin:0">Mine</h2><a class="card" href="#ladder" data-go="ladder" style="text-decoration:none;color:inherit"><h2>${SINGLES.name} ${badge("neutral", "Div 3 of 4")}</h2><span class="small muted">${SINGLES.formatText} · November</span><span class="lnk small">Open ladder ›</span></a><a class="card" href="#ladder" data-go="ladder" data-st="foursomes" style="text-decoration:none;color:inherit"><h2>${FOURS.name} ${badge("neutral", "Div 2 of 4")}</h2><span class="small muted">Foursomes · ${FOURS.formatText}</span><span class="lnk small">Open ladder ›</span></a>${join}`);
+};
+
+R.profiles = (st) => {
+  const all = st === "single" ? [ME] : [ME, ...KIDS];
+  return shell(`<h1 class="t">My profiles</h1><div class="card"><h2>Players on this login</h2><ul class="list">${all.map((p) => `<li><span>${p}</span>${p === S.acting ? badge("accent", "Playing as") : `<button class="btn secondary small" data-act="as" data-v="${p}">Play as ${p.split(" ")[0]}</button>`}</li>`).join("")}</ul>${st === "single" ? "" : `<p class="small muted" style="margin:0">A Manager linked these to your email. Scores you enter for a child show your name too.</p>`}</div><div class="card"><h2>Account</h2><p class="small muted" style="margin:0">Signed in as ben@example.com</p><button class="btn secondary" data-go="login">Log out</button></div>`);
+};
+
+R.manage = (st) => {
+  if (st === "empty") return shell(`<h1 class="t">Manage</h1><div class="empty"><b>No Leagues yet</b><span class="muted small">Create the first one: pick the type and score format, then add Players.</span><button class="btn primary" data-go="setup">New League</button></div>`);
+  return shell(`<h1 class="t">Manage</h1><a class="banner warn" href="#todo" data-go="todo" style="text-decoration:none"><b>3 things to settle</b><span class="small">2 Games with no Score, 1 tie. November can't close until they're done.</span><span class="lnk small">Open to-do ›</span></a><div class="card"><h2>${SINGLES.name} ${badge("success", "Running")}</h2><span class="small muted">November · 2 of 4 Scores in · Manager closes</span><div class="btns"><button class="btn secondary small" data-go="players">Players</button><button class="btn secondary small" data-go="ladder">Ladder</button><button class="btn secondary small" data-go="close">Close November</button></div></div><div class="card"><h2>${FOURS.name} ${badge("success", "Running")}</h2><span class="small muted">November · 5 of 12 Scores in · Closes automatically</span><div class="btns"><button class="btn secondary small" data-go="players">Players</button><button class="btn secondary small" data-go="ladder" data-st="foursomes">Ladder</button></div></div><div class="card"><h2>Mixed Doubles Ladder ${badge("neutral", "Not started")}</h2><span class="small muted">12 Players · 2 join requests · 1 unpaired</span><div class="btns"><button class="btn secondary small" data-go="players">Players</button><button class="btn primary small" data-go="start">Start</button></div></div><button class="btn primary full" data-go="setup">New League</button>`);
+};
+
+R.setup = (st) => {
+  const s = S.setup, bad = st === "invalid";
+  const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button aria-pressed="${String(s[key]) === String(v)}" data-act="setup" data-k="${key}" data-v="${v}">${l}</button>`).join("")}</div>`;
+  const preview = `${s.bestOf === 3 ? "Best of 3 sets" : "One set"} of ${s.games}, tiebreak at ${s.games - 1}–${s.games - 1}${s.bestOf === 3 && s.matchTb ? ", match tiebreak instead of a third set" : ""}.`;
+  return shell(`<h1 class="t">New League</h1>${bad ? `<div class="banner err" role="alert"><b>Fix 2 things to continue</b><span class="small">The name is missing, and the first month can't start in the past.</span></div>` : ""}<div class="field"><label for="ln">Name</label><input class="input ${bad ? "bad" : ""}" id="ln" value="${bad ? "" : "Mixed Doubles Ladder"}">${bad ? '<span class="err">Give the League a name Players will recognise.</span>' : ""}</div><div class="field"><label for="lt">Type</label><select class="input" id="lt" data-act="setup-type">${[["SinglesMen", "Singles · men"], ["SinglesWomen", "Singles · women"], ["SinglesMixed", "Singles · mixed"], ["DoublesMen", "Doubles · men"], ["DoublesWomen", "Doubles · women"], ["DoublesMix", "Doubles · mixed"], ["Foursomes", "Foursomes"]].map(([v, l]) => `<option value="${v}" ${s.type === v ? "selected" : ""}>${l}</option>`).join("")}</select><span class="hint">A ladder of Divisions of ${s.type === "Foursomes" ? "4 Players, three rotating doubles Games each month" : "2 sides, one Game each month"}.</span></div><div class="field"><span class="lbl">Games per set</span>${seg("games", [[6, "6"], [9, "9"]])}</div><div class="field"><span class="lbl">Sets</span>${seg("bestOf", [[1, "One set"], [3, "Best of 3"]])}</div>${s.bestOf === 3 ? `<div class="toggle"><div><b>Match tiebreak decider</b><div class="small muted">At one set all, play first to 10 points instead of a third set.</div></div><button class="switch" role="switch" aria-checked="${s.matchTb}" data-act="setup-mtb" aria-label="Match tiebreak decider"></button></div>` : ""}<div class="banner info"><span class="small"><b>Format:</b> ${preview}</span></div><div class="field"><label for="sd">First month starts</label><input class="input ${bad ? "bad" : ""}" id="sd" type="date" value="${bad ? "2026-10-01" : "2026-12-01"}">${bad ? '<span class="err">Pick today or later.</span>' : ""}</div><div class="field"><span class="lbl">Month length</span>${seg("len", [["month", "Calendar month"], ["4w", "4 weeks"]])}</div><div class="toggle"><div><b>Close each month automatically</b><div class="small muted">Off: scores stay editable until you close it. On: it closes on its end date once nothing is waiting.</div></div><button class="switch" role="switch" aria-checked="${s.auto}" data-act="setup-auto" aria-label="Close automatically"></button></div><button class="btn primary full" data-state="${bad ? "new" : "invalid"}">Create League</button><p class="small muted" style="margin:0">The format can't change once the League starts.</p>`, { back: ["manage", "Manage"] });
+};
+
+R.players = (st) => {
+  const back = ["manage", "Manage"];
+  if (st === "empty") return shell(`<h1 class="t">Mixed Doubles Ladder</h1><div class="empty"><b>No Players yet</b><span class="muted small">Add them by name and email. They don't need to have logged in: their profile is waiting for them when they do.</span><button class="btn primary" data-state="add-player">Add a Player</button></div>`, { back });
+  const add = st === "add-player" ? `<div class="sheet-wrap"><div class="sheet" role="dialog" aria-label="Add a Player"><header><h2>Add a Player</h2><button class="btn ghost" data-state="default" aria-label="Close">×</button></header><div class="field"><label for="pn">Name</label><input class="input" id="pn" value="Rosa Lima"></div><div class="field"><label for="pe">Email</label><input class="input" id="pe" value="rosa@example.com"><span class="hint">When Rosa logs in with this email, the profile becomes hers.</span></div><div class="field"><span class="lbl">Gender</span><div class="seg"><button aria-pressed="true">Woman</button><button aria-pressed="false">Man</button></div></div><div class="field"><label for="pr">Rating</label><input class="input" id="pr" value="1" inputmode="decimal"><span class="hint">Used to propose the starting ladder. New Players start at 1.</span></div><button class="btn primary full" data-state="default">Add Rosa Lima</button></div></div>` : "";
+  return `${shell(`<h1 class="t">Mixed Doubles Ladder</h1><p class="sub">Not started · 12 Players</p><div class="card hl"><h2>Join requests ${badge("warning", "2")}</h2><ul class="list"><li><div><b>Kate Ng</b><div class="small muted">Rating 2.5 · would like to play with Sam Ortiz</div></div><div class="btns"><button class="btn primary small">Approve</button><button class="btn ghost small">Reject</button></div></li><li><div><b>Leo Hart</b><div class="small muted">Rating 1 · asked 11 Nov</div></div><div class="btns"><button class="btn primary small">Approve</button><button class="btn ghost small">Reject</button></div></li></ul></div><div class="card"><h2>Teams ${badge("warning", "1 unpaired")}</h2><ul class="list"><li><span>Anna Price & ${ME}</span><span class="mono small">3.4</span></li><li><span>Cara Diaz & Ed Fox</span><span class="mono small">3.2</span></li><li><div style="flex:1"><div><b>Sam Ortiz</b> needs a partner</div><select class="input" aria-label="Partner for Sam Ortiz" style="margin-top:6px"><option>Pick a partner…</option><option>Kate Ng (after approval)</option><option>Rosa Lima</option></select></div></li></ul><p class="small muted" style="margin:0">Team Rating is the average of its two Players.</p></div><div class="card"><h2>Players</h2><ul class="list"><li><span>Anna Price</span><span class="mono small">4.0</span></li><li><span>${ME}</span><span class="mono small">3.1</span></li><li><div>Rosa Lima<div class="small muted">Hasn't logged in yet</div></div><span class="mono small">1</span></li></ul><button class="btn secondary" data-state="add-player">Add a Player</button></div>`, { back })}`.replace('</div><nav', `</div>${add}<nav`);
+};
+
+function startDivisions(order, kind) {
+  const inn = order.filter((p) => !p.out);
+  const size = kind === "fours" ? 4 : 2;
+  const divs = []; for (let i = 0; i + size <= inn.length; i += size) divs.push(inn.slice(i, i + size));
+  const rest = inn.slice(divs.length * size);
+  return { inn, divs, rest, size };
+}
+R.start = (st) => {
+  const kind = st === "foursomes" ? "fours" : "singles";
+  if (S.start.kind !== kind) S.start = freshStart(kind);
+  const { order, confirmed } = S.start;
+  const { inn, divs, rest } = startDivisions(order, kind);
+  const back = ["manage", "Manage"];
+  if (confirmed) return shell(`<h1 class="t">${kind === "fours" ? FOURS.name : "Winter Singles"}</h1><div class="banner ok"><b>The League has started</b><span class="small">${divs.length} Divisions, ${kind === "fours" ? divs.length * 3 : divs.length} Games for December. Players see their opponent on Home now.</span></div><button class="btn secondary" data-go="ladder">See the ladder</button>`, { back });
+  const fourBlock = kind === "fours" && rest.length ? `<div class="banner warn"><b>${inn.length} Players doesn't fit Divisions of 4</b><span class="small">Leave out ${rest.length} more, or add ${4 - rest.length} and come back. Foursomes has no Bye.</span></div>` : "";
+  const byeNote = kind === "singles" && rest.length ? `<div class="banner info"><span class="small"><b>${rest[0].name}</b> sits out the first month (Bye): odd numbers, bottom of the ladder.</span></div>` : "";
+  const rows = order.map((p, i) => {
+    const di = p.out ? null : Math.floor(inn.indexOf(p) / (kind === "fours" ? 4 : 2)) + 1;
+    const divLabel = p.out ? badge("neutral", "Left out") : di <= divs.length ? badge("accent", `Div ${di}`) : badge("info", "Bye");
+    return `<li style="${p.out ? "opacity:.55" : ""}"><div style="min-width:0;flex:1"><div><b>${p.name}</b></div><div class="small muted">Rating ${p.r}${divLabel ? " · " : ""}${divLabel}</div></div><div class="btns" style="flex-wrap:nowrap;gap:4px"><button class="btn secondary small" aria-label="Move ${p.name} up" data-act="mv" data-i="${i}" data-d="-1" ${i === 0 ? "disabled" : ""}>▲</button><button class="btn secondary small" aria-label="Move ${p.name} down" data-act="mv" data-i="${i}" data-d="1" ${i === order.length - 1 ? "disabled" : ""}>▼</button><button class="btn ghost small" data-act="out" data-i="${i}">${p.out ? "Put back" : "Leave out"}</button></div></li>`;
+  }).join("");
+  const can = kind !== "fours" || rest.length === 0;
+  return shell(`<h1 class="t">Start ${kind === "fours" ? FOURS.name : "Winter Singles"}</h1><p class="sub">Proposed by Rating, then whoever joined first. Change anything, then confirm.</p>${fourBlock}${byeNote}<div class="card"><h2>Starting ladder <span class="small muted">${inn.length} in · ${divs.length} Divisions</span></h2><ul class="list">${rows}</ul></div><button class="btn primary full" data-act="confirm" ${can ? "" : "disabled"}>Confirm and start</button><p class="small muted" style="margin:0">Starting creates December's Games. The ladder order can't be changed after this, only moved by results.</p>`, { back });
+};
+
+R.todo = (st) => {
+  const back = ["manage", "Manage"];
+  if (st === "loading") return shell(skeleton(3), { back });
+  if (st === "error") return shell(`<h1 class="t">To-do</h1>${errorState("The to-do list")}`, { back });
+  if (st === "empty") return shell(`<h1 class="t">To-do</h1><div class="empty"><b>Nothing to settle</b><span class="muted small">Every Game has a result and no Division is tied. November can close.</span><button class="btn primary" data-go="close">Close November</button></div>`, { back });
+  return `${shell(`<h1 class="t">To-do</h1><p class="sub">${SINGLES.name} · November ended 30 Nov</p><div class="card hl"><h2>Division 2: no Score ${statusBadge("pending")}</h2><p style="margin:0">Josh Lee v Ravi Rao</p><div class="btns"><button class="btn primary small" data-go="score">Enter the score</button><button class="btn secondary small" data-state="walkover">Not played…</button></div></div><div class="card hl"><h2>Division 3: no Score ${statusBadge("pending")}</h2><p style="margin:0">${ME} v Dev Shah</p><div class="btns"><button class="btn primary small" data-go="score">Enter the score</button><button class="btn secondary small" data-state="walkover">Not played…</button></div></div><div class="card hl"><h2>${FOURS.name} · Division 2: tie ${badge("warning", "Tie")}</h2><p style="margin:0" class="small">Anna Price and Ed Fox both banked 15 games and split head-to-head. Who finishes higher?</p><div class="whowon"><button aria-pressed="false">Anna Price</button><button aria-pressed="false">Ed Fox</button></div></div><button class="btn secondary full" disabled>Close November (3 left)</button>`, { back })}`.replace(/<\/div><nav/, `</div>${st === "walkover" ? sheetHtml("walkover") : ""}<nav`);
+};
+function sheetHtml(k) { const prev = S.sheet; S.sheet = k; const h = sheet(); S.sheet = prev; return h; }
+
+R.close = (st) => {
+  const back = ["manage", "Manage"];
+  if (st === "closed") return shell(`<h1 class="t">November closed</h1><div class="banner ok"><b>December is open</b><span class="small">4 new Games. Players see their new opponent on Home. Josh Lee and ${ME} moved up; Ravi Rao and Dev Shah moved down.</span></div><button class="btn secondary" data-go="ladder">See the new ladder</button>`, { back });
+  if (st === "held-up") return shell(`<h1 class="t">Close November</h1><div class="banner warn"><b>Can't close yet: 3 things to settle</b><span class="small">Division 2 and Division 3 have no Score. Thursday Foursomes Division 2 is tied.</span><a class="lnk small" href="#todo" data-go="todo">Settle them in To-do ›</a></div><button class="btn primary full" disabled>Close November</button>`, { back });
+  const moves = [["1", "Tom Reid", "stays (top)", "Omar Ali", "▼ to Div 2"], ["2", "Josh Lee", "▲ to Div 1", "Ravi Rao", "▼ to Div 3 (walkover)"], ["3", ME, "▲ to Div 2", "Dev Shah", "▼ to Div 4"], ["4", "Liam Moss", "▲ to Div 3", "Nate Cole", "stays (bottom)"]];
+  return shell(`<h1 class="t">Close November</h1><p class="sub">${SINGLES.name} · everything is settled</p><div class="card"><h2>Who moves</h2><ul class="list">${moves.map(([d, w, wm, l, lm]) => `<li><div style="flex:1"><div class="small muted">Division ${d}</div><div class="row"><span>${w}</span><span class="mv ${wm.startsWith("▲") ? "up" : "stay"}">${wm}</span></div><div class="row"><span>${l}</span><span class="mv ${lm.startsWith("▼") ? "down" : "stay"}">${lm}</span></div></div></li>`).join("")}<li><div class="row" style="flex:1"><span>Gus Ward</span><span class="mv stay">Bye, stays</span></div></li></ul></div><button class="btn primary full" data-state="closed">Close November and open December</button><p class="small muted" style="margin:0">After closing, Players can't edit November's Scores. You can still override one.</p>`, { back });
+};
+
+R.admin = (st) => {
+  if (st === "error") return shell(`<h1 class="t">Club and roles</h1>${errorState("Club settings")}`);
+  if (st === "no-club") return shell(`<h1 class="t">Set up your club</h1><p class="sub">You're the first Admin. Create the club, then give Managers their role.</p><div class="field"><label for="cn">Club name</label><input class="input" id="cn" placeholder="e.g. Riverside Tennis Club"></div><button class="btn primary full" data-state="default">Create club</button>`);
+  const admins = S.roles.filter((r) => r.admin).length;
+  return shell(`<h1 class="t">Club and roles</h1><div class="card"><h2>Riverside Tennis Club</h2><span class="small muted">3 Leagues · 41 Players</span></div><div class="card"><h2>People and roles</h2><ul class="list">${S.roles.map((r, i) => `<li><div style="min-width:0;flex:1"><b>${r.name}</b>${r.you ? ' <span class="small muted">(you)</span>' : ""}<div class="small muted">${r.email}</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><label class="small" style="display:flex;gap:6px;align-items:center">Manager <button class="switch" role="switch" aria-checked="${r.manager}" aria-label="${r.name} is a Manager" data-act="role" data-i="${i}" data-k="manager"></button></label><label class="small" style="display:flex;gap:6px;align-items:center">Admin <button class="switch" role="switch" aria-checked="${r.admin}" aria-label="${r.name} is an Admin" data-act="role" data-i="${i}" data-k="admin" ${r.admin && admins === 1 ? "disabled title=\"The last Admin can't be removed\"" : ""}></button></label></div></li>`).join("")}</ul>${admins === 1 ? '<p class="small muted" style="margin:0">You\'re the only Admin, so your Admin role can\'t be removed.</p>' : ""}</div><div class="field"><label for="ge">Give someone a role</label><input class="input" id="ge" placeholder="Their email"><span class="hint">They need to have logged in once.</span></div>`);
+};
+
+/* ---------------------------------------------------------------- controls */
+const PERSONA_FOR = { Player: "player", Manager: "manager", Admin: "admin" };
+function renderControls() {
+  const groups = ["Player", "Manager", "Admin"];
+  document.getElementById("screens").innerHTML = groups.map((g) => `<div><h2>${g} screens</h2><div class="screens">${SCREENS.filter((s) => s.group === g).map((s) => `<a href="#${s.id}" aria-current="${s.id === S.screen}"><span>${s.title}</span><span class="num">${s.n}</span></a>`).join("")}</div></div>`).join("");
+  const sc = SCREENS.find((s) => s.id === S.screen), cur = stateOf(S.screen);
+  document.getElementById("states").innerHTML = `<h2>State</h2><div class="chips">${sc.states.map((st) => `<button class="chip" aria-pressed="${st === cur}" data-state="${st}">${st}</button>`).join("")}</div><h2 style="margin-top:12px">Viewer</h2><div class="chips">${[["player", "Player"], ["parent", "Parent (3 Players)"], ["manager", "Manager"], ["admin", "Admin"]].map(([v, l]) => `<button class="chip" aria-pressed="${S.persona === v}" data-persona="${v}">${l}</button>`).join("")}</div>`;
+  document.getElementById("extras").innerHTML = S.screen === "score"
+    ? `<h2>Score entry variant</h2><div class="chips">${[["A", "A · All sets"], ["B", "B · Pick scoreline"], ["C", "C · Set by set"]].map(([v, l]) => `<button class="chip" aria-pressed="${S.variant === v}" data-variant="${v}">${l}</button>`).join("")}</div><h2 style="margin-top:12px">League format</h2><div class="chips">${Object.entries(SCENARIOS).map(([k, v]) => `<button class="chip" aria-pressed="${S.scenario === k}" data-scenario="${k}">${v.label}</button>`).join("")}</div><h2 style="margin-top:12px">Try a case</h2><div class="chips">${[["straight", "6–3 6–4"], ["mtb", "Match tiebreak"], ["tb", "5–5 tiebreak"], ["ret", "Retirement"], ["bad", "Invalid 6–5"], ["clear", "Clear"]].map(([k, l]) => `<button class="chip" data-case="${k}">${l}</button>`).join("")}</div>`
+    : "";
+  const n = NOTES[S.screen];
+  document.getElementById("notes").innerHTML = `<h2>${sc.n} · ${sc.title}</h2><p style="margin:0">${n.what}</p>${n.decisions.length ? `<h3>Decisions</h3><ul>${n.decisions.map((d) => `<li>${d}</li>`).join("")}</ul>` : ""}${n.questions.length ? `<h3>For the walkthrough</h3><ul class="q">${n.questions.map((d) => `<li>${d}</li>`).join("")}</ul>` : ""}`;
+  document.getElementById("theme").innerHTML = [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([v, l]) => `<button class="chip" aria-pressed="${S.theme === v}" data-theme-set="${v}">${l}</button>`).join("");
+}
+function render() {
+  const el = document.getElementById("screen");
+  const scrollTop = document.getElementById("scroll")?.scrollTop ?? 0;
+  el.innerHTML = R[S.screen](stateOf(S.screen));
+  if (S.keepScroll) { const sc = document.getElementById("scroll"); if (sc) sc.scrollTop = scrollTop; }
+  S.keepScroll = false;
+  renderControls();
+}
+
+/* ---------------------------------------------------------------- routing (#screen or #screen--state) */
+function fromHash() {
+  const [id, st] = (location.hash.slice(1) || "home").split("--");
+  if (!R[id]) return;
+  S.screen = id; S.sheet = null;
+  if (st) S.state[id] = st;
+  if (id === "manage" || id === "setup" || id === "players" || id === "start" || id === "todo" || id === "close") { if (S.persona === "player" || S.persona === "parent") S.persona = "manager"; }
+  if (id === "admin") S.persona = "admin";
+  render();
+}
+function go(id, st) {
+  if (st) S.state[id] = st; else if (id === "score") S.state.score = "new";
+  if (id === "score") { S.score = freshScore(stateOf("score") === "edit"); }
+  const h = `#${id}`;
+  if (location.hash === h) fromHash(); else location.hash = h;
+}
+window.addEventListener("hashchange", fromHash);
+
+/* ---------------------------------------------------------------- events */
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button, a, [data-close]");
+  if (!t) return;
+  const d = t.dataset;
+  if (t.matches("[data-close]") && (e.target === t || t.tagName === "BUTTON")) { S.sheet = null; if (["walkover", "add-player"].includes(stateOf(S.screen))) S.state[S.screen] = "default"; render(); return; }
+  if (d.go) { e.preventDefault(); go(d.go, d.st); return; }
+  if (t.closest(".screens") && t.tagName === "A") return; // hash link
+  if (d.state) { S.state[S.screen] = d.state; S.sheet = null; if (S.screen === "score") S.score = freshScore(d.state === "edit"); if (S.screen === "start") S.start = freshStart(d.state === "foursomes" ? "fours" : "singles"); render(); return; }
+  if (d.persona) { S.persona = d.persona; if (d.persona !== "parent") S.acting = ME; render(); return; }
+  if (d.variant) { S.variant = d.variant; S.score.step = 0; render(); return; }
+  if (d.scenario) { S.scenario = d.scenario; S.score = freshScore(); render(); return; }
+  if (d.themeSet) { S.theme = d.themeSet; if (S.theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", S.theme); renderControls(); return; }
+  if (d.case) { applyCase(d.case); render(); return; }
+  if (d.sheet) { S.sheet = d.sheet; render(); return; }
+  if (d.step) { const [i, k] = d.step.split("."); const s = S.score.sets[+i]; s[k] = Math.max(0, s[k] + +d.d); S.keepScroll = true; render(); return; }
+  switch (d.act) {
+    case "as": S.acting = d.v; S.sheet = null; render(); break;
+    case "ret": S.score.ret = !S.score.ret; S.score.retWinner = null; S.keepScroll = true; render(); break;
+    case "retw": S.score.retWinner = d.v; S.keepScroll = true; render(); break;
+    case "pickw": { const i = +d.i; S.score.pickWinner[i] = d.v; Object.assign(S.score.sets[i], { a: 0, b: 0, ta: 0, tb: 0 }); S.keepScroll = true; render(); break; }
+    case "chip": { const i = +d.i, g = +d.g, N = fmt().games, w = S.score.pickWinner[i], s = S.score.sets[i]; if (g === N - 1) Object.assign(s, { a: N - 1, b: N - 1, ta: w === "a" ? 7 : 0, tb: w === "b" ? 7 : 0 }); else Object.assign(s, w === "a" ? { a: N, b: g } : { a: g, b: N }, { ta: 0, tb: 0 }); S.keepScroll = true; render(); break; }
+    case "stepc": S.score.step = Math.max(0, S.score.step + +d.d); render(); break;
+    case "save": S.state.match = "scored"; go("match"); break;
+    case "mv": { const o = S.start.order, i = +d.i, j = i + +d.d; [o[i], o[j]] = [o[j], o[i]]; S.keepScroll = true; render(); break; }
+    case "out": S.start.order[+d.i].out = !S.start.order[+d.i].out; S.keepScroll = true; render(); break;
+    case "confirm": S.start.confirmed = true; render(); break;
+    case "setup": S.setup[d.k] = isNaN(+d.v) ? d.v : +d.v; render(); break;
+    case "setup-mtb": S.setup.matchTb = !S.setup.matchTb; render(); break;
+    case "setup-auto": S.setup.auto = !S.setup.auto; render(); break;
+    case "role": { const r = S.roles[+d.i]; r[d.k] = !r[d.k]; render(); break; }
+  }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.matches('[data-act="month"]')) { S.state.ladder = e.target.selectedIndex === 0 ? "default" : "past-month"; render(); }
+  if (e.target.matches('[data-act="setup-type"]')) { S.setup.type = e.target.value; render(); }
+});
+function applyCase(k) {
+  const N = fmt().games;
+  S.score = freshScore(); const s = S.score.sets;
+  if (k === "straight") { Object.assign(s[0], { a: N, b: N - 3 }); if (fmt().bestOf === 3) Object.assign(s[1], { a: N, b: N - 2 }); }
+  if (k === "mtb") { if (S.scenario !== "bo3-mtb") S.scenario = "bo3-mtb"; Object.assign(s[0], { a: 6, b: 4 }); Object.assign(s[1], { a: 3, b: 6 }); Object.assign(s[2], { a: 10, b: 7 }); }
+  if (k === "tb") { Object.assign(s[0], { a: N - 1, b: N - 1, ta: 7, tb: 5 }); }
+  if (k === "ret") { Object.assign(s[0], { a: N, b: 2 }); Object.assign(s[1], { a: 2, b: 1 }); S.score.ret = true; S.score.retWinner = "a"; }
+  if (k === "bad") { Object.assign(s[0], { a: N, b: N - 1 }); }
+  S.score.pickWinner = s.map((x) => (x.a > x.b ? "a" : x.b > x.a ? "b" : x.ta > x.tb ? "a" : x.tb > x.ta ? "b" : null));
+  S.score.step = 0;
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && S.sheet) { S.sheet = null; render(); }
+});
+
+fromHash();
+</script>
+</body>
+</html>

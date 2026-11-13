@@ -135,7 +135,8 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── adr/                    architecture decision records 0001–0014
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
-│   └── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
+│   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
+│   └── ui/                     Phase 1 clickable wireframes (one static HTML file, app tokens) — design, not app code
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
