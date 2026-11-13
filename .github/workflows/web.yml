@@ -3,7 +3,9 @@
 #   build — the production image (npm ci + next build inside web/Dockerfile),
 #           the same path `docker compose up --build` uses, and proof that
 #           the MSW mocks were compiled out of it (ADR-0009).
-#   e2e   — Playwright against the mocked and the real stack (ADR-0014).
+#   e2e   — Playwright against the mocked and the real stack (ADR-0014),
+#           then the mock run's DOM snapshots go to Chromatic for visual
+#           review (ADR-0015). Skipped while CHROMATIC_PROJECT_TOKEN is unset.
 #
 # Path-triggered per ADR-0002. Same required-checks caveat as api.yml. api/**
 # is included because the e2e job runs the real API.
@@ -52,12 +54,29 @@ jobs:
   e2e:
     name: e2e (Playwright, mocked + real API)
     runs-on: ubuntu-latest
+    env:
+      CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Chromatic finds baselines through git history: full history, and on
+          # a PR the head commit rather than GitHub's ephemeral merge commit
+          # (Chromatic docs, "Run with caution when using the pull_request event").
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Build the e2e stack (web-e2e, web-mock, api)
         run: docker compose --profile e2e build
       - name: Run Playwright in its compose service
         run: docker compose --profile e2e run --rm e2e
+      - name: Publish the snapshots to Chromatic
+        # Visual changes don't fail this job; Chromatic's own "UI Tests"
+        # check on the PR holds the merge until they're accepted there.
+        if: env.CHROMATIC_PROJECT_TOKEN != ''
+        env:
+          CHROMATIC_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CHROMATIC_SLUG: ${{ github.repository }}
+        run: docker compose --profile e2e run --rm --no-deps chromatic
       - name: Service logs
         if: failure()
         run: docker compose --profile e2e logs web-e2e web-mock api
