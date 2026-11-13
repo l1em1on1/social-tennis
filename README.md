@@ -114,7 +114,9 @@ docker compose -f infra/compose.yml run --rm infra ./init.sh
 docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
 ```
 
-`terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
+Releases normally go through GitHub: every merge to `main` publishes images, and **Actions → deploy → Run workflow** plans, waits for approval, applies, and checks the site. To roll back, run it again with an earlier commit SHA.
+
+By hand, `terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
 
 There is no real email yet, so a tester's sign-in link is read from the API's logs:
 

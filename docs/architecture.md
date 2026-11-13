@@ -311,7 +311,25 @@ flowchart LR
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
 
-`infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow (#27), which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
+`infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow below, which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
+
+### Release flow (`deploy.yml`)
+
+```mermaid
+flowchart LR
+    M["merge to main"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
+    D["Run workflow<br/>(choose a SHA)"] --> PL["plan<br/>environment: production-plan<br/>terraform plan, printed to the log"]
+    PL --> AP{{"approval<br/>environment: production"}}
+    AP --> A["apply<br/>terraform apply -var image_tag=SHA"]
+    A --> C["check<br/>GET /login, up to 3 minutes"]
+```
+
+- **Publishing and deploying are separate.** Every merge to `main` publishes images; nothing is deployed until someone runs the workflow and approves it.
+- **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
+- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key and the alert email are repository secrets.
+- **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
+- **Migrations** still run when the API starts.
+- **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
 
 ## Database and migrations
 

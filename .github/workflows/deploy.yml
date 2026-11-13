@@ -1,0 +1,142 @@
+# Release pipeline for the PoC hosting (ADR-0019, issue #27).
+#
+#   push to main       → publish: build both images, push to GHCR tagged with
+#                        the commit SHA. Nothing is deployed.
+#   "Run workflow"     → plan:  show what Terraform would change (main only).
+#                        apply: wait for approval, then apply it and check
+#                               the site answers.
+#
+# Deploying is always a person's decision: pick a SHA (default: the commit the
+# workflow runs from), read the plan, approve. Rolling back is the same run
+# with an earlier SHA.
+#
+# Azure access is OIDC: a short-lived token per run, trusted by Azure only for
+# the `production-plan` and `production` environments of this repo
+# (scripts/setup-hosting.sh creates both). No cloud key is stored in GitHub.
+#
+# The plan is printed to the log, never uploaded: a saved plan file contains
+# the database password, and artifacts of a public repo can be downloaded.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Commit SHA to deploy (full, 40 characters). Empty: the commit this run is on."
+        required: false
+        type: string
+      always_on:
+        description: "Keep one replica of each app running (no cold starts; leaves the free grant)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  publish:
+    name: publish images
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Sign in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push web and api, tagged with this commit
+        run: |
+          for service in web api; do
+            image="${IMAGE_PREFIX}-${service}:${GITHUB_SHA}"
+            docker build --tag "$image" "./${service}"
+            docker push "$image"
+          done
+
+  plan:
+    name: plan
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production-plan
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
+      TF_VAR_always_on: ${{ inputs.always_on }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: The images for that SHA exist
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for service in web api; do
+            docker manifest inspect "${IMAGE_PREFIX}-${service}:${TF_VAR_image_tag}" >/dev/null \
+              || { echo "::error::No ${service} image tagged ${TF_VAR_image_tag}. Was that commit pushed to main?"; exit 1; }
+          done
+      - name: Plan
+        run: >-
+          docker compose -f infra/compose.yml run --rm infra sh -c
+          "./init.sh -input=false && terraform plan -input=false -lock-timeout=5m"
+
+  apply:
+    name: apply (needs approval)
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    # Same settings as the plan job.
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
+      TF_VAR_always_on: ${{ inputs.always_on }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Apply
+        run: >-
+          docker compose -f infra/compose.yml run --rm infra sh -c
+          "./init.sh -input=false && terraform apply -input=false -auto-approve -lock-timeout=5m"
+      - name: The site answers
+        # The first request after a deploy is a cold start: web, then (not
+        # needed for /login) the API and the database. Allow three minutes.
+        run: |
+          url="$(docker compose -f infra/compose.yml run --rm -T infra terraform output -raw url | tr -d '\r')"
+          echo "Checking ${url}/login"
+          for attempt in $(seq 1 18); do
+            if docker run --rm curlimages/curl:8.11.1 --silent --show-error --fail --max-time 30 --output /dev/null "${url}/login"; then
+              echo "Answered on attempt ${attempt}."
+              echo "Deployed ${TF_VAR_image_tag} to ${url}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${url}/login did not answer within three minutes."
+          exit 1
