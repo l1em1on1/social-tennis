@@ -43,7 +43,7 @@ resource "neon_project" "this" {
 
   # The smallest compute, never autoscaled, so usage stays inside the free
   # plan's monthly compute-hours. It suspends by itself when idle.
-  default_endpoint_settings {
+  primary_compute {
     autoscaling_limit_min_cu = 0.25
     autoscaling_limit_max_cu = 0.25
   }
