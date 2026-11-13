@@ -6,7 +6,7 @@ Technical documentation for the system as built. The **domain** lives in [CONTEX
 
 ## System topology
 
-Three services under one Docker Compose project (ADR-0001, ADR-0005). The browser only ever reaches the Next.js BFF; the API has **no published port** and is reachable solely on the compose-internal network. CORS never arises, and auth tokens (from ticket #3 onward) stay server-side.
+Three services under one Docker Compose project (ADR-0001, ADR-0005). The browser only ever reaches the Next.js BFF; the API has **no published port** and is reachable solely on the compose-internal network. CORS never arises, and auth tokens stay server-side.
 
 ```mermaid
 flowchart LR
@@ -132,7 +132,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0015
+│   ├── adr/                    architecture decision records 0001–0018 (0016–0018 proposed)
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
@@ -341,4 +341,6 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 
 ## Where this goes next
 
-The skeleton exists so every following ticket only adds domain, never plumbing: #3 adds the BFF-held session (magic link), #18 the Admin/Club bootstrap. The ticket graph and its dependencies are wired as native GitHub issue dependencies.
+The skeleton, login (#3) and the UI foundation (#40) are built, so every following ticket adds domain, not plumbing. Next is #54 (deny-by-default authorization, health, an injected clock), then #18 (the Admin and Club bootstrap) and the Phase 1 chain #4 → #5 → #6 → #7 → #38 → #42, then #10 → #14. Go-live (#25–#27, #19, #51–#53) follows. The ticket graph is wired as native GitHub issue dependencies, and each ticket's "Blocked by" section must agree with them.
+
+Three decisions those tickets depend on are proposed and not yet accepted: ADR-0016 (dates and the clock), ADR-0017 (error contract, deny-by-default authorization) and ADR-0018 (concurrent Score edits).

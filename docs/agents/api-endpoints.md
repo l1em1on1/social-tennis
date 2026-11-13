@@ -40,7 +40,12 @@ The top-level `Contracts/` is the narrow exception to "contracts are feature-sco
 
    That file is the feature's routing table — the one place to read the whole HTTP surface. Registration is explicit; nothing is discovered by scanning.
 5. **Integration test** in `SocialTennis.Api.IntegrationTests`, over HTTP.
-6. **Regenerate the TS client** and commit the result: `docker compose run --rm web npm run api:generate`.
+6. **Regenerate the TS client** and commit the result. The command needs the dev overlay, because the base `web` image is the production runtime and has no dev dependencies:
+
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web npm run api:generate
+   ```
 
 A new feature also needs a `<Feature>Endpoints.cs` with its `MapGroup` prefix, and one line in `Program.cs`. Registration order in `Program.cs` determines path order in the OpenAPI document and therefore in the generated client — append rather than reorder, so client diffs stay meaningful.
 
