@@ -1,0 +1,4 @@
+# EF Core generates these files; they are not formatted or analysed as
+# hand-written code (`dotnet ef migrations add` would undo any fix).
+[*.cs]
+generated_code = true

@@ -55,6 +55,22 @@ The mocked run also leaves DOM snapshots in `web/test-results/chromatic-archives
 CHROMATIC_PROJECT_TOKEN=<token> docker compose --profile e2e run --rm --no-deps chromatic
 ```
 
+## Lint and format
+
+CI runs both. ESLint for the web app (`next build` doesn't lint):
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps web npm run lint
+```
+
+C# formatting and style rules (`api/.editorconfig`). Drop `--verify-no-changes` to apply the fixes:
+
+```sh
+docker compose run --rm --no-deps api-tests dotnet format --verify-no-changes
+```
+
+The API builds with warnings as errors (`api/Directory.Build.props`), so an analyzer warning fails `api-tests` too.
+
 ## Regenerate the TypeScript API client
 
 The typed client (`web/src/lib/api/schema.d.ts`) is generated from the API's OpenAPI document and **committed**. After changing the API surface:

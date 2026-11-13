@@ -1,4 +1,4 @@
-# Web CI. Two gates, both through compose so nothing runs bare on the runner
+# Web CI. Three gates, all through compose so nothing runs bare on the runner
 # (CLAUDE.md):
 #   build — the production image (npm ci + next build inside web/Dockerfile),
 #           the same path `docker compose up --build` uses, and proof that
@@ -7,26 +7,18 @@
 #           then the mock run's DOM snapshots go to Chromatic for visual
 #           review (ADR-0015). Skipped while CHROMATIC_PROJECT_TOKEN is unset.
 #
-# Path-triggered per ADR-0002. Same required-checks caveat as api.yml. api/**
-# is included because the e2e job runs the real API.
+#   lint  — ESLint. `next build` stopped linting in Next.js 16, so nothing
+#           else runs it.
+#
+# Runs on every PR and every push to main, and decides per job whether the
+# change touches it (ADR-0002). api/** counts, because the e2e job runs the
+# real API.
 name: web
 
 on:
   pull_request:
-    paths:
-      - "web/**"
-      - "api/**"
-      - "docker-compose.yml"
-      - "docker-compose.dev.yml"
-      - ".github/workflows/web.yml"
   push:
     branches: [main]
-    paths:
-      - "web/**"
-      - "api/**"
-      - "docker-compose.yml"
-      - "docker-compose.dev.yml"
-      - ".github/workflows/web.yml"
 
 permissions:
   contents: read
@@ -36,8 +28,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides whether this workflow's jobs have anything to do. The workflow
+  # itself always runs, so every check reports on every PR: a job skipped by
+  # `if` counts as passed for a required check, whereas a workflow skipped by
+  # a `paths` filter leaves the check pending forever.
+  #
+  # The other jobs run unless this one says "false". If it fails or is
+  # cancelled it says nothing, so they run: a broken detector must never let a
+  # required check pass by being skipped.
+  changes:
+    name: changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PATTERN: '^(web/|api/|docker-compose(\.dev)?\.yml$|\.github/workflows/web\.yml$)'
+        run: |
+          # No usable base (a branch's first push): run everything.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...HEAD" | grep -qE "$PATTERN"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: lint (eslint)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Lint in the dev image, as documented for local dev
+        run: >-
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml
+          run --rm --no-deps web sh -c
+          "npm ci --no-audit --no-fund --loglevel=error && npm run lint"
+
   build:
     name: production image build (next build)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -53,6 +91,8 @@ jobs:
 
   e2e:
     name: e2e (Playwright, mocked + real API)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     env:
       CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
@@ -89,3 +129,27 @@ jobs:
             web/playwright-report/
             web/test-results/
           retention-days: 7
+
+  # Chromatic posts its "UI Tests" check only when a build is published, so a
+  # PR that skips e2e would leave that check unreported and, once required,
+  # blocked. `--skip` tells Chromatic this commit has nothing to review, and
+  # it reports the check as passed (Chromatic docs, "Mandatory PR checks").
+  chromatic-skip:
+    name: chromatic (mark unaffected commit as skipped)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run == 'false' }}
+    runs-on: ubuntu-latest
+    env:
+      CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Tell Chromatic to skip this commit
+        if: env.CHROMATIC_PROJECT_TOKEN != ''
+        env:
+          CHROMATIC_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CHROMATIC_SLUG: ${{ github.repository }}
+        run: docker compose --profile e2e run --rm --no-deps chromatic npx chromatic --skip

@@ -1,0 +1,13 @@
+# Editor defaults for the whole repo. C# rules live in api/.editorconfig,
+# because the compose services mount ./api alone and never see this file.
+root = true
+
+[*]
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Two trailing spaces are a Markdown line break.
+trim_trailing_whitespace = false

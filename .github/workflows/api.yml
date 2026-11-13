@@ -1,35 +1,16 @@
 # API CI — every step runs through Docker Compose with the same images and
 # invocations as local dev (CLAUDE.md: nothing runs bare on the runner).
 #
-# Path-triggered per ADR-0002. The drift job also watches web's package files
-# and the generated client, since those are inputs/outputs of the contract.
-#
-# NOTE (from GitHub docs): a workflow skipped by path filtering leaves its
-# checks "pending". If these jobs are ever made *required* checks in branch
-# protection, docs-only PRs would block — at that point drop the paths filter
-# or add a no-op twin workflow with the same job names.
+# Runs on every PR and every push to main, and decides per job whether the
+# change touches it (ADR-0002: the two halves of the repo are built separately).
+# The drift job also watches web's package files and the generated client,
+# since those are inputs/outputs of the contract.
 name: api
 
 on:
   pull_request:
-    paths:
-      - "api/**"
-      - "docker-compose.yml"
-      - "docker-compose.dev.yml"
-      - "web/src/lib/api/**"
-      - "web/package.json"
-      - "web/package-lock.json"
-      - ".github/workflows/api.yml"
   push:
     branches: [main]
-    paths:
-      - "api/**"
-      - "docker-compose.yml"
-      - "docker-compose.dev.yml"
-      - "web/src/lib/api/**"
-      - "web/package.json"
-      - "web/package-lock.json"
-      - ".github/workflows/api.yml"
 
 permissions:
   contents: read
@@ -39,8 +20,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides whether this workflow's jobs have anything to do. The workflow
+  # itself always runs, so every check reports on every PR: a job skipped by
+  # `if` counts as passed for a required check, whereas a workflow skipped by
+  # a `paths` filter leaves the check pending forever.
+  #
+  # The other jobs run unless this one says "false". If it fails or is
+  # cancelled it says nothing, so they run: a broken detector must never let a
+  # required check pass by being skipped.
+  changes:
+    name: changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PATTERN: '^(api/|docker-compose(\.dev)?\.yml$|web/src/lib/api/|web/package(-lock)?\.json$|\.github/workflows/api\.yml$)'
+        run: |
+          # No usable base (a branch's first push): run everything.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE...HEAD" | grep -qE "$PATTERN"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  format:
+    name: format and analyzers (dotnet format)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fail on unformatted C# or a style rule violation
+        run: docker compose run --rm --no-deps api-tests dotnet format --verify-no-changes
+
   integration-tests:
     name: integration tests (HTTP vs real Postgres)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -49,6 +73,8 @@ jobs:
 
   client-drift:
     name: OpenAPI client drift
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

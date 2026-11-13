@@ -1,0 +1,27 @@
+# Read by `dotnet format` (CI: api.yml) and the C# analyzers. It repeats the
+# basics from the repo-root file because the compose services mount ./api as
+# /src, so inside a container this is the only .editorconfig there is.
+# No end_of_line rule: .gitattributes owns line endings, and a Windows working
+# copy is CRLF on disk, which a rule here would report as a formatting error.
+[*]
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csproj,props,slnx}]
+indent_size = 4
+
+[*.cs]
+# File-scoped namespaces and `using` outside them: what the code already does.
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+
+# LoggerMessage source generation is a hot-path optimisation; this app logs a
+# handful of lines per request, and the plain ILogger calls read better.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+
+[tests/**.cs]
+# Test names are sentences: Logout_revokes_the_session_immediately.
+dotnet_diagnostic.CA1707.severity = none
