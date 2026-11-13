@@ -63,7 +63,7 @@ services:
 
   # One-shot test runner: docker compose run --rm api-tests
   api-tests:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     profiles: ["test"]
     working_dir: /src
     # DEV_UID/DEV_GID unset (CI, bare host) -> "" -> no override, root as before.

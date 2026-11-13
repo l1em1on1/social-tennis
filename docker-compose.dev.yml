@@ -2,7 +2,7 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 services:
   api:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     build: !reset null
     working_dir: /src
     # See docker-compose.yml's api-tests for why: unset in CI/bare host -> root, unchanged.
@@ -17,7 +17,7 @@ services:
     command: dotnet watch --project src/SocialTennis.Api run --urls http://0.0.0.0:8080
 
   web:
-    image: node:24-alpine
+    image: node:25-alpine
     build: !reset null
     working_dir: /src
     # See docker-compose.yml's api-tests for why: unset in CI/bare host -> root, unchanged.
