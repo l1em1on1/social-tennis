@@ -48,6 +48,14 @@ public static class RequestMagicLink
             }
         }
 
+        // Count and insert as one step per address. Without the row lock, two
+        // requests could both count one short of the quota and both send.
+        // Requests for the same address queue here; others are unaffected.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.Database.ExecuteSqlAsync(
+            $"""SELECT 1 FROM "Users" WHERE "Id" = {user.Id} FOR UPDATE""",
+            cancellationToken);
+
         var liveLinks = await db.MagicLinkTokens.CountAsync(
             t => t.UserId == user.Id && t.UsedAt == null && t.ExpiresAt > now,
             cancellationToken);
@@ -66,6 +74,7 @@ public static class RequestMagicLink
             CreatedAt = now,
         });
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var link = $"{authOptions.Value.VerifyUrlBase}?token={Uri.EscapeDataString(rawToken)}";
         await sender.SendAsync(email, link, cancellationToken);

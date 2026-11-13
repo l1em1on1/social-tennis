@@ -41,7 +41,10 @@ export const handlers = [
   http.get("/auth/me", ({ request, response }) => {
     const bearer = request.headers.get("Authorization")?.replace(/^Bearer /, "");
     if (!bearer?.startsWith(SESSION_PREFIX)) {
-      return response(401).empty();
+      return response(401).json(
+        { title: "Unauthorized", status: 401 },
+        { headers: { "Content-Type": "application/problem+json" } },
+      );
     }
     const remembered = Buffer.from(bearer.slice(SESSION_PREFIX.length), "base64url").toString();
     return response(200).json({

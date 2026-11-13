@@ -33,10 +33,11 @@ public static class AuthEndpoints
 
         // The 401 here is the handler's answer to a bad token, not the
         // authorization middleware's, and a Results<> union doesn't describe
-        // UnauthorizedHttpResult — so it is declared by hand.
+        // UnauthorizedHttpResult — so it is declared by hand. A problem,
+        // because UseStatusCodePages gives the bodiless result a body.
         group.MapPost("/sessions", RedeemMagicLink.HandleAsync)
             .AllowAnonymous()
-            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithName(nameof(RedeemMagicLink));
 
         group.MapGet("/me", GetCurrentUser.HandleAsync)

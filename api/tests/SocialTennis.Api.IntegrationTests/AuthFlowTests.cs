@@ -162,6 +162,21 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     }
 
     [Fact]
+    public async Task Concurrent_requests_at_the_quota_boundary_do_not_exceed_it()
+    {
+        using var limitedFactory = factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Auth:MaxLiveMagicLinksPerAddress", "2"));
+        using var client = limitedFactory.CreateClient();
+        var email = UniqueEmail();
+
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 8).Select(_ => client.PostAsJsonAsync("/auth/magic-link", new { email })));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Accepted, response.StatusCode));
+        Assert.Equal(2, factory.Sender.SentTo(email));
+    }
+
+    [Fact]
     public async Task Magic_link_requests_beyond_the_ceiling_are_rate_limited()
     {
         using var limitedFactory = factory.WithWebHostBuilder(builder =>

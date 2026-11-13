@@ -80,7 +80,7 @@ Mechanics worth knowing:
 - **Cookies are `Secure` exactly when `PUBLIC_BASE_URL` is https** (`secureCookies()` in `src/lib/session.ts`), not by `NODE_ENV`. Every image runs as `production`, including over plain http on the compose network, where a browser stores a Secure cookie but never sends it back (only `localhost` is exempt). A TLS deployment must set an https `PUBLIC_BASE_URL` for its redirects anyway, so it gets Secure cookies.
 - **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
 - **Deny by default** (ADR-0017): a fallback authorization policy requires a session on every API endpoint. Only `POST /auth/magic-link`, `POST /auth/sessions`, `/health` and the OpenAPI document opt out with `AllowAnonymous()`. `OpenApiContractTests` calls every published operation anonymously and fails if one outside its allow-list answers.
-- **Abuse limits on requesting a link**: an address holding `Auth:MaxLiveMagicLinksPerAddress` (default 5) unused, unexpired links gets the usual 202 but no new email; and the route has a ceiling of `Auth:MagicLinkRequestsPerMinute` (default 60) across all callers, beyond which it answers 429. The ceiling is not per client: every request reaches the API from the BFF, so the API never sees a browser's address. Per-client limiting belongs at the edge (Go-live).
+- **Abuse limits on requesting a link**: an address holding `Auth:MaxLiveMagicLinksPerAddress` (default 5) unused, unexpired links gets the usual 202 but no new email (the count and the insert run under a lock on the User row, so concurrent requests can't each slip in under the quota); and the route has a ceiling of `Auth:MagicLinkRequestsPerMinute` (default 60) across all callers, beyond which it answers 429. The ceiling is not per client: every request reaches the API from the BFF, so the API never sees a browser's address. Per-client limiting belongs at the edge (Go-live).
 - **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
 
 ## Errors, health and time
@@ -134,7 +134,7 @@ flowchart LR
 
 Regenerating with no API change produces no diff — verified property, and the basis of the drift check.
 
-Statuses that come from middleware rather than a handler are put into the document by `OpenApi/UnauthorizedResponseTransformer`: every operation without `AllowAnonymous()` metadata gets a 401, read from the same metadata the authorization middleware uses, so the client's types can't disagree with the behaviour.
+Statuses that come from middleware rather than a handler are put into the document by `OpenApi/UnauthorizedResponseTransformer`: every operation without `AllowAnonymous()` metadata gets a 401 with a ProblemDetails body, read from the same metadata the authorization middleware uses, so the client's types can't disagree with the behaviour.
 
 ## Repository layout
 
