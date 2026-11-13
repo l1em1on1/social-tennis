@@ -67,7 +67,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env: &terraform-env
+      packages: read
+    env:
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -83,6 +84,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: The images for that SHA exist
         run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           for service in web api; do
             docker manifest inspect "${IMAGE_PREFIX}-${service}:${TF_VAR_image_tag}" >/dev/null \
               || { echo "::error::No ${service} image tagged ${TF_VAR_image_tag}. Was that commit pushed to main?"; exit 1; }
@@ -103,7 +105,19 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env: *terraform-env
+    # Same settings as the plan job.
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
+      TF_VAR_always_on: ${{ inputs.always_on }}
     steps:
       - uses: actions/checkout@v5
       - name: Apply
