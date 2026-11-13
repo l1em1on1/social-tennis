@@ -18,9 +18,19 @@ permissions:
 # gh refuses to run without a token in its environment, even though the proxy
 # replaces the Authorization header on the way out. Any value works; this one
 # says where the real token lives.
+#
+# The GIT_* variables make the sandbox commit as the l1em1on1-claude account
+# (its GitHub noreply address, keyed by account id 356328941). Environment,
+# not `git config --global`: the bind-mounted repo's .git/config sets
+# user.name/email for the host, and repo config beats global config, while
+# these variables beat both — and touch nothing the host reads.
 environment:
   variables:
     GH_TOKEN: proxy-managed
+    GIT_AUTHOR_NAME: l1em1on1-claude
+    GIT_AUTHOR_EMAIL: 356328941+l1em1on1-claude@users.noreply.github.com
+    GIT_COMMITTER_NAME: l1em1on1-claude
+    GIT_COMMITTER_EMAIL: 356328941+l1em1on1-claude@users.noreply.github.com
 
 # The repo's `origin` is SSH (git@github.com:...), and sandbox egress denies
 # github.com:22. Rewrite to HTTPS in the agent's *global* git config, so the
@@ -40,5 +50,9 @@ agentInstructions:
     The sandbox proxy injects the real token; do not run `gh auth login` or
     set a token yourself. SSH to github.com is blocked by design; `git@github.com:`
     remotes are rewritten to HTTPS in the global git config.
+
+    Commits are authored as `l1em1on1-claude` through `GIT_AUTHOR_*` /
+    `GIT_COMMITTER_*` environment variables, which override the repo's
+    `.git/config` identity (the host user's). Leave both as they are.
 
     Push only to feature branches, never to `main`.

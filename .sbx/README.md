@@ -37,7 +37,7 @@ Store the secrets — both prompt for the value (see
 [GitHub access](#github-access) and [Context7 API key](#context7-api-key)):
 
 ```bash
-sbx secret set -g github          # fine-grained PAT, github_pat_...
+sbx secret set -g github          # PAT of the l1em1on1-claude account
 sbx secret set -g context7        # raw key, no `Bearer `
 ```
 
@@ -148,25 +148,40 @@ proxy injects into requests to `github.com` and `api.github.com`
 ([credentials](https://docs.docker.com/ai/sandboxes/security/credentials/)). The
 token never enters the container.
 
-The token is a **fine-grained personal access token**, entered by hand exactly
-like the Context7 key: `../sandbox.sh` asks for it (hidden) when none is stored,
-and pipes it to `sbx secret set -g github` on stdin. A stored token is never
-asked for again; to replace it, run `../sandbox.sh --set-secret github`.
+The agent works as its own GitHub account, **`l1em1on1-claude`**, a
+collaborator with write access to this repo and nothing else. Its token is
+entered by hand exactly like the Context7 key: `../sandbox.sh` asks for it
+(hidden) when none is stored, and pipes it to `sbx secret set -g github` on
+stdin. A stored token is never asked for again; to replace it, run
+`../sandbox.sh --set-secret github`.
 
-Create it at [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens):
+Create the token signed in as `l1em1on1-claude`, at
+[github.com/settings/tokens](https://github.com/settings/tokens):
 
-- **Repository access:** only `l1em1on1/social-tennis`.
-- **Permissions:** Contents — read and write (push branches); Issues — read
-  and write; Pull requests — read and write, if the agent should open PRs.
-  Metadata — read is added automatically.
+- **Fine-grained**, if its Resource owner list offers `l1em1on1`: only
+  `l1em1on1/social-tennis`; Contents, Issues, Pull requests and Workflows —
+  read and write. Metadata — read is added automatically.
+- **Classic** otherwise — fine-grained tokens reach only repos owned by the
+  token's own account or an organisation, not ones it collaborates on: scopes
+  `repo` and `workflow` (`workflow` is needed to push changes under
+  `.github/workflows/`). The account can reach only this repo, so `repo`
+  reaches only this repo.
 - **Expiration:** set one. When it lapses, `gh` and `git push` start failing
   with 401; run `../sandbox.sh --set-secret github` and paste a new token.
 
-A PAT rather than your `gh auth token`: that one is your full `gh` login, so the
-agent could do anything you can across all your repos. The PAT limits it to
-this repo and these permissions. Pair it with a branch rule on `main` so a
-push can only land through a PR — the kit's "never push to `main`" line is an
-instruction to the agent, not an enforcement.
+A separate account rather than your own token: every push, PR, and comment
+the agent makes is attributed to `l1em1on1-claude`, and it can reach only
+what that account was invited to. Pair it with a ruleset on `main` that
+requires a PR with one approval (Repository admin in the bypass list), so the
+agent can open PRs but only you merge them — the kit's "never push to `main`"
+line is an instruction to the agent, not an enforcement.
+
+Commits are authored and committed as `l1em1on1-claude`
+(`356328941+l1em1on1-claude@users.noreply.github.com`) through the kit's
+`GIT_AUTHOR_*` / `GIT_COMMITTER_*` environment variables. `git config
+--global` would not do it: the bind-mounted repo's `.git/config` sets
+`user.name`/`user.email` for the host, and repo config beats global config,
+while the variables beat both and change nothing the host reads.
 
 Two gaps the kit closes, both found by probing a sandbox:
 
