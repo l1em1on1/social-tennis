@@ -4,6 +4,10 @@ WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# MOCK_API=1 bakes the MSW mocks into the build (the e2e web-mock service);
+# left empty, next.config.ts inlines "" and the mocks are compiled out (ADR-0009).
+ARG MOCK_API=""
+ENV MOCK_API=$MOCK_API
 RUN npm run build
 
 FROM node:24-alpine

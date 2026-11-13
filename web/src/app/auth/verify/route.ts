@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { api } from "@/lib/api/client";
-import { SESSION_COOKIE, publicUrl } from "@/lib/session";
+import { SESSION_COOKIE, publicUrl, secureCookies } from "@/lib/session";
 
 /**
  * Lands the emailed magic link: redeems the raw token at the API and swaps it
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   home.cookies.set(SESSION_COOKIE, data.token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookies(),
     path: "/",
     expires: new Date(data.expiresAt),
   });

@@ -25,7 +25,7 @@ flowchart LR
 
 ## Request flow
 
-The home page is a **server component** rendered per request (`export const dynamic = "force-dynamic"` — no build-time snapshot). It calls the API directly from the server with the generated typed client; no route-handler hop, per Next.js BFF guidance.
+Signed-in pages are **server components** rendered per request (`export const dynamic = "force-dynamic"` on the `(app)` layout — no build-time snapshot). They call the API directly from the server with the generated typed client; no route-handler hop, per Next.js BFF guidance. `getViewer()` (`src/lib/viewer/`) resolves the User once per request (React `cache`), shared by the shell layout and the page.
 
 ```mermaid
 sequenceDiagram
@@ -35,6 +35,8 @@ sequenceDiagram
     participant P as Postgres
 
     B->>W: GET /
+    W->>A: GET http://api:8080/auth/me (getViewer, shell layout)
+    A-->>W: 200 { userId, email }
     W->>A: GET http://api:8080/clubs (openapi-fetch, typed)
     A->>P: SELECT ... FROM "Clubs" (EF Core)
     P-->>A: rows
@@ -75,8 +77,38 @@ Mechanics worth knowing:
 - **Magic links are single-use and expiring** (config: `Auth:MagicLinkLifetimeMinutes`, default 15); sessions expire after `Auth:SessionLifetimeDays` (default 30) and die instantly on logout (`RevokedAt`).
 - **Two gates on the web side**: `src/proxy.ts` (Next 16's renamed middleware) redirects visitors with no session cookie to `/login` — a presence check only; real validity is enforced per request by the API's `SessionToken` Bearer scheme, and a 401 sends the page back to `/login`.
 - **Redirect origins** come from `PUBLIC_BASE_URL` (compose env), because a containerized server's own origin is its bind address — unroutable from a browser.
+- **Cookies are `Secure` exactly when `PUBLIC_BASE_URL` is https** (`secureCookies()` in `src/lib/session.ts`), not by `NODE_ENV`. Every image runs as `production`, including over plain http on the compose network, where a browser stores a Secure cookie but never sends it back (only `localhost` is exempt). A TLS deployment must set an https `PUBLIC_BASE_URL` for its redirects anyway, so it gets Secure cookies.
 - **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
 - **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
+
+## Web app shell
+
+The web UI is built on one foundation (ADR-0014), so feature tickets add screens, not plumbing.
+
+- **Design tokens** — `src/app/globals.css`: semantic colours (`bg`, `surface`, `fg`, `fg-muted`, `border`, `accent`, `success`, `warning`, `danger`, `info`, each with a `-muted` background) as `:root` custom properties with a `prefers-color-scheme: dark` override, exposed to Tailwind 4 through `@theme inline`. The default palette is cleared (`--color-*: initial`), so a raw colour utility doesn't exist. Fonts are Geist via `next/font`.
+- **Owned primitives** — `src/components/ui/`: Button/ButtonLink, Field + Input, Select (native), Card, Badge, Sheet (native `<dialog>` + `showModal()`), EmptyState, ErrorState, Skeleton/SkeletonGroup. Domain badge: `src/components/result-status-badge.tsx` (played, retirement, walkover, void, pending). Tap targets are at least 44px (`min-h-11`).
+- **Shell** — the `(app)` route group's layout: header with the "Playing as" switcher, page content, bottom navigation (Home, Ladder, Profiles; Manage and Admin by role). `loading.tsx` streams a Skeleton fallback, `error.tsx` an ErrorState whose retry re-fetches the segment; `app/error.tsx` catches what the shell layout itself throws (a failed `/auth/me`), since a segment's boundary sits inside its layout; `app/not-found.tsx` also answers role-refused pages.
+- **Acting Player** — the `st_player` HttpOnly cookie, set by the `switchActingPlayer` server action only to an id the User holds; `getViewer()` falls back to the first Player.
+- **Stand-in identity** — `src/lib/viewer/stub.ts` derives roles and Players from the login email until #18 (roles) and #4 (Players) expose them; the email's local part picks a persona (`manager`, `admin`, `parent`), which the E2E suite relies on.
+- **Dev showcase** — `/dev/ui` renders every primitive; it is a 404 in a production build without mocks.
+
+### API mocking (ADR-0009)
+
+All API calls happen server-side in the BFF, so mocking is **MSW in Node mode** only — no browser service worker.
+
+```mermaid
+flowchart LR
+    ENV["MOCK_API=1<br/>(next dev env, or web-mock build arg)"] -->|"next.config.ts env:<br/>inlined at build time"| REG["src/instrumentation.ts<br/>register()"]
+    REG -->|"dynamic import, nodejs runtime"| SRV["src/mocks/node.ts<br/>setupServer (msw/node)"]
+    SRV --> H["src/mocks/handlers.ts<br/>openapi-msw, typed by schema.d.ts"]
+    PAGES["server components /<br/>route handlers / actions"] -->|"fetch API_URL"| SRV
+    SRV -->|"other origins (Next's own RSC fetches)"| PT["passthrough()"]
+```
+
+- **Flag at build time.** `next.config.ts` `env` inlines `MOCK_API`; a build without it compiles the `register()` branch to dead code, so no MSW code ships. CI's `build` job asserts that on the production image.
+- **Typed handlers.** `createOpenApiHttp<paths>` rejects a path, body, or status the contract doesn't declare. The one deliberate escape is `/auth/me`'s 401, which the real API returns but the OpenAPI document doesn't yet declare.
+- **Only the API origin is mocked.** A final catch-all handler calls `passthrough()` for any other origin — its predicate excludes the API origin, because a handler that matches and returns nothing lets the request through instead of failing it — because Next fetches its own origin server-side (a server action's redirect loads the target's RSC payload). Unmatched calls to the API origin fail (`onUnhandledFrame: "error"`): that's a gap in the mocks.
+- **Mock auth** accepts any magic-link token and remembers it base64url-encoded in the session token. When the token is an email address, `/auth/me` returns that email, so the stub personas work the same way mocked as against the real API.
 
 ## Contract pipeline
 
@@ -88,6 +120,7 @@ flowchart LR
     DOC -->|"npm run api:generate<br/>(openapi-typescript, in-container)"| SCHEMA["web/src/lib/api/schema.d.ts<br/>(committed, reproducible)"]
     SCHEMA --> CLIENT["web/src/lib/api/client.ts<br/>createClient&lt;paths&gt; (openapi-fetch)"]
     CLIENT --> PAGES["server components / route handlers"]
+    SCHEMA --> MOCKS["web/src/mocks/handlers.ts<br/>openapi-msw (typed mocks)"]
     SCHEMA -.->|"regen + git diff --exit-code<br/>= drift check"| CI["CI: api.yml client-drift job"]
 ```
 
@@ -103,7 +136,7 @@ Regenerating with no API change produces no diff — verified property, and the 
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   └── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
-├── docker-compose.yml          base stack: postgres + api + web (+ api-tests profile)
+├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── .devcontainer/              Dev Container: .NET 10 + Node 24, language servers, Claude Code
 │   ├── devcontainer.json       image, features (node, docker-in-docker), mounts
@@ -136,14 +169,27 @@ Regenerating with no API change produces no diff — verified property, and the 
 │       ├── SocialTennis.Api.IntegrationTests/   HTTP + real Postgres
 │       └── SocialTennis.Api.UnitTests/          pure logic only, no DbContext
 └── web/
-    ├── Dockerfile              multi-stage: node:24 build → standalone runtime
-    ├── next.config.ts          output: "standalone"
+    ├── Dockerfile              multi-stage: node:24 build → standalone runtime; MOCK_API build arg
+    ├── next.config.ts          output: "standalone"; MOCK_API inlined via env
+    ├── playwright.config.ts    E2E projects: mock (web-mock) and real (web-e2e)
+    ├── e2e/                    Playwright specs; support/ (login, axe, stack readiness)
     └── src/
         ├── proxy.ts            route gate (Next 16 middleware successor)
-        ├── app/                App Router: / (authed), /login, /auth/verify
+        ├── instrumentation.ts  starts MSW when MOCK_API=1
+        ├── app/
+        │   ├── (app)/          signed-in shell: /, /ladder, /profiles, /manage, /admin, /dev/ui
+        │   ├── login/          magic-link request
+        │   └── auth/verify/    magic-link redemption (route handler)
+        ├── components/
+        │   ├── ui/             owned primitives (ADR-0014)
+        │   └── shell/          bottom nav, Player switcher
+        ├── mocks/              MSW handlers (openapi-msw) + Node server
         └── lib/
             ├── api/            generated schema.d.ts, client.ts, server.ts (session-aware)
-            └── session.ts      cookie name + public-origin helper
+            ├── viewer/         getViewer(): User, roles, Players, acting Player (stubbed parts: #4, #18)
+            ├── actions.ts      server actions: switch acting Player, log out
+            ├── mock-mode.ts    MOCK_API / dev-surface flags
+            └── session.ts      cookie names, public-origin + Secure-cookie helpers
 ```
 
 ## Runtime configurations
@@ -157,7 +203,9 @@ One compose file is the truth for topology; overlays change *how* services run, 
 | postgres | `postgres:18-alpine`, `pgdata` volume | same | same | same |
 | Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents | Isolated autonomous agents, deny-by-default egress |
 
-Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount).
+**Mocked API.** With `MOCK_API=1` in the environment, the dev overlay's `web` runs with MSW answering every API call. Start it with `--no-deps` and no `api` or `postgres` is needed. The `e2e` profile's `web-mock` service is the production-build equivalent: the same mocks, baked in with the `MOCK_API` build arg.
+
+Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries).
 
 ### Dev Container
 
@@ -223,6 +271,24 @@ flowchart LR
     T -->|direct call, no host| U["UnitTests<br/>pure logic only"]
 ```
 
+### Frontend: Playwright E2E (ADR-0014)
+
+The frontend seam is end to end: server components and server actions do most of the work, and only a real browser against a real server exercises them honestly. Domain rules stay tested at the API seam above; each feature ticket adds its screen's happy path here.
+
+```mermaid
+flowchart LR
+    E["e2e (profile e2e)<br/>mcr.microsoft.com/playwright<br/>npx playwright test"] -->|"project: mock"| WM["web-mock<br/>prod build, MOCK_API=1<br/>MSW in-process"]
+    E -->|"project: real"| WE["web-e2e<br/>prod build"]
+    WE --> A2["api"] --> DB2[("postgres: tennis")]
+    E -.->|"real logins: seed the<br/>magic-link token hash"| DB2
+```
+
+- **Two projects, one suite.** Every spec runs against `web-mock` (no API) and `web-e2e` (real API and Postgres) unless it opts out. Both are production builds served under their compose hostnames.
+- **Phone viewport.** 360×780, touch. The shell specs assert there's no horizontal scroll and that nav targets are at least 44px.
+- **Accessibility.** `@axe-core/playwright` fails a test on any *serious* or *critical* WCAG 2.1 A/AA violation. The `/dev/ui` showcase is checked in both colour schemes, and that's what keeps the token pairings at AA contrast.
+- **Real-API login without an inbox.** Until #19 the link is only logged. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows, and redeems it at `/auth/verify`. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
+- **Readiness.** `e2e/support/global-setup.ts` polls both web builds and the API until they answer, because `depends_on` only waits for containers to start.
+
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
 
 `OpenApiContractTests` uses the same host but asserts on the **generated OpenAPI document** rather than on any endpoint's behaviour — currently that no 2xx JSON response is a bare array (ADR-0012). This is where repo-wide contract rules get enforced when no type-level mechanism can express them; it tests the published wire surface, so it holds regardless of how the C# is written.
@@ -237,8 +303,9 @@ flowchart LR
         T1["integration-tests<br/>docker compose run --rm api-tests"]
         T2["client-drift<br/>up api → regen client → git diff --exit-code"]
     end
-    subgraph webwf ["web.yml — web/**, compose"]
-        T3["build<br/>docker compose build web"]
+    subgraph webwf ["web.yml — web/**, api/**, compose"]
+        T3["build<br/>docker compose build web<br/>+ assert no MSW in the image"]
+        T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>report uploaded on failure"]
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
@@ -257,6 +324,10 @@ Caveat (from GitHub's docs): a workflow skipped by path filtering leaves its che
 | Node | 24 (LTS) | Container-only, never on the host |
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
+| msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. msw 3 renamed `onUnhandledRequest` to `onUnhandledFrame` |
+| @playwright/test | 1.65.0 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.0-noble` image tag in `docker-compose.yml` (browsers ship in the image) |
+| @axe-core/playwright | 4.14.0 | Exact pin |
+| pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 

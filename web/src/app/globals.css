@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Design tokens (ADR-0014). Screens use these semantic colours only: the
+ * default Tailwind palette is cleared below, so `bg-gray-500` or `text-red-600`
+ * simply doesn't exist and a raw colour can't creep back in.
+ *
+ * Values live as plain custom properties on :root so dark mode can swap them;
+ * `@theme inline` then exposes each one as a utility (`bg-surface`,
+ * `text-fg-muted`, `border-border`, ...). `inline` makes the utility emit the
+ * variable reference itself, so it resolves at the element, after the dark
+ * override (Tailwind docs, "Referencing other variables").
+ *
+ * Every foreground/background pairing used by the primitives meets WCAG AA
+ * (4.5:1) in both themes; the Playwright axe checks enforce it.
+ *
+ * Two border tokens: `border` is decorative (card edges, separators) and may
+ * be faint; `border-strong` outlines form controls, so it keeps 3:1 against
+ * both `surface` and `bg` (WCAG 1.4.11, non-text contrast) — axe doesn't
+ * check borders, so that one is on us.
+ */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --st-bg: #f6f7f4;
+  --st-surface: #ffffff;
+  --st-surface-muted: #eceee8;
+  --st-fg: #1a1d17;
+  --st-fg-muted: #555c4f;
+  --st-border: #d3d8cc;
+  --st-border-strong: #7d8575; /* 3.8:1 on surface, 3.6:1 on bg */
+
+  --st-accent: #2f6b1f;
+  --st-accent-hover: #255617;
+  --st-accent-fg: #ffffff;
+  --st-accent-muted: #e2efdb;
+
+  --st-success: #1d6a40;
+  --st-success-muted: #dcf2e5;
+  --st-warning: #835000;
+  --st-warning-muted: #fbefd3;
+  --st-danger: #b42318;
+  --st-danger-hover: #931d14;
+  --st-danger-muted: #fde7e4;
+  --st-info: #1d4f91;
+  --st-info-muted: #e1ebf8;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --st-bg: #11140f;
+    --st-surface: #1a1e17;
+    --st-surface-muted: #262b22;
+    --st-fg: #eef1ea;
+    --st-fg-muted: #aab2a2;
+    --st-border: #3a4233;
+    --st-border-strong: #727d68; /* 3.9:1 on surface, 4.3:1 on bg */
+
+    --st-accent: #8fd16f;
+    --st-accent-hover: #a6dd8b;
+    --st-accent-fg: #10200a;
+    --st-accent-muted: #22381a;
+
+    --st-success: #7fd8a2;
+    --st-success-muted: #153122;
+    --st-warning: #f2bf62;
+    --st-warning-muted: #36280c;
+    --st-danger: #ff9385;
+    --st-danger-hover: #ffb0a6;
+    --st-danger-muted: #3d1713;
+    --st-info: #91bcff;
+    --st-info-muted: #172a45;
+
+    color-scheme: dark;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme {
+  /* Drop the default palette: colours come from the tokens below, nowhere else. */
+  --color-*: initial;
+}
+
+@theme inline {
+  --color-bg: var(--st-bg);
+  --color-surface: var(--st-surface);
+  --color-surface-muted: var(--st-surface-muted);
+  --color-fg: var(--st-fg);
+  --color-fg-muted: var(--st-fg-muted);
+  --color-border: var(--st-border);
+  --color-border-strong: var(--st-border-strong);
+
+  --color-accent: var(--st-accent);
+  --color-accent-hover: var(--st-accent-hover);
+  --color-accent-fg: var(--st-accent-fg);
+  --color-accent-muted: var(--st-accent-muted);
+
+  --color-success: var(--st-success);
+  --color-success-muted: var(--st-success-muted);
+  --color-warning: var(--st-warning);
+  --color-warning-muted: var(--st-warning-muted);
+  --color-danger: var(--st-danger);
+  --color-danger-hover: var(--st-danger-hover);
+  --color-danger-muted: var(--st-danger-muted);
+  --color-info: var(--st-info);
+  --color-info-muted: var(--st-info-muted);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-sans text-fg;
+  }
+
+  /* One visible focus style for every interactive element. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
 }
