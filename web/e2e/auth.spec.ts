@@ -7,13 +7,13 @@ import { expectNoSeriousA11yViolations } from "./support/axe";
 test("an anonymous visitor is sent to the login page", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page).toHaveTitle("Log in · Social Tennis");
+  await expect(page).toHaveTitle("Log in · Hits & Giggles");
   await expectNoSeriousA11yViolations(page);
 });
 
 test("opening the emailed link asks for a button press before signing in", async ({ page }, testInfo) => {
   await page.goto(await requestSignInLink(page, testInfo, personaEmail(testInfo, "player")));
-  await expect(page).toHaveTitle("Sign in · Social Tennis");
+  await expect(page).toHaveTitle("Sign in · Hits & Giggles");
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 
@@ -69,7 +69,7 @@ test("a link a mail scanner has already fetched still signs the User in", async 
 
 test("logging in lands on Home, and logging out ends the session", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
-  await expect(page).toHaveTitle("Social Tennis");
+  await expect(page).toHaveTitle("Hits & Giggles");
   await expect(page.getByRole("heading", { name: "Clubs" })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 

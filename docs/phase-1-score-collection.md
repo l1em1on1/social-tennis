@@ -1,4 +1,4 @@
-# Social Tennis — Phase 1: Score Collection
+# Hits & Giggles — Phase 1: Score Collection
 
 _As of 2026-11-13. Plain-language overview for non-technical readers. Domain terms are defined in `CONTEXT.md`; the decisions behind this scope are ADR-0008 (Phasing) and ADR-0013._
 

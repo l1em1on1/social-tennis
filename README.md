@@ -1,4 +1,4 @@
-# Social Tennis
+# Hits & Giggles
 
 Mobile-first web app for organizing league and social tennis games at a club — Divisional and Knockout leagues, availability-based match scheduling, score agreement, and social sign-ups.
 

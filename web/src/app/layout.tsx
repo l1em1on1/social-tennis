@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Social Tennis",
-    template: "%s · Social Tennis",
+    default: "Hits & Giggles",
+    template: "%s · Hits & Giggles",
   },
   description: "Club league scores, ladders, and fixtures.",
 };
