@@ -27,11 +27,16 @@ public class AzureCommunicationEmailSender(
             var operation = await client.SendAsync(WaitUntil.Started, message, cancellationToken);
             logger.LogInformation("Email accepted by Azure Communication Services, operation {OperationId}", operation.Id);
         }
-        catch (RequestFailedException exception)
+        // Everything but the caller giving up. A refusal is a
+        // RequestFailedException; a service that can't be reached surfaces,
+        // once the retries are spent, as an AggregateException, and a timeout
+        // as a cancellation the caller never asked for.
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(
                 exception,
-                "Azure Communication Services refused the email: {ErrorCode}", exception.ErrorCode);
+                "Azure Communication Services did not accept the email: {ErrorCode}",
+                (exception as RequestFailedException)?.ErrorCode ?? exception.GetType().Name);
             throw new EmailDeliveryException("Azure Communication Services did not accept the email.", exception);
         }
     }

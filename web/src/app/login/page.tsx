@@ -25,7 +25,12 @@ async function requestMagicLink(formData: FormData) {
   if (response.status === 503) {
     redirect("/login?error=send-failed");
   }
-  redirect(response.ok ? `/login?sent=${encodeURIComponent(email)}` : "/login?error=invalid-email");
+  if (response.ok) {
+    redirect(`/login?sent=${encodeURIComponent(email)}`);
+  }
+  // 400 is the API rejecting the address. Anything else is our fault, and
+  // must not be blamed on what the person typed.
+  redirect(response.status === 400 ? "/login?error=invalid-email" : "/login?error=unexpected");
 }
 
 const errors: Record<string, { title: string; description: string }> = {
@@ -37,6 +42,10 @@ const errors: Record<string, { title: string; description: string }> = {
   "send-failed": {
     title: "We couldn't send the email",
     description: "Nothing was sent. Please try again in a moment.",
+  },
+  unexpected: {
+    title: "Something went wrong",
+    description: "That's a problem on our side. Please try again in a moment.",
   },
   "invalid-link": {
     title: "That sign-in link has expired",

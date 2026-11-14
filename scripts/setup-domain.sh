@@ -357,10 +357,20 @@ pause
 
 # ── 5. Bind the https certificate ─────────────────────────────────────────
 stage "Turn on https for https://$TF_VAR_app_domain"
-# Terraform names the certificate after the hostname, dots as dashes.
-CERTIFICATE="${TF_VAR_app_domain//./-}"
-say "The first deploy had Azure issue a certificate named $CERTIFICATE."
+say "The first deploy had Azure issue a certificate for the hostname."
 say "This binds it to the hostname on the web app."
+# By resource id, found by the hostname it was issued for: an id is accepted
+# as it stands, where a bare name might only be looked up among uploaded
+# certificates.
+CERTIFICATE="$(azq containerapp env certificate list --resource-group "$APP_RG" \
+  --name "$APP_ENVIRONMENT" --managed-certificates-only \
+  --query "[?properties.subjectName=='$TF_VAR_app_domain'].id | [0]" -o tsv)"
+if [[ -z "$CERTIFICATE" ]]; then
+  warn "No managed certificate for $TF_VAR_app_domain in $APP_ENVIRONMENT."
+  warn "The first deploy has to finish issuing it. Run the deploy workflow"
+  warn "again, then re-run this wizard."
+  exit 1
+fi
 BINDING="$(azq containerapp hostname list --resource-group "$APP_RG" --name "$WEB_APP" \
   --query "[?name=='$TF_VAR_app_domain'].bindingType | [0]" -o tsv)"
 if [[ "$BINDING" == "SniEnabled" ]]; then

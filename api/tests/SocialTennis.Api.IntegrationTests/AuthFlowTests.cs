@@ -261,14 +261,39 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     }
 
     /// <summary>The mail provider is down for the first email, then recovers.</summary>
-    private sealed class FailingOnceEmailSender(IEmailSender inner) : IEmailSender
+    private sealed class FailingOnceEmailSender(IEmailSender inner, Exception? failure = null) : IEmailSender
     {
         private int _attempts;
 
         public Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken) =>
             Interlocked.Increment(ref _attempts) == 1
-                ? throw new EmailDeliveryException("The mail provider is down.", new HttpRequestException())
+                ? throw failure ?? new EmailDeliveryException("The mail provider is down.", new HttpRequestException())
                 : inner.SendAsync(email, cancellationToken);
+    }
+
+    [Fact]
+    public async Task A_send_that_fails_unexpectedly_does_not_use_up_the_quota()
+    {
+        // Not an EmailDeliveryException: a bug, or the caller going away.
+        var mail = new FailingOnceEmailSender(factory.Sender, new InvalidOperationException("A bug in the sender."));
+        using var flakyFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Auth:MaxLiveMagicLinksPerAddress", "1");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEmailSender>();
+                services.AddSingleton<IEmailSender>(mail);
+            });
+        });
+        using var client = flakyFactory.CreateClient();
+        var email = UniqueEmail();
+
+        var failed = await client.PostAsJsonAsync("/auth/magic-link", new { email });
+        var retried = await client.PostAsJsonAsync("/auth/magic-link", new { email });
+
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, retried.StatusCode);
+        Assert.Equal(1, factory.Sender.SentTo(email));
     }
 
     [Fact]

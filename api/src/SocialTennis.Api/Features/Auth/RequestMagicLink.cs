@@ -88,11 +88,18 @@ public static class RequestMagicLink
         {
             await sender.SendAsync(email, link, cancellationToken);
         }
-        catch (EmailDeliveryException)
+        catch (Exception exception)
         {
-            // Not the request's token: the caller may already have gone, and
-            // the row should be removed all the same.
+            // However the send ended (refused, cancelled because the caller
+            // went away, or a bug), the link reached nobody, so it must not
+            // count against the address's quota. Not the request's
+            // cancellation token: the caller may be the one who has gone.
             await db.MagicLinkTokens.Where(t => t.Id == tokenId).ExecuteDeleteAsync(CancellationToken.None);
+            if (exception is not EmailDeliveryException)
+            {
+                throw;
+            }
+
             return TypedResults.Problem(
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 title: "The sign-in email could not be sent.",

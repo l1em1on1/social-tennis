@@ -22,6 +22,12 @@ test("opening the emailed link asks for a button press before signing in", async
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("a sign-in address with no token goes back to the login page", async ({ page }) => {
+  await page.goto("/auth/verify");
+  await expect(page).toHaveURL(/\/login\?error=invalid-link$/);
+  await expect(page.getByText("That sign-in link has expired")).toBeVisible();
+});
+
 test("a link a mail scanner has already fetched still signs the User in", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mock", "the mocked API redeems any token any number of times");
   const link = await requestSignInLink(page, testInfo, personaEmail(testInfo, "player"));

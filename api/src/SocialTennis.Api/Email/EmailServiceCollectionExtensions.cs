@@ -27,11 +27,25 @@ public static class EmailServiceCollectionExtensions
             return options.Provider switch
             {
                 EmailProvider.AzureCommunicationServices => ActivatorUtilities.CreateInstance<AzureCommunicationEmailSender>(
-                    provider, new EmailClient(options.AzureCommunicationServices.ConnectionString)),
+                    provider,
+                    new EmailClient(options.AzureCommunicationServices.ConnectionString, AzureClientOptions())),
                 _ => ActivatorUtilities.CreateInstance<LoggingEmailSender>(provider),
             };
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Someone is waiting at the login form, so give up quickly: the SDK's
+    /// defaults (three retries, 100 seconds each) could hold the request for
+    /// minutes. One retry of ten seconds, then a 503 they can retry themselves.
+    /// </summary>
+    private static EmailClientOptions AzureClientOptions()
+    {
+        var options = new EmailClientOptions();
+        options.Retry.MaxRetries = 1;
+        options.Retry.NetworkTimeout = TimeSpan.FromSeconds(10);
+        return options;
     }
 }
