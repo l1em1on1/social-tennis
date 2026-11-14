@@ -386,7 +386,7 @@ fi
 finish
 say "Next:"
 step "Check Terraform can see everything:"
-say  "    docker compose -f infra/compose.yml run --rm infra ./init.sh"
+say  "    docker compose -f infra/compose.yml run --rm infra sh ./init.sh"
 step "The next merge to main publishes the images. After the first one, make"
 say  "    both packages public so Azure can pull them: on github.com open your"
 say  "    profile → Packages → social-tennis-web (then -api) → Package settings"

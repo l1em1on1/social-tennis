@@ -92,7 +92,7 @@ jobs:
       - name: Plan
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
-          "./init.sh -input=false && terraform plan -input=false -lock-timeout=5m"
+          "sh ./init.sh -input=false && terraform plan -input=false -lock-timeout=5m"
 
   apply:
     name: apply (needs approval)
@@ -123,7 +123,7 @@ jobs:
       - name: Apply
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
-          "./init.sh -input=false && terraform apply -input=false -auto-approve -lock-timeout=5m"
+          "sh ./init.sh -input=false && terraform apply -input=false -auto-approve -lock-timeout=5m"
       - name: The site answers
         # The first request after a deploy is a cold start: web, then (not
         # needed for /login) the API and the database. Allow three minutes.
