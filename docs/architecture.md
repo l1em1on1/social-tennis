@@ -320,7 +320,7 @@ flowchart LR
 | Root | `infra/*.tf` | Resource group, the four modules, the budget |
 | `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
 | `modules/compute` | Log Analytics, environment, `web`, `api` | |
-| `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Binding the certificate is the wizard's step |
+| `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
