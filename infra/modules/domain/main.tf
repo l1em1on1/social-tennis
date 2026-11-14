@@ -78,6 +78,18 @@ resource "cloudflare_dns_record" "app_verification" {
   comment = "Azure Container Apps: hostname ownership"
 }
 
+# Azure looks the TXT record up the moment the hostname is added, and fails the
+# apply if Cloudflare's nameservers aren't serving it yet: the first deploy
+# asked 2.5 seconds after the record was created. A fixed wait, because nothing
+# in the apply can ask Azure's resolver what it sees.
+resource "terraform_data" "app_verification_published" {
+  triggers_replace = cloudflare_dns_record.app_verification.id
+
+  provisioner "local-exec" {
+    command = "sleep 60"
+  }
+}
+
 resource "azurerm_container_app_custom_domain" "web" {
   name             = var.domain
   container_app_id = var.web_app_id
@@ -88,7 +100,7 @@ resource "azurerm_container_app_custom_domain" "web" {
     ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
   }
 
-  depends_on = [cloudflare_dns_record.app_verification]
+  depends_on = [terraform_data.app_verification_published]
 }
 
 # Issued and renewed by Azure. HTTP validation: Azure fetches a file from the
