@@ -66,7 +66,7 @@ services:
 
   # One-shot test runner: docker compose run --rm api-tests
   api-tests:
-    image: mcr.microsoft.com/dotnet/sdk:10.0
+    image: mcr.microsoft.com/dotnet/sdk:11.0
     profiles: ["test"]
     working_dir: /src
     # DEV_UID/DEV_GID unset (CI, bare host) -> "" -> no override, root as before.
@@ -113,7 +113,7 @@ services:
   # One-shot Playwright runner. The image tag must equal the @playwright/test
   # version in web/package.json (browsers are baked into the image).
   e2e:
-    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["e2e"]
     working_dir: /src
     # No DEV_UID override here, unlike api-tests: node_modules lives in a
@@ -145,7 +145,7 @@ services:
   # Needs the whole repo, not just web/: the CLI reads git history to link the
   # build to its commit and find baselines. Same image as e2e (it has git).
   chromatic:
-    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["e2e"]
     working_dir: /repo/web
     volumes:
