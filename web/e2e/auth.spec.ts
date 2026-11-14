@@ -22,6 +22,33 @@ test("opening the emailed link asks for a button press before signing in", async
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("a form shows it is working and ignores a second press", async ({ page }, testInfo) => {
+  await page.goto("/login");
+  await page.getByLabel("Email address").fill(personaEmail(testInfo, "player"));
+
+  // Hold the form's request, as a cold server would.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let posts = 0;
+  await page.route("**/login", async (route) => {
+    if (route.request().method() === "POST") {
+      posts += 1;
+      await held;
+    }
+    await route.continue();
+  });
+
+  const button = page.getByRole("button", { name: /Email me a sign-in link|Sending/ });
+  await button.click();
+  await expect(button).toBeDisabled();
+  await expect(button).toHaveText("Sending…");
+  await button.click({ force: true });
+
+  release();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
 test("a sign-in address with no token goes back to the login page", async ({ page }) => {
   await page.goto("/auth/verify");
   await expect(page).toHaveURL(/\/login\?error=invalid-link$/);

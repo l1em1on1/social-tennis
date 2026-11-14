@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { LinkPending } from "@/components/ui/link-pending";
 import { cx } from "@/lib/cx";
 
 export type NavKey = "home" | "ladder" | "profiles" | "manage" | "admin";
@@ -53,13 +54,16 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
                   active ? "text-accent" : "text-fg-muted hover:text-fg",
                 )}
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="size-6 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"
-                >
-                  {icon}
-                </svg>
+                {/* The icon turns into a spinner from the tap until the page arrives. */}
+                <LinkPending className="size-6">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="size-6 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"
+                  >
+                    {icon}
+                  </svg>
+                </LinkPending>
                 {label}
               </Link>
             </li>
