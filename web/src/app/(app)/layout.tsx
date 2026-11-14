@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-surface">
         <div className="mx-auto flex min-h-14 max-w-md items-center justify-between gap-3 px-4">
-          <span className="text-lg font-bold">Social Tennis</span>
+          <span className="text-lg font-bold">Hits & Giggles</span>
           <PlayerSwitcher viewer={viewer} />
         </div>
       </header>

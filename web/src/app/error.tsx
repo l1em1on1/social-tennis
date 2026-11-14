@@ -12,7 +12,7 @@ import { ErrorState } from "@/components/ui/states";
 export default function RootError({ retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-4 py-8">
-      <h1 className="text-2xl font-bold">Social Tennis</h1>
+      <h1 className="text-2xl font-bold">Hits & Giggles</h1>
       <ErrorState
         title="Something went wrong"
         description="The app couldn't load. It's usually the server being briefly unreachable."

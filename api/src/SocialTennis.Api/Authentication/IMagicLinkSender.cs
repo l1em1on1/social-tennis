@@ -29,7 +29,7 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
         // The link sits on a line of its own: mail clients turn it into a
         // link, and the dev log and the tests read it from there.
         var plainText = $"""
-            Open this link to sign in to Social Tennis:
+            Open this link to sign in to Hits & Giggles:
 
             {link}
 
@@ -40,7 +40,7 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
             <!doctype html>
             <html lang="en">
               <body style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; line-height: 1.5;">
-                <h1 style="font-size: 20px;">Sign in to Social Tennis</h1>
+                <h1 style="font-size: 20px;">Sign in to Hits &amp; Giggles</h1>
                 <p>
                   <a href="{htmlLink}" style="display: inline-block; padding: 12px 20px; border-radius: 8px; background: #166534; color: #ffffff; font-weight: 600; text-decoration: none;">Sign in</a>
                 </p>
@@ -51,7 +51,7 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
             """;
 
         return emailSender.SendAsync(
-            new OutgoingEmail(email, "Your sign-in link for Social Tennis", plainText, html),
+            new OutgoingEmail(email, "Your sign-in link for Hits & Giggles", plainText, html),
             cancellationToken);
     }
 }
