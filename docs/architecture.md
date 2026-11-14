@@ -317,14 +317,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    M["merge to main"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
-    D["Run workflow<br/>(choose a SHA)"] --> PL["plan<br/>environment: production-plan<br/>terraform plan, printed to the log"]
+    M["merge to main<br/>that changes web/ or api/"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
+    D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>terraform plan, printed to the log"]
     PL --> AP{{"approval<br/>environment: production"}}
     AP --> A["apply<br/>terraform apply -var image_tag=SHA"]
     A --> C["check<br/>GET /login, up to 3 minutes"]
 ```
 
-- **Publishing and deploying are separate.** Every merge to `main` publishes images; nothing is deployed until someone runs the workflow and approves it.
+- **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
+- **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
 - **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
 - **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key and the alert email are repository secrets.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
