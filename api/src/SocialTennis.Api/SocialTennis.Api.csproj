@@ -10,6 +10,7 @@
     <!-- Core package only. Validators are constructed by ValidationFilter, not
          resolved from DI, so FluentValidation.DependencyInjectionExtensions
          buys nothing here (ADR-0011). -->
+    <PackageReference Include="Azure.Communication.Email" Version="1.1.0" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />

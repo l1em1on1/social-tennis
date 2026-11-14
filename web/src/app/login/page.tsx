@@ -22,7 +22,15 @@ async function requestMagicLink(formData: FormData) {
   if (response.status === 429) {
     redirect("/login?error=try-later");
   }
-  redirect(response.ok ? `/login?sent=${encodeURIComponent(email)}` : "/login?error=invalid-email");
+  if (response.status === 503) {
+    redirect("/login?error=send-failed");
+  }
+  if (response.ok) {
+    redirect(`/login?sent=${encodeURIComponent(email)}`);
+  }
+  // 400 is the API rejecting the address. Anything else is our fault, and
+  // must not be blamed on what the person typed.
+  redirect(response.status === 400 ? "/login?error=invalid-email" : "/login?error=unexpected");
 }
 
 const errors: Record<string, { title: string; description: string }> = {
@@ -30,6 +38,14 @@ const errors: Record<string, { title: string; description: string }> = {
   "try-later": {
     title: "Too many sign-in requests",
     description: "Please wait a minute, then try again.",
+  },
+  "send-failed": {
+    title: "We couldn't send the email",
+    description: "Nothing was sent. Please try again in a moment.",
+  },
+  unexpected: {
+    title: "Something went wrong",
+    description: "That's a problem on our side. Please try again in a moment.",
   },
   "invalid-link": {
     title: "That sign-in link has expired",
@@ -54,8 +70,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           </p>
           {mockApi ? (
             // Mock mode has no inbox: the mocked API accepts the email itself as the link token.
-            // A plain <a>, not next/link: the target is a route handler, which the
-            // client router would prefetch — redeeming the "emailed" link early.
             <a
               href={`/auth/verify?token=${encodeURIComponent(sentTo)}`}
               className={`${buttonClasses("primary", true)} mt-4`}
@@ -63,7 +77,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               Continue (mock API)
             </a>
           ) : (
-            <p className="mt-2 text-sm text-fg-muted">Local dev: the link is printed in the api container log.</p>
+            // `next dev` only: there the API logs the email instead of sending it.
+            process.env.NODE_ENV !== "production" && (
+              <p className="mt-2 text-sm text-fg-muted">Local dev: the link is printed in the api container log.</p>
+            )
           )}
         </Card>
       ) : (

@@ -45,13 +45,40 @@ variable "database_name" {
   type        = string
 }
 
+variable "public_url" {
+  description = "Address the app is served at, when it isn't the one Azure assigns. Null: Azure's."
+  type        = string
+  nullable    = true
+}
+
+variable "email_enabled" {
+  description = "Send sign-in emails through Azure Communication Services. False: the API logs them."
+  type        = bool
+}
+
+variable "email_connection_string" {
+  description = "Communication Services connection string. Null unless email_enabled."
+  type        = string
+  sensitive   = true
+  nullable    = true
+}
+
+variable "email_from_address" {
+  description = "Sender address on the verified domain. Null unless email_enabled."
+  type        = string
+  nullable    = true
+}
+
 locals {
   min_replicas = var.always_on ? 1 : 0
 
   # An app with external ingress is served at <app>.<environment domain>.
   # Building the address from the environment, not from the web app's own
   # attributes, lets the web app be told its own public address.
-  web_url = "https://web.${azurerm_container_app_environment.this.default_domain}"
+  default_web_url = "https://web.${azurerm_container_app_environment.this.default_domain}"
+
+  # What redirects, cookies and the emailed link are built from.
+  web_url = coalesce(var.public_url, local.default_web_url)
 }
 
 resource "azurerm_log_analytics_workspace" "this" {
@@ -82,6 +109,16 @@ resource "azurerm_container_app" "api" {
   secret {
     name  = "database-connection-string"
     value = var.database_connection_string
+  }
+
+  # Keyed on email_enabled, not on the connection string: a sensitive value
+  # can't decide whether a block exists.
+  dynamic "secret" {
+    for_each = var.email_enabled ? [1] : []
+    content {
+      name  = "email-connection-string"
+      value = var.email_connection_string
+    }
   }
 
   # Internal only: reachable from web as http://api, never from the internet
@@ -119,6 +156,25 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "Auth__VerifyUrlBase"
         value = "${local.web_url}/auth/verify"
+      }
+
+      # Without these the API's Email:Provider stays "Log" (ADR-0020).
+      dynamic "env" {
+        for_each = var.email_enabled ? {
+          Email__Provider    = "AzureCommunicationServices"
+          Email__FromAddress = var.email_from_address
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.email_enabled ? [1] : []
+        content {
+          name        = "Email__AzureCommunicationServices__ConnectionString"
+          secret_name = "email-connection-string"
+        }
       }
 
       # A cold start wakes the database and checks migrations before the API
@@ -193,6 +249,31 @@ resource "azurerm_container_app" "web" {
 output "web_url" {
   description = "Public address of the app."
   value       = local.web_url
+}
+
+output "default_web_url" {
+  description = "The address Azure assigns to the web app."
+  value       = local.default_web_url
+}
+
+output "web_app_id" {
+  description = "Id of the web Container App."
+  value       = azurerm_container_app.web.id
+}
+
+output "web_custom_domain_verification_id" {
+  description = "The value Azure expects in a custom hostname's asuid TXT record."
+  value       = azurerm_container_app.web.custom_domain_verification_id
+}
+
+output "environment_id" {
+  description = "Id of the Container Apps environment."
+  value       = azurerm_container_app_environment.this.id
+}
+
+output "environment_static_ip" {
+  description = "The environment's public address."
+  value       = azurerm_container_app_environment.this.static_ip_address
 }
 
 output "api_app_name" {

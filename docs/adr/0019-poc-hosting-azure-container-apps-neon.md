@@ -2,7 +2,7 @@
 
 The app is a proof of concept, and it should cost as close to nothing as possible to run until the club depends on it. So it runs on **Azure Container Apps** (Consumption plan, UK South) with **Neon** for Postgres, both scaled to zero when idle, images in **GitHub Container Registry**, all created by Terraform in `infra/`. Inside the free grants this is about £0 a month. The original go-live plan (issue #26: AWS EC2 + RDS) would cost roughly $35–45 a month once sign-up credits ran out.
 
-The topology doesn't change (ADR-0001): `web` has public ingress, `api` has internal ingress only and is reached as `http://api` inside the Container Apps environment, and the database is external. The address is the `*.azurecontainerapps.io` hostname Azure assigns; there is no custom domain yet.
+The topology doesn't change (ADR-0001): `web` has public ingress, `api` has internal ingress only and is reached as `http://api` inside the Container Apps environment, and the database is external. The address is the `*.azurecontainerapps.io` hostname Azure assigns; there is no custom domain yet. (**Superseded 2026-11-14:** the app is served at its own domain, ADR-0021.)
 
 Free allowances, as found on 2026-11-13 (re-check at sign-up): Container Apps gives 180,000 vCPU-seconds, 360,000 GiB-seconds and 2 million requests a month per subscription; Neon's free plan gives 1 GB of storage and 100 compute-hours a month per project.
 
@@ -12,6 +12,7 @@ Free allowances, as found on 2026-11-13 (re-check at sign-up): Container Apps gi
 - **No always-running process.** Scheduled work (Stage auto-roll, token cleanup, retention) can't be a hosted service inside the API. It runs as a **Container Apps Job** on a cron schedule, using a job entry point in the API image.
 - **Probes must not touch the database.** A liveness probe that queries Postgres every few seconds keeps Neon awake and spends the compute allowance. `/health` answers without the database; `/health/ready` checks it.
 - **No real email.** Sending needs a domain for DKIM. Until there is one, sign-in links are read from the API's logs, which works for a handful of testers and not for the club (#19).
+  **Superseded (2026-11-14):** there is a domain now, and email is sent from it. See ADR-0020.
 
 ## Considered Options
 

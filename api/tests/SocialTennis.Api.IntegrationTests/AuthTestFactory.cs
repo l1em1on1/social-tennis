@@ -1,59 +1,69 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using SocialTennis.Api.Authentication;
+using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
 
 /// <summary>
-/// Captures magic links instead of sending them — the only service the tests
-/// replace. Everything else (HTTP boundary, real Postgres) stays real: anything
-/// touching the database is tested here, over HTTP, never against a fake or
-/// in-memory provider. Pure logic with no DbContext may instead be unit-tested
-/// in SocialTennis.Api.UnitTests (ADR-0010).
+/// Captures emails instead of sending them — the only service the tests
+/// replace. Everything else (HTTP boundary, real Postgres, the code that
+/// writes the sign-in email) stays real: anything touching the database is
+/// tested here, over HTTP, never against a fake or in-memory provider. Pure
+/// logic with no DbContext may instead be unit-tested in
+/// SocialTennis.Api.UnitTests (ADR-0010).
 /// </summary>
-public class CapturingMagicLinkSender : IMagicLinkSender
+public partial class CapturingEmailSender : IEmailSender
 {
-    private readonly ConcurrentDictionary<string, string> _lastLinkByEmail = new();
-    private readonly ConcurrentDictionary<string, int> _sentByEmail = new();
+    private readonly ConcurrentDictionary<string, OutgoingEmail> _lastByRecipient = new();
+    private readonly ConcurrentDictionary<string, int> _sentByRecipient = new();
 
-    public Task SendAsync(string email, string link, CancellationToken cancellationToken)
+    public Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
     {
-        _lastLinkByEmail[email] = link;
-        _sentByEmail.AddOrUpdate(email, 1, (_, sent) => sent + 1);
+        _lastByRecipient[email.To] = email;
+        _sentByRecipient.AddOrUpdate(email.To, 1, (_, sent) => sent + 1);
         return Task.CompletedTask;
     }
 
-    /// <summary>How many links were actually sent to this address.</summary>
+    /// <summary>How many emails were actually sent to this address.</summary>
     public int SentTo(string email) =>
-        _sentByEmail.GetValueOrDefault(email.Trim().ToLowerInvariant());
+        _sentByRecipient.GetValueOrDefault(email.Trim().ToLowerInvariant());
+
+    /// <summary>The last email sent to this address.</summary>
+    public OutgoingEmail LastTo(string email) => _lastByRecipient[email.Trim().ToLowerInvariant()];
+
+    /// <summary>The sign-in link in the last email to this address, as its recipient would find it.</summary>
+    public Uri LinkFor(string email) => new(LinkPattern().Match(LastTo(email).PlainText).Value);
 
     public string TokenFor(string email)
     {
-        var link = _lastLinkByEmail[email.Trim().ToLowerInvariant()];
-        var query = new Uri(link).Query.TrimStart('?');
+        var query = LinkFor(email).Query.TrimStart('?');
         var token = query.Split('&')
             .Select(pair => pair.Split('=', 2))
             .First(kv => kv[0] == "token")[1];
         return Uri.UnescapeDataString(token);
     }
+
+    [GeneratedRegex(@"https?://\S+")]
+    private static partial Regex LinkPattern();
 }
 
 public class AuthTestFactory : WebApplicationFactory<Program>
 {
-    public CapturingMagicLinkSender Sender { get; } = new();
+    public CapturingEmailSender Sender { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<IMagicLinkSender>();
-            services.AddSingleton<IMagicLinkSender>(Sender);
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Sender);
         });
     }
 

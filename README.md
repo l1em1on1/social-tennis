@@ -118,12 +118,22 @@ Releases normally go through GitHub: a merge to `main` that changes `web/` or `a
 
 By hand, `terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
 
-There is no real email yet, so a tester's sign-in link is read from the API's logs:
+### The club's domain: address and email
+
+The app is served at `https://hitsandgiggles.co.uk` with a certificate Azure manages (ADR-0021), and sign-in links are emailed from that domain through Azure Communication Services (ADR-0020). The domain's DNS is in Cloudflare. Terraform creates the DNS records, the mail resources and the certificate; one more wizard covers what it can't (the Cloudflare token, having Azure verify the domain for email, binding the certificate), between two deploys:
+
+```sh
+bash scripts/setup-domain.sh
+```
+
+Until that has been run to the end, the app answers only at the address Azure assigns, and the API logs each sign-in email instead of sending it. A tester's link is then read from the log:
 
 ```sh
 docker compose -f infra/compose.yml run --rm infra \
   az containerapp logs show --name api --resource-group social-tennis --tail 50
 ```
+
+Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so the link is in `docker compose logs api`.
 
 ## License
 

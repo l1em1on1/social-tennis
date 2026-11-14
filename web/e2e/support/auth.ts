@@ -17,29 +17,34 @@ export function personaEmail(testInfo: TestInfo, persona: string): string {
 }
 
 /**
- * Logs in through the real login form, then follows the emailed link.
+ * Requests a sign-in link through the real login form and returns the address
+ * the email would carry.
  *
- * mock: the mocked API accepts any token; the page offers a "Continue" link.
- * real: there's no inbox yet (#19), so the test takes the link's place. The
+ * mock: the mocked API accepts any token, so the email address stands in.
+ * real: the e2e stack sends no email, so the test takes the link's place. The
  *   API stores only SHA-256(token); the test overwrites the hash of the token
- *   the form just created with the hash of one it knows, then redeems that.
- *   Everything but delivery runs for real: the form, the API request, the
- *   redemption, the session cookie, /auth/me.
+ *   the form just created with the hash of one it knows. Everything but
+ *   delivery runs for real: the form, the API request, the redemption, the
+ *   session cookie, /auth/me.
  */
-export async function logIn(page: Page, testInfo: TestInfo, email: string) {
+export async function requestSignInLink(page: Page, testInfo: TestInfo, email: string): Promise<string> {
   await page.goto("/login");
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
 
   if (testInfo.project.name === "mock") {
-    await page.getByRole("link", { name: "Continue (mock API)" }).click();
-  } else {
-    const token = randomBytes(32).toString("base64url");
-    await replaceNewestMagicLinkToken(email, token);
-    await page.goto(`/auth/verify?token=${encodeURIComponent(token)}`);
+    return `/auth/verify?token=${encodeURIComponent(email)}`;
   }
+  const token = randomBytes(32).toString("base64url");
+  await replaceNewestMagicLinkToken(email, token);
+  return `/auth/verify?token=${encodeURIComponent(token)}`;
+}
 
+/** Logs in: requests a link, opens it, and presses "Sign in" on the page it lands on. */
+export async function logIn(page: Page, testInfo: TestInfo, email: string) {
+  await page.goto(await requestSignInLink(page, testInfo, email));
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
 }
 
