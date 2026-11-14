@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Social Tennis Wireframes</title>
+<title>Hits &amp; Giggles Wireframes</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;600&display=swap">
@@ -230,7 +230,7 @@ a.lnk { color: var(--accent); font-weight: 600; text-decoration: none; }
 <div class="bench">
   <aside class="rail" aria-label="Wireframe controls">
     <div>
-      <h1>Social Tennis · Phase 1 wireframes</h1>
+      <h1>Hits &amp; Giggles · Phase 1 wireframes</h1>
       <p class="small">Issue #41. Every screen in <code>docs/phase-1-score-collection.md</code>. Pick a screen, then a state. Everything inside the phone is clickable and fake.</p>
     </div>
     <div id="states"></div>
@@ -411,7 +411,7 @@ function shell(body, { back } = {}) {
   const parent = S.persona === "parent";
   const header = back
     ? `<button class="back" data-go="${back[0]}">‹ ${back[1]}</button>`
-    : `<span class="brand">Social Tennis</span>`;
+    : `<span class="brand">Hits &amp; Giggles</span>`;
   const sw = parent
     ? `<button class="switcher" data-sheet="switch"><small>Playing as</small><b>${S.acting}</b> ▾</button>`
     : `<div class="switcher" style="cursor:default"><small>Playing as</small><b>${S.acting}</b></div>`;
@@ -443,7 +443,7 @@ function sheet() {
 const R = {};
 
 R.login = (st) => {
-  const top = `<div class="scroll" style="justify-content:center"><h1 class="t" style="font-size:30px">Social Tennis</h1>`;
+  const top = `<div class="scroll" style="justify-content:center"><h1 class="t" style="font-size:30px">Hits &amp; Giggles</h1>`;
   if (st === "sent") return `${top}<div class="card"><h2>Check your email</h2><p class="muted" style="margin:0">A sign-in link is on its way to <b style="color:var(--fg)">ben@example.com</b>. It works once and expires shortly.</p><button class="btn ghost small" data-state="default">Wrong address? Start again</button></div><button class="btn primary full" data-go="home">(wireframe) Open the link</button></div>`;
   return `${top}${st === "bad-link" ? `<div class="banner err" role="alert"><b>That sign-in link has expired</b><span class="small">It's invalid, already used, or too old. Request a fresh one below.</span></div>` : ""}<div class="field"><label for="em">Email address</label><span class="hint">We'll email you a link to sign in. No password needed.</span><input class="input" id="em" type="email" placeholder="you@example.com"></div><button class="btn primary full" data-state="sent">Email me a sign-in link</button></div>`;
 };

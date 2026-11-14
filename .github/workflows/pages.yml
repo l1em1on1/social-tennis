@@ -48,7 +48,7 @@ jobs:
           cat > _site/index.html <<'HTML'
           <!doctype html>
           <meta charset="utf-8">
-          <title>Social Tennis wireframes</title>
+          <title>Hits &amp; Giggles wireframes</title>
           <meta http-equiv="refresh" content="0; url=phase-1-wireframes.html">
           <a href="phase-1-wireframes.html">Phase 1 wireframes</a>
           HTML

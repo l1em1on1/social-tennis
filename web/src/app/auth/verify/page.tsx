@@ -56,7 +56,7 @@ export default async function VerifyPage({ searchParams }: PageProps<"/auth/veri
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-8">
-      <h1 className="text-3xl font-bold">Social Tennis</h1>
+      <h1 className="text-3xl font-bold">Hits & Giggles</h1>
       <Card title="Finish signing in">
         <p className="text-fg-muted">Press the button to sign in on this device.</p>
         <form action={signIn} className="mt-4">
