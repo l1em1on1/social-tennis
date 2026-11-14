@@ -34,7 +34,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: filter
@@ -57,7 +57,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Fail on unformatted C# or a style rule violation
         run: docker compose run --rm --no-deps api-tests dotnet format --verify-no-changes
 
@@ -67,7 +67,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Run the suite exactly as documented for local dev
         run: docker compose run --rm api-tests
 
@@ -77,7 +77,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Start the API (production image; migrates on boot)
         run: docker compose up -d --build api
       - name: Regenerate the TS client in-container
