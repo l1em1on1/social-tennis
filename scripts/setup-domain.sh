@@ -234,8 +234,13 @@ say "Azure send email as it. It needs a token that can edit that one zone and"
 say "nothing else."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
 step "Create Token → use the 'Edit zone DNS' template."
+step "Under Permissions, click '+ Add more' and add: Zone → Zone → Read."
+step "  (Terraform finds the zone by name, which DNS Edit alone doesn't allow.)"
 step "Zone Resources: Include → Specific zone → your domain."
-step "Continue to summary → Create Token, and copy it. Cloudflare shows it once."
+step "Leave Client IP Address Filtering empty: GitHub's runners deploy from"
+step "  changing addresses."
+step "Continue to summary → Create Token, and copy the token itself (a long"
+step "  string shown once), not its name or id."
 ask_secret CLOUDFLARE_API_TOKEN "Paste the Cloudflare API token"
 write_env CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 set_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
@@ -265,6 +270,28 @@ warn "often add a parking page). Terraform creates its own and would collide."
 if ! confirm "No v=spf1 record, and no A/AAAA/CNAME left on $TF_VAR_app_domain?"; then
   exit 1
 fi
+# Ask Cloudflare the question Terraform will ask, before a deploy does. The
+# token goes in through the environment, so it never shows in a process list.
+note "Checking the token can see $TF_VAR_email_domain…"
+ZONE_ANSWER="$(docker run --rm -e CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" -e ZONE="$TF_VAR_email_domain" \
+  --entrypoint sh curlimages/curl:8.11.1 -c \
+  'curl --silent --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/zones?name=$ZONE"' \
+  </dev/null || true)"
+if [[ "$ZONE_ANSWER" != *'"success":true'* ]]; then
+  warn "Cloudflare rejected the token:"
+  note "  $ZONE_ANSWER"
+  warn "'Invalid access token' means the pasted value isn't a live token (a"
+  warn "partial copy, the token's id, or the Global API Key), or it lacks"
+  warn "Zone → Zone → Read. Create a new token and re-run this wizard."
+  exit 1
+fi
+if [[ "$ZONE_ANSWER" != *"\"name\":\"$TF_VAR_email_domain\""* ]]; then
+  warn "The token works, but it can't see a zone named $TF_VAR_email_domain."
+  warn "Either the token's Zone Resources name a different zone, or the domain"
+  warn "isn't added to this Cloudflare account yet. Fix that and re-run."
+  exit 1
+fi
+printf '  %s✓ the token can see the zone%s\n' "$GREEN" "$RESET"
 write_env TF_VAR_email_domain "$TF_VAR_email_domain"
 set_var EMAIL_DOMAIN "$TF_VAR_email_domain"
 write_env TF_VAR_app_domain "$TF_VAR_app_domain"
