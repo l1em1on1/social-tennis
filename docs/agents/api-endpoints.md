@@ -16,7 +16,8 @@ api/src/SocialTennis.Api/
 ├── Contracts/                  contracts shared across features — PageInfo only
 ├── Validation/                 ValidationFilter<TRequest, TValidator>, ValidatesBody<,>()
 ├── OpenApi/                    document transformers (the 401 on every non-anonymous operation)
-├── Authentication/             scheme handler, AuthOptions, Tokens, sender seam
+├── Authentication/             scheme handler, AuthOptions, Tokens, EmailAddress, sender seam
+├── Membership/                 ClubAdmission: who is in a Club without asking (used by Clubs and Players)
 ├── Data/  Domain/  Migrations/
 ```
 

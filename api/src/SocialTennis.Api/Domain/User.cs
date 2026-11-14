@@ -14,6 +14,12 @@ public class User
     public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>
+    /// Roles granted to this User. Addresses in Auth:AdminEmails are Admins on
+    /// top of whatever is stored here. Granting roles in the app is issue #18.
+    /// </summary>
+    public UserRoles Roles { get; set; }
+
+    /// <summary>
     /// External OAuth/OIDC identities (ADR-0004). Empty in v1 — the table
     /// exists so adding a provider later is additive, not a restructuring.
     /// </summary>

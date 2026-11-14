@@ -43,6 +43,13 @@ variable "alert_email" {
   type        = string
 }
 
+variable "admin_emails" {
+  description = "Email addresses that are Admins of the app, separated by commas. Whoever signs in with one can approve club members. Empty: nobody is an Admin."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "monthly_budget" {
   description = "Budget for the resource group, in the subscription's billing currency. The alert fires at 100% of it."
   type        = number

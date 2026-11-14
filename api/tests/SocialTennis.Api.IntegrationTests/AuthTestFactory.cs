@@ -4,8 +4,11 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SocialTennis.Api.Data;
+using SocialTennis.Api.Domain;
 using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
 
@@ -56,6 +59,9 @@ public partial class CapturingEmailSender : IEmailSender
 
 public class AuthTestFactory : WebApplicationFactory<Program>
 {
+    /// <summary>Listed in Auth:AdminEmails, so signing in with it is an Admin.</summary>
+    public const string AdminEmail = "admin@example.test";
+
     public CapturingEmailSender Sender { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -65,6 +71,7 @@ public class AuthTestFactory : WebApplicationFactory<Program>
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Sender);
         });
+        builder.UseSetting("Auth:AdminEmails", $"someone@example.test, {AdminEmail}");
     }
 
     /// <summary>
@@ -72,10 +79,13 @@ public class AuthTestFactory : WebApplicationFactory<Program>
     /// The API denies by default (ADR-0017), so every test that isn't about
     /// the anonymous routes starts here.
     /// </summary>
-    public async Task<HttpClient> CreateSignedInClientAsync()
+    public Task<HttpClient> CreateSignedInClientAsync() =>
+        CreateSignedInClientAsync($"player-{Guid.NewGuid():N}@example.test");
+
+    /// <summary>A client signed in as the User with this email, creating them if need be.</summary>
+    public async Task<HttpClient> CreateSignedInClientAsync(string email)
     {
         var client = CreateClient();
-        var email = $"player-{Guid.NewGuid():N}@example.test";
 
         var request = await client.PostAsJsonAsync("/auth/magic-link", new { email });
         request.EnsureSuccessStatusCode();
@@ -84,6 +94,22 @@ public class AuthTestFactory : WebApplicationFactory<Program>
         var session = await redeem.Content.ReadFromJsonAsync<RedeemMagicLinkResponse>();
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session!.Token);
+        return client;
+    }
+
+    /// <summary>
+    /// A client signed in as a fresh User holding the Manager role. The role is
+    /// written to the database: granting it through the API is issue #18.
+    /// </summary>
+    public async Task<HttpClient> CreateManagerClientAsync()
+    {
+        var email = $"manager-{Guid.NewGuid():N}@example.test";
+        var client = await CreateSignedInClientAsync(email);
+
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        await db.Users.Where(u => u.Email == email)
+            .ExecuteUpdateAsync(u => u.SetProperty(user => user.Roles, UserRoles.Manager));
         return client;
     }
 }

@@ -3,8 +3,11 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { Client } from "pg";
 
 /**
- * The email a test logs in with. The local part picks the stub persona
- * (lib/viewer/stub.ts): "player", "manager", "admin", "parent".
+ * The email a test logs in with. The local part picks the roles: "manager"
+ * and "admin"; anything else has none. The mocked API reads them from the
+ * email; against the real API `requestSignInLink` writes them to the database
+ * (granting roles in the app is #18).
+ * Every login is a new User with no Player: see `addFirstPlayer`.
  *
  * real: a random `+tag` keeps tests from sharing a User in the one database.
  * mock: no tag. Nothing is shared there, and Chromatic snapshots the mock
@@ -38,6 +41,7 @@ export async function requestSignInLink(page: Page, testInfo: TestInfo, email: s
   }
   const token = randomBytes(32).toString("base64url");
   await replaceNewestMagicLinkToken(email, token);
+  await grantRolesNamedInEmail(email);
   return `/auth/verify?token=${encodeURIComponent(token)}`;
 }
 
@@ -46,6 +50,53 @@ export async function logIn(page: Page, testInfo: TestInfo, email: string) {
   await page.goto(await requestSignInLink(page, testInfo, email));
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+}
+
+/**
+ * A Player name no other test or retry shares. The Manage page lists every
+ * request in the Club, and the stores outlive a test (the real database across
+ * runs, the mock's memory across the whole suite), so a fixed name could match
+ * a leftover from a failed attempt.
+ *
+ * mock: the base name on a first attempt, so Chromatic snapshots stay stable.
+ * real: always a random suffix.
+ */
+export function uniqueName(testInfo: TestInfo, base: string): string {
+  if (testInfo.project.name === "mock") {
+    return testInfo.retry === 0 ? base : `${base} Retry${testInfo.retry}`;
+  }
+  return `${base} ${randomBytes(3).toString("hex")}`;
+}
+
+/** Answers Home's first-sign-in question, which makes `name` the Acting Player. */
+export async function addFirstPlayer(page: Page, name: string) {
+  await page.getByLabel("Your name").fill(name);
+  await page.getByRole("button", { name: "Save my name" }).click();
+  await expect(page.getByTestId("acting-player")).toHaveText(name);
+}
+
+/** On Profiles: adds another Player to the login. */
+export async function addAnotherPlayer(page: Page, name: string) {
+  await page.getByRole("button", { name: "Add another player" }).click();
+  const sheet = page.getByRole("dialog", { name: "Add a player" });
+  await sheet.getByLabel("Name").fill(name);
+  await sheet.getByRole("button", { name: "Add player" }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
+}
+
+/** UserRoles in the API: Manager = 1, Admin = 2. */
+async function grantRolesNamedInEmail(email: string) {
+  const local = email.split("@")[0].split("+")[0].toLowerCase();
+  const roles = (local.includes("manager") ? 1 : 0) | (local.includes("admin") ? 2 : 0);
+  if (roles === 0) return;
+
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(`UPDATE "Users" SET "Roles" = $1 WHERE "Email" = $2`, [roles, email.toLowerCase()]);
+  } finally {
+    await client.end();
+  }
 }
 
 async function replaceNewestMagicLinkToken(email: string, rawToken: string) {

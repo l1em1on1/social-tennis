@@ -39,6 +39,12 @@ variable "long_cooldown" {
   type        = bool
 }
 
+variable "admin_emails" {
+  description = "Email addresses that are Admins, separated by commas. May be empty."
+  type        = string
+  sensitive   = true
+}
+
 variable "database_connection_string" {
   description = "Npgsql connection string."
   type        = string
@@ -122,6 +128,13 @@ resource "azurerm_container_app" "api" {
     value = var.database_connection_string
   }
 
+  # A secret, so the addresses stay out of the plan the deploy prints. A
+  # secret can't be empty, and "none" is no address, so it names nobody.
+  secret {
+    name  = "admin-emails"
+    value = var.admin_emails != "" ? var.admin_emails : "none"
+  }
+
   # Keyed on email_enabled, not on the connection string: a sensitive value
   # can't decide whether a block exists.
   dynamic "secret" {
@@ -165,6 +178,11 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "Database__MigrationLockDatabase"
         value = var.database_name
+      }
+      # Who is an Admin (and so can approve club members) on a fresh deployment.
+      env {
+        name        = "Auth__AdminEmails"
+        secret_name = "admin-emails"
       }
       env {
         name  = "Auth__VerifyUrlBase"

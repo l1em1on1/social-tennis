@@ -17,6 +17,27 @@ public class AuthOptions
     /// </summary>
     public string VerifyUrlBase { get; set; } = "http://localhost:3000/auth/verify";
 
+    /// <summary>
+    /// Email addresses that are Admins, separated by commas. This is how the
+    /// first Admin exists on a fresh deployment: no database step. Whoever
+    /// signs in with one of these addresses is an Admin for as long as it is
+    /// listed.
+    /// </summary>
+    public string AdminEmails { get; set; } = "";
+
+    private HashSet<string>? adminEmailSet;
+
+    /// <summary>
+    /// Asked on every authenticated request, so the list is parsed once. The
+    /// options are bound before first use and don't change while running.
+    /// </summary>
+    public bool IsAdminEmail(string email) =>
+        (adminEmailSet ??= AdminEmails
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(EmailAddress.Normalize)
+            .ToHashSet(StringComparer.Ordinal))
+        .Contains(EmailAddress.Normalize(email));
+
     /// <summary>Name of the rate-limiting policy on the magic-link request route.</summary>
     public const string MagicLinkRateLimitPolicy = "magic-link";
 

@@ -12,6 +12,9 @@ public static class GetCurrentUser
         var email = user.FindFirstValue(ClaimTypes.Email);
         return id is null || email is null
             ? TypedResults.Unauthorized()
-            : TypedResults.Ok(new GetCurrentUserResponse(Guid.Parse(id), email));
+            : TypedResults.Ok(new GetCurrentUserResponse(
+                Guid.Parse(id),
+                email,
+                [.. user.FindAll(ClaimTypes.Role).Select(role => role.Value)]));
     }
 }

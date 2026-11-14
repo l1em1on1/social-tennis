@@ -31,7 +31,7 @@ public static class RequestMagicLink
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = EmailAddress.Normalize(request.Email);
 
         var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
         var now = clock.GetUtcNow();
