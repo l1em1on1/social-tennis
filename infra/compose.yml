@@ -1,7 +1,7 @@
 # Infrastructure commands, run from the repo root:
 #
 #   docker compose -f infra/compose.yml run --rm infra az login --use-device-code
-#   docker compose -f infra/compose.yml run --rm infra ./init.sh
+#   docker compose -f infra/compose.yml run --rm infra sh ./init.sh
 #   docker compose -f infra/compose.yml run --rm infra terraform plan
 #
 # Settings come from infra/.env, which scripts/setup-hosting.sh writes and git

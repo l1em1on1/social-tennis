@@ -110,7 +110,7 @@ bash scripts/setup-hosting.sh
 Then, from the repo root:
 
 ```sh
-docker compose -f infra/compose.yml run --rm infra ./init.sh
+docker compose -f infra/compose.yml run --rm infra sh ./init.sh
 docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
 ```
 
