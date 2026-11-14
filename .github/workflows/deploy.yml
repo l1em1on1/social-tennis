@@ -92,11 +92,14 @@ jobs:
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_always_on: ${{ inputs.always_on }}
-      # Email (ADR-0020). Unset until scripts/setup-email.sh has run: no
-      # domain means no email resources, and the API logs sign-in links.
+      # The club's domain (ADR-0020, ADR-0021). Unset until
+      # scripts/setup-domain.sh has run: no domain means the app answers only
+      # at Azure's address and the API logs sign-in links.
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_email_domain: ${{ vars.EMAIL_DOMAIN }}
       TF_VAR_email_domain_verified: ${{ vars.EMAIL_DOMAIN_VERIFIED || 'false' }}
+      TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
+      TF_VAR_app_domain_ready: ${{ vars.APP_DOMAIN_READY || 'false' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -158,11 +161,14 @@ jobs:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
       TF_VAR_always_on: ${{ inputs.always_on }}
-      # Email (ADR-0020). Unset until scripts/setup-email.sh has run: no
-      # domain means no email resources, and the API logs sign-in links.
+      # The club's domain (ADR-0020, ADR-0021). Unset until
+      # scripts/setup-domain.sh has run: no domain means the app answers only
+      # at Azure's address and the API logs sign-in links.
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_email_domain: ${{ vars.EMAIL_DOMAIN }}
       TF_VAR_email_domain_verified: ${{ vars.EMAIL_DOMAIN_VERIFIED || 'false' }}
+      TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
+      TF_VAR_app_domain_ready: ${{ vars.APP_DOMAIN_READY || 'false' }}
     steps:
       - uses: actions/checkout@v5
       - name: Apply

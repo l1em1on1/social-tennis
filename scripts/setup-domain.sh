@@ -180,30 +180,34 @@ finish() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────
-# STAGES — one-time setup for sending sign-in emails from the club's own
-# domain (ADR-0020, issue #19).
+# STAGES — one-time setup for the club's own domain: the app's address, over
+# https (ADR-0021), and sign-in emails sent from it (ADR-0020, issue #19).
 #
 # Run from the repo root, after scripts/setup-hosting.sh:
 #
-#   bash scripts/setup-email.sh
+#   bash scripts/setup-domain.sh
 #
 # What it needs on this machine: Docker and an authenticated `gh`. Azure
 # commands run inside the infra toolbox image, never on the host (ADR-0005).
-# It is safe to re-run: values already saved are offered again, and asking
-# Azure to verify a domain twice does no harm.
+# It is safe to re-run: values already saved are offered again, and every
+# Azure step here can be repeated without harm.
 #
 # Terraform creates everything; this covers what it can't: the Cloudflare
-# token, and having Azure check the DNS records between the two deploys.
+# token, having Azure check the email DNS records, and binding the https
+# certificate. Those happen between two deploys.
 #
 # UNTESTED END TO END. It was written without access to the Azure or
 # Cloudflare accounts. Read each stage before confirming it, and fix the
 # script when a command or a dashboard path turns out different.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=5
+TOTAL_STAGES=6
 ENV_FILE="infra/.env"
 DEFAULT_DOMAIN="hitsandgiggles.co.uk"
 APP_RG="social-tennis"
+# Both named in infra/modules/compute/main.tf.
+APP_ENVIRONMENT="social-tennis"
+WEB_APP="web"
 
 # See scripts/setup-hosting.sh for why each of these is set.
 export MSYS_NO_PATHCONV=1
@@ -219,12 +223,15 @@ _az() {
 az()  { _az "$@"; }
 azq() { _az "$@" | tr -d '\r'; }
 
-banner "Email setup: sign-in links from your own domain"
+REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+
+banner "Domain setup: the app's address and sign-in emails"
 
 # ── 1. A Cloudflare API token ─────────────────────────────────────────────
 stage "A Cloudflare API token for the domain's DNS"
-say "Terraform adds the DNS records that let Azure send as your domain. It"
-say "needs a token that can edit that one zone and nothing else."
+say "Terraform adds the DNS records that point the domain at the app and let"
+say "Azure send email as it. It needs a token that can edit that one zone and"
+say "nothing else."
 open_url "https://dash.cloudflare.com/profile/api-tokens"
 step "Create Token → use the 'Edit zone DNS' template."
 step "Zone Resources: Include → Specific zone → your domain."
@@ -234,29 +241,47 @@ write_env CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 set_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 
 # ── 2. The domain ─────────────────────────────────────────────────────────
-stage "The domain to send from"
-say "Sign-in emails will come from DoNotReply@<domain>."
-note "Leave it empty for $DEFAULT_DOMAIN."
-ask TF_VAR_email_domain "Domain"
+stage "The domain"
+say "Sign-in emails will come from DoNotReply@<domain>, and the app will be"
+say "served at https://<address>."
+PREVIOUS_EMAIL_DOMAIN="$(_existing TF_VAR_email_domain || true)"
+PREVIOUS_APP_DOMAIN="$(_existing TF_VAR_app_domain || true)"
+note "Leave either empty for $DEFAULT_DOMAIN."
+ask TF_VAR_email_domain "Domain to send email from"
 TF_VAR_email_domain="${TF_VAR_email_domain:-$DEFAULT_DOMAIN}"
-say "Domain: $TF_VAR_email_domain"
+ask TF_VAR_app_domain "Address for the app (the domain itself, or a subdomain of it)"
+TF_VAR_app_domain="${TF_VAR_app_domain:-$TF_VAR_email_domain}"
+say "Email from: DoNotReply@$TF_VAR_email_domain"
+say "App at:     https://$TF_VAR_app_domain"
 open_url "https://dash.cloudflare.com/?to=/:account/$TF_VAR_email_domain/dns/records"
-step "Look through the zone's DNS records for a TXT record on the domain"
-step "itself that starts with v=spf1."
+step "Look through the zone's DNS records for two things:"
+step "  a TXT record on $TF_VAR_email_domain that starts with v=spf1"
+step "  any A, AAAA or CNAME record on $TF_VAR_app_domain"
 warn "A domain may have only one SPF record. If there is one already (for"
 warn "example from Cloudflare Email Routing), stop here: the two have to be"
 warn "merged in infra/modules/email/main.tf first."
-if ! confirm "No existing v=spf1 record on $TF_VAR_email_domain?"; then
+warn "Delete any A, AAAA or CNAME record on $TF_VAR_app_domain (registrars"
+warn "often add a parking page). Terraform creates its own and would collide."
+if ! confirm "No v=spf1 record, and no A/AAAA/CNAME left on $TF_VAR_app_domain?"; then
   exit 1
 fi
 write_env TF_VAR_email_domain "$TF_VAR_email_domain"
 set_var EMAIL_DOMAIN "$TF_VAR_email_domain"
-# Not verified yet. Said explicitly so a re-run for a new domain starts over.
-write_env TF_VAR_email_domain_verified false
-set_var EMAIL_DOMAIN_VERIFIED false
+write_env TF_VAR_app_domain "$TF_VAR_app_domain"
+set_var APP_DOMAIN "$TF_VAR_app_domain"
+# A changed name starts over; an unchanged one keeps what a previous run of
+# this wizard finished, so re-running never switches anything off.
+if [[ "$TF_VAR_email_domain" != "$PREVIOUS_EMAIL_DOMAIN" ]]; then
+  write_env TF_VAR_email_domain_verified false
+  set_var EMAIL_DOMAIN_VERIFIED false
+fi
+if [[ "$TF_VAR_app_domain" != "$PREVIOUS_APP_DOMAIN" ]]; then
+  write_env TF_VAR_app_domain_ready false
+  set_var APP_DOMAIN_READY false
+fi
 
-# ── 3. First deploy: mail resources and DNS records ───────────────────────
-stage "Deploy once, to create the mail resources and DNS records"
+# ── 3. First deploy: DNS records, mail resources, certificate ─────────────
+stage "Deploy once, to create the DNS records and the Azure side"
 say "First the toolbox image is rebuilt (it gained an Azure CLI extension)."
 docker build --progress plain --tag infra-infra infra </dev/null
 if ! azq account show --query id -o tsv >/dev/null 2>&1; then
@@ -266,15 +291,18 @@ if ! azq account show --query id -o tsv >/dev/null 2>&1; then
 fi
 note "Registering Microsoft.Communication on the subscription…"
 az provider register --namespace Microsoft.Communication --wait --output none
-say "Now deploy. This creates the mail resources in Azure and the DNS records"
-say "in Cloudflare. The app keeps logging sign-in links for the moment."
-step "Merge the branch that added email, if it isn't on main yet."
+say "Now deploy. This creates the DNS records in Cloudflare, the mail"
+say "resources in Azure, and the https certificate. The app keeps its Azure"
+say "address and keeps logging sign-in links for the moment."
+step "Merge the branch that added this, if it isn't on main yet."
 step "On GitHub: Actions → deploy → Run workflow, then approve the apply."
-open_url "https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/actions/workflows/deploy.yml"
+note "The certificate can take several minutes. If the apply fails on it"
+note "(the DNS record hadn't spread yet), run the workflow again."
+open_url "https://github.com/$REPO/actions/workflows/deploy.yml"
 pause "Apply finished successfully?"
 
-# ── 4. Azure verifies the DNS records ─────────────────────────────────────
-stage "Have Azure verify the domain"
+# ── 4. Azure verifies the email DNS records ───────────────────────────────
+stage "Have Azure verify the domain for email"
 EMAIL_SERVICE="$(azq communication email list --resource-group "$APP_RG" --query '[0].name' -o tsv)"
 if [[ -z "$EMAIL_SERVICE" ]]; then
   warn "No Email Communication Service in resource group $APP_RG."
@@ -300,7 +328,7 @@ _verify() {
 # Ownership first: Azure refuses to check the others until the domain is ours.
 VERIFIED=""
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-  read -r S_DOMAIN S_SPF S_DKIM S_DKIM2 <<<"$(_states)"
+  read -r S_DOMAIN S_SPF S_DKIM S_DKIM2 <<<"$(_states)" || true
   note "Domain: ${S_DOMAIN:-?}   SPF: ${S_SPF:-?}   DKIM: ${S_DKIM:-?}   DKIM2: ${S_DKIM2:-?}"
   if [[ "$S_DOMAIN $S_SPF $S_DKIM $S_DKIM2" == "Verified Verified Verified Verified" ]]; then
     VERIFIED=yes
@@ -323,21 +351,62 @@ if [[ -z "$VERIFIED" ]]; then
   exit 1
 fi
 printf '  %s✓ all four records verified%s\n' "$GREEN" "$RESET"
-pause
-
-# ── 5. Switch the app over to real email ──────────────────────────────────
-stage "Switch the app over to real email"
-say "The next deploy links the domain and tells the API to send through it."
 write_env TF_VAR_email_domain_verified true
 set_var EMAIL_DOMAIN_VERIFIED true
+pause
+
+# ── 5. Bind the https certificate ─────────────────────────────────────────
+stage "Turn on https for https://$TF_VAR_app_domain"
+# Terraform names the certificate after the hostname, dots as dashes.
+CERTIFICATE="${TF_VAR_app_domain//./-}"
+say "The first deploy had Azure issue a certificate named $CERTIFICATE."
+say "This binds it to the hostname on the web app."
+BINDING="$(azq containerapp hostname list --resource-group "$APP_RG" --name "$WEB_APP" \
+  --query "[?name=='$TF_VAR_app_domain'].bindingType | [0]" -o tsv)"
+if [[ "$BINDING" == "SniEnabled" ]]; then
+  note "Already bound."
+else
+  az containerapp hostname bind --resource-group "$APP_RG" --name "$WEB_APP" \
+    --environment "$APP_ENVIRONMENT" --hostname "$TF_VAR_app_domain" \
+    --certificate "$CERTIFICATE" --output none
+fi
+note "Checking https://$TF_VAR_app_domain/login answers (a cold start can take a minute)…"
+ANSWERED=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  if docker run --rm curlimages/curl:8.11.1 --silent --fail --max-time 30 \
+       --output /dev/null "https://$TF_VAR_app_domain/login" </dev/null; then
+    ANSWERED=yes
+    break
+  fi
+  sleep 10
+done
+if [[ -z "$ANSWERED" ]]; then
+  warn "https://$TF_VAR_app_domain/login didn't answer with a valid certificate."
+  warn "Nothing has been switched over. Check the hostname and certificate on"
+  warn "the web app in the Azure portal (Custom domains), then re-run."
+  exit 1
+fi
+printf '  %s✓ https works at %s%s\n' "$GREEN" "$TF_VAR_app_domain" "$RESET"
+write_env TF_VAR_app_domain_ready true
+set_var APP_DOMAIN_READY true
+pause
+
+# ── 6. Second deploy: switch over ─────────────────────────────────────────
+stage "Deploy again, to switch the app over"
+say "This deploy makes https://$TF_VAR_app_domain the app's own address (in"
+say "redirects and in the emailed link) and has the API send real email."
+step "On GitHub: Actions → deploy → Run workflow, then approve the apply."
+open_url "https://github.com/$REPO/actions/workflows/deploy.yml"
+pause "Apply finished successfully?"
 
 finish
 say "Next:"
-step "Deploy again: Actions → deploy → Run workflow, then approve."
-step "Open the site, ask for a sign-in link, and check it arrives."
+step "Open https://$TF_VAR_app_domain, ask for a sign-in link, and check it arrives."
 say  "    If it doesn't, the API's log says why:"
 say  "    docker compose -f infra/compose.yml run --rm infra \\"
 say  "      az containerapp logs show --name api --resource-group $APP_RG --tail 50"
+note "Everyone signed in at the old address signs in again: a session cookie"
+note "belongs to the address it was set on. The old address keeps working."
 note "Azure limits a newly verified domain to a small number of emails per"
 note "hour and day. That is plenty for a club; the limits are raised through"
 note "an Azure support request if it ever isn't."

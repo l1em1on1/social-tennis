@@ -45,6 +45,12 @@ variable "database_name" {
   type        = string
 }
 
+variable "public_url" {
+  description = "Address the app is served at, when it isn't the one Azure assigns. Null: Azure's."
+  type        = string
+  nullable    = true
+}
+
 variable "email_enabled" {
   description = "Send sign-in emails through Azure Communication Services. False: the API logs them."
   type        = bool
@@ -69,7 +75,10 @@ locals {
   # An app with external ingress is served at <app>.<environment domain>.
   # Building the address from the environment, not from the web app's own
   # attributes, lets the web app be told its own public address.
-  web_url = "https://web.${azurerm_container_app_environment.this.default_domain}"
+  default_web_url = "https://web.${azurerm_container_app_environment.this.default_domain}"
+
+  # What redirects, cookies and the emailed link are built from.
+  web_url = coalesce(var.public_url, local.default_web_url)
 }
 
 resource "azurerm_log_analytics_workspace" "this" {
@@ -240,6 +249,31 @@ resource "azurerm_container_app" "web" {
 output "web_url" {
   description = "Public address of the app."
   value       = local.web_url
+}
+
+output "default_web_url" {
+  description = "The address Azure assigns to the web app."
+  value       = local.default_web_url
+}
+
+output "web_app_id" {
+  description = "Id of the web Container App."
+  value       = azurerm_container_app.web.id
+}
+
+output "web_custom_domain_verification_id" {
+  description = "The value Azure expects in a custom hostname's asuid TXT record."
+  value       = azurerm_container_app.web.custom_domain_verification_id
+}
+
+output "environment_id" {
+  description = "Id of the Container Apps environment."
+  value       = azurerm_container_app_environment.this.id
+}
+
+output "environment_static_ip" {
+  description = "The environment's public address."
+  value       = azurerm_container_app_environment.this.static_ip_address
 }
 
 output "api_app_name" {

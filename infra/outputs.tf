@@ -3,6 +3,11 @@ output "url" {
   value       = module.compute.web_url
 }
 
+output "default_url" {
+  description = "The address Azure assigns, which keeps working beside a custom domain."
+  value       = module.compute.default_web_url
+}
+
 output "resource_group" {
   description = "Resource group holding the Azure side, for az commands."
   value       = azurerm_resource_group.this.name

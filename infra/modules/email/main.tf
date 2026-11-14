@@ -5,7 +5,7 @@
 # It takes two applies, because Azure checks the DNS records between them:
 #
 #   1. domain_verified = false  creates the mail resources and the DNS records.
-#   2. scripts/setup-email.sh   asks Azure to check the records and waits.
+#   2. scripts/setup-domain.sh  asks Azure to check the records and waits.
 #   3. domain_verified = true   links the domain to the sending resource. Only
 #                               then is there anything for the API to send with.
 #
@@ -41,7 +41,7 @@ variable "domain" {
 }
 
 variable "domain_verified" {
-  description = "Azure has verified the DNS records (scripts/setup-email.sh). Links the domain so email can be sent."
+  description = "Azure has verified the DNS records (scripts/setup-domain.sh). Links the domain so email can be sent."
   type        = bool
 }
 

@@ -13,7 +13,8 @@ terraform {
       source  = "kislerdm/neon"
       version = "0.18.0"
     }
-    # Only the email module uses it, for the DNS records (ADR-0020).
+    # DNS records for the sending domain (ADR-0020) and the app's address
+    # (ADR-0021).
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 5.19"
@@ -36,5 +37,5 @@ provider "azurerm" {
 provider "neon" {}
 
 # Reads CLOUDFLARE_API_TOKEN from the environment. Only contacted when
-# email_domain is set.
+# email_domain or app_domain is set.
 provider "cloudflare" {}

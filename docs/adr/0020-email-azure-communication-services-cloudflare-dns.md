@@ -8,12 +8,11 @@ The API sends through one interface, `IEmailSender`, and the provider is picked 
 
 ## What this accepts
 
-- **Two deploys to switch it on.** Azure will not link a domain it hasn't verified, verification needs the DNS records to exist, and the Terraform provider has no resource that asks Azure to verify. So the first deploy creates the records, `scripts/setup-email.sh` has Azure check them, and a second deploy (`email_domain_verified = true`) links the domain and configures the API.
+- **Two deploys to switch it on.** Azure will not link a domain it hasn't verified, verification needs the DNS records to exist, and the Terraform provider has no resource that asks Azure to verify. So the first deploy creates the records, `scripts/setup-domain.sh` has Azure check them, and a second deploy (`email_domain_verified = true`) links the domain and configures the API.
 - **A connection string, not a managed identity.** The API authenticates to Communication Services with a connection string held as a Container Apps secret. A managed identity would remove the secret, but needs a role assignment, and the deploy identity is a Contributor, which can't grant roles.
 - **"Accepted", not "delivered".** The API returns once Azure has accepted the email, so the login form doesn't wait several seconds for delivery. A refusal (bad credentials, unverified domain, throttling) is a 503 the User can retry; a later bounce is not reported back to them.
 - **Low sending limits at first.** Azure caps a newly verified domain at a small number of emails per hour and day. That is more than a club needs; raising it is a support request.
 - **The sender is `DoNotReply@`.** Azure creates that address on every custom domain. A friendlier sender name is a further resource and can be added later.
-- **The link still points at `azurecontainerapps.io`.** The domain is used for sending only. Serving the app from it is a separate change (a Container Apps custom domain and certificate), and would be better for deliverability, since the link would match the sender.
 - **DMARC starts at `p=none`.** It only reports. Tighten it to `quarantine` once mail is seen to pass SPF and DKIM.
 
 ## Considered Options

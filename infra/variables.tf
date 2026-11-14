@@ -56,7 +56,25 @@ variable "email_domain" {
 }
 
 variable "email_domain_verified" {
-  description = "Azure has verified email_domain's DNS records; scripts/setup-email.sh sets this. Until it is true the API keeps logging sign-in links."
+  description = "Azure has verified email_domain's DNS records; scripts/setup-domain.sh sets this. Until it is true the API keeps logging sign-in links."
+  type        = bool
+  default     = false
+}
+
+variable "app_domain" {
+  description = "Hostname the app is served at (ADR-0021), for example hitsandgiggles.co.uk. Its DNS must be in Cloudflare. Empty: only the address Azure assigns."
+  type        = string
+  default     = ""
+}
+
+variable "app_domain_zone" {
+  description = "Cloudflare zone app_domain belongs to. Empty: email_domain if set, otherwise app_domain itself. Only needed for a subdomain when no email_domain is set."
+  type        = string
+  default     = ""
+}
+
+variable "app_domain_ready" {
+  description = "The certificate is bound and https works at app_domain; scripts/setup-domain.sh sets this. Makes app_domain the address in redirects and emailed links."
   type        = bool
   default     = false
 }

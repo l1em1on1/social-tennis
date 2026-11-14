@@ -292,9 +292,10 @@ flowchart LR
     G[["GHCR<br/>web and api images"]]
     L[["Log Analytics"]]
     M[["Azure Communication Services<br/>Email, sending as the club's domain"]]
-    C[["Cloudflare DNS<br/>SPF, DKIM, DMARC records"]]
+    C[["Cloudflare DNS (DNS only, not proxied)<br/>app address; SPF, DKIM, DMARC"]]
 
-    B -->|"https://web.&lt;environment domain&gt;"| W
+    B -->|"https://&lt;app_domain&gt;<br/>Azure-managed certificate"| W
+    B -.->|"resolves the address"| C
     W -->|"http://api"| A
     A -->|"TLS, direct endpoint"| N
     G -.->|"image pull"| W & A
@@ -307,8 +308,8 @@ flowchart LR
 - **Probes.** Azure probes the API on `/health`, which runs no checks, so probing never wakes the database. The startup probe allows two minutes for a cold start. `web` is probed on `/login`, which calls nothing.
 - **Single replica.** Each app runs at most one replica, because the API migrates on startup. `always_on = true` raises the minimum from 0 to 1.
 - **Database connection.** The API uses Neon's direct endpoint, not its pooler: startup migration holds a session advisory lock, which a pooled connection would break. The lock is taken on the app's own database (`Database__MigrationLockDatabase`), since a Neon role may not be allowed into `postgres`.
-- **Addresses.** `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform from the environment's domain. The public address is https, so session cookies are `Secure`.
-- **Email** (ADR-0020). Sign-in emails go out through Azure Communication Services from `DoNotReply@<email_domain>`. The domain's DNS is in Cloudflare, where Terraform creates the ownership, SPF, DKIM and DMARC records. It takes two deploys, because Azure checks the records in between and Terraform has no resource for that step: the first (with `email_domain` set) creates the mail resources and DNS records; `scripts/setup-email.sh` then has Azure verify them and sets `email_domain_verified`; the second links the domain and gives the API its `Email__*` settings, the connection string as a Container Apps secret. Until that second deploy, and whenever `email_domain` is empty, the API logs sign-in links instead (README, "Hosting"). The link in the email still points at the `azurecontainerapps.io` address: the domain is used for sending only.
+- **Addresses** (ADR-0021). The app is served at `https://<app_domain>`: a custom domain on `web` with an Azure-managed certificate, reached through a DNS-only A record (to the environment's static address) and an `asuid` ownership TXT record in Cloudflare. `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform: from `app_domain` once `app_domain_ready` is true, and from the environment's own domain before that or when `app_domain` is empty. Either way the address is https, so session cookies are `Secure`. The address Azure assigns keeps answering (Terraform output `default_url`). Getting there takes the same two deploys as email, with `scripts/setup-domain.sh` binding the certificate in between: the provider can't bind a managed certificate, and its custom domain resource ignores the binding so later applies leave it alone.
+- **Email** (ADR-0020). Sign-in emails go out through Azure Communication Services from `DoNotReply@<email_domain>`. The domain's DNS is in Cloudflare, where Terraform creates the ownership, SPF, DKIM and DMARC records. It takes two deploys, because Azure checks the records in between and Terraform has no resource for that step: the first (with `email_domain` set) creates the mail resources and DNS records; `scripts/setup-domain.sh` then has Azure verify them and sets `email_domain_verified`; the second links the domain and gives the API its `Email__*` settings, the connection string as a Container Apps secret. Until that second deploy, and whenever `email_domain` is empty, the API logs sign-in links instead (README, "Hosting").
 - **Cost guard.** A budget on the resource group emails when actual or forecast spend reaches the configured amount.
 
 ### Terraform (`infra/`)
@@ -316,9 +317,10 @@ flowchart LR
 | Piece | Where | Note |
 |---|---|---|
 | Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
-| Root | `infra/*.tf` | Resource group, the three modules, the budget |
+| Root | `infra/*.tf` | Resource group, the four modules, the budget |
 | `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
 | `modules/compute` | Log Analytics, environment, `web`, `api` | |
+| `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
@@ -339,7 +341,7 @@ flowchart LR
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
 - **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
 - **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
-- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the alert email and the Cloudflare API token (DNS edit on the one zone) are repository secrets; the email domain and whether it is verified are repository variables.
+- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the alert email and the Cloudflare API token (DNS edit on the one zone) are repository secrets; the email domain, the app's domain, and whether each is ready are repository variables.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
@@ -437,7 +439,7 @@ flowchart LR
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
-| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension (unpinned) for `scripts/setup-email.sh` |
+| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension (unpinned) for `scripts/setup-domain.sh` |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 

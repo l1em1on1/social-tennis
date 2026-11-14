@@ -8,6 +8,9 @@
 #                        v
 #                      Neon Postgres
 #
+# The app can also be served at the club's own domain, with DNS in Cloudflare
+# and a certificate managed by Azure (ADR-0021).
+#
 # The api also sends the sign-in emails, through Azure Communication Services,
 # once email_domain is set and verified (ADR-0020).
 
@@ -58,9 +61,26 @@ module "compute" {
   database_connection_string = module.database.connection_string
   database_name              = module.database.database_name
 
+  public_url = var.app_domain != "" && var.app_domain_ready ? "https://${var.app_domain}" : null
+
   email_enabled           = local.email_sending
   email_connection_string = local.email_sending ? module.email[0].connection_string : null
   email_from_address      = local.email_sending ? module.email[0].from_address : null
+}
+
+# Absent until a hostname is named. The app keeps answering on Azure's address
+# as well; app_domain_ready only decides which one it calls its own.
+module "domain" {
+  source = "./modules/domain"
+  count  = var.app_domain == "" ? 0 : 1
+
+  domain = var.app_domain
+  zone   = coalesce(var.app_domain_zone, var.email_domain, var.app_domain)
+
+  web_app_id                        = module.compute.web_app_id
+  web_custom_domain_verification_id = module.compute.web_custom_domain_verification_id
+  environment_id                    = module.compute.environment_id
+  environment_static_ip             = module.compute.environment_static_ip
 }
 
 # Leaving the free grant should arrive as an email, not as a surprise invoice.
