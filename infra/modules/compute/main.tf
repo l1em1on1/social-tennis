@@ -63,9 +63,13 @@ resource "azurerm_log_analytics_workspace" "this" {
 }
 
 resource "azurerm_container_app_environment" "this" {
-  name                       = var.name
-  location                   = var.location
-  resource_group_name        = var.resource_group_name
+  name                = var.name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  # Said explicitly: azurerm 5 no longer infers the destination from the
+  # workspace id, and rejects the id without it.
+  logs_destination           = "log-analytics"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
 }
 
