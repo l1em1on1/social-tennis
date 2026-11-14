@@ -116,7 +116,7 @@ docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag
 
 Releases normally go through GitHub: a merge to `main` that changes `web/` or `api/` publishes images, and **Actions → deploy → Run workflow** plans, waits for approval, applies, and checks the site. It deploys the newest published images unless you give it a commit SHA; to roll back, give it an earlier published one.
 
-By hand, `terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
+By hand, `terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant. `-var long_cooldown=true` is the cheaper half-step: the apps stay up for 30 minutes after the last request instead of 5. Both are tick boxes on the deploy workflow, and both apply to that deploy only: the next deploy without them puts the default back.
 
 ### The club's domain: address and email
 

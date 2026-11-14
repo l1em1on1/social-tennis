@@ -32,6 +32,12 @@ variable "always_on" {
   default     = false
 }
 
+variable "long_cooldown" {
+  description = "Keep web and api running for 30 minutes after the last request, not 5. Fewer cold starts; spends the free grant faster (ADR-0019)."
+  type        = bool
+  default     = false
+}
+
 variable "alert_email" {
   description = "Where the budget alert is sent."
   type        = string
