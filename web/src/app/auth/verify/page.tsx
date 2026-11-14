@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { api } from "@/lib/api/client";
 import { SESSION_COOKIE, secureCookies } from "@/lib/session";
 
@@ -61,9 +61,9 @@ export default async function VerifyPage({ searchParams }: PageProps<"/auth/veri
         <p className="text-fg-muted">Press the button to sign in on this device.</p>
         <form action={signIn} className="mt-4">
           <input type="hidden" name="token" value={token} />
-          <Button type="submit" fullWidth>
+          <SubmitButton fullWidth pendingLabel="Signing in…">
             Sign in
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </main>

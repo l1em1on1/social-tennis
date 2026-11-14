@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { ErrorState } from "@/components/ui/states";
@@ -91,9 +92,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               <Input {...control} name="email" type="email" required autoComplete="email" placeholder="you@example.com" />
             )}
           </Field>
-          <Button type="submit" fullWidth>
+          <SubmitButton fullWidth pendingLabel="Sending…">
             Email me a sign-in link
-          </Button>
+          </SubmitButton>
         </form>
       )}
     </main>
