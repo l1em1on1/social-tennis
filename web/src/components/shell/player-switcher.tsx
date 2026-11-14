@@ -1,8 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import { buttonClasses } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { switchActingPlayer } from "@/lib/actions";
-import { cx } from "@/lib/cx";
 import type { Viewer } from "@/lib/viewer";
 
 /**
@@ -49,14 +48,15 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
             <li key={player.id}>
               <form action={switchActingPlayer}>
                 <input type="hidden" name="playerId" value={player.id} />
-                <button
-                  type="submit"
+                <SubmitButton
                   aria-pressed={current}
-                  className={cx(buttonClasses(current ? "primary" : "secondary", true), "justify-between")}
+                  variant={current ? "primary" : "secondary"}
+                  fullWidth
+                  className="justify-between"
                 >
                   {player.name}
                   {current && <Badge tone="accent">Current</Badge>}
-                </button>
+                </SubmitButton>
               </form>
             </li>
           );

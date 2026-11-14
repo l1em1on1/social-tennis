@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/states";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { logout, switchActingPlayer } from "@/lib/actions";
 import { getViewer } from "@/lib/viewer";
 
@@ -34,9 +34,7 @@ export default async function ProfilesPage() {
                   ) : (
                     <form action={switchActingPlayer}>
                       <input type="hidden" name="playerId" value={player.id} />
-                      <Button type="submit" variant="secondary">
-                        Play as {player.name.split(" ")[0]}
-                      </Button>
+                      <SubmitButton variant="secondary">Play as {player.name.split(" ")[0]}</SubmitButton>
                     </form>
                   )}
                 </li>
@@ -49,9 +47,9 @@ export default async function ProfilesPage() {
       <Card title="Account">
         <p className="mb-3 text-sm text-fg-muted">Signed in as {viewer.email}</p>
         <form action={logout}>
-          <Button type="submit" variant="secondary" fullWidth>
+          <SubmitButton variant="secondary" fullWidth pendingLabel="Logging out…">
             Log out
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
     </>

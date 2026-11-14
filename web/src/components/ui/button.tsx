@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { cx } from "@/lib/cx";
+import { LinkPending } from "./link-pending";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -32,7 +33,12 @@ export function Button({ variant, fullWidth, className, type = "button", ...prop
 
 type ButtonLinkProps = ComponentProps<typeof Link> & { variant?: ButtonVariant; fullWidth?: boolean };
 
-/** A link that looks like a Button — navigation stays a real `<a>`. */
-export function ButtonLink({ variant, fullWidth, className, ...props }: ButtonLinkProps) {
-  return <Link className={cx(buttonClasses(variant, fullWidth), className)} {...props} />;
+/** A link that looks like a Button — navigation stays a real `<a>`. Shows a spinner while the next page loads. */
+export function ButtonLink({ variant, fullWidth, className, children, ...props }: ButtonLinkProps) {
+  return (
+    <Link className={cx(buttonClasses(variant, fullWidth), className)} {...props}>
+      <LinkPending />
+      {children}
+    </Link>
+  );
 }
