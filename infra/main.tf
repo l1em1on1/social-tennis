@@ -7,6 +7,9 @@
 #                        │ TLS, direct connection
 #                        v
 #                      Neon Postgres
+#
+# The api also sends the sign-in emails, through Azure Communication Services,
+# once email_domain is set and verified (ADR-0020).
 
 locals {
   name = "social-tennis"
@@ -25,6 +28,22 @@ module "database" {
   neon_region = var.neon_region
 }
 
+# Absent until a domain is named, so the app can be deployed without one.
+module "email" {
+  source = "./modules/email"
+  count  = var.email_domain == "" ? 0 : 1
+
+  name                = local.name
+  resource_group_name = azurerm_resource_group.this.name
+  resource_group_id   = azurerm_resource_group.this.id
+  domain              = var.email_domain
+  domain_verified     = var.email_domain_verified
+}
+
+locals {
+  email_sending = one(module.email[*].sending_enabled) == true
+}
+
 module "compute" {
   source = "./modules/compute"
 
@@ -38,6 +57,10 @@ module "compute" {
 
   database_connection_string = module.database.connection_string
   database_name              = module.database.database_name
+
+  email_enabled           = local.email_sending
+  email_connection_string = local.email_sending ? module.email[0].connection_string : null
+  email_from_address      = local.email_sending ? module.email[0].from_address : null
 }
 
 # Leaving the free grant should arrive as an email, not as a surprise invoice.

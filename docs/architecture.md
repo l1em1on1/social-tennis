@@ -55,17 +55,21 @@ sequenceDiagram
     participant W as web (BFF)
     participant A as api
     participant P as Postgres
+    participant M as Mail provider
 
     B->>W: submit email on /login
     W->>A: POST /auth/magic-link { email }
     A->>P: upsert User, store SHA-256(link token), expiry
-    A-->>W: 202 (always — no user enumeration)
-    Note over A: IMagicLinkSender delivers the link<br/>(v1: logged; real email is #19)
+    A->>M: IEmailSender sends the sign-in email<br/>(dev: written to the log)
+    A-->>W: 202 (no user enumeration), or 503 if the email wasn't accepted
+    M-->>B: email with the link
     B->>W: GET /auth/verify?token=…
+    W-->>B: page with a "Sign in" button (redeems nothing)
+    B->>W: POST (server action) { token }
     W->>A: POST /auth/sessions { token }
     A->>P: token unused + unexpired? mark used, create session (hashed)
     A-->>W: 200 { session token, expiresAt }
-    W-->>B: 307 / + HttpOnly st_session cookie
+    W-->>B: redirect to / + HttpOnly st_session cookie
     B->>W: any page
     W->>A: Authorization: Bearer session token
     Note over B,W: Browser holds only the HttpOnly cookie —<br/>never sees an API credential it can read
@@ -81,7 +85,9 @@ Mechanics worth knowing:
 - **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
 - **Deny by default** (ADR-0017): a fallback authorization policy requires a session on every API endpoint. Only `POST /auth/magic-link`, `POST /auth/sessions`, `/health`, `/health/ready` and the OpenAPI document opt out with `AllowAnonymous()`. `OpenApiContractTests` calls every published operation anonymously and fails if one outside its allow-list answers.
 - **Abuse limits on requesting a link**: an address holding `Auth:MaxLiveMagicLinksPerAddress` (default 5) unused, unexpired links gets the usual 202 but no new email (the count and the insert run under a lock on the User row, so concurrent requests can't each slip in under the quota); and the route has a ceiling of `Auth:MagicLinkRequestsPerMinute` (default 60) across all callers, beyond which it answers 429. The ceiling is not per client: every request reaches the API from the BFF, so the API never sees a browser's address. Per-client limiting belongs at the edge (Go-live).
-- **Delivery seam**: `IMagicLinkSender`, registered as a logging implementation (the dev-retrievable link); #19 replaces it with real email; tests substitute a capturing fake.
+- **Delivery seam**: `RequestMagicLink` knows only `IMagicLinkSender`. Its one implementation writes the sign-in email and hands it to `IEmailSender` (`Email/`), the single seam for all email. The provider behind it is chosen by configuration alone: `Email:Provider` is `Log` by default (the email, link included, is written to the API log, so dev needs no mail account) or `AzureCommunicationServices` (ADR-0020), which also needs `Email:FromAddress` and `Email:AzureCommunicationServices:ConnectionString`. A real provider with settings missing stops the API starting. Tests substitute a capturing `IEmailSender` and read the link out of the email.
+- **A failed send is a 503, and retryable**: providers throw `EmailDeliveryException` when the mail service refuses the email. The handler then deletes the link it had just stored (it reached nobody, and would otherwise count against the address's quota) and answers 503; the login page says nothing was sent and offers the form again. The Azure provider returns once the service has accepted the email, not once it has been delivered, so a bounce is not seen here.
+- **Opening the link redeems nothing**: mail scanners and link previewers follow GETs, and would use up a single-use token before its owner clicks. `/auth/verify` is a page with a "Sign in" button; the token is redeemed by that button's POST (a server action), which sets the cookie.
 
 ## Errors, health and time
 
@@ -177,7 +183,8 @@ Statuses that come from middleware rather than a handler are put into the docume
 │   │   │       └── Contracts/  one file per request/response record
 │   │   ├── Contracts/          cross-feature contracts — PageInfo (ADR-0012)
 │   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
-│   │   ├── Authentication/     session Bearer scheme, sender seam, options, token hashing
+│   │   ├── Authentication/     session Bearer scheme, magic-link sender, options, token hashing
+│   │   ├── Email/              IEmailSender seam, its providers (log, Azure Communication Services), options
 │   │   ├── OpenApi/            document transformers (401 on non-anonymous operations)
 │   │   └── Migrations/         EF Core migrations
 │   └── tests/
@@ -194,7 +201,7 @@ Statuses that come from middleware rather than a handler are put into the docume
         ├── app/
         │   ├── (app)/          signed-in shell: /, /ladder, /profiles, /manage, /admin, /dev/ui
         │   ├── login/          magic-link request
-        │   └── auth/verify/    magic-link redemption (route handler)
+        │   └── auth/verify/    magic-link landing page; its "Sign in" button redeems the token
         ├── components/
         │   ├── ui/             owned primitives (ADR-0014)
         │   └── shell/          bottom nav, Player switcher
@@ -284,12 +291,16 @@ flowchart LR
     N[("Neon Postgres<br/>free plan, suspends when idle")]
     G[["GHCR<br/>web and api images"]]
     L[["Log Analytics"]]
+    M[["Azure Communication Services<br/>Email, sending as the club's domain"]]
+    C[["Cloudflare DNS<br/>SPF, DKIM, DMARC records"]]
 
     B -->|"https://web.&lt;environment domain&gt;"| W
     W -->|"http://api"| A
     A -->|"TLS, direct endpoint"| N
     G -.->|"image pull"| W & A
     W & A -.->|"logs"| L
+    A -->|"sign-in emails"| M
+    M -.->|"verified against"| C
 ```
 
 - **Scale to zero.** After about five idle minutes both apps stop and Neon suspends its compute. The next request starts `web`, then `api` (which checks migrations), then the database. The first page load after idle has not been measured yet; it is recorded here once the environment exists.
@@ -297,7 +308,7 @@ flowchart LR
 - **Single replica.** Each app runs at most one replica, because the API migrates on startup. `always_on = true` raises the minimum from 0 to 1.
 - **Database connection.** The API uses Neon's direct endpoint, not its pooler: startup migration holds a session advisory lock, which a pooled connection would break. The lock is taken on the app's own database (`Database__MigrationLockDatabase`), since a Neon role may not be allowed into `postgres`.
 - **Addresses.** `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform from the environment's domain. The public address is https, so session cookies are `Secure`.
-- **No email.** There is no domain, so nothing can be sent. A sign-in link is read from the API's logs (README, "Hosting").
+- **Email** (ADR-0020). Sign-in emails go out through Azure Communication Services from `DoNotReply@<email_domain>`. The domain's DNS is in Cloudflare, where Terraform creates the ownership, SPF, DKIM and DMARC records. It takes two deploys, because Azure checks the records in between and Terraform has no resource for that step: the first (with `email_domain` set) creates the mail resources and DNS records; `scripts/setup-email.sh` then has Azure verify them and sets `email_domain_verified`; the second links the domain and gives the API its `Email__*` settings, the connection string as a Container Apps secret. Until that second deploy, and whenever `email_domain` is empty, the API logs sign-in links instead (README, "Hosting"). The link in the email still points at the `azurecontainerapps.io` address: the domain is used for sending only.
 - **Cost guard.** A budget on the resource group emails when actual or forecast spend reaches the configured amount.
 
 ### Terraform (`infra/`)
@@ -305,9 +316,10 @@ flowchart LR
 | Piece | Where | Note |
 |---|---|---|
 | Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
-| Root | `infra/*.tf` | Resource group, the two modules, the budget |
+| Root | `infra/*.tf` | Resource group, the three modules, the budget |
 | `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
 | `modules/compute` | Log Analytics, environment, `web`, `api` | |
+| `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
 
@@ -327,7 +339,7 @@ flowchart LR
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
 - **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
 - **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
-- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key and the alert email are repository secrets.
+- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the alert email and the Cloudflare API token (DNS edit on the one zone) are repository secrets; the email domain and whether it is verified are repository variables.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
@@ -368,7 +380,7 @@ flowchart LR
 - **Two projects, one suite.** Every spec runs against `web-mock` (no API) and `web-e2e` (real API and Postgres) unless it opts out. Both are production builds served under their compose hostnames.
 - **Phone viewport.** 360×780, touch. The shell specs assert there's no horizontal scroll and that nav targets are at least 44px.
 - **Accessibility.** `@axe-core/playwright` fails a test on any *serious* or *critical* WCAG 2.1 A/AA violation. The `/dev/ui` showcase is checked in both colour schemes, and that's what keeps the token pairings at AA contrast.
-- **Real-API login without an inbox.** Until #19 the link is only logged. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows, and redeems it at `/auth/verify`. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
+- **Real-API login without an inbox.** The E2E stack runs the `Log` email provider, so no email is sent. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows, opens `/auth/verify` with it and presses "Sign in". One test first fetches the link with a bare GET, as a mail scanner would, and checks it still signs in. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
 - **Readiness.** Compose holds the runner until `web-e2e`, `web-mock` and (through `web-e2e`) `api` are healthy. `e2e/support/global-setup.ts` repeats the wait against `/login` and the API's `/health/ready`, for runs that bypass compose's ordering (`--no-deps`, or `E2E_*_URL` overrides).
 - **Visual review (ADR-0015).** Specs import `test` from `@chromatic-com/playwright`, which archives each mock-project test's final page (plus explicit `takeSnapshot`s). The `chromatic` compose service uploads them; Chromatic diffs against the accepted baselines and its "UI Tests" check gates the PR. The real project doesn't snapshot (its data changes every run), and neither does dark mode (Playwright archives replay without `emulateMedia`). Mock logins use a fixed `<persona>@example.com` so snapshots are stable.
 
@@ -424,8 +436,9 @@ flowchart LR
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service |
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
-| Terraform / azurerm / neon provider | 1.17.2 / ~> 5.14 / 0.18.0 | `infra/` only. The Neon provider is community-maintained and pinned exactly |
-| Azure CLI | 2.92.0 | In the infra toolbox image |
+| Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
+| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension (unpinned) for `scripts/setup-email.sh` |
+| Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
 ## Where this goes next

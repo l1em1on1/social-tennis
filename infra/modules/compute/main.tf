@@ -45,6 +45,24 @@ variable "database_name" {
   type        = string
 }
 
+variable "email_enabled" {
+  description = "Send sign-in emails through Azure Communication Services. False: the API logs them."
+  type        = bool
+}
+
+variable "email_connection_string" {
+  description = "Communication Services connection string. Null unless email_enabled."
+  type        = string
+  sensitive   = true
+  nullable    = true
+}
+
+variable "email_from_address" {
+  description = "Sender address on the verified domain. Null unless email_enabled."
+  type        = string
+  nullable    = true
+}
+
 locals {
   min_replicas = var.always_on ? 1 : 0
 
@@ -84,6 +102,16 @@ resource "azurerm_container_app" "api" {
     value = var.database_connection_string
   }
 
+  # Keyed on email_enabled, not on the connection string: a sensitive value
+  # can't decide whether a block exists.
+  dynamic "secret" {
+    for_each = var.email_enabled ? [1] : []
+    content {
+      name  = "email-connection-string"
+      value = var.email_connection_string
+    }
+  }
+
   # Internal only: reachable from web as http://api, never from the internet
   # (ADR-0001). Plain http is allowed because the caller is inside the
   # environment and addresses the app by name.
@@ -119,6 +147,25 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "Auth__VerifyUrlBase"
         value = "${local.web_url}/auth/verify"
+      }
+
+      # Without these the API's Email:Provider stays "Log" (ADR-0020).
+      dynamic "env" {
+        for_each = var.email_enabled ? {
+          Email__Provider    = "AzureCommunicationServices"
+          Email__FromAddress = var.email_from_address
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.email_enabled ? [1] : []
+        content {
+          name        = "Email__AzureCommunicationServices__ConnectionString"
+          secret_name = "email-connection-string"
+        }
       }
 
       # A cold start wakes the database and checks migrations before the API

@@ -29,6 +29,9 @@ public static class AuthEndpoints
             .ValidatesBody<MagicLinkRequest, MagicLinkRequest.Validator>()
             .RequireRateLimiting(AuthOptions.MagicLinkRateLimitPolicy)
             .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            // Declared by hand: a ProblemHttpResult in a Results<> union
+            // carries no status of its own for the OpenAPI document.
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .WithName(nameof(RequestMagicLink));
 
         // The 401 here is the handler's answer to a bad token, not the

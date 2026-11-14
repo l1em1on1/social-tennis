@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using SocialTennis.Api.Authentication;
+using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
@@ -211,6 +212,63 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task The_email_carries_the_link_to_the_web_verify_route()
+    {
+        using var client = factory.CreateClient();
+        var email = UniqueEmail();
+
+        await RequestTokenAsync(client, email);
+
+        var sent = factory.Sender.LastTo(email);
+        var link = factory.Sender.LinkFor(email);
+        Assert.Equal("http://localhost:3000/auth/verify", link.GetLeftPart(UriPartial.Path));
+        Assert.Contains(System.Net.WebUtility.HtmlEncode(link.OriginalString), sent.Html, StringComparison.Ordinal);
+        Assert.Contains("expires in 15 minutes", sent.PlainText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_failed_delivery_is_a_503_and_retrying_works()
+    {
+        // The address may hold one live link. If the failed attempt kept its
+        // token, the retry would be answered 202 and send nothing.
+        var mail = new FailingOnceEmailSender(factory.Sender);
+        using var flakyFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Auth:MaxLiveMagicLinksPerAddress", "1");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEmailSender>();
+                services.AddSingleton<IEmailSender>(mail);
+            });
+        });
+        using var client = flakyFactory.CreateClient();
+        var email = UniqueEmail();
+
+        var failed = await client.PostAsJsonAsync("/auth/magic-link", new { email });
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        Assert.Equal("application/problem+json", failed.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(0, factory.Sender.SentTo(email));
+
+        var retried = await client.PostAsJsonAsync("/auth/magic-link", new { email });
+
+        Assert.Equal(HttpStatusCode.Accepted, retried.StatusCode);
+        Assert.Equal(1, factory.Sender.SentTo(email));
+        await RedeemAsync(client, factory.Sender.TokenFor(email));
+    }
+
+    /// <summary>The mail provider is down for the first email, then recovers.</summary>
+    private sealed class FailingOnceEmailSender(IEmailSender inner) : IEmailSender
+    {
+        private int _attempts;
+
+        public Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken) =>
+            Interlocked.Increment(ref _attempts) == 1
+                ? throw new EmailDeliveryException("The mail provider is down.", new HttpRequestException())
+                : inner.SendAsync(email, cancellationToken);
     }
 
     [Fact]

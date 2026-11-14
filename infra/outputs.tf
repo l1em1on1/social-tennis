@@ -12,3 +12,8 @@ output "api_app_name" {
   description = "Name of the api Container App, for reading sign-in links from its logs."
   value       = module.compute.api_app_name
 }
+
+output "email_from_address" {
+  description = "Address sign-in emails are sent from, or null while the API still logs them."
+  value       = local.email_sending ? module.email[0].from_address : null
+}

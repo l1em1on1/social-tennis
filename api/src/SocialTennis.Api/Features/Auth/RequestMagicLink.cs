@@ -5,6 +5,7 @@ using Npgsql;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
 
 namespace SocialTennis.Api.Features.Auth;
@@ -14,10 +15,15 @@ namespace SocialTennis.Api.Features.Auth;
 /// (no user enumeration). Unknown addresses create the User — sign-up and login
 /// are the same gesture. An address that already holds its quota of live links
 /// gets the same 202 and no new email.
+/// <para>
+/// 503 when the email could not be handed to the mail provider. That says
+/// nothing about the address either: every address is sent to. The link that
+/// reached nobody is deleted, so retrying doesn't use up the address's quota.
+/// </para>
 /// </summary>
 public static class RequestMagicLink
 {
-    public static async Task<Accepted> HandleAsync(
+    public static async Task<Results<Accepted, ProblemHttpResult>> HandleAsync(
         MagicLinkRequest request,
         TennisDbContext db,
         IMagicLinkSender sender,
@@ -65,9 +71,10 @@ public static class RequestMagicLink
         }
 
         var rawToken = Tokens.NewToken();
+        var tokenId = Guid.NewGuid();
         db.MagicLinkTokens.Add(new MagicLinkToken
         {
-            Id = Guid.NewGuid(),
+            Id = tokenId,
             UserId = user.Id,
             TokenHash = Tokens.Hash(rawToken),
             ExpiresAt = now.AddMinutes(authOptions.Value.MagicLinkLifetimeMinutes),
@@ -77,7 +84,20 @@ public static class RequestMagicLink
         await transaction.CommitAsync(cancellationToken);
 
         var link = $"{authOptions.Value.VerifyUrlBase}?token={Uri.EscapeDataString(rawToken)}";
-        await sender.SendAsync(email, link, cancellationToken);
+        try
+        {
+            await sender.SendAsync(email, link, cancellationToken);
+        }
+        catch (EmailDeliveryException)
+        {
+            // Not the request's token: the caller may already have gone, and
+            // the row should be removed all the same.
+            await db.MagicLinkTokens.Where(t => t.Id == tokenId).ExecuteDeleteAsync(CancellationToken.None);
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "The sign-in email could not be sent.",
+                detail: "Nothing was sent. Try again in a moment.");
+        }
 
         return TypedResults.Accepted((string?)null);
     }

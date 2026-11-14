@@ -48,3 +48,15 @@ variable "budget_start_date" {
   type        = string
   default     = "2026-11-01T00:00:00Z"
 }
+
+variable "email_domain" {
+  description = "Domain sign-in emails are sent from (ADR-0020). Its DNS must be in Cloudflare. Empty: no email is set up, and sign-in links are read from the API's logs."
+  type        = string
+  default     = ""
+}
+
+variable "email_domain_verified" {
+  description = "Azure has verified email_domain's DNS records; scripts/setup-email.sh sets this. Until it is true the API keeps logging sign-in links."
+  type        = bool
+  default     = false
+}

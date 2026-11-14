@@ -33,6 +33,10 @@ services:
       # Neon.
       - NEON_API_KEY
       - TF_VAR_neon_org_id
+      # Email (ADR-0020): Cloudflare holds the sending domain's DNS.
+      - CLOUDFLARE_API_TOKEN
+      - TF_VAR_email_domain
+      - TF_VAR_email_domain_verified
       # Deployment inputs.
       - TF_VAR_alert_email
       - TF_VAR_image_tag

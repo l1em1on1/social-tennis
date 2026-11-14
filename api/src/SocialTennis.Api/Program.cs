@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
+using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth;
 using SocialTennis.Api.Features.Clubs;
 using SocialTennis.Api.OpenApi;
@@ -31,7 +32,10 @@ builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks().AddDbContextCheck<TennisDbContext>(tags: [ReadyTag]);
 
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
-builder.Services.AddScoped<IMagicLinkSender, LoggingMagicLinkSender>();
+// The magic link goes out as an email; which provider carries it (the log in
+// dev, a mail provider in production) is decided by the Email section alone.
+builder.Services.AddEmail(builder.Configuration);
+builder.Services.AddScoped<IMagicLinkSender, EmailMagicLinkSender>();
 builder.Services
     .AddAuthentication(SessionTokenAuthenticationHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, SessionTokenAuthenticationHandler>(
