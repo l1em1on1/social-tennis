@@ -1,14 +1,17 @@
 # Release pipeline for the PoC hosting (ADR-0019, issue #27).
 #
-#   push to main       → publish: build both images, push to GHCR tagged with
-#                        the commit SHA. Nothing is deployed.
+#   push to main that  → publish: build both images, push to GHCR tagged with
+#   changes web/ or api/  the commit SHA. Nothing is deployed. A merge that
+#                        touches neither builds nothing: the newest images
+#                        already hold that code.
 #   "Run workflow"     → plan:  show what Terraform would change (main only).
 #                        apply: wait for approval, then apply it and check
 #                               the site answers.
 #
-# Deploying is always a person's decision: pick a SHA (default: the commit the
-# workflow runs from), read the plan, approve. Rolling back is the same run
-# with an earlier SHA.
+# Deploying is always a person's decision: run the workflow, read the plan,
+# approve. By default it deploys the newest published images: the first commit,
+# walking back from the one the run is on, that has images. Rolling back is the
+# same run with an earlier published SHA.
 #
 # Azure access is OIDC: a short-lived token per run, trusted by Azure only for
 # the `production-plan` and `production` environments of this repo
@@ -21,10 +24,17 @@ name: deploy
 on:
   push:
     branches: [main]
+    # Only the publish job runs on push, and it only has work when the images'
+    # contents change. This is not a pull-request check, so a path filter
+    # can't leave a required check pending.
+    paths:
+      - "web/**"
+      - "api/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Commit SHA to deploy (full, 40 characters). Empty: the commit this run is on."
+        description: "Commit SHA to deploy (full, 40 characters). Empty: the newest published images."
         required: false
         type: string
       always_on:
@@ -68,6 +78,8 @@ jobs:
       contents: read
       id-token: write
       packages: read
+    outputs:
+      image_tag: ${{ steps.image.outputs.tag }}
     env:
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -78,17 +90,39 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
-      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
       TF_VAR_always_on: ${{ inputs.always_on }}
     steps:
       - uses: actions/checkout@v5
-      - name: The images for that SHA exist
+        with:
+          # Enough history to walk back to the newest published images.
+          fetch-depth: 100
+      - name: Choose the images to deploy
+        id: image
+        env:
+          REQUESTED: ${{ inputs.image_tag }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for service in web api; do
-            docker manifest inspect "${IMAGE_PREFIX}-${service}:${TF_VAR_image_tag}" >/dev/null \
-              || { echo "::error::No ${service} image tagged ${TF_VAR_image_tag}. Was that commit pushed to main?"; exit 1; }
-          done
+          published() {
+            docker manifest inspect "${IMAGE_PREFIX}-web:$1" >/dev/null 2>&1 &&
+              docker manifest inspect "${IMAGE_PREFIX}-api:$1" >/dev/null 2>&1
+          }
+          if [ -n "$REQUESTED" ]; then
+            published "$REQUESTED" || { echo "::error::No web and api images tagged ${REQUESTED}."; exit 1; }
+            tag="$REQUESTED"
+          else
+            # Images are only built for commits that change web/ or api/, so
+            # the commit this run is on may have none. The newest ancestor
+            # that does holds the same code.
+            tag=""
+            for sha in $(git rev-list -n 100 HEAD); do
+              if published "$sha"; then tag="$sha"; break; fi
+            done
+            [ -n "$tag" ] || { echo "::error::No published images in the last 100 commits."; exit 1; }
+          fi
+          echo "Deploying images tagged ${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "TF_VAR_image_tag=${tag}" >> "$GITHUB_ENV"
+          echo "Images: \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Plan
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
@@ -116,7 +150,7 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
-      TF_VAR_image_tag: ${{ inputs.image_tag || github.sha }}
+      TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
       TF_VAR_always_on: ${{ inputs.always_on }}
     steps:
       - uses: actions/checkout@v5

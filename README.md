@@ -114,7 +114,7 @@ docker compose -f infra/compose.yml run --rm infra sh ./init.sh
 docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
 ```
 
-Releases normally go through GitHub: every merge to `main` publishes images, and **Actions → deploy → Run workflow** plans, waits for approval, applies, and checks the site. To roll back, run it again with an earlier commit SHA.
+Releases normally go through GitHub: a merge to `main` that changes `web/` or `api/` publishes images, and **Actions → deploy → Run workflow** plans, waits for approval, applies, and checks the site. It deploys the newest published images unless you give it a commit SHA; to roll back, give it an earlier published one.
 
 By hand, `terraform apply` with the same arguments deploys that image tag. `-var always_on=true` keeps one replica of each app running, which removes cold starts and leaves the free grant.
 
