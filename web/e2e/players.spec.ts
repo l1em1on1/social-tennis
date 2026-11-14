@@ -1,7 +1,7 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
 // see playwright.config.ts). Otherwise identical to @playwright/test.
 import { expect, test } from "@chromatic-com/playwright";
-import { addFirstPlayer, logIn, personaEmail } from "./support/auth";
+import { addFirstPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
 test("a first sign-in asks for a name, and the name can be changed in Profiles", async ({ page }, testInfo) => {
@@ -40,11 +40,12 @@ test("a name of only spaces is refused with a message", async ({ page }, testInf
 });
 
 test("a Player asks to join a Club, and is a member once a Manager approves", async ({ page, browser }, testInfo) => {
+  const robin = uniqueName(testInfo, "Robin Requester");
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 
   // No Player, nobody to ask as.
   await expect(page.getByRole("button", { name: /^Ask to join / })).toHaveCount(0);
-  await addFirstPlayer(page, "Robin Requester");
+  await addFirstPlayer(page, robin);
 
   const club = page.getByRole("listitem").filter({ has: page.getByRole("button", { name: /^Ask to join / }) }).first();
   const clubName = (await club.locator("span").first().textContent()) ?? "";
@@ -60,8 +61,8 @@ test("a Player asks to join a Club, and is a member once a Manager approves", as
   await manager.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Manage" }).click();
   await expect(manager.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
   await expectNoSeriousA11yViolations(manager);
-  await manager.getByRole("button", { name: "Approve Robin Requester" }).click();
-  await expect(manager.getByRole("button", { name: "Approve Robin Requester" })).toHaveCount(0);
+  await manager.getByRole("button", { name: `Approve ${robin}` }).click();
+  await expect(manager.getByRole("button", { name: `Approve ${robin}` })).toHaveCount(0);
   await managerContext.close();
 
   await page.reload();
@@ -72,8 +73,9 @@ test("a Player asks to join a Club, and is a member once a Manager approves", as
 });
 
 test("a Manager declines a request, and the Player can ask again", async ({ page, browser }, testInfo) => {
+  const dana = uniqueName(testInfo, "Dana Declined");
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
-  await addFirstPlayer(page, "Dana Declined");
+  await addFirstPlayer(page, dana);
   await page.getByRole("button", { name: /^Ask to join / }).first().click();
   await expect(page.getByText("Waiting for approval")).toBeVisible();
 
@@ -81,8 +83,8 @@ test("a Manager declines a request, and the Player can ask again", async ({ page
   const manager = await managerContext.newPage();
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
   await manager.goto("/manage");
-  await manager.getByRole("button", { name: "Decline Dana Declined" }).click();
-  await expect(manager.getByText("Dana Declined")).toHaveCount(0);
+  await manager.getByRole("button", { name: `Decline ${dana}` }).click();
+  await expect(manager.getByText(dana)).toHaveCount(0);
   await managerContext.close();
 
   await page.reload();
@@ -93,6 +95,7 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   page,
   browser,
 }, testInfo) => {
+  const ivy = uniqueName(testInfo, "Ivy Invited");
   const email = personaEmail(testInfo, "invited");
 
   const managerContext = await browser.newContext();
@@ -106,7 +109,7 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await managerContext.close();
 
   await logIn(page, testInfo, email);
-  await addFirstPlayer(page, "Ivy Invited");
+  await addFirstPlayer(page, ivy);
   await expect(page.getByRole("listitem").filter({ hasText: "Member" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^Ask to join / })).toHaveCount(0);
 });

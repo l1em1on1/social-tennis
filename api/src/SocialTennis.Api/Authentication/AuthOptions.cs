@@ -25,10 +25,18 @@ public class AuthOptions
     /// </summary>
     public string AdminEmails { get; set; } = "";
 
-    public bool IsAdminEmail(string normalizedEmail) =>
-        AdminEmails
+    private HashSet<string>? adminEmailSet;
+
+    /// <summary>
+    /// Asked on every authenticated request, so the list is parsed once. The
+    /// options are bound before first use and don't change while running.
+    /// </summary>
+    public bool IsAdminEmail(string email) =>
+        (adminEmailSet ??= AdminEmails
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Contains(normalizedEmail, StringComparer.OrdinalIgnoreCase);
+            .Select(EmailAddress.Normalize)
+            .ToHashSet(StringComparer.Ordinal))
+        .Contains(EmailAddress.Normalize(email));
 
     /// <summary>Name of the rate-limiting policy on the magic-link request route.</summary>
     public const string MagicLinkRateLimitPolicy = "magic-link";

@@ -16,6 +16,8 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         var response = await client.PostAsJsonAsync("/players", new { name });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        // No route reads a single Player, so there is nothing to point at.
+        Assert.Null(response.Headers.Location);
         return (await response.Content.ReadFromJsonAsync<CreatePlayerResponse>())!;
     }
 
@@ -212,6 +214,68 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode);
         Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved));
+    }
+
+    [Fact]
+    public async Task Removing_an_invited_member_withdraws_the_invite_so_asking_again_waits_for_a_Manager()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"removed-{Guid.NewGuid():N}@example.test";
+        var clubId = await AnyClubIdAsync(manager);
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var player = await CreatePlayerAsync(client, "Bob");
+
+        var remove = await manager.DeleteAsync($"/clubs/{clubId}/members/{player.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.DoesNotContain((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+        Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+        var later = await CreatePlayerAsync(client, "Bob Junior");
+        Assert.Empty((await PlayersAsync(client)).Single(p => p.Id == later.Id).Clubs);
+    }
+
+    [Fact]
+    public async Task Two_Managers_inviting_the_same_address_at_once_both_succeed()
+    {
+        using var first = await factory.CreateManagerClientAsync();
+        using var second = await factory.CreateManagerClientAsync();
+        var email = $"twice-{Guid.NewGuid():N}@example.test";
+        var clubId = await AnyClubIdAsync(first);
+
+        var invites = await Task.WhenAll(
+            first.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email }),
+            second.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email }));
+
+        Assert.All(invites, invite => Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode));
+        Assert.Single((await MembersAsync(first, clubId)).Invites, i => i.Email == email);
+    }
+
+    /// <summary>
+    /// The race the per-email lock exists for: neither request may miss the
+    /// other's row. Repeated, because one attempt can pass by luck.
+    /// </summary>
+    [Fact]
+    public async Task An_invite_made_while_the_User_adds_a_Player_or_asks_to_join_always_lets_them_in()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await AnyClubIdAsync(manager);
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var email = $"race-{attempt}-{Guid.NewGuid():N}@example.test";
+            using var client = await factory.CreateSignedInClientAsync(email);
+            var asking = await CreatePlayerAsync(client, "Asking");
+
+            var results = await Task.WhenAll(
+                manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email }),
+                client.PostAsJsonAsync("/players", new { name = "New" }),
+                client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null));
+
+            Assert.All(results, result => Assert.True(result.IsSuccessStatusCode, $"{result.StatusCode}"));
+            Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+        }
     }
 
     [Theory]

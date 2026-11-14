@@ -36,7 +36,7 @@ sequenceDiagram
 
     B->>W: GET /
     W->>A: GET http://api:8080/auth/me and /players (getViewer, shell layout)
-    A-->>W: 200 { userId, email }
+    A-->>W: 200 { userId, email, roles } and { players: [{ id, name, clubs }], page }
     W->>A: GET http://api:8080/clubs (openapi-fetch, typed)
     A->>P: SELECT ... FROM "Clubs" (EF Core)
     P-->>A: rows
@@ -104,7 +104,7 @@ The web UI is built on one foundation (ADR-0014), so feature tickets add screens
 - **Shell** — the `(app)` route group's layout: header with the "Playing as" switcher, page content, bottom navigation (Home, Ladder, Profiles; Manage and Admin by role). `loading.tsx` streams a Skeleton fallback, `error.tsx` an ErrorState whose retry re-fetches the segment; `app/error.tsx` catches what the shell layout itself throws (a failed `/auth/me`), since a segment's boundary sits inside its layout; `app/not-found.tsx` also answers role-refused pages.
 - **Acting Player** — the `st_player` HttpOnly cookie, set by the `switchActingPlayer` server action only to an id the User holds; `getViewer()` falls back to the first Player.
 - **Players and Clubs** — `getViewer` reads the User's Players from `GET /players` (oldest first; the first is the Acting Player until one is chosen). A User with no Player is asked for their name on Home (`POST /players`); Profiles adds and renames Players (`PUT /players/{playerId}`). These routes are scoped to the caller: another User's Player answers 404. Gender, Level, Rating and Manager-created Players are still #4.
-- **Joining a Club needs a Manager.** Home's Clubs list lets the Acting Player ask to join (`PUT /clubs/{clubId}/members/{playerId}`, idempotent), which creates a Pending membership. A Manager sees it on Manage (`GET /clubs/{clubId}/members`) and approves (`PUT …/members/{playerId}/approval`) or declines (`DELETE …/members/{playerId}`). Or the Manager invites an email ahead of time (`POST /clubs/{clubId}/invites`): every Player held by that email's User is a member without asking, both Players that exist when the invite is made and ones added later. No email is sent for an invite.
+- **Joining a Club needs a Manager.** Home's Clubs list lets the Acting Player ask to join (`PUT /clubs/{clubId}/members/{playerId}`, idempotent), which creates a Pending membership. A Manager sees it on Manage (`GET /clubs/{clubId}/members`) and approves (`PUT …/members/{playerId}/approval`) or declines (`DELETE …/members/{playerId}`). Or the Manager invites an email ahead of time (`POST /clubs/{clubId}/invites`): every Player held by that email's User is a member without asking, both Players that exist when the invite is made and ones added later. No email is sent for an invite. Removing a member also withdraws the invite for their email, so removal sticks. Every write that decides admission for an email (invite, ask, add a Player, remove) runs in a transaction holding a Postgres advisory lock on that email (`Membership/ClubAdmission.cs`), so concurrent requests can't each miss the other's row.
 - **Roles** — `User.Roles` (Manager, Admin) plus `Auth:AdminEmails`, a comma-separated list of addresses that are Admins while listed: that is how the first Admin exists with no database step (in production the `ADMIN_EMAILS` GitHub secret, via Terraform's `admin_emails`). The session scheme turns them into role claims on every request, an Admin carrying Manager too. The Manager routes use the named `Manager` policy in the routing table; `GET /auth/me` returns the roles and the web shell reads them from there. Granting Manager in the app is #18; until then only the listed Admins can approve.
 - **Dev showcase** — `/dev/ui` renders every primitive; it is a 404 in a production build without mocks.
 
@@ -185,7 +185,8 @@ Statuses that come from middleware rather than a handler are put into the docume
 │   │   │       └── Contracts/  one file per request/response record
 │   │   ├── Contracts/          cross-feature contracts — PageInfo (ADR-0012)
 │   │   ├── Validation/         FluentValidation filter + ValidatesBody<,>() (ADR-0011)
-│   │   ├── Authentication/     session Bearer scheme, magic-link sender, options, token hashing
+│   │   ├── Authentication/     session Bearer scheme, magic-link sender, options, token hashing, email rules
+│   │   ├── Membership/         ClubAdmission: who is in a Club without asking, and its per-email lock
 │   │   ├── Email/              IEmailSender seam, its providers (log, Azure Communication Services), options
 │   │   ├── OpenApi/            document transformers (401 on non-anonymous operations)
 │   │   └── Migrations/         EF Core migrations

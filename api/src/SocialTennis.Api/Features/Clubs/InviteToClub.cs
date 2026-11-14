@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Clubs.Contracts;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Clubs;
 
@@ -27,8 +29,12 @@ public static class InviteToClub
             return TypedResults.NotFound();
         }
 
-        var email = ClubAdmission.NormalizeEmail(request.Email);
+        var email = EmailAddress.Normalize(request.Email);
         var now = clock.GetUtcNow();
+
+        // Serialized with that User asking to join or adding a Player, and with
+        // another Manager inviting the same address.
+        await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
 
         if (!await db.ClubInvites.AnyAsync(i => i.ClubId == clubId && i.Email == email, cancellationToken))
         {
@@ -56,6 +62,7 @@ public static class InviteToClub
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 }

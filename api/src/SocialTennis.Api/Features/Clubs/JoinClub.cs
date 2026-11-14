@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Clubs;
 
@@ -31,25 +31,22 @@ public static class JoinClub
             return TypedResults.NotFound();
         }
 
+        // Serialized with invites for this email, and with a second press.
+        var email = EmailAddress.Normalize(user.FindFirstValue(ClaimTypes.Email)!);
+        await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
+
         if (!await db.ClubMemberships.AnyAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken))
         {
-            var email = ClubAdmission.NormalizeEmail(user.FindFirstValue(ClaimTypes.Email)!);
             var invited = await db.ClubInvites.AnyAsync(i => i.ClubId == clubId && i.Email == email, cancellationToken);
             db.ClubMemberships.Add(ClubAdmission.Membership(
                 clubId,
                 playerId,
                 invited ? ClubMembershipStatus.Active : ClubMembershipStatus.Pending,
                 clock.GetUtcNow()));
-            try
-            {
-                await db.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-            {
-                // Two presses raced; the other one's row is the request.
-            }
+            await db.SaveChangesAsync(cancellationToken);
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 }

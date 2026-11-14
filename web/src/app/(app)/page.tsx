@@ -82,6 +82,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                       actingPlayer && (
                         <form action={joinClub}>
                           <input type="hidden" name="clubId" value={club.id} />
+                          <input type="hidden" name="playerId" value={actingPlayer.id} />
                           <SubmitButton variant="secondary" pendingLabel="Asking…" aria-label={`Ask to join ${club.name}`}>
                             Ask to join
                           </SubmitButton>

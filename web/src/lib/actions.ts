@@ -92,23 +92,26 @@ export async function renamePlayer(formData: FormData) {
 }
 
 /**
- * The Acting Player asks to join a Club. A Manager approves it, unless the
- * User's email was invited, in which case they are in at once. Pressing twice
- * asks once: the API's PUT is idempotent.
+ * A Player asks to join a Club. A Manager approves it, unless the User's email
+ * was invited, in which case they are in at once. Pressing twice asks once:
+ * the API's PUT is idempotent.
+ *
+ * The Player comes from the form, not the Acting Player cookie: the page may
+ * have been rendered for a Player since switched away from in another tab, and
+ * the request must be for the one the person saw. It is checked against the
+ * Players this login holds, as `switchActingPlayer` does.
  */
 export async function joinClub(formData: FormData) {
-  const clubId = formData.get("clubId");
-  const { actingPlayer } = await getViewer();
-  if (typeof clubId !== "string" || !actingPlayer) {
+  const path = clubAndPlayer(formData);
+  const viewer = await getViewer();
+  if (!path || !viewer.players.some((player) => player.id === path.playerId)) {
     return;
   }
 
   const api = await apiWithSession();
-  const { response } = await api.PUT("/clubs/{clubId}/members/{playerId}", {
-    params: { path: { clubId, playerId: actingPlayer.id } },
-  });
+  const { response } = await api.PUT("/clubs/{clubId}/members/{playerId}", { params: { path } });
   if (!response.ok) {
-    throw new Error(`Joining club ${clubId} failed with ${response.status}`);
+    throw new Error(`Joining club ${path.clubId} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
 }
