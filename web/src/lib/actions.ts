@@ -91,7 +91,11 @@ export async function renamePlayer(formData: FormData) {
   redirect("/profiles");
 }
 
-/** The Acting Player joins a Club. Pressing twice joins once: the API's PUT is idempotent. */
+/**
+ * The Acting Player asks to join a Club. A Manager approves it, unless the
+ * User's email was invited, in which case they are in at once. Pressing twice
+ * asks once: the API's PUT is idempotent.
+ */
 export async function joinClub(formData: FormData) {
   const clubId = formData.get("clubId");
   const { actingPlayer } = await getViewer();
@@ -107,4 +111,57 @@ export async function joinClub(formData: FormData) {
     throw new Error(`Joining club ${clubId} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
+}
+
+function clubAndPlayer(formData: FormData): { clubId: string; playerId: string } | null {
+  const clubId = formData.get("clubId");
+  const playerId = formData.get("playerId");
+  return typeof clubId === "string" && typeof playerId === "string" ? { clubId, playerId } : null;
+}
+
+/** A Manager approves a request to join. The API refuses anyone who isn't one. */
+export async function approveClubMember(formData: FormData) {
+  const path = clubAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/clubs/{clubId}/members/{playerId}/approval", { params: { path } });
+  // 404: another Manager declined it meanwhile. The refreshed list shows that.
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Approving a club member failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A Manager declines a request to join, or removes a member. */
+export async function removeClubMember(formData: FormData) {
+  const path = clubAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/clubs/{clubId}/members/{playerId}", { params: { path } });
+  if (!response.ok) {
+    throw new Error(`Removing a club member failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A Manager lets an email into a Club ahead of time. */
+export async function inviteToClub(formData: FormData) {
+  const clubId = formData.get("clubId");
+  const email = formData.get("email");
+  if (typeof clubId !== "string" || typeof email !== "string") {
+    redirect("/manage?error=email");
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/clubs/{clubId}/invites", { params: { path: { clubId } }, body: { email } });
+  if (response.status === 400) {
+    redirect("/manage?error=email");
+  }
+  if (!response.ok) {
+    throw new Error(`Inviting to club ${clubId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage?invited=${encodeURIComponent(email.trim())}`);
 }

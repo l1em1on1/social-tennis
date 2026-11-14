@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
 
@@ -20,6 +21,9 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
     private static async Task<IReadOnlyList<PlayerSummary>> PlayersAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<GetPlayersResponse>("/players"))!.Players;
+
+    private static async Task<GetClubMembersResponse> MembersAsync(HttpClient manager, Guid clubId) =>
+        (await manager.GetFromJsonAsync<GetClubMembersResponse>($"/clubs/{clubId}/members"))!;
 
     private static async Task<Guid> AnyClubIdAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<GetClubsResponse>("/clubs"))!.Clubs[0].Id;
@@ -103,25 +107,37 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task A_Player_joins_a_Club_and_then_appears_as_a_member()
+    public async Task Asking_to_join_waits_for_a_Manager_and_approval_makes_the_Player_a_member()
     {
         using var client = await factory.CreateSignedInClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
         var sibling = await CreatePlayerAsync(client, "Alex");
         var clubId = await AnyClubIdAsync(client);
 
-        var response = await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+        var ask = await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, ask.StatusCode);
+        var waiting = Assert.Single((await PlayersAsync(client)).Single(p => p.Id == player.Id).Clubs);
+        Assert.False(waiting.Approved);
+        var request = (await MembersAsync(manager, clubId)).Members.Single(m => m.PlayerId == player.Id);
+        Assert.False(request.Approved);
+        Assert.Equal("Sam", request.Name);
+
+        var approve = await manager.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, approve.StatusCode);
         var players = await PlayersAsync(client);
-        Assert.Equal(clubId, Assert.Single(players.Single(p => p.Id == player.Id).Clubs).Id);
+        Assert.True(Assert.Single(players.Single(p => p.Id == player.Id).Clubs).Approved);
         Assert.Empty(players.Single(p => p.Id == sibling.Id).Clubs);
+        Assert.True((await MembersAsync(manager, clubId)).Members.Single(m => m.PlayerId == player.Id).Approved);
     }
 
     [Fact]
-    public async Task Joining_twice_is_the_same_as_joining_once()
+    public async Task Asking_again_changes_nothing_and_never_undoes_an_approval()
     {
         using var client = await factory.CreateSignedInClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
         var clubId = await AnyClubIdAsync(client);
 
@@ -129,9 +145,123 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
             client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null),
             client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null),
             client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null));
-
         Assert.All(presses, press => Assert.Equal(HttpStatusCode.NoContent, press.StatusCode));
-        Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs);
+        Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+
+        await manager.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
+        Assert.True(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task A_Manager_can_decline_a_request_and_the_Player_can_ask_again()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
+        var player = await CreatePlayerAsync(client, "Sam");
+        var clubId = await AnyClubIdAsync(client);
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
+        var decline = await manager.DeleteAsync($"/clubs/{clubId}/members/{player.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, decline.StatusCode);
+        Assert.Empty(Assert.Single(await PlayersAsync(client)).Clubs);
+        Assert.DoesNotContain((await MembersAsync(manager, clubId)).Members, m => m.PlayerId == player.Id);
+
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+        Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task An_invited_email_is_in_the_Club_as_soon_as_its_User_adds_a_Player()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var typed = $"Invited-{Guid.NewGuid():N}@Example.test";
+        var email = typed.ToLowerInvariant();
+        var clubId = await AnyClubIdAsync(manager);
+
+        var invite = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email = $"  {typed} " });
+        var again = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        var pending = Assert.Single((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
+        Assert.False(pending.Joined);
+
+        using var invited = await factory.CreateSignedInClientAsync(email);
+        await CreatePlayerAsync(invited, "Pat");
+        await CreatePlayerAsync(invited, "Pat Junior");
+
+        Assert.All(await PlayersAsync(invited), p => Assert.True(Assert.Single(p.Clubs).Approved));
+        Assert.True((await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email).Joined);
+    }
+
+    [Fact]
+    public async Task Inviting_an_email_whose_User_already_has_Players_lets_them_in_including_a_waiting_request()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"existing-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var asked = await CreatePlayerAsync(client, "Sam");
+        await CreatePlayerAsync(client, "Alex");
+        var clubId = await AnyClubIdAsync(client);
+        await client.PutAsync($"/clubs/{clubId}/members/{asked.Id}", null);
+
+        var invite = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode);
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-an-email")]
+    public async Task An_invite_needs_an_email_address(string email)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await AnyClubIdAsync(manager);
+
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Only_a_Manager_or_Admin_can_see_approve_remove_or_invite()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        var player = await CreatePlayerAsync(client, "Sam");
+        var clubId = await AnyClubIdAsync(client);
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await client.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/clubs/{clubId}/members/{player.Id}")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await client.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email = "friend@example.test" })).StatusCode);
+        Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task An_email_listed_in_configuration_is_an_Admin_and_can_do_what_a_Manager_can()
+    {
+        using var admin = await factory.CreateSignedInClientAsync(AuthTestFactory.AdminEmail);
+        using var player = await factory.CreateSignedInClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await AnyClubIdAsync(admin);
+
+        var adminRoles = (await admin.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
+        var managerRoles = (await manager.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
+        var playerRoles = (await player.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
+
+        Assert.Equal(["Admin", "Manager"], adminRoles.Order());
+        Assert.Equal(["Manager"], managerRoles);
+        Assert.Empty(playerRoles);
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/clubs/{clubId}/members")).StatusCode);
     }
 
     [Fact]

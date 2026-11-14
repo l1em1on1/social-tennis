@@ -12,8 +12,8 @@ using SocialTennis.Api.Data;
 namespace SocialTennis.Api.Migrations
 {
     [DbContext(typeof(TennisDbContext))]
-    [Migration("20261114192245_PlayersAndClubMembership")]
-    partial class PlayersAndClubMembership
+    [Migration("20261114212312_PlayersClubMembershipRoles")]
+    partial class PlayersClubMembershipRoles
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -48,6 +48,33 @@ namespace SocialTennis.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.ClubInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClubId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("ClubId", "Email")
+                        .IsUnique();
+
+                    b.ToTable("ClubInvites");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.ClubMembership", b =>
                 {
                     b.Property<Guid>("PlayerId")
@@ -56,8 +83,11 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid>("ClubId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset>("JoinedAt")
+                    b.Property<DateTimeOffset>("RequestedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.HasKey("PlayerId", "ClubId");
 
@@ -199,12 +229,26 @@ namespace SocialTennis.Api.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<int>("Roles")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.ClubInvite", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Club", "Club")
+                        .WithMany()
+                        .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Club");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.ClubMembership", b =>

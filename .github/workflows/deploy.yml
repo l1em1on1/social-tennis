@@ -96,6 +96,7 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS }}
       TF_VAR_always_on: ${{ inputs.always_on }}
       TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}
       # The club's domain (ADR-0020, ADR-0021). Unset until
@@ -165,6 +166,7 @@ jobs:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS }}
       TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
       TF_VAR_always_on: ${{ inputs.always_on }}
       TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}

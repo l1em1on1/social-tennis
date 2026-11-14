@@ -36,7 +36,7 @@ test("a Player without roles sees no Manage or Admin entry, and can't open them"
   }
 });
 
-test("a Manager sees Manage; an Admin sees Admin", async ({ page }, testInfo) => {
+test("a Manager sees Manage; an Admin sees Manage and Admin", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "manager"));
   await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage"]);
   await mainNav(page).getByRole("link", { name: "Manage" }).click();
@@ -45,7 +45,8 @@ test("a Manager sees Manage; an Admin sees Admin", async ({ page }, testInfo) =>
 
   await page.context().clearCookies();
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Admin"]);
+  // An Admin can do everything a Manager can.
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage", "Admin"]);
 });
 
 test("switching the acting Player survives navigation", async ({ page }, testInfo) => {

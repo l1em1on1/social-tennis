@@ -19,7 +19,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // List endpoints return an envelope, not the array itself (ADR-0012) — the
   // collection is one property of it, alongside `page`.
   const { data: clubList, error } = await api.GET("/clubs");
-  const joined = new Set(actingPlayer?.clubs.map((club) => club.id));
+  const membership = new Map(actingPlayer?.clubs.map((club) => [club.id, club]));
 
   return (
     <>
@@ -65,19 +65,25 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             <EmptyState title="No clubs yet" description="An Admin sets up the club." />
           ) : (
             <>
-              {!actingPlayer && <p className="mb-2 text-sm text-fg-muted">Save your name above to join a club.</p>}
+              <p className="mb-2 text-sm text-fg-muted">
+                {actingPlayer
+                  ? "A club manager approves each request to join."
+                  : "Save your name above to ask to join a club."}
+              </p>
               <ul className="-my-2 divide-y divide-border">
                 {clubList.clubs.map((club) => (
                   <li key={club.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
                     <span className="font-medium">{club.name}</span>
-                    {joined.has(club.id) ? (
+                    {membership.get(club.id)?.approved ? (
                       <Badge tone="accent">Member</Badge>
+                    ) : membership.has(club.id) ? (
+                      <Badge>Waiting for approval</Badge>
                     ) : (
                       actingPlayer && (
                         <form action={joinClub}>
                           <input type="hidden" name="clubId" value={club.id} />
-                          <SubmitButton variant="secondary" pendingLabel="Joining…" aria-label={`Join ${club.name}`}>
-                            Join
+                          <SubmitButton variant="secondary" pendingLabel="Asking…" aria-label={`Ask to join ${club.name}`}>
+                            Ask to join
                           </SubmitButton>
                         </form>
                       )
@@ -87,7 +93,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </ul>
               {actingPlayer && viewer.players.length > 1 && (
                 <p className="mt-3 text-sm text-fg-muted">
-                  Joining as {actingPlayer.name}. Switch player at the top to join as someone else.
+                  Asking as {actingPlayer.name}. Switch player at the top to ask as someone else.
                 </p>
               )}
             </>

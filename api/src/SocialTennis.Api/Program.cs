@@ -46,7 +46,9 @@ builder.Services
 // signed-in User. Anonymous routes opt out with AllowAnonymous(), so a
 // forgotten declaration fails closed (ASP.NET Core docs, "fallback policy").
 builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+    .AddPolicy(Policies.Manager, policy => policy.RequireRole(Policies.Manager))
+    .AddPolicy(Policies.Admin, policy => policy.RequireRole(Policies.Admin));
 
 // A ceiling on magic-link requests across all callers. It is not per client:
 // every request arrives from the BFF, so the API never sees a browser's

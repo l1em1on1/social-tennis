@@ -19,6 +19,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<ClubMembership> ClubMemberships => Set<ClubMembership>();
 
+    public DbSet<ClubInvite> ClubInvites => Set<ClubInvite>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Club>(club =>
@@ -66,6 +68,14 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             membership.HasKey(m => new { m.PlayerId, m.ClubId });
             membership.HasOne(m => m.Player).WithMany(p => p.Memberships).OnDelete(DeleteBehavior.Cascade);
             membership.HasOne(m => m.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClubInvite>(invite =>
+        {
+            invite.Property(i => i.Email).HasMaxLength(320);
+            invite.HasIndex(i => new { i.ClubId, i.Email }).IsUnique();
+            invite.HasIndex(i => i.Email);
+            invite.HasOne(i => i.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SessionToken>(token =>

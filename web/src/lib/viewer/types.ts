@@ -1,10 +1,12 @@
-/** Permission roles held by a User (CONTEXT: Manager, Admin). */
+/** Permission roles held by a User (CONTEXT: Manager, Admin). An Admin always has Manager too. */
 export type Role = "Manager" | "Admin";
 
-/** A Club a Player belongs to. */
+/** A Club a Player is in, or has asked to join. */
 export interface PlayerClub {
   id: string;
   name: string;
+  /** False while the request waits for a Manager. */
+  approved: boolean;
 }
 
 /** One of the User's Players: enough to name it, switch to it, and say which Clubs it is in. */

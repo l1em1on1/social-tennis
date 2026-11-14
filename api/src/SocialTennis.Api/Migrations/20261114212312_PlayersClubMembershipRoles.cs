@@ -6,11 +6,38 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace SocialTennis.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class PlayersAndClubMembership : Migration
+    public partial class PlayersClubMembershipRoles : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<int>(
+                name: "Roles",
+                table: "Users",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0);
+
+            migrationBuilder.CreateTable(
+                name: "ClubInvites",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ClubId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Email = table.Column<string>(type: "character varying(320)", maxLength: 320, nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ClubInvites", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ClubInvites_Clubs_ClubId",
+                        column: x => x.ClubId,
+                        principalTable: "Clubs",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateTable(
                 name: "Players",
                 columns: table => new
@@ -37,7 +64,8 @@ namespace SocialTennis.Api.Migrations
                 {
                     PlayerId = table.Column<Guid>(type: "uuid", nullable: false),
                     ClubId = table.Column<Guid>(type: "uuid", nullable: false),
-                    JoinedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    RequestedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -57,6 +85,17 @@ namespace SocialTennis.Api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_ClubInvites_ClubId_Email",
+                table: "ClubInvites",
+                columns: new[] { "ClubId", "Email" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ClubInvites_Email",
+                table: "ClubInvites",
+                column: "Email");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ClubMemberships_ClubId",
                 table: "ClubMemberships",
                 column: "ClubId");
@@ -71,10 +110,17 @@ namespace SocialTennis.Api.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "ClubInvites");
+
+            migrationBuilder.DropTable(
                 name: "ClubMemberships");
 
             migrationBuilder.DropTable(
                 name: "Players");
+
+            migrationBuilder.DropColumn(
+                name: "Roles",
+                table: "Users");
         }
     }
 }

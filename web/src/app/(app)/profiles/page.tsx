@@ -42,7 +42,9 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                   <p className="text-sm text-fg-muted">
                     {player.clubs.length === 0
                       ? "Not in a club yet"
-                      : `Member of ${player.clubs.map((club) => club.name).join(", ")}`}
+                      : player.clubs
+                          .map((club) => (club.approved ? `Member of ${club.name}` : `Waiting for approval at ${club.name}`))
+                          .join(" · ")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {!acting && (

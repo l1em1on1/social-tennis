@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Data;
+using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Players.Contracts;
 
 namespace SocialTennis.Api.Features.Players;
@@ -25,7 +26,7 @@ public static class GetPlayers
                 p.Name,
                 p.Memberships
                     .OrderBy(m => m.Club.Name)
-                    .Select(m => new PlayerClub(m.ClubId, m.Club.Name))
+                    .Select(m => new PlayerClub(m.ClubId, m.Club.Name, m.Status == ClubMembershipStatus.Active))
                     .ToList()))
             .ToListAsync(cancellationToken);
 

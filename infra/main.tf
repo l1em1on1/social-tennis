@@ -58,6 +58,7 @@ module "compute" {
   api_image     = "${var.image_repository_prefix}-api:${var.image_tag}"
   always_on     = var.always_on
   long_cooldown = var.long_cooldown
+  admin_emails  = var.admin_emails
 
   database_connection_string = module.database.connection_string
   database_name              = module.database.database_name

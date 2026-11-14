@@ -332,6 +332,16 @@ ask TF_VAR_alert_email "Email address"
 write_env TF_VAR_alert_email "$TF_VAR_alert_email"
 set_secret ALERT_EMAIL "$TF_VAR_alert_email"
 
+# ── Who is an Admin of the app ────────────────────────────────────────────
+stage "Admin of the app"
+say "Whoever signs in to the app with this address is an Admin: they see the"
+say "Manage tab and approve people asking to join the club. Several addresses"
+say "can be given, separated by commas. Change it later with:"
+say "  gh secret set ADMIN_EMAILS"
+ask TF_VAR_admin_emails "Admin email address(es)"
+write_env TF_VAR_admin_emails "$TF_VAR_admin_emails"
+set_secret ADMIN_EMAILS "$TF_VAR_admin_emails"
+
 # ── 7. Let GitHub Actions deploy, with no stored keys ─────────────────────
 stage "An Azure identity for GitHub Actions"
 say "The deploy workflow signs in to Azure with a short-lived token GitHub"
