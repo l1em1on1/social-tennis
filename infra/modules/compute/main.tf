@@ -34,6 +34,11 @@ variable "always_on" {
   type        = bool
 }
 
+variable "long_cooldown" {
+  description = "Keep each app running for 30 minutes after its last request, not 5."
+  type        = bool
+}
+
 variable "database_connection_string" {
   description = "Npgsql connection string."
   type        = string
@@ -71,6 +76,12 @@ variable "email_from_address" {
 
 locals {
   min_replicas = var.always_on ? 1 : 0
+
+  # How long an app stays up after its last request before scaling to zero.
+  # 300 is Azure's default. Both apps together use 0.5 vCPU and 1 GiB, so the
+  # free grant covers about 100 hours of running a month: at 1800, roughly six
+  # separate visits a day. No effect when always_on is set.
+  cooldown_seconds = var.long_cooldown ? 1800 : 300
 
   # An app with external ingress is served at <app>.<environment domain>.
   # Building the address from the environment, not from the web app's own
@@ -138,6 +149,8 @@ resource "azurerm_container_app" "api" {
   template {
     min_replicas = local.min_replicas
     max_replicas = 1
+
+    cooldown_period_in_seconds = local.cooldown_seconds
 
     container {
       name   = "api"
@@ -218,6 +231,8 @@ resource "azurerm_container_app" "web" {
   template {
     min_replicas = local.min_replicas
     max_replicas = 1
+
+    cooldown_period_in_seconds = local.cooldown_seconds
 
     container {
       name   = "web"

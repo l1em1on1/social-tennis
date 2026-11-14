@@ -43,6 +43,11 @@ on:
         required: false
         type: boolean
         default: false
+      long_cooldown:
+        description: "Keep the apps running 30 minutes after the last request, not 5 (fewer cold starts; spends the free grant faster)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -92,6 +97,7 @@ jobs:
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_always_on: ${{ inputs.always_on }}
+      TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}
       # The club's domain (ADR-0020, ADR-0021). Unset until
       # scripts/setup-domain.sh has run: no domain means the app answers only
       # at Azure's address and the API logs sign-in links.
@@ -161,6 +167,7 @@ jobs:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
       TF_VAR_always_on: ${{ inputs.always_on }}
+      TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}
       # The club's domain (ADR-0020, ADR-0021). Unset until
       # scripts/setup-domain.sh has run: no domain means the app answers only
       # at Azure's address and the API logs sign-in links.

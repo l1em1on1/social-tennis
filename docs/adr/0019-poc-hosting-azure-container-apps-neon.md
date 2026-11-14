@@ -24,6 +24,7 @@ Free allowances, as found on 2026-11-13 (re-check at sign-up): Container Apps gi
 ## Consequences
 
 - An `always_on` Terraform variable sets the minimum replicas to 1, so removing cold starts is a one-line change.
+- A `long_cooldown` Terraform variable (added 2026-11-14) keeps an idle app for 30 minutes, not 5, so visits close together stay warm. The two apps running together use 0.5 vCPU and 1 GiB, which the free grant covers for about 100 hours a month; at 30 minutes per visit that is roughly six separate visits a day. Neon still suspends after about five minutes, so a warm API can still wait for the database to resume.
 - Nothing ties the app to this host: the images are ordinary containers and the database is plain Postgres, so a VPS or AWS later reuses both.
 - Azure's probes are HTTP calls made by the platform, so the shell-less runtime image (#25) needs no in-container healthcheck in production.
 - Neon's pooled connection string can't be used for the startup migration, which holds a session advisory lock. The API uses the direct connection.
