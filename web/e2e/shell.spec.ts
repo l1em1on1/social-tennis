@@ -2,7 +2,7 @@
 // see playwright.config.ts). Otherwise identical to @playwright/test.
 import { expect, test } from "@chromatic-com/playwright";
 import type { Page } from "@playwright/test";
-import { logIn, personaEmail } from "./support/auth";
+import { addAnotherPlayer, addFirstPlayer, logIn, personaEmail } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
 const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
@@ -50,8 +50,12 @@ test("a Manager sees Manage; an Admin sees Admin", async ({ page }, testInfo) =>
 
 test("switching the acting Player survives navigation", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "parent"));
+  await addFirstPlayer(page, "Pat Parent");
+  await mainNav(page).getByRole("link", { name: "Profiles" }).click();
+  await addAnotherPlayer(page, "Alex Junior");
+  await addAnotherPlayer(page, "Sam Junior");
   const acting = page.getByTestId("acting-player");
-  await expect(acting).toHaveText("Parent");
+  await expect(acting).toHaveText("Pat Parent");
 
   await page.getByRole("button", { name: /switch player/ }).click();
   const sheet = page.getByRole("dialog", { name: "Play as" });

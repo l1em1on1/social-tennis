@@ -11,6 +11,7 @@ using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth;
 using SocialTennis.Api.Features.Clubs;
+using SocialTennis.Api.Features.Players;
 using SocialTennis.Api.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -147,6 +148,7 @@ app.MapOpenApi().AllowAnonymous();
 // meaningful.
 app.MapClubsEndpoints();
 app.MapAuthEndpoints();
+app.MapPlayersEndpoints();
 
 app.Run();
 

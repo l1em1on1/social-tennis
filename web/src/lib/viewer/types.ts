@@ -1,10 +1,17 @@
 /** Permission roles held by a User (CONTEXT: Manager, Admin). */
 export type Role = "Manager" | "Admin";
 
-/** Just enough of a Player to name and switch to it. */
+/** A Club a Player belongs to. */
+export interface PlayerClub {
+  id: string;
+  name: string;
+}
+
+/** One of the User's Players: enough to name it, switch to it, and say which Clubs it is in. */
 export interface PlayerSummary {
   id: string;
   name: string;
+  clubs: PlayerClub[];
 }
 
 /** The logged-in User as every page sees them, including who they are acting as. */
@@ -13,6 +20,6 @@ export interface Viewer {
   email: string;
   roles: Role[];
   players: PlayerSummary[];
-  /** The Player the User is acting as; null for a User with no Player (e.g. a Manager-only account). */
+  /** The Player the User is acting as; null for a User with no Player (just signed up, or a Manager-only account). */
   actingPlayer: PlayerSummary | null;
 }

@@ -35,7 +35,7 @@ sequenceDiagram
     participant P as Postgres
 
     B->>W: GET /
-    W->>A: GET http://api:8080/auth/me (getViewer, shell layout)
+    W->>A: GET http://api:8080/auth/me and /players (getViewer, shell layout)
     A-->>W: 200 { userId, email }
     W->>A: GET http://api:8080/clubs (openapi-fetch, typed)
     A->>P: SELECT ... FROM "Clubs" (EF Core)
@@ -103,7 +103,8 @@ The web UI is built on one foundation (ADR-0014), so feature tickets add screens
 - **Owned primitives** — `src/components/ui/`: Button/ButtonLink, Field + Input, Select (native), Card, Badge, Sheet (native `<dialog>` + `showModal()`), EmptyState, ErrorState, Skeleton/SkeletonGroup. **Every interaction shows it is working:** a form with a server action submits through SubmitButton, which shows a Spinner and is disabled while the action runs (`useFormStatus`), so a second press sends nothing; ButtonLink and the bottom navigation show a Spinner through LinkPending (`useLinkStatus`) from the tap until the next page arrives. A new form or link uses these, not a bare `<button>` or `<Link>`. Domain badge: `src/components/result-status-badge.tsx` (played, retirement, walkover, void, pending). Tap targets are at least 44px (`min-h-11`).
 - **Shell** — the `(app)` route group's layout: header with the "Playing as" switcher, page content, bottom navigation (Home, Ladder, Profiles; Manage and Admin by role). `loading.tsx` streams a Skeleton fallback, `error.tsx` an ErrorState whose retry re-fetches the segment; `app/error.tsx` catches what the shell layout itself throws (a failed `/auth/me`), since a segment's boundary sits inside its layout; `app/not-found.tsx` also answers role-refused pages.
 - **Acting Player** — the `st_player` HttpOnly cookie, set by the `switchActingPlayer` server action only to an id the User holds; `getViewer()` falls back to the first Player.
-- **Stand-in identity** — `src/lib/viewer/stub.ts` derives roles and Players from the login email until #18 (roles) and #4 (Players) expose them; the email's local part picks a persona (`manager`, `admin`, `parent`), which the E2E suite relies on.
+- **Players and Clubs** — `getViewer` reads the User's Players from `GET /players` (oldest first; the first is the Acting Player until one is chosen). A User with no Player is asked for their name on Home (`POST /players`); Profiles adds and renames Players (`PUT /players/{playerId}`); Home's Clubs list joins the Acting Player to a Club (`PUT /clubs/{clubId}/members/{playerId}`, idempotent, no approval). All four routes are scoped to the caller: another User's Player answers 404. Gender, Level, Rating, Manager-created Players and leaving a Club are still #4.
+- **Stand-in roles** — `src/lib/viewer/stub.ts` derives roles from the login email until #18 exposes them; the email's local part picks them (`manager`, `admin`), which the E2E suite relies on.
 - **Dev showcase** — `/dev/ui` renders every primitive; it is a 404 in a production build without mocks.
 
 ### API mocking (ADR-0009)
@@ -122,7 +123,7 @@ flowchart LR
 - **Flag at build time.** `next.config.ts` `env` inlines `MOCK_API`; a build without it compiles the `register()` branch to dead code, so no MSW code ships. CI's `build` job asserts that on the production image.
 - **Typed handlers.** `createOpenApiHttp<paths>` rejects a path, body, or status the contract doesn't declare. There are no untyped escapes: the 401 the mocks return for a missing session is in the contract.
 - **Only the API origin is mocked.** A final catch-all handler calls `passthrough()` for any other origin — its predicate excludes the API origin, because a handler that matches and returns nothing lets the request through instead of failing it — because Next fetches its own origin server-side (a server action's redirect loads the target's RSC payload). Unmatched calls to the API origin fail (`onUnhandledFrame: "error"`): that's a gap in the mocks.
-- **Mock auth** accepts any magic-link token and remembers it base64url-encoded in the session token. When the token is an email address, `/auth/me` returns that email, so the stub personas work the same way mocked as against the real API.
+- **Mock auth** accepts any magic-link token and remembers it base64url-encoded in the session token. When the token is an email address, `/auth/me` returns that email, so the stub roles work the same way mocked as against the real API. The mock keeps Players and memberships in memory per session, and every sign-in is a new session, so a mocked sign-in starts with no Player just as a first real one does.
 
 ## Contract pipeline
 

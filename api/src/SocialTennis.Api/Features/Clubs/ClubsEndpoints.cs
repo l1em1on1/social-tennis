@@ -11,6 +11,9 @@ public static class ClubsEndpoints
         group.MapGet("", GetClubs.HandleAsync)
             .WithName(nameof(GetClubs));
 
+        group.MapPut("/{clubId:guid}/members/{playerId:guid}", JoinClub.HandleAsync)
+            .WithName(nameof(JoinClub));
+
         return app;
     }
 }
