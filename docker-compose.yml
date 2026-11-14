@@ -27,6 +27,9 @@ services:
     build: ./api
     environment:
       ConnectionStrings__Default: "Host=postgres;Database=tennis;Username=tennis;Password=tennis"
+      # Local only: sign in as this address to be an Admin (Manage tab, approving
+      # club members). Production reads the ADMIN_EMAILS secret.
+      Auth__AdminEmails: admin@example.com
     depends_on:
       postgres:
         condition: service_healthy
