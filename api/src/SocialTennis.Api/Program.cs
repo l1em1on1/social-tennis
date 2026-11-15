@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using SocialTennis.Api;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
@@ -16,6 +17,13 @@ using SocialTennis.Api.Features.Players;
 using SocialTennis.Api.Features.Users;
 using SocialTennis.Api.Jobs;
 using SocialTennis.Api.OpenApi;
+
+// `healthcheck`: probe the running API and exit, for compose's HEALTHCHECK in
+// the shell-less runtime image (#25). Before anything else: it needs no host.
+if (args is ["healthcheck"])
+{
+    return await HealthProbe.RunAsync();
+}
 
 // `job <name>` runs one scheduled job and exits instead of serving (ADR-0019,
 // #112): `dotnet SocialTennis.Api.dll job purge-tokens`. The job's words are
