@@ -10,9 +10,11 @@ using SocialTennis.Api.Features.Leagues.Contracts;
 namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
-/// The Leagues one of the signed-in User's Players is in, and the Leagues at
-/// Clubs it is a member of that it could join, with its own Join Request on
-/// each. Latest start first. Another User's Player is a 404.
+/// The Leagues at Clubs one of the signed-in User's Players is a member of: the
+/// ones it is in and the ones it could join, with its own Join Request on each.
+/// Latest start first. Another User's Player is a 404. A Player removed from a
+/// Club, or who left it, no longer sees that Club's Leagues (#109); leaving a
+/// League properly is #21.
 /// </summary>
 public static class GetPlayerLeagues
 {
@@ -29,9 +31,8 @@ public static class GetPlayerLeagues
         }
 
         var leagues = await db.Leagues
-            .Where(l => l.Participants.Any(p => p.PlayerId == playerId)
-                || db.ClubMemberships.Any(m =>
-                    m.ClubId == l.ClubId && m.PlayerId == playerId && m.Status == ClubMembershipStatus.Active))
+            .Where(l => db.ClubMemberships.Any(m =>
+                m.ClubId == l.ClubId && m.PlayerId == playerId && m.Status == ClubMembershipStatus.Active))
             .OrderByDescending(l => l.StartDate)
             .ThenBy(l => l.Name)
             .Select(l => new PlayerLeague(

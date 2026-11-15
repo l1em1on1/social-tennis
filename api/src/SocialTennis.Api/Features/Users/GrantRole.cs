@@ -19,7 +19,8 @@ public static class GrantRole
         TennisDbContext db,
         CancellationToken cancellationToken)
     {
-        var granted = Enum.Parse<UserRoles>(role);
+        // The route matches the role in any case ("admin" too), so parse it the same way.
+        var granted = Enum.Parse<UserRoles>(role, ignoreCase: true);
 
         await using var transaction = await AdminRoleRules.LockRolesAsync(db, cancellationToken);
         var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);

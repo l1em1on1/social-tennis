@@ -33,6 +33,10 @@ public class AuthOptions
     private HashSet<string> AdminEmailSet =>
         adminEmailSet ??= AdminEmails
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            // Only addresses count. Terraform passes a placeholder ("none") when
+            // the list is empty, since a secret can't be; counting it would let
+            // the last granted Admin be demoted (#109).
+            .Where(entry => entry.Contains('@'))
             .Select(EmailAddress.Normalize)
             .ToHashSet(StringComparer.Ordinal);
 

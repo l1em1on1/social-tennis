@@ -1,4 +1,5 @@
 using FluentValidation;
+using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Authentication;
 
@@ -25,6 +26,8 @@ public static class EmailAddress
             .NotEmpty()
             .WithMessage("An email address is required.")
             .Must(email => email.Trim() is { Length: <= MaxLength } trimmed && trimmed.Contains('@'))
+            .WithMessage("A valid email address is required.")
+            .Must(TextRules.HasNoControlCharacters)
             .WithMessage("A valid email address is required.")
             // The error key is the wire's field name, which System.Text.Json
             // camel-cases; FluentValidation would otherwise emit "Email".

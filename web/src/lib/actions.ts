@@ -72,6 +72,10 @@ export async function createPlayer(formData: FormData) {
   if (response.status === 400) {
     redirect(`${page}?error=name`);
   }
+  // The login already holds as many Players as one may add (#109).
+  if (response.status === 409) {
+    redirect(`${page}?error=limit`);
+  }
   if (!response.ok) {
     throw new Error(`POST /players failed with ${response.status}`);
   }

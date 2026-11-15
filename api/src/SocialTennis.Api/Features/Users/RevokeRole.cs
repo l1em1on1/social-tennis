@@ -26,7 +26,8 @@ public static class RevokeRole
         IOptions<AuthOptions> authOptions,
         CancellationToken cancellationToken)
     {
-        var revoked = Enum.Parse<UserRoles>(role);
+        // The route matches the role in any case ("admin" too), so parse it the same way.
+        var revoked = Enum.Parse<UserRoles>(role, ignoreCase: true);
         var auth = authOptions.Value;
 
         await using var transaction = await AdminRoleRules.LockRolesAsync(db, cancellationToken);
