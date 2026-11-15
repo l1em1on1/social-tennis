@@ -221,6 +221,13 @@ set_deploy_secret() {
       warn "skipped GitHub secret $name in $environment"
     fi
   done
+  # A copy at repository level, left by a setup from before #113, stays
+  # readable by workflows on any branch. Say so; deleting it is left to you.
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1 \
+     && gh secret list --json name --jq '.[].name' 2>/dev/null | grep -qx "$name"; then
+    SKIPPED+=("repository-level GitHub secret $name is still there (delete it: gh secret delete $name)")
+    warn "$name is also a repository secret, readable by workflows on any branch: gh secret delete $name"
+  fi
 }
 
 # curl from an image, since the host may have none. Pinned by digest; Dependabot
