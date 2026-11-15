@@ -203,6 +203,36 @@ finish() {
 
 TOTAL_STAGES=6
 ENV_FILE="infra/.env"
+
+# Deploy secrets go only to the two deploy environments, never to the
+# repository (#104, #113): a repository secret is readable by a workflow on
+# any branch. scripts/setup-hosting.sh created both environments.
+
+# set_deploy_secret NAME VALUE — set NAME in production-plan and production.
+set_deploy_secret() {
+  local name="$1" value="$2" environment
+  for environment in production-plan production; do
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1 \
+       && printf '%s' "$value" | gh secret set "$name" --env "$environment" >/dev/null 2>&1; then
+      WRITTEN_SECRET+=("$name ($environment)")
+      printf '  %s✓ set%s GitHub secret %s in %s\n' "$GREEN" "$RESET" "$name" "$environment"
+    else
+      SKIPPED+=("GitHub secret $name in $environment (set it: gh secret set $name --env $environment)")
+      warn "skipped GitHub secret $name in $environment"
+    fi
+  done
+  # A copy at repository level, left by a setup from before #113, stays
+  # readable by workflows on any branch. Say so; deleting it is left to you.
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1 \
+     && gh secret list --json name --jq '.[].name' 2>/dev/null | grep -qx "$name"; then
+    SKIPPED+=("repository-level GitHub secret $name is still there (delete it: gh secret delete $name)")
+    warn "$name is also a repository secret, readable by workflows on any branch: gh secret delete $name"
+  fi
+}
+
+# curl from an image, since the host may have none. Pinned by digest; Dependabot
+# can't see images named in scripts, so bump it by hand (docs/architecture.md, "Versions").
+CURL_IMAGE="curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69"
 DEFAULT_DOMAIN="hitsandgiggles.co.uk"
 APP_RG="social-tennis"
 # Both named in infra/modules/compute/main.tf.
@@ -242,8 +272,9 @@ step "  changing addresses."
 step "Continue to summary → Create Token, and copy the token itself (a long"
 step "  string shown once), not its name or id."
 ask_secret CLOUDFLARE_API_TOKEN "Paste the Cloudflare API token"
-write_env CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
-set_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
+# Not written to infra/.env (#113); a local Terraform run takes it from the
+# shell instead (infra/compose.yml).
+set_deploy_secret CLOUDFLARE_API_TOKEN "$CLOUDFLARE_API_TOKEN"
 
 # ── 2. The domain ─────────────────────────────────────────────────────────
 stage "The domain"
@@ -274,7 +305,7 @@ fi
 # token goes in through the environment, so it never shows in a process list.
 note "Checking the token can see $TF_VAR_email_domain…"
 ZONE_ANSWER="$(docker run --rm -e CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" -e ZONE="$TF_VAR_email_domain" \
-  --entrypoint sh curlimages/curl:8.11.1 -c \
+  --entrypoint sh "$CURL_IMAGE" -c \
   'curl --silent --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/zones?name=$ZONE"' \
   </dev/null || true)"
 if [[ "$ZONE_ANSWER" != *'"success":true'* ]]; then
@@ -410,7 +441,7 @@ fi
 note "Checking https://$TF_VAR_app_domain/login answers (a cold start can take a minute)…"
 ANSWERED=""
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  if docker run --rm curlimages/curl:8.11.1 --silent --fail --max-time 30 \
+  if docker run --rm "$CURL_IMAGE" --silent --fail --max-time 30 \
        --output /dev/null "https://$TF_VAR_app_domain/login" </dev/null; then
     ANSWERED=yes
     break

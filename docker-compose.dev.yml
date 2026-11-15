@@ -43,7 +43,8 @@ services:
       # MOCK_API=1 serves the app with the API mocked by MSW (ADR-0009):
       #   MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
       MOCK_API: ${MOCK_API:-}
-    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+    # `npm ci`: installs exactly what package-lock.json says, never updates it (#113).
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev -- --hostname 0.0.0.0"
 
 volumes:
   web_node_modules:

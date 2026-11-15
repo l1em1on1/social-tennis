@@ -8,6 +8,11 @@ obj/
 node_modules/
 .next/
 
+# Local secrets. Compose reads a .env beside docker-compose.yml (e.g. for
+# CHROMATIC_PROJECT_TOKEN); it must never be committed (#113).
+.env
+.env.*
+
 # OS noise
 .DS_Store
 Thumbs.db
