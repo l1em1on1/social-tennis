@@ -5,9 +5,16 @@ namespace SocialTennis.Api.UnitTests;
 public class EmailOptionsTests
 {
     [Fact]
-    public void The_log_provider_needs_no_settings()
+    public void In_development_the_log_provider_needs_no_settings()
     {
-        Assert.Null(new EmailOptions().Problem());
+        Assert.Null(new EmailOptions().Problem(isDevelopment: true));
+    }
+
+    [Fact]
+    public void Outside_development_the_log_provider_must_be_allowed_explicitly()
+    {
+        Assert.Contains("Email__AllowLogProvider", new EmailOptions().Problem(isDevelopment: false), StringComparison.Ordinal);
+        Assert.Null(new EmailOptions { AllowLogProvider = true }.Problem(isDevelopment: false));
     }
 
     [Fact]
@@ -19,7 +26,7 @@ public class EmailOptionsTests
             AzureCommunicationServices = { ConnectionString = "endpoint=https://example.test/;accesskey=a2V5" },
         };
 
-        Assert.Contains("FromAddress", options.Problem(), StringComparison.Ordinal);
+        Assert.Contains("FromAddress", options.Problem(isDevelopment: false), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -31,7 +38,7 @@ public class EmailOptionsTests
             FromAddress = "DoNotReply@example.test",
         };
 
-        Assert.Contains("ConnectionString", options.Problem(), StringComparison.Ordinal);
+        Assert.Contains("ConnectionString", options.Problem(isDevelopment: false), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -44,6 +51,6 @@ public class EmailOptionsTests
             AzureCommunicationServices = { ConnectionString = "endpoint=https://example.test/;accesskey=a2V5" },
         };
 
-        Assert.Null(options.Problem());
+        Assert.Null(options.Problem(isDevelopment: false));
     }
 }

@@ -6,6 +6,8 @@ Azure was chosen because the app already lives in that subscription: no new acco
 
 The API sends through one interface, `IEmailSender`, and the provider is picked by the `Email` configuration section. Dev and tests use the `Log` provider and need no mail account. Changing provider is a new class and a configuration change.
 
+**The `Log` provider must be asked for outside Development** (amended 2026-11-15, #107). It writes every sign-in link, token included, to the log, and it is the default. Outside Development the API refuses to start on `Log` unless `Email__AllowLogProvider=true` is set, so a missing or misspelled `Email__Provider` stops a deploy instead of putting sign-in links in Log Analytics. The opt-in is set only where logging links is intended: Terraform's no-email path (`email_enabled = false`) and the local compose stack.
+
 ## What this accepts
 
 - **Two deploys to switch it on.** Azure will not link a domain it hasn't verified, verification needs the DNS records to exist, and the Terraform provider has no resource that asks Azure to verify. So the first deploy creates the records, `scripts/setup-domain.sh` has Azure check them, and a second deploy (`email_domain_verified = true`) links the domain and configures the API.

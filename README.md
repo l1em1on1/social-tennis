@@ -135,7 +135,7 @@ docker compose -f infra/compose.yml run --rm infra \
   az containerapp logs show --name api --resource-group social-tennis --tail 50
 ```
 
-Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so the link is in `docker compose logs api`.
+Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so the link is in `docker compose logs api`. The compose file sets `Email__AllowLogProvider: "true"` for that; anywhere else outside Development, the API refuses to start on `Log` without it (#107).
 
 ## License
 
