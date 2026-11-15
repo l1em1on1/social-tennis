@@ -43,23 +43,20 @@ public static class InviteToClub
 
         var players = await db.Players
             .Where(p => p.User.Email == email)
-            .Select(p => new
-            {
-                p.Id,
-                Membership = p.Memberships.SingleOrDefault(m => m.ClubId == clubId),
-            })
+            .Select(p => new { p.Id, IsMember = p.Memberships.Any(m => m.ClubId == clubId) })
             .ToListAsync(cancellationToken);
-        foreach (var player in players)
+        foreach (var player in players.Where(p => !p.IsMember))
         {
-            if (player.Membership is null)
-            {
-                db.ClubMemberships.Add(ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
-            }
-            else
-            {
-                db.Attach(player.Membership).Entity.Status = ClubMembershipStatus.Active;
-            }
+            db.ClubMemberships.Add(ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
         }
+
+        // Waiting requests become memberships in one conditional update, so a
+        // Player leaving at this moment (which takes no lock) is skipped
+        // rather than failing the invite (#109).
+        var waiting = players.Where(p => p.IsMember).Select(p => p.Id).ToList();
+        await db.ClubMemberships
+            .Where(m => m.ClubId == clubId && waiting.Contains(m.PlayerId))
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

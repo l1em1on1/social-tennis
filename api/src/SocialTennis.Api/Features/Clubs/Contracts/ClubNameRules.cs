@@ -1,5 +1,6 @@
 using FluentValidation;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Features.Clubs.Contracts;
 
@@ -12,5 +13,7 @@ internal static class ClubNameRules
             .WithMessage("A name is required.")
             .Must(name => name.Trim().Length <= Club.NameMaxLength)
             .WithMessage($"A name can be at most {Club.NameMaxLength} characters.")
+            .Must(TextRules.HasNoControlCharacters)
+            .WithMessage(TextRules.ControlCharacterMessage)
             .OverridePropertyName("name");
 }

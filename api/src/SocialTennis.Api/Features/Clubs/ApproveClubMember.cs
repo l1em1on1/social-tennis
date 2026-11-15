@@ -14,15 +14,11 @@ public static class ApproveClubMember
         TennisDbContext db,
         CancellationToken cancellationToken)
     {
-        var membership = await db.ClubMemberships
-            .SingleOrDefaultAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken);
-        if (membership is null)
-        {
-            return TypedResults.NotFound();
-        }
-
-        membership.Status = ClubMembershipStatus.Active;
-        await db.SaveChangesAsync(cancellationToken);
-        return TypedResults.NoContent();
+        // One conditional update: a request withdrawn (or a member removed) at
+        // the same moment is a 404, not a concurrency failure (#109).
+        var approved = await db.ClubMemberships
+            .Where(m => m.ClubId == clubId && m.PlayerId == playerId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
+        return approved == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }
 }

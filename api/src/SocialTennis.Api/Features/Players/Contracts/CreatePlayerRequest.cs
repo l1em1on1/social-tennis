@@ -12,6 +12,7 @@ public record CreatePlayerRequest(string Name, PlayerGender? Gender = null, int?
         public Validator()
         {
             RuleFor(request => request.Name).PlayerName();
+            RuleFor(request => request.Gender).PlayerGender();
             RuleFor(request => request.Level).PlayerLevel();
         }
     }

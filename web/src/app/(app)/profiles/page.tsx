@@ -21,6 +21,9 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
       {error === "name" && (
         <ErrorState title="That didn't save" description="Enter a name of up to 100 characters, and choose a level and gender from the lists." />
       )}
+      {error === "limit" && (
+        <ErrorState title="That's as many Players as one login can add" description="Ask a Manager to add anyone else." />
+      )}
 
       <Card title="Players on this login">
         {viewer.players.length === 0 ? (

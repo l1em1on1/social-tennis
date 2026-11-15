@@ -20,6 +20,9 @@ public static class PlayersEndpoints
 
         group.MapPost("", CreatePlayer.HandleAsync)
             .ValidatesBody<CreatePlayerRequest, CreatePlayerRequest.Validator>()
+            // Declared by hand: a ProblemHttpResult in a Results<> union
+            // carries no status of its own for the OpenAPI document.
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(CreatePlayer));
 
         group.MapPut("/{playerId:guid}", UpdatePlayer.HandleAsync)

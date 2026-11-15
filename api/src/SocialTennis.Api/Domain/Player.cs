@@ -18,6 +18,9 @@ public class Player
 
     public const int MaxLevel = 5;
 
+    /// <summary>How many Players a login may add for itself (CreatePlayer, #109).</summary>
+    public const int MaxPerUser = 10;
+
     /// <summary>Every new Player's Rating: nobody is unrated (ADR-0007).</summary>
     public const int DefaultRating = 1;
 

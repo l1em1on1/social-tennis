@@ -96,6 +96,14 @@ public class AuthTestFactory : WebApplicationFactory<Program>
     }
 
     private readonly SemaphoreSlim adminGate = new(1, 1);
+
+    /// <summary>
+    /// Every factory signs in the same Admin address against the one database,
+    /// and redeeming a link uses up that address's other links (#109). So the
+    /// Admin's request-and-redeem never overlaps across test classes either.
+    /// </summary>
+    private static readonly SemaphoreSlim AdminSignInGate = new(1, 1);
+
     private HttpClient? adminClient;
     private Guid? clubId;
 
@@ -110,7 +118,20 @@ public class AuthTestFactory : WebApplicationFactory<Program>
         await adminGate.WaitAsync();
         try
         {
-            return adminClient ??= await CreateSignedInClientAsync(AdminEmail);
+            if (adminClient is null)
+            {
+                await AdminSignInGate.WaitAsync();
+                try
+                {
+                    adminClient = await CreateSignedInClientAsync(AdminEmail);
+                }
+                finally
+                {
+                    AdminSignInGate.Release();
+                }
+            }
+
+            return adminClient;
         }
         finally
         {
