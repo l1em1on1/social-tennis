@@ -99,6 +99,16 @@ Migrations apply on API startup — there is no separate `database update` step.
 docker compose down -v   # removes the pgdata volume; next start recreates and re-migrates
 ```
 
+## Run a scheduled job
+
+Scheduled jobs are commands in the API image that run once and exit; in production a Container Apps Job runs each on a cron schedule. Run one by hand against the local database (start the stack first, so migrations are applied):
+
+```sh
+docker compose run --rm api job purge-tokens   # deletes used or expired sign-in links and ended sessions
+```
+
+The exit code is 0 when the job finished, 1 when it failed, 2 for an unknown name (the log lists the jobs).
+
 ## Hosting (PoC)
 
 The PoC runs on Azure Container Apps with a Neon Postgres database, both scaled to zero when idle (ADR-0019). Terraform in `infra/` creates all of it, run from a toolbox image so nothing is installed on the host.
