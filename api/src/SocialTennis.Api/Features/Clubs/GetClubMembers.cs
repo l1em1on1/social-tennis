@@ -40,9 +40,9 @@ public static class GetClubMembers
         var invites = (await db.ClubInvites
                 .Where(i => i.ClubId == clubId)
                 .OrderBy(i => i.Email)
-                .Select(i => new { i.Email, i.CreatedAt })
+                .Select(i => new { i.Id, i.Email, i.CreatedAt })
                 .ToListAsync(cancellationToken))
-            .Select(i => new ClubInviteSummary(i.Email, joinedEmails.Contains(i.Email), i.CreatedAt))
+            .Select(i => new ClubInviteSummary(i.Id, i.Email, joinedEmails.Contains(i.Email), i.CreatedAt))
             .ToList();
 
         return TypedResults.Ok(new GetClubMembersResponse(members, invites, new PageInfo(members.Count)));

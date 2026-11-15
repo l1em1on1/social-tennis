@@ -38,7 +38,9 @@ interface MockPlayer {
  * Player asked for in another.
  */
 const playersBySession = new Map<string, MockPlayer[]>();
-const invitedEmails = new Map<string, string>();
+/** Invites by email. */
+const invitedEmails = new Map<string, { id: string; invitedAt: string }>();
+let invitesMade = 0;
 let sessions = 0;
 let playersMade = 0;
 
@@ -95,7 +97,7 @@ export const handlers = [
     const joined = new Set(members.filter((member) => member.approved).map((member) => member.email));
     return response(200).json({
       members,
-      invites: [...invitedEmails].map(([email, invitedAt]) => ({ email, invitedAt, joined: joined.has(email) })),
+      invites: [...invitedEmails].map(([email, invite]) => ({ ...invite, email, joined: joined.has(email) })),
       page: { total: members.length },
     });
   }),
@@ -113,6 +115,15 @@ export const handlers = [
     const player = allPlayers().find((candidate) => candidate.id === params.playerId);
     if (player) {
       delete player.membership;
+      // Removal withdraws the invite too, or it would let them straight back in.
+      invitedEmails.delete(player.email);
+    }
+    return response(204).empty();
+  }),
+
+  http.delete("/clubs/{clubId}/invites/{inviteId}", ({ params, response }) => {
+    for (const [email, invite] of invitedEmails) {
+      if (invite.id === params.inviteId) invitedEmails.delete(email);
     }
     return response(204).empty();
   }),
@@ -123,7 +134,10 @@ export const handlers = [
       return response(400).json(invalid("email"), problemJson);
     }
     if (!invitedEmails.has(email)) {
-      invitedEmails.set(email, new Date().toISOString());
+      invitedEmails.set(email, {
+        id: `00000000-0000-4000-8000-1${String((invitesMade += 1)).padStart(11, "0")}`,
+        invitedAt: new Date().toISOString(),
+      });
     }
     for (const player of allPlayers().filter((candidate) => candidate.email === email)) {
       player.membership = { approved: true, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
@@ -193,6 +207,15 @@ export const handlers = [
       return response(404).empty();
     }
     player.name = name;
+    return response(204).empty();
+  }),
+
+  http.delete("/players/{playerId}/clubs/{clubId}", ({ request, params, response }) => {
+    const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
+    if (!player) {
+      return response(404).empty();
+    }
+    delete player.membership;
     return response(204).empty();
   }),
 

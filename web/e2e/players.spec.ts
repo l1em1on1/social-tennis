@@ -68,7 +68,7 @@ test("a Player asks to join a Club, and is a member once a Manager approves", as
   await page.reload();
   await expect(row).toContainText("Member");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profiles" }).click();
-  await expect(page.getByText(`Member of ${clubName}`)).toBeVisible();
+  await expect(page.getByText(`Member of ${clubName}`, { exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -103,15 +103,90 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
   await manager.goto("/manage");
   await manager.getByLabel("Email address").first().fill(email);
-  await manager.getByRole("button", { name: "Invite" }).first().click();
+  await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
-  await expect(manager.getByRole("listitem").filter({ hasText: email })).toContainText("Not signed in yet");
+  const invites = manager.getByRole("list", { name: "Invited addresses" });
+  const invite = invites.getByRole("listitem").filter({ hasText: email });
+  await expect(invite).toBeVisible();
+  // The mock keeps its invites until its server restarts, so a second local
+  // run finds this address already joined. The real API gets a new address.
+  if (testInfo.project.name === "real") {
+    await expect(invite).toContainText("Not joined yet");
+  }
   await managerContext.close();
 
   await logIn(page, testInfo, email);
   await addFirstPlayer(page, ivy);
   await expect(page.getByRole("listitem").filter({ hasText: "Member" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^Ask to join / })).toHaveCount(0);
+});
+
+test("a Manager removes a member, and withdraws an invite", async ({ page, browser }, testInfo) => {
+  const mona = uniqueName(testInfo, "Mona Member");
+  await logIn(page, testInfo, personaEmail(testInfo, "player"));
+  await addFirstPlayer(page, mona);
+  await page.getByRole("button", { name: /^Ask to join / }).first().click();
+  await expect(page.getByText("Waiting for approval")).toBeVisible();
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await manager.goto("/manage");
+  await manager.getByRole("button", { name: `Approve ${mona}` }).click();
+
+  // Removing asks first.
+  await manager.getByRole("button", { name: `Remove ${mona}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Remove ${mona}?` });
+  await expect(sheet).toBeVisible();
+  await expectNoSeriousA11yViolations(manager);
+  await sheet.getByRole("button", { name: "Remove from club" }).click();
+  await expect(manager.getByText(mona)).toHaveCount(0);
+
+  // An invite nobody has used can be taken back.
+  const email = personaEmail(testInfo, "withdrawn");
+  await manager.getByLabel("Email address").first().fill(email);
+  await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
+  await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
+  await manager.getByRole("button", { name: `Withdraw invite for ${email}` }).click();
+  await expect(manager.getByRole("list", { name: "Invited addresses" }).getByText(email)).toHaveCount(0);
+  await managerContext.close();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: /^Ask to join / }).first()).toBeVisible();
+});
+
+test("a Player takes back a request, and a member leaves a Club", async ({ page, browser }, testInfo) => {
+  const lee = uniqueName(testInfo, "Lee Leaver");
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await logIn(page, testInfo, personaEmail(testInfo, "player"));
+  await addFirstPlayer(page, lee);
+
+  // Ask, then think better of it.
+  await page.getByRole("button", { name: /^Ask to join / }).first().click();
+  await expect(page.getByText("Waiting for approval")).toBeVisible();
+  await nav.getByRole("link", { name: "Profiles" }).click();
+  await page.getByRole("button", { name: /^Cancel request to join / }).click();
+  await expect(page.getByText("Not in a club yet")).toBeVisible();
+
+  // Ask again, and this time a Manager approves.
+  await nav.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("button", { name: /^Ask to join / }).first().click();
+  await expect(page.getByText("Waiting for approval")).toBeVisible();
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await manager.goto("/manage");
+  await manager.getByRole("button", { name: `Approve ${lee}` }).click();
+  await expect(manager.getByRole("button", { name: `Remove ${lee}` })).toBeVisible();
+  await managerContext.close();
+
+  await nav.getByRole("link", { name: "Profiles" }).click();
+  await page.getByRole("button", { name: /^Leave / }).click();
+  const sheet = page.getByRole("dialog", { name: /^Leave .+\?$/ });
+  await expect(sheet).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
+  await sheet.getByRole("button", { name: "Leave club" }).click();
+  await expect(page.getByText("Not in a club yet")).toBeVisible();
 });
 
 test("a Player can't open the Manager's members list", async ({ page }, testInfo) => {

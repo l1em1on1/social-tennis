@@ -36,6 +36,10 @@ public static class ClubsEndpoints
             .ValidatesBody<InviteToClubRequest, InviteToClubRequest.Validator>()
             .WithName(nameof(InviteToClub));
 
+        group.MapDelete("/{clubId:guid}/invites/{inviteId:guid}", WithdrawClubInvite.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(WithdrawClubInvite));
+
         return app;
     }
 }

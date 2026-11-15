@@ -5,7 +5,7 @@ Domain glossary for the app that organizes and plans league and social tennis ga
 ## Language
 
 **Club**:
-A tennis club running leagues and socials. Owns Leagues, Socials, and Players via membership. A Player becomes a member in one of two ways: they ask to join and a Manager approves (until then the membership is pending, and a Manager may decline it), or a Manager invites their User's email ahead of time, which makes every Player that User holds a member without asking.
+A tennis club running leagues and socials. Owns Leagues, Socials, and Players via membership. A Player becomes a member in one of two ways: they ask to join and a Manager approves (until then the membership is pending, and a Manager may decline it), or a Manager invites their User's email ahead of time, which makes every Player that User holds a member without asking. A Manager can remove a member, which also withdraws their invite; a Player can leave by themselves, which does not.
 
 **League**:
 A Club competition combining a League Type (who plays) with a League Structure (how competition is organized), run by a Manager over a set duration as a sequence of Stages. Players get in by requesting to join (the Manager approves) or by the Manager adding them directly; each participant's join time is recorded. A League starts only when the Manager confirms it — the final approval gate. For `Divisional`, the app proposes the starting ladder ordered by Competitor Rating, ties broken by earliest join time, and the Manager may reorder it or leave Competitors out before confirming (ADR-0013).

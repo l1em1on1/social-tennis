@@ -24,6 +24,10 @@ public static class PlayersEndpoints
             .ValidatesBody<RenamePlayerRequest, RenamePlayerRequest.Validator>()
             .WithName(nameof(RenamePlayer));
 
+        // The Player's own way out. A Manager removing them is in ClubsEndpoints.
+        group.MapDelete("/{playerId:guid}/clubs/{clubId:guid}", LeaveClub.HandleAsync)
+            .WithName(nameof(LeaveClub));
+
         return app;
     }
 }

@@ -168,3 +168,39 @@ export async function inviteToClub(formData: FormData) {
   revalidatePath("/", "layout");
   redirect(`/manage?invited=${encodeURIComponent(email.trim())}`);
 }
+
+/** A Manager takes back an invite. Players it already let in stay members. */
+export async function withdrawClubInvite(formData: FormData) {
+  const clubId = formData.get("clubId");
+  const inviteId = formData.get("inviteId");
+  if (typeof clubId !== "string" || typeof inviteId !== "string") return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/clubs/{clubId}/invites/{inviteId}", {
+    params: { path: { clubId, inviteId } },
+  });
+  if (!response.ok) {
+    throw new Error(`Withdrawing a club invite failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
+ * One of this login's Players leaves a Club, or takes back a request that is
+ * still waiting. The Player is checked against the ones this login holds; the
+ * API checks again.
+ */
+export async function leaveClub(formData: FormData) {
+  const path = clubAndPlayer(formData);
+  const viewer = await getViewer();
+  if (!path || !viewer.players.some((player) => player.id === path.playerId)) {
+    return;
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/players/{playerId}/clubs/{clubId}", { params: { path } });
+  if (!response.ok) {
+    throw new Error(`Leaving club ${path.clubId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
