@@ -12,8 +12,8 @@ public static class UserAccounts
     /// </summary>
     /// <remarks>
     /// A User row is not proof anyone has signed in. It exists for any address
-    /// a sign-in link was asked for, or that a Manager added a Player for; only
-    /// someone who can read that address's mail ever acts as it.
+    /// that redeemed a sign-in link (#108), or that a Manager added a Player
+    /// for; only someone who can read that address's mail ever acts as it.
     /// </remarks>
     public static async Task<Guid> EnsureAsync(
         TennisDbContext db, string normalizedEmail, DateTimeOffset now, CancellationToken cancellationToken)

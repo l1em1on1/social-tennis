@@ -96,7 +96,11 @@ export async function takeNewestMagicLink(email: string): Promise<string> {
   return token;
 }
 
-/** UserRoles in the API: Manager = 1, Admin = 2. */
+/**
+ * UserRoles in the API: Manager = 1, Admin = 2. Runs before the link is
+ * redeemed, when the address has no User yet (#108), so it creates the User
+ * the redemption will then find.
+ */
 async function grantRolesNamedInEmail(email: string) {
   const local = email.split("@")[0].split("+")[0].toLowerCase();
   const roles = (local.includes("manager") ? 1 : 0) | (local.includes("admin") ? 2 : 0);
@@ -105,7 +109,11 @@ async function grantRolesNamedInEmail(email: string) {
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
-    await client.query(`UPDATE "Users" SET "Roles" = $1 WHERE "Email" = $2`, [roles, email.toLowerCase()]);
+    await client.query(
+      `INSERT INTO "Users" ("Id", "Email", "CreatedAt", "Roles") VALUES (gen_random_uuid(), $2, now(), $1)
+       ON CONFLICT ("Email") DO UPDATE SET "Roles" = EXCLUDED."Roles"`,
+      [roles, email.toLowerCase()],
+    );
   } finally {
     await client.end();
   }
@@ -120,8 +128,7 @@ async function replaceNewestMagicLinkToken(email: string, rawToken: string) {
       `UPDATE "MagicLinkTokens" SET "TokenHash" = $1
        WHERE "Id" = (
          SELECT t."Id" FROM "MagicLinkTokens" t
-         JOIN "Users" u ON u."Id" = t."UserId"
-         WHERE u."Email" = $2 AND t."UsedAt" IS NULL
+         WHERE t."Email" = $2 AND t."UsedAt" IS NULL
          ORDER BY t."CreatedAt" DESC LIMIT 1)`,
       [hash, email.toLowerCase()],
     );

@@ -228,8 +228,18 @@ namespace SocialTennis.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ClientHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -242,15 +252,12 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateTimeOffset?>("UsedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
+
+                    b.HasIndex("Email");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("MagicLinkTokens");
                 });
@@ -436,17 +443,6 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("League");
 
                     b.Navigation("Player");
-                });
-
-            modelBuilder.Entity("SocialTennis.Api.Domain.MagicLinkToken", b =>
-                {
-                    b.HasOne("SocialTennis.Api.Domain.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Player", b =>
