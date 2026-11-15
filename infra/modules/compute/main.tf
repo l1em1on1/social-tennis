@@ -106,10 +106,15 @@ resource "azurerm_log_analytics_workspace" "this" {
   retention_in_days   = 30
 }
 
-# Errors and crashes in the API, newest first, with the request path and trace
-# id from the log line's scopes (#115). The API logs one JSON object per line
-# outside Development; Container Apps puts each line in Log_s. In the portal:
-# the workspace → Logs → Queries → "Social tennis" → "API errors".
+# Errors and crashes in the API and its scheduled jobs, newest first, with the
+# request path and trace id when the error happened inside a request (#115).
+# The API logs one JSON object per line outside Development; Container Apps
+# puts each line in Log_s. Every error row is kept: the request fields are read
+# out of the scopes text, so a row with no scopes (startup, a job) still shows.
+# A crash before logging exists is plain text from the .NET runtime, starting
+# "Unhandled exception". Job rows are matched by name: the job column is read
+# with column_ifexists, so the query works whether or not the table has it.
+# In the portal: the workspace → Logs → Queries → "Social tennis" → "API errors".
 resource "azurerm_log_analytics_saved_search" "api_errors" {
   name                       = "api-errors"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
@@ -117,16 +122,18 @@ resource "azurerm_log_analytics_saved_search" "api_errors" {
   display_name               = "API errors"
   query                      = <<-KQL
     ContainerAppConsoleLogs_CL
-    | where ContainerAppName_s == "api"
+    | extend Source = coalesce(tostring(column_ifexists("ContainerJobName_s", "")), ContainerAppName_s)
+    | where Source == "api" or Source startswith "job-"
     | extend entry = parse_json(Log_s)
-    | where tostring(entry.LogLevel) in ("Error", "Critical")
-    | mv-apply scope = entry.Scopes on (
-        summarize
-          RequestPath = take_anyif(tostring(scope.RequestPath), isnotempty(scope.RequestPath)),
-          TraceId = take_anyif(tostring(scope.TraceId), isnotempty(scope.TraceId))
-      )
-    | project TimeGenerated, Category = tostring(entry.Category), Message = tostring(entry.Message),
-        Exception = tostring(entry.Exception), RequestPath, TraceId
+    | extend Level = tostring(entry.LogLevel)
+    | where Level in ("Error", "Critical") or (isempty(Level) and Log_s startswith "Unhandled exception")
+    | extend scopes = tostring(entry.Scopes)
+    | project TimeGenerated, Source, Level,
+        Category = tostring(entry.Category),
+        Message = coalesce(tostring(entry.Message), Log_s),
+        Exception = tostring(entry.Exception),
+        RequestPath = extract(@'"RequestPath":"([^"]*)"', 1, scopes),
+        TraceId = extract(@'"TraceId":"([^"]*)"', 1, scopes)
     | order by TimeGenerated desc
   KQL
 }

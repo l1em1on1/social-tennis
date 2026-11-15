@@ -149,7 +149,7 @@ Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so t
 
 ### Finding an error
 
-Outside Development the API logs one JSON object per line (#115). In the Azure portal, open the Log Analytics workspace `social-tennis-logs` → **Logs** → **Queries** → **Social tennis** → **API errors**: errors and crashes, newest first, each with the request path and trace id. Logs are kept for 30 days.
+Outside Development the API logs one JSON object per line (#115). In the Azure portal, open the Log Analytics workspace `social-tennis-logs` → **Logs** → **Queries** → **Social tennis** → **API errors**: errors and crashes in the API and its scheduled jobs, newest first, with the request path and trace id when the error happened during a request. Logs are kept for 30 days.
 
 ## License
 
