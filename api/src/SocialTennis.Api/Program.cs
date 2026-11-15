@@ -14,9 +14,14 @@ using SocialTennis.Api.Features.Clubs;
 using SocialTennis.Api.Features.Leagues;
 using SocialTennis.Api.Features.Players;
 using SocialTennis.Api.Features.Users;
+using SocialTennis.Api.Jobs;
 using SocialTennis.Api.OpenApi;
 
-var builder = WebApplication.CreateBuilder(args);
+// `job <name>` runs one scheduled job and exits instead of serving (ADR-0019,
+// #112): `dotnet SocialTennis.Api.dll job purge-tokens`. The job's words are
+// taken off before the host reads the rest of the command line as configuration.
+var jobName = args is ["job", var name, ..] ? name : null;
+var builder = WebApplication.CreateBuilder(jobName is null ? args : args[2..]);
 
 builder.Services.AddDbContext<TennisDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
@@ -70,7 +75,14 @@ builder.Services.AddOptions<RateLimiterOptions>().Configure<IOptions<AuthOptions
     });
 });
 
+builder.Services.AddJobs();
+
 var app = builder.Build();
+
+if (jobName is not null)
+{
+    return await JobRunner.RunAsync(app.Services, jobName, CancellationToken.None);
+}
 
 // Schema is applied by the app itself so `docker compose up` needs no separate
 // migration step (ADR-0005). EF Core guidance endorses this for dev/test and
@@ -156,7 +168,8 @@ app.MapPlayersEndpoints();
 app.MapUsersEndpoints();
 app.MapLeaguesEndpoints();
 
-app.Run();
+await app.RunAsync();
+return 0;
 
 // Exposes the entry point to WebApplicationFactory in integration tests.
 public partial class Program

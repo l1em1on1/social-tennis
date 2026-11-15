@@ -307,6 +307,7 @@ flowchart LR
     subgraph aca ["Azure Container Apps environment (UK South)"]
         W["web<br/>public ingress, https<br/>0–1 replicas"]
         A["api<br/>internal ingress only<br/>0–1 replicas"]
+        J["job-purge-tokens<br/>api image, cron 03:00 UTC<br/>runs and exits"]
     end
     N[("Neon Postgres<br/>free plan, suspends when idle")]
     G[["GHCR<br/>web and api images"]]
@@ -318,8 +319,9 @@ flowchart LR
     B -.->|"resolves the address"| C
     W -->|"http://api"| A
     A -->|"TLS, direct endpoint"| N
-    G -.->|"image pull"| W & A
-    W & A -.->|"logs"| L
+    J -->|"TLS, direct endpoint"| N
+    G -.->|"image pull"| W & A & J
+    W & A & J -.->|"logs"| L
     A -->|"sign-in emails"| M
     M -.->|"verified against"| C
 ```
@@ -330,6 +332,7 @@ flowchart LR
 - **Database connection.** The API uses Neon's direct endpoint, not its pooler: startup migration holds a session advisory lock, which a pooled connection would break. The lock is taken on the app's own database (`Database__MigrationLockDatabase`), since a Neon role may not be allowed into `postgres`.
 - **Addresses** (ADR-0021). The app is served at `https://<app_domain>`: a custom domain on `web` with an Azure-managed certificate, reached through a DNS-only A record (to the environment's static address) and an `asuid` ownership TXT record in Cloudflare. `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform: from `app_domain` once `app_domain_ready` is true, and from the environment's own domain before that or when `app_domain` is empty. Either way the address is https, so session cookies are `Secure`. The address Azure assigns keeps answering (Terraform output `default_url`). Getting there takes the same two deploys as email, with `scripts/setup-domain.sh` binding the certificate in between: the provider can't bind a managed certificate, and its custom domain resource ignores the binding so later applies leave it alone.
 - **Email** (ADR-0020). Sign-in emails go out through Azure Communication Services from `DoNotReply@<email_domain>`. The domain's DNS is in Cloudflare, where Terraform creates the ownership, SPF, DKIM and DMARC records. It takes two deploys, because Azure checks the records in between and Terraform has no resource for that step: the first (with `email_domain` set) creates the mail resources and DNS records; `scripts/setup-domain.sh` then has Azure verify them and sets `email_domain_verified`; the second links the domain and gives the API its `Email__*` settings, the connection string as a Container Apps secret. Until that second deploy, and whenever `email_domain` is empty, the API logs sign-in links instead (README, "Hosting").
+- **Scheduled jobs** (#112). Nothing runs all the time, so work on a timer is a Container Apps Job per job (`azurerm_container_app_job.scheduled` in `modules/compute`, cron in UTC). It starts the API image with `job <name>` (`dotnet SocialTennis.Api.dll job <name>`), which builds the API's services, runs that one job (`api/src/SocialTennis.Api/Jobs/`), and exits: 0 when it finished, 1 when it threw, 2 for an unknown name. It neither serves requests nor applies migrations, so a job that runs before the first start of a new API version can fail, and is retried once, then runs again the next day. Jobs are idempotent and read time from the injected clock (ADR-0016). Today there is one: `purge-tokens`, daily at 03:00 UTC, deletes used or expired sign-in links and expired or revoked sessions. Retention (#117) and auto-roll (#10) will be more. Locally: `docker compose run --rm api job purge-tokens`.
 - **Cost guard.** A budget on the resource group emails when actual or forecast spend reaches the configured amount.
 
 ### Terraform (`infra/`)
@@ -339,7 +342,7 @@ flowchart LR
 | Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
 | Root | `infra/*.tf` | Resource group, the four modules, the budget |
 | `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
-| `modules/compute` | Log Analytics, environment, `web`, `api` | |
+| `modules/compute` | Log Analytics, environment, `web`, `api`, scheduled jobs | One Container Apps Job per entry in `local.jobs` |
 | `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |

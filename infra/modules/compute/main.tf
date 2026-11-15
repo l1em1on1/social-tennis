@@ -284,6 +284,57 @@ resource "azurerm_container_app" "web" {
   }
 }
 
+# Scheduled jobs (ADR-0019, #112). Nothing in the PoC runs all the time, so
+# work on a timer is a Container Apps Job: it starts the API image with
+# `job <name>`, which runs that job against the database and exits. Schedules
+# are cron in UTC. Adding a job is a class in api/src/SocialTennis.Api/Jobs and
+# a line here.
+locals {
+  jobs = {
+    # Deletes used or expired sign-in links and ended sessions.
+    "purge-tokens" = "0 3 * * *"
+  }
+}
+
+resource "azurerm_container_app_job" "scheduled" {
+  for_each = local.jobs
+
+  name                         = "job-${each.key}"
+  location                     = var.location
+  resource_group_name          = var.resource_group_name
+  container_app_environment_id = azurerm_container_app_environment.this.id
+
+  # A job is short; one that hangs is stopped, and one that fails is retried
+  # once. A failure is in the job's execution history and in Log Analytics.
+  replica_timeout_in_seconds = 300
+  replica_retry_limit        = 1
+
+  schedule_trigger_config {
+    cron_expression = each.value
+  }
+
+  secret {
+    name  = "database-connection-string"
+    value = var.database_connection_string
+  }
+
+  template {
+    container {
+      name   = "job"
+      image  = var.api_image
+      cpu    = 0.25
+      memory = "0.5Gi"
+      # Appended to the image's entrypoint (`dotnet SocialTennis.Api.dll`).
+      args = ["job", each.key]
+
+      env {
+        name        = "ConnectionStrings__Default"
+        secret_name = "database-connection-string"
+      }
+    }
+  }
+}
+
 output "web_url" {
   description = "Public address of the app."
   value       = local.web_url
