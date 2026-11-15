@@ -34,6 +34,9 @@ services:
       # sign-in links must be asked for explicitly (#107). Locally that is the
       # point: the link is read from `docker compose logs api`.
       Email__AllowLogProvider: "true"
+      # Local only: the E2E suite signs in from one container, so it is one
+      # client to the per-client limit (#108), which allows 5 a minute.
+      Auth__MagicLinkRequestsPerClientPerMinute: "1000"
     depends_on:
       postgres:
         condition: service_healthy

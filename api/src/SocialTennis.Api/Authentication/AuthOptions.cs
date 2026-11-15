@@ -50,15 +50,31 @@ public class AuthOptions
     public const string MagicLinkRateLimitPolicy = "magic-link";
 
     /// <summary>
-    /// Ceiling on magic-link requests per minute across all callers; beyond it
-    /// the API answers 429.
+    /// Magic-link requests one client may make a minute (#108); beyond it the
+    /// API answers 429. The client is the address the BFF reports
+    /// (<see cref="ClientAddress"/>).
+    /// </summary>
+    public int MagicLinkRequestsPerClientPerMinute { get; set; } = 5;
+
+    /// <summary>
+    /// Ceiling on magic-link requests per minute across all clients, a
+    /// backstop behind the per-client limit; beyond it the API answers 429.
     /// </summary>
     public int MagicLinkRequestsPerMinute { get; set; } = 60;
 
     /// <summary>
-    /// How many live (unused, unexpired) magic links one address may hold. A
-    /// request beyond it is answered 202 like any other, but sends nothing, so
-    /// an address can't be mail-bombed and the response still reveals nothing.
+    /// How many live (unused, unexpired) magic links one address may hold from
+    /// one client. A request beyond it is answered 202 like any other, but
+    /// sends nothing, so an address can't be mail-bombed and the response
+    /// still reveals nothing. Counted per client (#108), so requests from one
+    /// client can't use up another client's links for the same address.
     /// </summary>
-    public int MaxLiveMagicLinksPerAddress { get; set; } = 5;
+    public int MaxLiveMagicLinksPerAddressAndClient { get; set; } = 5;
+
+    /// <summary>
+    /// How many live magic links one address may hold from every client
+    /// together: the backstop behind <see cref="MaxLiveMagicLinksPerAddressAndClient"/>,
+    /// so many clients together still can't mail-bomb an address.
+    /// </summary>
+    public int MaxLiveMagicLinksPerAddress { get; set; } = 10;
 }

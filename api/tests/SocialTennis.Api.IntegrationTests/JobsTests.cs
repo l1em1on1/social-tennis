@@ -37,7 +37,7 @@ public class JobsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
         var now = DateTimeOffset.UtcNow;
-        var links = await db.MagicLinkTokens.Where(t => t.User.Email == email).ToListAsync();
+        var links = await db.MagicLinkTokens.Where(t => t.Email == email).ToListAsync();
         var sessions = await db.SessionTokens.Where(s => s.User.Email == email).ToListAsync();
         return new TokenState(
             links.Count(t => t.UsedAt != null),
