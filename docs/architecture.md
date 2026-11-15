@@ -472,7 +472,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
 | eslint / eslint-config-next | 9.x / 16.3.0 | `typescript-estree`'s `minimatch` is overridden to ^11.0.1 (no fixed 10.x, #133). Drop each override in `web/package.json` once its parent ships a fixed version |
 | msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. msw 3 renamed `onUnhandledRequest` to `onUnhandledFrame` |
-| @playwright/test | 1.65.0 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.0-noble` image tag in `docker-compose.yml` (browsers ship in the image) |
+| @playwright/test | 1.65.1 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.1-noble` image tag in `docker-compose.yml` (browsers ship in the image). Dependabot ignores the image (named `playwright` there), so both move together by hand on the npm PR |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
