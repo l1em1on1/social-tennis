@@ -4,13 +4,11 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using SocialTennis.Api.Data;
-using SocialTennis.Api.Domain;
 using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
+using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
 
@@ -97,19 +95,65 @@ public class AuthTestFactory : WebApplicationFactory<Program>
         return client;
     }
 
+    private readonly SemaphoreSlim adminGate = new(1, 1);
+    private HttpClient? adminClient;
+    private Guid? clubId;
+
     /// <summary>
-    /// A client signed in as a fresh User holding the Manager role. The role is
-    /// written to the database: granting it through the API is issue #18.
+    /// The Admin named in Auth:AdminEmails, signed in once per factory and
+    /// shared: don't dispose it. One sign-in, because <see cref="CapturingEmailSender.TokenFor"/>
+    /// reads the newest email to an address, which two sign-ins at once would
+    /// both take.
+    /// </summary>
+    public async Task<HttpClient> AdminClientAsync()
+    {
+        await adminGate.WaitAsync();
+        try
+        {
+            return adminClient ??= await CreateSignedInClientAsync(AdminEmail);
+        }
+        finally
+        {
+            adminGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// A client signed in as a fresh User whom the Admin has made a Manager,
+    /// through the API as it happens for real.
     /// </summary>
     public async Task<HttpClient> CreateManagerClientAsync()
     {
-        var email = $"manager-{Guid.NewGuid():N}@example.test";
-        var client = await CreateSignedInClientAsync(email);
+        var client = await CreateSignedInClientAsync($"manager-{Guid.NewGuid():N}@example.test");
+        var me = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
 
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
-        await db.Users.Where(u => u.Email == email)
-            .ExecuteUpdateAsync(u => u.SetProperty(user => user.Roles, UserRoles.Manager));
+        var admin = await AdminClientAsync();
+        (await admin.PutAsync($"/users/{me!.UserId}/roles/Manager", null)).EnsureSuccessStatusCode();
         return client;
+    }
+
+    /// <summary>
+    /// A Club for tests that need one and don't care which. There is no seeded
+    /// Club; the Admin creates this one, once per factory.
+    /// </summary>
+    public async Task<Guid> AClubIdAsync()
+    {
+        var admin = await AdminClientAsync();
+        await adminGate.WaitAsync();
+        try
+        {
+            if (clubId is null)
+            {
+                var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Test Club {Guid.NewGuid():N}" });
+                created.EnsureSuccessStatusCode();
+                clubId = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+            }
+
+            return clubId.Value;
+        }
+        finally
+        {
+            adminGate.Release();
+        }
     }
 }

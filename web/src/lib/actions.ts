@@ -204,3 +204,81 @@ export async function leaveClub(formData: FormData) {
   }
   revalidatePath("/", "layout");
 }
+
+/** An Admin creates a Club. */
+export async function createClub(formData: FormData) {
+  const name = formData.get("name");
+  if (typeof name !== "string") {
+    redirect("/admin?error=name");
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/clubs", { body: { name } });
+  if (response.status === 400) {
+    redirect("/admin?error=name");
+  }
+  if (!response.ok) {
+    throw new Error(`POST /clubs failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect("/admin");
+}
+
+/** An Admin renames a Club. */
+export async function renameClub(formData: FormData) {
+  const clubId = formData.get("clubId");
+  const name = formData.get("name");
+  if (typeof clubId !== "string" || typeof name !== "string") {
+    redirect("/admin?error=name");
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/clubs/{clubId}", { params: { path: { clubId } }, body: { name } });
+  if (response.status === 400) {
+    redirect("/admin?error=name");
+  }
+  if (!response.ok) {
+    throw new Error(`PUT /clubs/${clubId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect("/admin");
+}
+
+function userAndRole(formData: FormData): { userId: string; role: "Manager" | "Admin" } | null {
+  const userId = formData.get("userId");
+  const role = formData.get("role");
+  return typeof userId === "string" && (role === "Manager" || role === "Admin") ? { userId, role } : null;
+}
+
+/** An Admin makes a User a Manager or an Admin. It takes effect on that User's next request. */
+export async function grantRole(formData: FormData) {
+  const path = userAndRole(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/users/{userId}/roles/{role}", { params: { path } });
+  if (!response.ok) {
+    throw new Error(`Granting ${path.role} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
+ * An Admin takes a role from a User. The API refuses (409) to remove Admin
+ * from the last one or from one set in configuration; the page disables those
+ * buttons, so a refusal means the list changed underneath it.
+ */
+export async function revokeRole(formData: FormData) {
+  const path = userAndRole(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/users/{userId}/roles/{role}", { params: { path } });
+  if (response.status === 409) {
+    redirect("/admin?error=admin-kept");
+  }
+  if (!response.ok) {
+    throw new Error(`Removing ${path.role} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}

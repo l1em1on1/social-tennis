@@ -6,6 +6,8 @@ namespace SocialTennis.Api.Domain;
 /// </summary>
 public class Club
 {
+    public const int NameMaxLength = 200;
+
     public Guid Id { get; set; }
 
     public required string Name { get; set; }

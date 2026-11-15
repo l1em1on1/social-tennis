@@ -17,6 +17,8 @@ docker compose up --build
 
 Postgres, the API, and the web app start together; migrations apply automatically. Open http://localhost:3000.
 
+A new database has no Club. Sign in as `admin@example.com`, which the compose file names as an Admin (`Auth__AdminEmails`, ADR-0022): the sign-in link is printed in the api container's log. Then create the Club on the Admin tab. In production the Admins are the addresses in the `ADMIN_EMAILS` GitHub secret.
+
 ## Develop (hot reload)
 
 ```sh
@@ -31,7 +33,7 @@ Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app
 MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
 ```
 
-The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the persona: `manager@…` and `admin@…` get those roles, and `parent@…` holds two child Players. Every primitive is shown at http://localhost:3000/dev/ui.
+The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the starting roles: `manager@…` is a Manager and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown at http://localhost:3000/dev/ui.
 
 ## Tests
 
