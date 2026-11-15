@@ -177,12 +177,12 @@ resource "azurerm_container_app" "api" {
     }
   }
 
-  # Internal only: reachable from web as http://api, never from the internet
-  # (ADR-0001). Plain http is allowed because the caller is inside the
-  # environment and addresses the app by name.
+  # Internal only: reachable from other apps in the environment, never from
+  # the internet (ADR-0001). https only (#111): web calls the internal FQDN
+  # over TLS, and a plain-http request is redirected to https.
   ingress {
     external_enabled           = false
-    allow_insecure_connections = true
+    allow_insecure_connections = false
     target_port                = 8080
 
     traffic_weight {
@@ -295,9 +295,12 @@ resource "azurerm_container_app" "web" {
       cpu    = 0.25
       memory = "0.5Gi"
 
+      # The api app's internal address, api.internal.<environment domain>,
+      # over https (#111). Not the short name http://api: that is plain http,
+      # which the api's ingress no longer accepts.
       env {
         name  = "API_URL"
-        value = "http://${azurerm_container_app.api.name}"
+        value = "https://${azurerm_container_app.api.ingress[0].fqdn}"
       }
       # https, so the session cookies are Secure (web/src/lib/session.ts).
       env {

@@ -221,19 +221,20 @@ jobs:
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
           "sh ./init.sh -input=false && terraform apply -input=false -auto-approve -lock-timeout=5m"
-      - name: The site answers
-        # The first request after a deploy is a cold start: web, then (not
-        # needed for /login) the API and the database. Allow three minutes.
+      - name: The site answers and reaches the API
+        # /health answers 200 only when web can reach the API over the address
+        # production uses (#111). The first request after a deploy is a cold
+        # start of web, then the API (not the database). Allow three minutes.
         run: |
           url="$(docker compose -f infra/compose.yml run --rm -T infra terraform output -raw url | tr -d '\r')"
-          echo "Checking ${url}/login"
+          echo "Checking ${url}/health"
           for attempt in $(seq 1 18); do
-            if curl --silent --show-error --fail --max-time 30 --output /dev/null "${url}/login"; then
+            if curl --silent --show-error --fail --max-time 30 --output /dev/null "${url}/health"; then
               echo "Answered on attempt ${attempt}."
               echo "Deployed ${TF_VAR_image_tag} to ${url}" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             sleep 10
           done
-          echo "::error::${url}/login did not answer within three minutes."
+          echo "::error::${url}/health did not answer 200 within three minutes."
           exit 1

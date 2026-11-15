@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { STRICT_TRANSPORT_SECURITY, contentSecurityPolicy, newNonce } from "@/lib/security-headers";
 import { publicUrl, secureCookies, sessionCookie } from "@/lib/session";
 
-/** Pages an anonymous visitor may open: the auth surface. */
-const PUBLIC_PATH = /^\/(login|auth\/verify)(\/|$)/;
+/** Paths an anonymous visitor may open: the auth surface, and the health check (#111). */
+const PUBLIC_PATH = /^\/(login|auth\/verify|health)(\/|$)/;
 
 /**
  * Runs on every page request (Next 16's proxy convention, the renamed
@@ -14,7 +14,7 @@ const PUBLIC_PATH = /^\/(login|auth\/verify)(\/|$)/;
  *    with the policy. HSTS when served over https. The static headers are in
  *    next.config.ts.
  * 2. Route gate: anonymous visitors are redirected to /login everywhere except
- *    the auth surface. Presence-only check: session validity is enforced by
+ *    the auth surface and /health. Presence-only check: session validity is enforced by
  *    the API on every call, and pages redirect on 401.
  */
 export function proxy(request: NextRequest) {
