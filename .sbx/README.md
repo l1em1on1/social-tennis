@@ -47,7 +47,8 @@ Then create the sandbox with the kits attached:
 sbx create --name social-tennis -t social-tennis-sbx \
   --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github \
   --kit ./.sbx/kits/nuget --kit ./.sbx/kits/rtk claude .
-sbx run --name social-tennis
+sbx settings set claude.remoteControl true       # see Remote Control below
+sbx run --name social-tennis -- --remote-control
 ```
 
 Kits are attached at creation only. To give an existing sandbox a new kit,
@@ -66,6 +67,43 @@ Each mixin kit's `agentInstructions` goes into a per-kit memory file that sbx
 links from a `## Kits` section of its generated `CLAUDE.md`, outside the
 workspace, so the repo's own tracked `CLAUDE.md` is never modified. Claude
 Code reads both.
+
+## Remote Control
+
+[Remote Control](https://code.claude.com/docs/en/remote-control) drives the
+sandbox's Claude Code session from claude.ai/code or the Claude mobile app.
+`../sandbox.sh` sets it up on every run, in two parts:
+
+- **`sbx settings set claude.remoteControl true`**, on the host. sbx keeps
+  Remote Control's environment and session credentials on the host, and its
+  proxy supplies them to a sandbox only while this setting is on
+  ([sbx docs](https://docs.docker.com/ai/sandboxes/agents/claude-code/#remote-control)).
+  With it off, `/remote-control` inside the sandbox registers a session that
+  never connects. The setting is host-wide — it covers every sandbox on the
+  machine — and takes effect on running sandboxes within seconds.
+- **`sbx run ... -- --remote-control`**, so the session starts already
+  connected instead of waiting for `/remote-control`. It appears in the session
+  list under the sandbox's hostname, `social-tennis`.
+
+There is no kit for it and no extra egress. Remote Control only makes outbound
+requests to `api.anthropic.com`, which the `claude` agent is allowed already;
+`claude.ai` is opened on the phone or browser, not from the sandbox.
+
+**It needs a claude.ai sign-in inside the sandbox**: run `/login` once and
+choose the subscription account. An API key stored with `sbx secret set
+anthropic` runs Claude Code but cannot use Remote Control.
+
+`../sandbox.sh --no-remote-control` attaches without it and leaves the sbx
+setting as it is. To turn it off for running sandboxes too:
+
+```bash
+sbx settings set claude.remoteControl false
+```
+
+The sandbox runs Claude Code with `--dangerously-skip-permissions`, so whoever
+is signed in to that claude.ai account can run anything the sandbox can —
+which is the sandbox's own limits: the allow-listed egress and the
+`l1em1on1-claude` GitHub token.
 
 ## Context7 API key
 
