@@ -1,8 +1,9 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
 // see playwright.config.ts). Otherwise identical to @playwright/test.
 import { expect, test } from "@chromatic-com/playwright";
-import type { Page, Response } from "@playwright/test";
+import type { Response } from "@playwright/test";
 import { logIn, personaEmail } from "./support/auth";
+import { cspViolations, recordCspViolations } from "./support/csp";
 
 /**
  * Security headers and the Content-Security-Policy (#53). Both E2E stacks are
@@ -31,18 +32,6 @@ function expectSecurityHeaders(response: Response | null) {
   return csp;
 }
 
-/** Records CSP violations from the first byte of every page. Init scripts run outside the page's CSP. */
-async function recordCspViolations(page: Page) {
-  await page.addInitScript(() => {
-    const violations: string[] = [];
-    (window as unknown as { cspViolations: string[] }).cspViolations = violations;
-    document.addEventListener("securitypolicyviolation", (event) => violations.push(event.effectiveDirective));
-  });
-}
-
-const cspViolations = (page: Page) =>
-  page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations);
-
 test("the login page sends the security headers", async ({ page }) => {
   expectSecurityHeaders(await page.goto("/login"));
 });
@@ -60,33 +49,6 @@ test("pages run under the policy with no violations", async ({ page }, testInfo)
 
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   expect(await cspViolations(page), "signing in and loading Home broke no rule").toEqual([]);
-});
-
-/**
- * What an injection would look like: markup in the HTML the server sends, with
- * no nonce. The response is changed in flight, headers kept, so the browser
- * applies the real policy to it. (A script added from page.evaluate is no test:
- * DevTools-injected code is outside the page's policy, and 'strict-dynamic'
- * trusts scripts that running code inserts.)
- */
-test("an inline script in the page without the nonce is blocked", async ({ page }) => {
-  await recordCspViolations(page);
-  await page.route("**/login", async (route) => {
-    const response = await route.fetch();
-    const html = (await response.text()).replace(
-      "</body>",
-      "<script>window.injectedScriptRan = true;</script></body>",
-    );
-    await route.fulfill({ response, body: html });
-  });
-
-  await page.goto("/login");
-  // The page's own (nonced) scripts still run: the form works as usual.
-  await expect(page.getByRole("button", { name: "Email me a sign-in link" })).toBeEnabled();
-
-  const ran = await page.evaluate(() => (window as unknown as { injectedScriptRan?: boolean }).injectedScriptRan === true);
-  expect(ran).toBe(false);
-  expect(await cspViolations(page)).toContain("script-src-elem");
 });
 
 test("the login page shows back only an email address, never other text", async ({ page }) => {
