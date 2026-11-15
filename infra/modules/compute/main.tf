@@ -106,6 +106,31 @@ resource "azurerm_log_analytics_workspace" "this" {
   retention_in_days   = 30
 }
 
+# Errors and crashes in the API, newest first, with the request path and trace
+# id from the log line's scopes (#115). The API logs one JSON object per line
+# outside Development; Container Apps puts each line in Log_s. In the portal:
+# the workspace → Logs → Queries → "Social tennis" → "API errors".
+resource "azurerm_log_analytics_saved_search" "api_errors" {
+  name                       = "api-errors"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+  category                   = "Social tennis"
+  display_name               = "API errors"
+  query                      = <<-KQL
+    ContainerAppConsoleLogs_CL
+    | where ContainerAppName_s == "api"
+    | extend entry = parse_json(Log_s)
+    | where tostring(entry.LogLevel) in ("Error", "Critical")
+    | mv-apply scope = entry.Scopes on (
+        summarize
+          RequestPath = take_anyif(tostring(scope.RequestPath), isnotempty(scope.RequestPath)),
+          TraceId = take_anyif(tostring(scope.TraceId), isnotempty(scope.TraceId))
+      )
+    | project TimeGenerated, Category = tostring(entry.Category), Message = tostring(entry.Message),
+        Exception = tostring(entry.Exception), RequestPath, TraceId
+    | order by TimeGenerated desc
+  KQL
+}
+
 resource "azurerm_container_app_environment" "this" {
   name                = var.name
   location            = var.location
