@@ -8,7 +8,12 @@
 set -eu
 : "${TFSTATE_RESOURCE_GROUP:?set TFSTATE_RESOURCE_GROUP (scripts/setup-hosting.sh writes infra/.env)}"
 : "${TFSTATE_STORAGE_ACCOUNT:?set TFSTATE_STORAGE_ACCOUNT (scripts/setup-hosting.sh writes infra/.env)}"
+#
+# -lockfile=readonly: providers are installed only if they match the checksums
+# in .terraform.lock.hcl, and the file is never rewritten (#111). To change a
+# provider version, see "Updating Terraform providers" in docs/architecture.md.
 exec terraform init \
+  -lockfile=readonly \
   -backend-config="resource_group_name=${TFSTATE_RESOURCE_GROUP}" \
   -backend-config="storage_account_name=${TFSTATE_STORAGE_ACCOUNT}" \
   "$@"

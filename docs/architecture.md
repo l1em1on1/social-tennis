@@ -353,6 +353,7 @@ flowchart LR
 | `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
+| Providers | `infra/.terraform.lock.hcl` | Versions and checksums for `linux_amd64` and `linux_arm64`. Every `terraform init` (CI, deploy, `init.sh`) runs with `-lockfile=readonly`, so a provider that doesn't match its checksum stops the run |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
 
 `infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow below, which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
@@ -362,19 +363,31 @@ flowchart LR
 ```mermaid
 flowchart LR
     M["merge to main<br/>that changes web/ or api/"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
-    D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>terraform plan, printed to the log"]
+    D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>SHA on main? tag → digests<br/>terraform plan, printed to the log"]
     PL --> AP{{"approval<br/>environment: production"}}
-    AP --> A["apply<br/>terraform apply -var image_tag=SHA"]
+    AP --> A["apply<br/>terraform apply<br/>images by digest"]
     A --> C["check<br/>GET /login, up to 3 minutes"]
 ```
 
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
 - **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
-- **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
+- **Only `main`, and only what was planned.** The plan job refuses a SHA that is not a commit on `main` (GitHub's compare API), then resolves the two images' tags to digests. Terraform gets `image@sha256:…`, and the apply job is handed the same digests, so it runs exactly the images that were planned even if a tag is pushed again in between. A plan run by hand with only `-var image_tag=SHA` still works, by tag.
+- **One mechanism.** A release is `terraform apply` with different images, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
 - **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the Cloudflare API token (DNS edit on the one zone), the alert email and the Admin addresses are secrets of the `production-plan` and `production` environments, never repository secrets (#104, #113): only the deploy jobs, running from `main`, can read them. The setup wizards set them there and never write the two API credentials to `infra/.env`; a local plan or apply takes them from the shell (`infra/compose.yml`). The email domain, the app's domain, and whether each is ready are repository variables. The Terraform state account allows only Entra ID access (no shared keys), with blob versioning and 30-day soft delete.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
+
+### Updating Terraform providers
+
+Because `init` is read-only, changing a provider version is a deliberate step. Edit the constraint in `infra/versions.tf`, then update the lock file and commit it with the change:
+
+```bash
+docker compose -f infra/compose.yml run --rm infra sh -c \
+  "terraform init -backend=false -upgrade && terraform providers lock -platform=linux_amd64 -platform=linux_arm64"
+```
+
+This needs the Terraform registry, which the Docker Sandbox can't reach. The lock file was first generated on a GitHub runner.
 
 ## Database and migrations
 

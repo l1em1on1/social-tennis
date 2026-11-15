@@ -61,5 +61,5 @@ jobs:
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
           "terraform fmt -check -recursive -diff &&
-           terraform init -backend=false -input=false &&
+           terraform init -backend=false -input=false -lockfile=readonly &&
            terraform validate"
