@@ -8,8 +8,9 @@ FROM hashicorp/terraform:1.17.2 AS terraform
 
 FROM mcr.microsoft.com/azure-cli:2.92.0
 # `az communication email …`, which scripts/setup-domain.sh uses to have Azure
-# verify the sending domain (ADR-0020). Not part of the core CLI, and the one
-# thing here that isn't pinned: Dependabot can't watch a CLI extension.
-RUN az extension add --name communication
+# verify the sending domain (ADR-0020). Not part of the core CLI. Pinned (#113),
+# but Dependabot can't watch a CLI extension: bump it by hand, from the VERSION
+# in Azure/azure-cli-extensions src/communication/setup.py.
+RUN az extension add --name communication --version 1.14.0
 COPY --from=terraform /bin/terraform /usr/local/bin/terraform
 WORKDIR /infra

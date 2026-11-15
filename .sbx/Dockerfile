@@ -8,12 +8,13 @@ RUN apt-get update && apt-get install -y \
 
 USER agent
 
-RUN dotnet tool install --global csharp-ls
+# Same pins as .devcontainer/post-create.sh (#113); bump both together.
+RUN dotnet tool install --global csharp-ls --version 0.28.0
 # dotnet global tools (csharp-ls) land here. Set in the image, not a profile
 # script: the LSP plugin spawns the server from Claude Code's own environment,
 # which is not a login shell. Same fix as .devcontainer/devcontainer.json.
 ENV PATH="${PATH}:/home/agent/.dotnet/tools"
-RUN npm install -g typescript-language-server typescript@5
+RUN npm install -g typescript-language-server@6.1.0 typescript@5.9.3
 
 # RTK binary, pinned exactly as in .devcontainer/post-create.sh: installer at
 # the v1.2.0 commit, RTK_VERSION so it never resolves "latest". Installed at

@@ -64,7 +64,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Sign in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build and push web and api, tagged with this commit
@@ -108,7 +108,7 @@ jobs:
       TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
       TF_VAR_app_domain_ready: ${{ vars.APP_DOMAIN_READY || 'false' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Enough history to walk back to the newest published images.
           fetch-depth: 100
@@ -179,7 +179,7 @@ jobs:
       TF_VAR_app_domain: ${{ vars.APP_DOMAIN }}
       TF_VAR_app_domain_ready: ${{ vars.APP_DOMAIN_READY || 'false' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Apply
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
@@ -191,7 +191,7 @@ jobs:
           url="$(docker compose -f infra/compose.yml run --rm -T infra terraform output -raw url | tr -d '\r')"
           echo "Checking ${url}/login"
           for attempt in $(seq 1 18); do
-            if docker run --rm curlimages/curl:8.11.1 --silent --show-error --fail --max-time 30 --output /dev/null "${url}/login"; then
+            if curl --silent --show-error --fail --max-time 30 --output /dev/null "${url}/login"; then
               echo "Answered on attempt ${attempt}."
               echo "Deployed ${TF_VAR_image_tag} to ${url}" >> "$GITHUB_STEP_SUMMARY"
               exit 0

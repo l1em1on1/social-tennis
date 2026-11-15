@@ -371,7 +371,7 @@ flowchart LR
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
 - **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
 - **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
-- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the alert email and the Cloudflare API token (DNS edit on the one zone) are repository secrets; the email domain, the app's domain, and whether each is ready are repository variables.
+- **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the Cloudflare API token (DNS edit on the one zone), the alert email and the Admin addresses are secrets of the `production-plan` and `production` environments, never repository secrets (#104, #113): only the deploy jobs, running from `main`, can read them. The setup wizards set them there and never write the two API credentials to `infra/.env`; a local plan or apply takes them from the shell (`infra/compose.yml`). The email domain, the app's domain, and whether each is ready are repository variables. The Terraform state account allows only Entra ID access (no shared keys), with blob versioning and 30-day soft delete.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
@@ -451,7 +451,9 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 
 **Build hygiene.** `api/Directory.Build.props` turns warnings into errors with the recommended analyzers, and `api/.editorconfig` holds the C# style rules `dotnet format` checks. It lives under `api/` because the compose services mount `./api` alone. EF Core's generated migrations are marked `generated_code`. ESLint runs in its own job because `next build` no longer lints.
 
-**Dependency updates.** Dependabot (`.github/dependabot.yml`) opens weekly grouped PRs for npm, NuGet, GitHub Actions and the Docker base images. The Playwright image tag is excluded, because it must equal the `@playwright/test` version: bump it by hand on the npm PR.
+**Dependency updates.** Dependabot (`.github/dependabot.yml`) opens monthly grouped PRs, minor and patch versions only, for npm, NuGet, GitHub Actions, the Docker base images, the Terraform providers and the compose images (#113). Major versions are ignored and taken by hand; a vulnerability still raises a Dependabot alert. The Playwright image tag is excluded, because it must equal the `@playwright/test` version: bump it by hand on the npm PR.
+
+**Actions are pinned by commit SHA**, with the version in a comment (`uses: actions/checkout@<sha> # v5.1.0`), so a moved tag can't change what runs; Dependabot updates both. The post-deploy check uses the runner's own `curl`.
 
 ## Versions and notable pins
 
@@ -477,7 +479,9 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | TypeScript (language server only) | 5.x | Dev Container and sbx template; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | Dev Container and sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
-| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension (unpinned) for `scripts/setup-domain.sh` |
+| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
+| curl image | `curlimages/curl:8.11.1@sha256:…` | `scripts/setup-domain.sh` only (the host may have no curl). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts |
+| csharp-ls / typescript-language-server / typescript / Claude Code | 0.28.0 / 6.1.0 / 5.9.3 / 2.1.325 | Dev Container (`post-create.sh`) and sbx template (`.sbx/Dockerfile`, without Claude Code, which its base image ships); exact pins, bump both files together |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
 
