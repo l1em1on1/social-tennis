@@ -69,7 +69,7 @@ sequenceDiagram
     W->>A: POST /auth/sessions { token }
     A->>P: token unused + unexpired? mark used, create session (hashed)
     A-->>W: 200 { session token, expiresAt }
-    W-->>B: redirect to / + HttpOnly st_session cookie
+    W-->>B: redirect to / + HttpOnly session cookie (__Host-st_session over https)
     B->>W: any page
     W->>A: Authorization: Bearer session token
     Note over B,W: Browser holds only the HttpOnly cookie —<br/>never sees an API credential it can read
@@ -81,7 +81,13 @@ Mechanics worth knowing:
 - **Magic links are single-use and expiring** (config: `Auth:MagicLinkLifetimeMinutes`, default 15); sessions expire after `Auth:SessionLifetimeDays` (default 30) and die instantly on logout (`RevokedAt`).
 - **Two gates on the web side**: `src/proxy.ts` (Next 16's renamed middleware) redirects visitors with no session cookie to `/login` — a presence check only; real validity is enforced per request by the API's `SessionToken` Bearer scheme, and a 401 sends the page back to `/login`.
 - **Redirect origins** come from `PUBLIC_BASE_URL` (compose env), because a containerized server's own origin is its bind address — unroutable from a browser.
-- **Cookies are `Secure` exactly when `PUBLIC_BASE_URL` is https** (`secureCookies()` in `src/lib/session.ts`), not by `NODE_ENV`. Every image runs as `production`, including over plain http on the compose network, where a browser stores a Secure cookie but never sends it back (only `localhost` is exempt). A TLS deployment must set an https `PUBLIC_BASE_URL` for its redirects anyway, so it gets Secure cookies.
+- **Cookies are `Secure` exactly when `PUBLIC_BASE_URL` is https** (`secureCookies()` in `src/lib/session.ts`), not by `NODE_ENV`. Every image runs as `production`, including over plain http on the compose network, where a browser stores a Secure cookie but never sends it back (only `localhost` is exempt). A TLS deployment must set an https `PUBLIC_BASE_URL` for its redirects anyway, so it gets Secure cookies. Over https the session cookie is named `__Host-st_session` (`sessionCookie()`, #53): the browser accepts it only Secure, on `Path=/` and without a `Domain`, so no other subdomain can plant one. Over http it is `st_session`.
+- **Security headers** (#53). `src/proxy.ts` runs on every page request (all paths but `_next/static`, `_next/image` and the icon) and sets:
+  - a **Content-Security-Policy** with a fresh nonce per request, as in Next's CSP guide: `default-src 'self'`, `script-src 'self' 'nonce-…' 'strict-dynamic'`, `style-src 'self' 'nonce-…'`, `img-src 'self' blob: data:`, `font-src`/`connect-src 'self'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`, plus `upgrade-insecure-requests` over https. The proxy puts the policy on the request too, which is how Next finds the nonce and adds it to its own scripts. That only happens while rendering, so the root layout calls `connection()` and every page renders per request. `next dev` adds `'unsafe-eval'` and inline styles, which React's dev tooling needs.
+  - **`Strict-Transport-Security: max-age=31536000`** over https only (no `includeSubDomains`: other names on the domain aren't the app's).
+
+  `next.config.ts` adds the same static headers to every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` (the verify page also sets `no-referrer`, since its address carries the token), `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, a `Permissions-Policy` that turns off camera, microphone, location, payment and USB, and no `X-Powered-By`. `e2e/security-headers.spec.ts` asserts the headers on `/login` and on a signed-in page, and that a page runs under the policy with no violations while an injected script without the nonce is blocked.
+- **Ids from forms are checked before they reach an API path**: server actions and pages accept only a UUID (`isId()` in `src/lib/ids.ts`) for any id they put in a path. `/login?sent=` is shown back only if it looks like an email address.
 - **OAuth-readiness** (ADR-0004): `ExternalLogins` (provider + subject, unique) hangs off `User`, empty in v1 — adding Google later is additive.
 - **Deny by default** (ADR-0017): a fallback authorization policy requires a session on every API endpoint. Only `POST /auth/magic-link`, `POST /auth/sessions`, `/health`, `/health/ready` and the OpenAPI document opt out with `AllowAnonymous()`. `OpenApiContractTests` calls every published operation anonymously and fails if one outside its allow-list answers.
 - **Abuse limits on requesting a link**: an address holding `Auth:MaxLiveMagicLinksPerAddress` (default 5) unused, unexpired links gets the usual 202 but no new email (the count and the insert run under a lock on the User row, so concurrent requests can't each slip in under the quota); and the route has a ceiling of `Auth:MagicLinkRequestsPerMinute` (default 60) across all callers, beyond which it answers 429. The ceiling is not per client: every request reaches the API from the BFF, so the API never sees a browser's address. Per-client limiting belongs at the edge (Go-live).
@@ -203,11 +209,11 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       └── SocialTennis.Api.UnitTests/          pure logic only, no DbContext
 └── web/
     ├── Dockerfile              multi-stage: node:24 build → standalone runtime; MOCK_API build arg
-    ├── next.config.ts          output: "standalone"; MOCK_API inlined via env
+    ├── next.config.ts          output: "standalone"; MOCK_API inlined via env; static security headers
     ├── playwright.config.ts    E2E projects: mock (web-mock) and real (web-e2e)
     ├── e2e/                    Playwright specs; support/ (login, axe, stack readiness)
     └── src/
-        ├── proxy.ts            route gate (Next 16 middleware successor)
+        ├── proxy.ts            route gate + CSP nonce and HSTS (Next 16 middleware successor)
         ├── instrumentation.ts  starts MSW when MOCK_API=1
         ├── app/
         │   ├── (app)/          signed-in shell: /, /leagues, /profiles, /manage (+ /manage/leagues/new, /manage/leagues/[leagueId]), /admin, /dev/ui

@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiWithSession } from "@/lib/api/server";
-import { ACTING_PLAYER_COOKIE, SESSION_COOKIE, secureCookies } from "@/lib/session";
+import { isId } from "@/lib/ids";
+import { ACTING_PLAYER_COOKIE, secureCookies, sessionCookie } from "@/lib/session";
 import { getViewer } from "@/lib/viewer";
 import { LEAGUE_TYPES, type LeagueStructure, type LeagueType, type StageLengthUnit } from "@/lib/league";
 
@@ -33,7 +34,7 @@ export async function logout() {
   // survives somewhere — then drop the cookies.
   await api.DELETE("/auth/sessions/current");
   const jar = await cookies();
-  jar.delete(SESSION_COOKIE);
+  jar.delete(sessionCookie());
   jar.delete(ACTING_PLAYER_COOKIE);
   redirect("/login");
 }
@@ -91,7 +92,7 @@ export async function updatePlayer(formData: FormData) {
   const playerId = formData.get("playerId");
   const name = formData.get("name");
   const details = playerDetails(formData);
-  if (typeof playerId !== "string" || typeof name !== "string" || !details) {
+  if (!isId(playerId) || typeof name !== "string" || !details) {
     redirect("/profiles?error=name");
   }
 
@@ -138,7 +139,7 @@ export async function joinClub(formData: FormData) {
 function clubAndPlayer(formData: FormData): { clubId: string; playerId: string } | null {
   const clubId = formData.get("clubId");
   const playerId = formData.get("playerId");
-  return typeof clubId === "string" && typeof playerId === "string" ? { clubId, playerId } : null;
+  return isId(clubId) && isId(playerId) ? { clubId, playerId } : null;
 }
 
 /** A Manager approves a request to join. The API refuses anyone who isn't one. */
@@ -172,7 +173,7 @@ export async function removeClubMember(formData: FormData) {
 export async function inviteToClub(formData: FormData) {
   const clubId = formData.get("clubId");
   const email = formData.get("email");
-  if (typeof clubId !== "string" || typeof email !== "string") {
+  if (!isId(clubId) || typeof email !== "string") {
     redirect("/manage?error=email");
   }
 
@@ -192,7 +193,7 @@ export async function inviteToClub(formData: FormData) {
 export async function withdrawClubInvite(formData: FormData) {
   const clubId = formData.get("clubId");
   const inviteId = formData.get("inviteId");
-  if (typeof clubId !== "string" || typeof inviteId !== "string") return;
+  if (!isId(clubId) || !isId(inviteId)) return;
 
   const api = await apiWithSession();
   const { response } = await api.DELETE("/clubs/{clubId}/invites/{inviteId}", {
@@ -247,7 +248,7 @@ export async function createClub(formData: FormData) {
 export async function renameClub(formData: FormData) {
   const clubId = formData.get("clubId");
   const name = formData.get("name");
-  if (typeof clubId !== "string" || typeof name !== "string") {
+  if (!isId(clubId) || typeof name !== "string") {
     redirect("/admin?error=name");
   }
 
@@ -266,7 +267,7 @@ export async function renameClub(formData: FormData) {
 function userAndRole(formData: FormData): { userId: string; role: "Manager" | "Admin" } | null {
   const userId = formData.get("userId");
   const role = formData.get("role");
-  return typeof userId === "string" && (role === "Manager" || role === "Admin") ? { userId, role } : null;
+  return isId(userId) && (role === "Manager" || role === "Admin") ? { userId, role } : null;
 }
 
 /** An Admin makes a User a Manager or an Admin. It takes effect on that User's next request. */
@@ -307,7 +308,7 @@ export async function addClubPlayer(formData: FormData) {
   const clubId = formData.get("clubId");
   const name = formData.get("name");
   const email = formData.get("email");
-  if (typeof clubId !== "string" || typeof name !== "string" || typeof email !== "string") {
+  if (!isId(clubId) || typeof name !== "string" || typeof email !== "string") {
     redirect("/manage?error=player");
   }
 
@@ -330,7 +331,7 @@ export async function addClubPlayer(formData: FormData) {
 export async function setPlayerRating(formData: FormData) {
   const playerId = formData.get("playerId");
   const rating = formData.get("rating");
-  if (typeof playerId !== "string" || typeof rating !== "string" || !/^\d{1,5}$/.test(rating)) {
+  if (!isId(playerId) || typeof rating !== "string" || !/^\d{1,5}$/.test(rating)) {
     redirect("/manage?error=rating");
   }
 
@@ -405,7 +406,7 @@ export async function createLeague(
 ): Promise<CreateLeagueState> {
   const clubId = formData.get("clubId");
   const league = leagueFromForm(formData);
-  if (typeof clubId !== "string" || !league) {
+  if (!isId(clubId) || !league) {
     return { errors: { form: ["Some of the choices weren't ones this form offers. Reload and try again."] } };
   }
 
@@ -432,7 +433,7 @@ export interface CreateLeagueState {
 function leagueAndPlayer(formData: FormData): { leagueId: string; playerId: string } | null {
   const leagueId = formData.get("leagueId");
   const playerId = formData.get("playerId");
-  return typeof leagueId === "string" && typeof playerId === "string" ? { leagueId, playerId } : null;
+  return isId(leagueId) && isId(playerId) ? { leagueId, playerId } : null;
 }
 
 /**

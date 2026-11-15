@@ -54,9 +54,17 @@ const errors: Record<string, { title: string; description: string }> = {
   },
 };
 
+/**
+ * `sent` arrives in the URL, so anyone can link to /login?sent=<any text>. It
+ * is shown back only if it looks like an email address (#53): otherwise the
+ * page would display a stranger's chosen words on this site's address.
+ */
+const looksLikeEmail = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= 320 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
+
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { sent, error } = await searchParams;
-  const sentTo = typeof sent === "string" ? sent : undefined;
+  const sentTo = looksLikeEmail(sent) ? sent : undefined;
   const problem = typeof error === "string" ? errors[error] : undefined;
 
   return (

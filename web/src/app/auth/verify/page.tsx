@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { api } from "@/lib/api/client";
-import { SESSION_COOKIE, secureCookies } from "@/lib/session";
+import { secureCookies, sessionCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ async function signIn(formData: FormData) {
     redirect("/login?error=invalid-link");
   }
 
-  (await cookies()).set(SESSION_COOKIE, data.token, {
+  (await cookies()).set(sessionCookie(), data.token, {
     httpOnly: true,
     sameSite: "lax",
     secure: secureCookies(),
