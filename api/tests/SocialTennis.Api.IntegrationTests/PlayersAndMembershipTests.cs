@@ -27,9 +27,6 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     private static async Task<GetClubMembersResponse> MembersAsync(HttpClient manager, Guid clubId) =>
         (await manager.GetFromJsonAsync<GetClubMembersResponse>($"/clubs/{clubId}/members"))!;
 
-    private static async Task<Guid> AnyClubIdAsync(HttpClient client) =>
-        (await client.GetFromJsonAsync<GetClubsResponse>("/clubs"))!.Clubs[0].Id;
-
     [Fact]
     public async Task A_new_User_holds_no_Player()
     {
@@ -95,7 +92,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var owner = await factory.CreateSignedInClientAsync();
         using var other = await factory.CreateSignedInClientAsync();
         var player = await CreatePlayerAsync(owner, "Sam");
-        var clubId = await AnyClubIdAsync(other);
+        var clubId = await factory.AClubIdAsync();
 
         var rename = await other.PutAsJsonAsync($"/players/{player.Id}", new { name = "Hijacked" });
         var join = await other.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
@@ -115,7 +112,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var manager = await factory.CreateManagerClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
         var sibling = await CreatePlayerAsync(client, "Alex");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
 
         var ask = await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
@@ -141,7 +138,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var client = await factory.CreateSignedInClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
 
         var presses = await Task.WhenAll(
             client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null),
@@ -162,7 +159,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var client = await factory.CreateSignedInClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
         var decline = await manager.DeleteAsync($"/clubs/{clubId}/members/{player.Id}");
@@ -181,7 +178,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var manager = await factory.CreateManagerClientAsync();
         var typed = $"Invited-{Guid.NewGuid():N}@Example.test";
         var email = typed.ToLowerInvariant();
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
 
         var invite = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email = $"  {typed} " });
         var again = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
@@ -207,7 +204,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var client = await factory.CreateSignedInClientAsync(email);
         var asked = await CreatePlayerAsync(client, "Sam");
         await CreatePlayerAsync(client, "Alex");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{asked.Id}", null);
 
         var invite = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
@@ -221,7 +218,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"removed-{Guid.NewGuid():N}@example.test";
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
         using var client = await factory.CreateSignedInClientAsync(email);
         var player = await CreatePlayerAsync(client, "Bob");
@@ -241,7 +238,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"withdrawn-{Guid.NewGuid():N}@example.test";
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
         using var client = await factory.CreateSignedInClientAsync(email);
         var early = await CreatePlayerAsync(client, "Early");
@@ -264,7 +261,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"kept-{Guid.NewGuid():N}@example.test";
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
         var invite = (await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email);
 
@@ -280,7 +277,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var manager = await factory.CreateManagerClientAsync();
         var member = await CreatePlayerAsync(client, "Member");
         var waiting = await CreatePlayerAsync(client, "Waiting");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
         await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
         await manager.PutAsync($"/clubs/{clubId}/members/{member.Id}/approval", null);
@@ -306,7 +303,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"returning-{Guid.NewGuid():N}@example.test";
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
         using var client = await factory.CreateSignedInClientAsync(email);
         var player = await CreatePlayerAsync(client, "Pat");
@@ -324,7 +321,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var owner = await factory.CreateSignedInClientAsync();
         using var other = await factory.CreateSignedInClientAsync();
         var player = await CreatePlayerAsync(owner, "Sam");
-        var clubId = await AnyClubIdAsync(owner);
+        var clubId = await factory.AClubIdAsync();
         await owner.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
         var response = await other.DeleteAsync($"/players/{player.Id}/clubs/{clubId}");
@@ -339,7 +336,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var first = await factory.CreateManagerClientAsync();
         using var second = await factory.CreateManagerClientAsync();
         var email = $"twice-{Guid.NewGuid():N}@example.test";
-        var clubId = await AnyClubIdAsync(first);
+        var clubId = await factory.AClubIdAsync();
 
         var invites = await Task.WhenAll(
             first.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email }),
@@ -357,7 +354,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     public async Task An_invite_made_while_the_User_adds_a_Player_or_asks_to_join_always_lets_them_in()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
 
         for (var attempt = 0; attempt < 10; attempt++)
         {
@@ -381,7 +378,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     public async Task An_invite_needs_an_email_address(string email)
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await AnyClubIdAsync(manager);
+        var clubId = await factory.AClubIdAsync();
 
         var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
 
@@ -393,7 +390,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var client = await factory.CreateSignedInClientAsync();
         var player = await CreatePlayerAsync(client, "Sam");
-        var clubId = await AnyClubIdAsync(client);
+        var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
@@ -413,10 +410,10 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     [Fact]
     public async Task An_email_listed_in_configuration_is_an_Admin_and_can_do_what_a_Manager_can()
     {
-        using var admin = await factory.CreateSignedInClientAsync(AuthTestFactory.AdminEmail);
+        var admin = await factory.AdminClientAsync();
         using var player = await factory.CreateSignedInClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await AnyClubIdAsync(admin);
+        var clubId = await factory.AClubIdAsync();
 
         var adminRoles = (await admin.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
         var managerRoles = (await manager.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;

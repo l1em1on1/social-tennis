@@ -15,6 +15,16 @@ public static class ClubsEndpoints
         group.MapGet("", GetClubs.HandleAsync)
             .WithName(nameof(GetClubs));
 
+        group.MapPost("", CreateClub.HandleAsync)
+            .RequireAuthorization(Policies.Admin)
+            .ValidatesBody<CreateClubRequest, CreateClubRequest.Validator>()
+            .WithName(nameof(CreateClub));
+
+        group.MapPut("/{clubId:guid}", RenameClub.HandleAsync)
+            .RequireAuthorization(Policies.Admin)
+            .ValidatesBody<RenameClubRequest, RenameClubRequest.Validator>()
+            .WithName(nameof(RenameClub));
+
         group.MapPut("/{clubId:guid}/members/{playerId:guid}", JoinClub.HandleAsync)
             .WithName(nameof(JoinClub));
 

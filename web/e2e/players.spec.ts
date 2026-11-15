@@ -102,6 +102,8 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   const manager = await managerContext.newPage();
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
   await manager.goto("/manage");
+  // The first Club listed: the Admin specs create others, which sort after it.
+  const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
   await manager.getByLabel("Email address").first().fill(email);
   await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
@@ -117,8 +119,8 @@ test("someone a Manager invited by email is in the Club as soon as they save the
 
   await logIn(page, testInfo, email);
   await addFirstPlayer(page, ivy);
-  await expect(page.getByRole("listitem").filter({ hasText: "Member" }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Ask to join / })).toHaveCount(0);
+  await expect(page.getByRole("listitem").filter({ hasText: clubName })).toContainText("Member");
+  await expect(page.getByRole("button", { name: `Ask to join ${clubName}` })).toHaveCount(0);
 });
 
 test("a Manager removes a member, and withdraws an invite", async ({ page, browser }, testInfo) => {

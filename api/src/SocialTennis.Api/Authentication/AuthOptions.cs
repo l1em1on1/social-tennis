@@ -25,18 +25,22 @@ public class AuthOptions
     /// </summary>
     public string AdminEmails { get; set; } = "";
 
+    /// <summary>Whether any address is listed: if so the app can never be left with no Admin.</summary>
+    public bool HasAdminEmails => AdminEmailSet.Count > 0;
+
     private HashSet<string>? adminEmailSet;
+
+    private HashSet<string> AdminEmailSet =>
+        adminEmailSet ??= AdminEmails
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(EmailAddress.Normalize)
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Asked on every authenticated request, so the list is parsed once. The
     /// options are bound before first use and don't change while running.
     /// </summary>
-    public bool IsAdminEmail(string email) =>
-        (adminEmailSet ??= AdminEmails
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(EmailAddress.Normalize)
-            .ToHashSet(StringComparer.Ordinal))
-        .Contains(EmailAddress.Normalize(email));
+    public bool IsAdminEmail(string email) => AdminEmailSet.Contains(EmailAddress.Normalize(email));
 
     /// <summary>Name of the rate-limiting policy on the magic-link request route.</summary>
     public const string MagicLinkRateLimitPolicy = "magic-link";
