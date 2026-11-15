@@ -106,6 +106,38 @@ resource "azurerm_log_analytics_workspace" "this" {
   retention_in_days   = 30
 }
 
+# Errors and crashes in the API and its scheduled jobs, newest first, with the
+# request path and trace id when the error happened inside a request (#115).
+# The API logs one JSON object per line outside Development; Container Apps
+# puts each line in Log_s. Every error row is kept: the request fields are read
+# out of the scopes text, so a row with no scopes (startup, a job) still shows.
+# A crash before logging exists is plain text from the .NET runtime, starting
+# "Unhandled exception". Job rows are matched by name: the job column is read
+# with column_ifexists, so the query works whether or not the table has it.
+# In the portal: the workspace → Logs → Queries → "Social tennis" → "API errors".
+resource "azurerm_log_analytics_saved_search" "api_errors" {
+  name                       = "api-errors"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+  category                   = "Social tennis"
+  display_name               = "API errors"
+  query                      = <<-KQL
+    ContainerAppConsoleLogs_CL
+    | extend Source = coalesce(tostring(column_ifexists("ContainerJobName_s", "")), ContainerAppName_s)
+    | where Source == "api" or Source startswith "job-"
+    | extend entry = parse_json(Log_s)
+    | extend Level = tostring(entry.LogLevel)
+    | where Level in ("Error", "Critical") or (isempty(Level) and Log_s startswith "Unhandled exception")
+    | extend scopes = tostring(entry.Scopes)
+    | project TimeGenerated, Source, Level,
+        Category = tostring(entry.Category),
+        Message = coalesce(tostring(entry.Message), Log_s),
+        Exception = tostring(entry.Exception),
+        RequestPath = extract(@'"RequestPath":"([^"]*)"', 1, scopes),
+        TraceId = extract(@'"TraceId":"([^"]*)"', 1, scopes)
+    | order by TimeGenerated desc
+  KQL
+}
+
 resource "azurerm_container_app_environment" "this" {
   name                = var.name
   location            = var.location

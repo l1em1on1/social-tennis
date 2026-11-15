@@ -105,6 +105,7 @@ Mechanics worth knowing:
 
 - **Every error has a ProblemDetails body.** `AddProblemDetails` with `UseExceptionHandler` (outside Development, where the developer exception page already answers in the same format) covers unhandled exceptions; `UseStatusCodePages` fills in bodiless 4xx/5xx such as the authorization 401 and the rate limiter's 429.
 - **Two health endpoints**, both anonymous. `GET /health` says the process is up and runs no checks, so it never touches the database: it is for a host's liveness probe, because on a scale-to-zero database a probe that queries it every few seconds keeps it awake (ADR-0019). `GET /health/ready` adds "migrated and can reach Postgres" (`AddDbContextCheck`); compose healthchecks and the E2E runner use that one.
+- **Logs are JSON outside Development** (#115): one object per line from the built-in JSON console formatter, with scopes, so each line carries its `RequestPath` and `TraceId`. In Azure they land in Log Analytics (`ContainerAppConsoleLogs_CL`, the line in `Log_s`, 30-day retention), where the saved query "API errors" (`azurerm_log_analytics_saved_search.api_errors`) lists errors and crashes from the API and its jobs, with the request path and trace id read from the scopes when there are any. Rows without scopes (startup, jobs) and the runtime's plain-text "Unhandled exception" crash output are kept. `LoggingTests` signs in, uses the session and signs out with every category at Trace, and fails if the link's token or the session token appears in any line. The `Log` email provider writes the link on purpose and is never the production setting (#107).
 - **One clock.** `TimeProvider` is registered once and injected into handlers and the session scheme; nothing calls `DateTimeOffset.UtcNow` (ADR-0016). Tests can replace it to stand either side of a deadline.
 
 ## Web app shell
@@ -348,7 +349,7 @@ flowchart LR
 | Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
 | Root | `infra/*.tf` | Resource group, the four modules, the budget |
 | `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
-| `modules/compute` | Log Analytics, environment, `web`, `api`, scheduled jobs | One Container Apps Job per entry in `local.jobs` |
+| `modules/compute` | Log Analytics (with the saved "API errors" query), environment, `web`, `api`, scheduled jobs | One Container Apps Job per entry in `local.jobs` |
 | `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |

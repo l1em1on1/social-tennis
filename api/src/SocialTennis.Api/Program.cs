@@ -31,6 +31,20 @@ if (args is ["healthcheck"])
 var jobName = args is ["job", var name, ..] ? name : null;
 var builder = WebApplication.CreateBuilder(jobName is null ? args : args[2..]);
 
+// Outside Development every log event is one JSON line, so Log Analytics can
+// query its fields (#115). Scopes are included: they carry the RequestPath and
+// TraceId that find the request behind an error. Development keeps the
+// readable console format.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.UseUtcTimestamp = true;
+        options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    });
+}
+
 // GSS (Kerberos) encryption off: nothing here uses Kerberos, and Npgsql's
 // default (Prefer) loads libgssapi_krb5 to try it, which the chiseled runtime
 // image doesn't have (#25), so every connection printed an error first. TLS is
