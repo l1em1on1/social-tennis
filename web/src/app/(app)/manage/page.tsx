@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
@@ -15,6 +17,7 @@ import {
   withdrawClubInvite,
 } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
+import { describeStructure, formatDates, typeLabel } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Manage" };
@@ -35,10 +38,11 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
 }
 
 /**
- * Manager area. Today: who is in each Club. Requests to join are approved or
- * declined here, Players added by name and email, Ratings set, members
- * removed, and an email let in ahead of time (or that invite taken back). League setup (#5),
- * starting the ladder (#7), the to-do queue and month close land here later.
+ * Manager area: each Club's Leagues (each opens its own page, #5), and who is
+ * in the Club. Requests to join are approved or declined here, Players added
+ * by name and email, Ratings set, members removed, and an email let in ahead
+ * of time (or that invite taken back). Starting the ladder (#7), the to-do
+ * queue and month close land here later.
  *
  * Hidden from the nav for non-Managers, and refused here too, since a URL can
  * be typed. The API is the real gate: it refuses each call by role.
@@ -56,11 +60,15 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
   }
   const clubs = await Promise.all(
     clubList.clubs.map(async (club) => {
-      const { data } = await api.GET("/clubs/{clubId}/members", { params: { path: { clubId: club.id } } });
-      if (!data) {
-        throw new Error(`GET /clubs/${club.id}/members failed`);
+      const params = { params: { path: { clubId: club.id } } };
+      const [{ data }, { data: leagueList }] = await Promise.all([
+        api.GET("/clubs/{clubId}/members", params),
+        api.GET("/clubs/{clubId}/leagues", params),
+      ]);
+      if (!data || !leagueList) {
+        throw new Error(`GET /clubs/${club.id}/members or /leagues failed`);
       }
-      return { ...club, ...data };
+      return { ...club, ...data, leagues: leagueList.leagues };
     }),
   );
 
@@ -88,7 +96,40 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
 
         return (
           <Card key={club.id} title={club.name}>
-            <section aria-labelledby={`waiting-${club.id}`} className="flex flex-col gap-2">
+            <section aria-labelledby={`leagues-${club.id}`} className="flex flex-col gap-2">
+              <h3 id={`leagues-${club.id}`} className="font-semibold">
+                Leagues ({club.leagues.length})
+              </h3>
+              {club.leagues.length === 0 ? (
+                <p className="text-sm text-fg-muted">No leagues yet.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {club.leagues.map((league) => (
+                    <li key={league.id} className="flex flex-col gap-1 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
+                          {league.name}
+                        </Link>
+                        {Number(league.pendingRequestCount) > 0 && (
+                          <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-fg-muted">
+                        {typeLabel(league.type)} · {describeStructure(league)}
+                      </p>
+                      <p className="text-sm text-fg-muted">
+                        {formatDates(league.startDate, league.endDate)} · {league.participantCount} in
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
+                New league
+              </ButtonLink>
+            </section>
+
+            <section aria-labelledby={`waiting-${club.id}`} className="mt-5 flex flex-col gap-2">
               <h3 id={`waiting-${club.id}`} className="font-semibold">
                 Asking to join ({waiting.length})
               </h3>

@@ -21,6 +21,12 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<ClubInvite> ClubInvites => Set<ClubInvite>();
 
+    public DbSet<League> Leagues => Set<League>();
+
+    public DbSet<LeagueParticipant> LeagueParticipants => Set<LeagueParticipant>();
+
+    public DbSet<LeagueJoinRequest> LeagueJoinRequests => Set<LeagueJoinRequest>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Club>(club =>
@@ -71,6 +77,32 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             invite.HasIndex(i => new { i.ClubId, i.Email }).IsUnique();
             invite.HasIndex(i => i.Email);
             invite.HasOne(i => i.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<League>(league =>
+        {
+            league.Property(l => l.Name).HasMaxLength(League.NameMaxLength);
+            // Complex types: columns on the Leagues row, not tables of their own
+            // (EF Core docs, "Complex types", table splitting).
+            league.ComplexProperty(l => l.StageLength);
+            league.ComplexProperty(l => l.ScoreFormat);
+            league.HasIndex(l => l.ClubId);
+            league.HasOne(l => l.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LeagueParticipant>(participant =>
+        {
+            participant.HasKey(p => new { p.LeagueId, p.PlayerId });
+            participant.HasOne(p => p.League).WithMany(l => l.Participants).OnDelete(DeleteBehavior.Cascade);
+            participant.HasOne(p => p.Player).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LeagueJoinRequest>(request =>
+        {
+            // One per Player and League, decided or not: a second ask is refused.
+            request.HasKey(r => new { r.LeagueId, r.PlayerId });
+            request.HasOne(r => r.League).WithMany(l => l.JoinRequests).OnDelete(DeleteBehavior.Cascade);
+            request.HasOne(r => r.Player).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SessionToken>(token =>

@@ -27,7 +27,7 @@ test("the shell fits a 360px screen with 44px tap targets", async ({ page }, tes
 test("a Player without roles sees no Manage or Admin entry, and can't open them", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles"]);
   // Asserted on the page, not the status: the page streams under a loading
   // boundary, so notFound() can arrive after a 200 has already been sent.
   for (const path of ["/manage", "/admin"]) {
@@ -38,7 +38,7 @@ test("a Player without roles sees no Manage or Admin entry, and can't open them"
 
 test("a Manager sees Manage; an Admin sees Manage and Admin", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "manager"));
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage"]);
   await mainNav(page).getByRole("link", { name: "Manage" }).click();
   await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
   await expect(mainNav(page).getByRole("link", { name: "Manage" })).toHaveAttribute("aria-current", "page");
@@ -46,7 +46,7 @@ test("a Manager sees Manage; an Admin sees Manage and Admin", async ({ page }, t
   await page.context().clearCookies();
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
   // An Admin can do everything a Manager can.
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage", "Admin"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
 });
 
 test("switching the acting Player survives navigation", async ({ page }, testInfo) => {
@@ -65,8 +65,8 @@ test("switching the acting Player survives navigation", async ({ page }, testInf
   await sheet.getByRole("button", { name: "Alex Junior" }).click();
   await expect(acting).toHaveText("Alex Junior");
 
-  await mainNav(page).getByRole("link", { name: "Ladder" }).click();
-  await expect(page.getByRole("heading", { name: "Ladder", level: 1 })).toBeVisible();
+  await mainNav(page).getByRole("link", { name: "Leagues" }).click();
+  await expect(page.getByRole("heading", { name: "Leagues", level: 1 })).toBeVisible();
   await expect(acting).toHaveText("Alex Junior");
 
   await page.reload();

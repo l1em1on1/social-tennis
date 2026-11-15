@@ -6,11 +6,11 @@ import type { ReactNode } from "react";
 import { LinkPending } from "@/components/ui/link-pending";
 import { cx } from "@/lib/cx";
 
-export type NavKey = "home" | "ladder" | "profiles" | "manage" | "admin";
+export type NavKey = "home" | "leagues" | "profiles" | "manage" | "admin";
 
 const items: Record<NavKey, { href: string; label: string; icon: ReactNode }> = {
   home: { href: "/", label: "Home", icon: <path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z" /> },
-  ladder: { href: "/ladder", label: "Ladder", icon: <path d="M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10" /> },
+  leagues: { href: "/leagues", label: "Leagues", icon: <path d="M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10" /> },
   profiles: {
     href: "/profiles",
     label: "Profiles",

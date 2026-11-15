@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const viewer = await getViewer();
 
-  const nav: NavKey[] = ["home", "ladder", "profiles"];
+  const nav: NavKey[] = ["home", "leagues", "profiles"];
   if (viewer.roles.includes("Manager")) nav.push("manage");
   if (viewer.roles.includes("Admin")) nav.push("admin");
 

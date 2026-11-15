@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { apiWithSession } from "@/lib/api/server";
 import { ACTING_PLAYER_COOKIE, SESSION_COOKIE, secureCookies } from "@/lib/session";
 import { getViewer } from "@/lib/viewer";
+import { LEAGUE_TYPES, type LeagueStructure, type LeagueType, type StageLengthUnit } from "@/lib/league";
 
 /**
  * Act as another of the User's Players. The id is checked against the Players
@@ -347,4 +348,150 @@ export async function setPlayerRating(formData: FormData) {
   }
   revalidatePath("/", "layout");
   redirect("/manage");
+}
+
+/** The setup form's fields, as the API takes them. Null if a value isn't one the form offers. */
+function leagueFromForm(formData: FormData) {
+  const text = (key: string) => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : null;
+  };
+  const type = text("type");
+  const structure = text("structure");
+  const unit = text("stageUnit");
+  const roll = text("stageRoll");
+  const name = text("name");
+  const startDate = text("startDate");
+  const endDate = text("endDate");
+  const count = Number(text("stageCount"));
+  const gamesPerSet = Number(text("gamesPerSet"));
+  const setsPerGame = Number(text("setsPerGame"));
+  if (
+    name === null ||
+    startDate === null ||
+    endDate === null ||
+    !LEAGUE_TYPES.some((option) => option.value === type) ||
+    (structure !== "Divisional" && structure !== "Knockout") ||
+    (unit !== "Weeks" && unit !== "Months") ||
+    !Number.isInteger(count)
+  ) {
+    return null;
+  }
+  return {
+    name,
+    type: type as LeagueType,
+    structure: structure as LeagueStructure,
+    startDate,
+    endDate,
+    stageLength: { count, unit: unit as StageLengthUnit },
+    // Only a Divisional League rolls; the API refuses a roll mode on a Knockout one.
+    stageRoll: structure === "Divisional" ? (roll === "Automatic" ? "Automatic" : "Manual") : null,
+    scoreFormat: {
+      gamesPerSet,
+      setsPerGame,
+      // The switch only exists for best of three; a stale value from a hidden one is dropped.
+      matchTiebreakDecider: setsPerGame === 3 && formData.get("matchTiebreakDecider") === "on",
+    },
+  } as const;
+}
+
+/**
+ * A Manager creates a League. A refusal comes back as the API's own messages,
+ * which the setup page shows next to the fields they name.
+ */
+export async function createLeague(
+  _previous: CreateLeagueState,
+  formData: FormData,
+): Promise<CreateLeagueState> {
+  const clubId = formData.get("clubId");
+  const league = leagueFromForm(formData);
+  if (typeof clubId !== "string" || !league) {
+    return { errors: { form: ["Some of the choices weren't ones this form offers. Reload and try again."] } };
+  }
+
+  const api = await apiWithSession();
+  const { data, error, response } = await api.POST("/clubs/{clubId}/leagues", {
+    params: { path: { clubId } },
+    body: league,
+  });
+  if (response.status === 400 && error && "errors" in error) {
+    return { errors: (error.errors ?? {}) as Record<string, string[]> };
+  }
+  if (!data) {
+    throw new Error(`Creating a league failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage/leagues/${data.id}?created=1`);
+}
+
+/** The setup form's last refusal, by the API's field names ("structure", "scoreFormat.gamesPerSet"…). */
+export interface CreateLeagueState {
+  errors: Record<string, string[]>;
+}
+
+function leagueAndPlayer(formData: FormData): { leagueId: string; playerId: string } | null {
+  const leagueId = formData.get("leagueId");
+  const playerId = formData.get("playerId");
+  return typeof leagueId === "string" && typeof playerId === "string" ? { leagueId, playerId } : null;
+}
+
+/**
+ * A Player asks to join a League. The Player comes from the form and is
+ * checked against this login's, as for `joinClub`. A 409 means they asked
+ * already (another tab): the refreshed page shows that.
+ */
+export async function askToJoinLeague(formData: FormData) {
+  const path = leagueAndPlayer(formData);
+  const viewer = await getViewer();
+  if (!path || !viewer.players.some((player) => player.id === path.playerId)) {
+    return;
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/leagues/{leagueId}/join-requests", {
+    params: { path: { leagueId: path.leagueId } },
+    body: { playerId: path.playerId },
+  });
+  if (!response.ok && response.status !== 409) {
+    throw new Error(`Asking to join league ${path.leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
+ * A Manager decides a Join Request, or adds a Club Player straight in. A 409
+ * is a race (another Manager decided first, or the Player left the Club), and
+ * goes back to the page as a message; a 404 means it's gone, which the
+ * refreshed page shows.
+ */
+async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejection" | "add") {
+  const path = leagueAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } =
+    kind === "add"
+      ? await api.PUT("/leagues/{leagueId}/participants/{playerId}", { params: { path } })
+      : kind === "approval"
+        ? await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/approval", { params: { path } })
+        : await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/rejection", { params: { path } });
+  if (response.status === 409) {
+    redirect(`/manage/leagues/${path.leagueId}?error=conflict`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`League ${kind} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+export async function approveLeagueJoinRequest(formData: FormData) {
+  await manageLeagueEntry(formData, "approval");
+}
+
+export async function rejectLeagueJoinRequest(formData: FormData) {
+  await manageLeagueEntry(formData, "rejection");
+}
+
+export async function addLeagueParticipant(formData: FormData) {
+  await manageLeagueEntry(formData, "add");
 }
