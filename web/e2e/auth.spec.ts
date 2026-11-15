@@ -74,8 +74,25 @@ test("logging in lands on Home, and logging out ends the session", async ({ page
   await expectNoSeriousA11yViolations(page);
 
   await page.getByRole("link", { name: "Profiles" }).click();
+  const loggingOut = page.waitForResponse(
+    async (response) => /^(__Host-)?st_session=;/m.test((await response.headerValue("set-cookie")) ?? ""),
+  );
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL(/\/login$/);
+
+  // The browser drops the cookie only if its expiry repeats the attributes it
+  // was set with; over https, a `__Host-` expiry without Secure is ignored.
+  // This runs over http, so it checks the rest of them: HttpOnly and Path=/
+  // come only from the shared cookieOptions(), which also sets Secure.
+  const expiry = ((await (await loggingOut).headerValue("set-cookie")) ?? "")
+    .split("\n")
+    .find((line) => /^(__Host-)?st_session=;/.test(line));
+  expect(expiry).toMatch(/Path=\//i);
+  expect(expiry).toMatch(/HttpOnly/i);
+  expect(expiry).toMatch(/SameSite=lax/i);
+  const names = (await page.context().cookies()).map((cookie) => cookie.name);
+  expect(names).not.toContain("st_session");
+  expect(names).not.toContain("__Host-st_session");
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);

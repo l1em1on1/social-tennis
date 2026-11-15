@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import { SESSION_COOKIE } from "@/lib/session";
+import { sessionCookie } from "@/lib/session";
 
 /**
  * API client carrying the current visitor's session (if any) as a Bearer
@@ -11,7 +11,7 @@ import { SESSION_COOKIE } from "@/lib/session";
  * request (ADR-0001 — tokens stay server-side).
  */
 export async function apiWithSession() {
-  const session = (await cookies()).get(SESSION_COOKIE)?.value;
+  const session = (await cookies()).get(sessionCookie())?.value;
   return createClient<paths>({
     baseUrl: process.env.API_URL,
     headers: session ? { Authorization: `Bearer ${session}` } : undefined,
