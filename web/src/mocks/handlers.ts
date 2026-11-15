@@ -128,6 +128,54 @@ function clubsOf(request: Request) {
   return clubs;
 }
 
+/**
+ * Users by email, made the first time an email signs in. Roles start from the
+ * email, so a test picks one by who it signs in as ("manager" in the local
+ * part is a Manager, "admin" an Admin), and an Admin can then change them.
+ * `admin@example.com` plays the Admin set in configuration: it can't be demoted.
+ */
+interface MockUser {
+  id: string;
+  manager: boolean;
+  admin: boolean;
+}
+
+const CONFIGURED_ADMIN = "admin@example.com";
+const usersByEmail = new Map<string, MockUser>();
+
+function userOf(email: string): MockUser {
+  let user = usersByEmail.get(email);
+  if (!user) {
+    const local = email.split("@")[0].split("+")[0];
+    user = {
+      id: `00000000-0000-4000-8000-2${String(usersByEmail.size + 1).padStart(11, "0")}`,
+      manager: local.includes("manager"),
+      admin: local.includes("admin"),
+    };
+    usersByEmail.set(email, user);
+  }
+  return user;
+}
+
+const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
+
+/**
+ * Clubs an Admin created, by session. Kept to the session that made them, so
+ * one test's Club never appears on another test's pages. Nobody can join one.
+ */
+const clubsBySession = new Map<string, { id: string; name: string }[]>();
+let clubsMade = 0;
+
+function clubsOf(request: Request) {
+  const session = sessionOf(request) ?? "";
+  let clubs = clubsBySession.get(session);
+  if (!clubs) {
+    clubs = [];
+    clubsBySession.set(session, clubs);
+  }
+  return clubs;
+}
+
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
 
