@@ -20,13 +20,16 @@ SECRETS=(github context7)
 usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
-Usage: ./sandbox.sh [--rebuild] [--set-secret SERVICE] [--help]
+Usage: ./sandbox.sh [--rebuild] [--no-remote-control] [--set-secret SERVICE] [--help]
 
 Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
-Code in it, then attach. Runs on the host; needs docker and sbx.
+Code in it, then attach with Remote Control on. Runs on the host; needs
+docker and sbx.
 
 Options:
   --rebuild             rebuild and reload the template image first
+  --no-remote-control   attach without Remote Control, and leave sbx's
+                        claude.remoteControl setting as it is
   --set-secret SERVICE  replace one stored secret, then exit
                         (SERVICE: $services)
   -h, --help            show this help, then exit
@@ -53,11 +56,13 @@ secret_label() {
 }
 
 REBUILD=false
+REMOTE_CONTROL=true
 SET_SECRET=""
 while (($#)); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --rebuild) REBUILD=true ;;
+    --no-remote-control) REMOTE_CONTROL=false ;;
     --set-secret)
       SET_SECRET=${2:-}
       secret_label "$SET_SECRET" >/dev/null || exit 2
@@ -117,6 +122,20 @@ if ! sbx ls 2>/dev/null | awk -v n="$NAME" '$1 == n { found=1 } END { exit !foun
   sbx create --name "$NAME" -t "$TEMPLATE" "${kit_args[@]}" claude .
 fi
 
+# --- Remote Control: drive the session from claude.ai/code or the phone -----
+# sbx keeps Remote Control's credentials on the host, and its proxy hands them
+# to a sandbox only while this host-wide setting is on. With it off,
+# /remote-control inside the sandbox registers a session that never connects.
+# It needs no kit and no extra egress: Remote Control talks to
+# api.anthropic.com, which the claude agent is already allowed. A failure
+# (e.g. an sbx too old to know the setting) only warns, so it never blocks
+# attaching.
+# https://docs.docker.com/ai/sandboxes/agents/claude-code/#remote-control
+if $REMOTE_CONTROL && [[ "$(sbx settings get claude.remoteControl 2>/dev/null)" != true ]]; then
+  sbx settings set claude.remoteControl true ||
+    echo "warning: could not turn on sbx's claude.remoteControl; Remote Control will not connect" >&2
+fi
+
 # Update Claude Code on every run: the sandbox otherwise stays at whatever
 # version the template shipped. `claude update` picks the right path for however
 # the base image installed it. A failed update (e.g. offline) only warns, so it
@@ -124,4 +143,9 @@ fi
 sbx exec -it "$NAME" claude update ||
   echo "warning: claude update failed; continuing with the installed version" >&2
 
+# Arguments after `--` go to Claude Code. sbx keeps its own default flags
+# (--dangerously-skip-permissions) when the first one is itself a flag.
+if $REMOTE_CONTROL; then
+  exec sbx run --name "$NAME" -- --remote-control
+fi
 exec sbx run --name "$NAME"
