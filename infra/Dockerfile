@@ -6,7 +6,7 @@
 # Versions are pinned; Dependabot's docker ecosystem watches this file.
 FROM hashicorp/terraform:1.17.2 AS terraform
 
-FROM mcr.microsoft.com/azure-cli:2.92.0
+FROM mcr.microsoft.com/azure-cli:2.93.0
 # `az communication email …`, which scripts/setup-domain.sh uses to have Azure
 # verify the sending domain (ADR-0020). Not part of the core CLI. Pinned (#113),
 # but Dependabot can't watch a CLI extension: bump it by hand, from the VERSION
