@@ -73,6 +73,15 @@ docker compose run --rm --no-deps api-tests dotnet format --verify-no-changes
 
 The API builds with warnings as errors (`api/Directory.Build.props`), so an analyzer warning fails `api-tests` too.
 
+CI also scans both production images and fails on a critical vulnerability that has a fix (#114). Same command locally, after building the image:
+
+```sh
+docker compose build api && scripts/scan-image.sh social-tennis-api
+docker compose build web && scripts/scan-image.sh social-tennis-web
+```
+
+To accept a finding that can't be fixed yet, add it to `.trivyignore.yaml` with a reason and a review date (the file explains the format).
+
 ## Regenerate the TypeScript API client
 
 The typed client (`web/src/lib/api/schema.d.ts`) is generated from the API's OpenAPI document and **committed**. After changing the API surface:

@@ -4,7 +4,8 @@
 # Runs on every PR and every push to main, and decides per job whether the
 # change touches it (ADR-0002: the two halves of the repo are built separately).
 # The drift job also watches web's package files and the generated client,
-# since those are inputs/outputs of the contract.
+# since those are inputs/outputs of the contract. The image scan builds the
+# production api image and fails on a fixable critical vulnerability (#114).
 name: api
 
 on:
@@ -40,7 +41,7 @@ jobs:
       - id: filter
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PATTERN: '^(api/|docker-compose(\.dev)?\.yml$|web/src/lib/api/|web/package(-lock)?\.json$|\.github/workflows/api\.yml$)'
+          PATTERN: '^(api/|docker-compose(\.dev)?\.yml$|web/src/lib/api/|web/package(-lock)?\.json$|\.github/workflows/api\.yml$|scripts/scan-image\.sh$|\.trivyignore\.yaml$)'
         run: |
           # No usable base (a branch's first push): run everything.
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
@@ -90,3 +91,15 @@ jobs:
            npm run api:generate"
       - name: Fail if the committed client is out of date
         run: git diff --exit-code -- web/src/lib/api/schema.d.ts
+
+  image-scan:
+    name: image scan (Trivy)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.run != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Build the api image exactly as `docker compose up --build` does
+        run: docker compose build api
+      - name: Fail on a critical vulnerability that has a fix (.trivyignore.yaml lists accepted ones)
+        run: scripts/scan-image.sh "$(docker compose config --format json | jq -r .name)-api"

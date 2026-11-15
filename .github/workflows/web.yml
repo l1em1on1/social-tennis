@@ -1,8 +1,9 @@
 # Web CI. Three gates, all through compose so nothing runs bare on the runner
 # (CLAUDE.md):
 #   build — the production image (npm ci + next build inside web/Dockerfile),
-#           the same path `docker compose up --build` uses, and proof that
-#           the MSW mocks were compiled out of it (ADR-0009).
+#           the same path `docker compose up --build` uses, proof that the
+#           MSW mocks were compiled out of it (ADR-0009), and a scan that
+#           fails on a fixable critical vulnerability (#114).
 #   e2e   — Playwright against the mocked and the real stack (ADR-0014),
 #           then the mock run's DOM snapshots go to Chromatic for visual
 #           review (ADR-0015). Skipped while CHROMATIC_PROJECT_TOKEN is unset.
@@ -48,7 +49,7 @@ jobs:
       - id: filter
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PATTERN: '^(web/|api/|docker-compose(\.dev)?\.yml$|\.github/workflows/web\.yml$)'
+          PATTERN: '^(web/|api/|docker-compose(\.dev)?\.yml$|\.github/workflows/web\.yml$|scripts/scan-image\.sh$|\.trivyignore\.yaml$)'
         run: |
           # No usable base (a branch's first push): run everything.
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
@@ -88,6 +89,8 @@ jobs:
               || { echo "MSW package shipped in the production image"; exit 1; }
             ! grep -rqs -e "\[MSW\]" -e onUnhandledFrame .next server.js \
               || { echo "MSW code bundled into the production build"; exit 1; }'
+      - name: Fail on a critical vulnerability that has a fix (.trivyignore.yaml lists accepted ones)
+        run: scripts/scan-image.sh "$(docker compose config --format json | jq -r .name)-web"
 
   e2e:
     name: e2e (Playwright, mocked + real API)
