@@ -8,16 +8,18 @@ set -euo pipefail
 sudo chown -R vscode:vscode /home/vscode/.claude
 
 # C# language server for the csharp-lsp plugin.
-dotnet tool install --global csharp-ls
+# Versions pinned (#113): a rebuild installs exactly what it did last time.
+# Bump them here and in .sbx/Dockerfile together.
+dotnet tool install --global csharp-ls --version 0.28.0
 
 # typescript-language-server 5.x loads the classic lib/tsserver.js, which the
 # TypeScript 7 native port does not ship — pinning 5.x avoids a server that
 # starts and then fails every request with "Could not find a valid TypeScript
 # installation". 5.x also matches web/package.json, so LSP answers come from
 # the same compiler version CI builds with.
-npm install -g typescript-language-server typescript@5
+npm install -g typescript-language-server@6.1.0 typescript@5.9.3
 
-npm install -g @anthropic-ai/claude-code
+npm install -g @anthropic-ai/claude-code@2.1.325
 
 # Wire the language servers and Context7 into Claude Code. Enabling a plugin in
 # .claude/settings.json is not enough on its own — the plugin still has to be

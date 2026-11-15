@@ -6,6 +6,14 @@
 #
 # Settings come from infra/.env, which scripts/setup-hosting.sh writes and git
 # ignores. CI passes the same names as environment variables instead.
+#
+# The two API credentials are never in infra/.env (#113): they live only in
+# the deploy environments' secrets. A local plan or apply takes them from your
+# shell for that one command, typed without echo:
+#
+#   read -rs NEON_API_KEY && read -rs CLOUDFLARE_API_TOKEN && \
+#     NEON_API_KEY="$NEON_API_KEY" CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
+#     docker compose -f infra/compose.yml run --rm infra terraform plan
 services:
   infra:
     build: .

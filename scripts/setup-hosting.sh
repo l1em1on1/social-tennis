@@ -196,6 +196,30 @@ finish() {
 TOTAL_STAGES=8
 ENV_FILE="infra/.env"
 
+# Deploy secrets go only to the two deploy environments, never to the
+# repository (#104, #113): a repository secret is readable by a workflow on
+# any branch. The environments exist only after stage 8, so the secret stages
+# queue their values and stage 8 sets them.
+# Two plain arrays, not an associative one: macOS ships bash 3.2.
+QUEUED_NAMES=()
+QUEUED_VALUES=()
+queue_deploy_secret() { QUEUED_NAMES+=("$1"); QUEUED_VALUES+=("$2"); }
+
+# set_deploy_secret NAME VALUE — set NAME in production-plan and production.
+set_deploy_secret() {
+  local name="$1" value="$2" environment
+  for environment in production-plan production; do
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1 \
+       && printf '%s' "$value" | gh secret set "$name" --env "$environment" >/dev/null 2>&1; then
+      WRITTEN_SECRET+=("$name ($environment)")
+      printf '  %s✓ set%s GitHub secret %s in %s\n' "$GREEN" "$RESET" "$name" "$environment"
+    else
+      SKIPPED+=("GitHub secret $name in $environment (set it: gh secret set $name --env $environment)")
+      warn "skipped GitHub secret $name in $environment"
+    fi
+  done
+}
+
 # Git Bash on Windows rewrites arguments that look like Unix paths, which
 # would turn an Azure scope such as /subscriptions/<id> into a Windows path.
 export MSYS_NO_PATHCONV=1
@@ -283,7 +307,14 @@ if confirm "Create them (skips anything that already exists)?"; then
   az group create --name "$STATE_RG" --location uksouth --output none
   az storage account create --name "$TFSTATE_STORAGE_ACCOUNT" --resource-group "$STATE_RG" \
     --location uksouth --sku Standard_LRS --min-tls-version TLS1_2 \
-    --allow-blob-public-access false --output none
+    --allow-blob-public-access false --allow-shared-key-access false --output none
+  # Terraform reaches the state with Entra ID (use_azuread_auth), never a key,
+  # so shared keys are off. Versioning and soft delete make a bad apply or a
+  # deleted blob recoverable for 30 days (#113).
+  az storage account blob-service-properties update --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+    --resource-group "$STATE_RG" --enable-versioning true \
+    --enable-delete-retention true --delete-retention-days 30 \
+    --enable-container-delete-retention true --container-delete-retention-days 30 --output none
   STATE_ACCOUNT_ID="$(azq storage account show --name "$TFSTATE_STORAGE_ACCOUNT" --resource-group "$STATE_RG" --query id -o tsv)"
   ME="$(azq ad signed-in-user show --query id -o tsv)"
   # Terraform reads and writes the state with your identity, not an account key.
@@ -311,8 +342,10 @@ step "Sign up or sign in. Don't create a project: Terraform does that."
 step "Open your account settings and find 'API keys'."
 step "Create a key and copy it. Neon shows it once."
 ask_secret NEON_API_KEY "Paste the Neon API key"
-write_env NEON_API_KEY "$NEON_API_KEY"
-set_secret NEON_API_KEY "$NEON_API_KEY"
+# Not written to infra/.env (#113): a key on disk in the repo tree is one any
+# tool working in the repo can read. A local Terraform run takes it from the
+# shell instead (infra/compose.yml).
+queue_deploy_secret NEON_API_KEY "$NEON_API_KEY"
 
 # ── 5. Neon organisation id ───────────────────────────────────────────────
 stage "Your Neon organisation id"
@@ -330,17 +363,18 @@ say "Azure emails this address if the app's resources are on course to cost"
 say "more than about 5 a month in your billing currency."
 ask TF_VAR_alert_email "Email address"
 write_env TF_VAR_alert_email "$TF_VAR_alert_email"
-set_secret ALERT_EMAIL "$TF_VAR_alert_email"
+queue_deploy_secret ALERT_EMAIL "$TF_VAR_alert_email"
 
 # ── Who is an Admin of the app ────────────────────────────────────────────
 stage "Admin of the app"
 say "Whoever signs in to the app with this address is an Admin: they see the"
 say "Manage tab and approve people asking to join the club. Several addresses"
 say "can be given, separated by commas. Change it later with:"
-say "  gh secret set ADMIN_EMAILS"
+say "  gh secret set ADMIN_EMAILS --env production-plan"
+say "  gh secret set ADMIN_EMAILS --env production"
 ask TF_VAR_admin_emails "Admin email address(es)"
 write_env TF_VAR_admin_emails "$TF_VAR_admin_emails"
-set_secret ADMIN_EMAILS "$TF_VAR_admin_emails"
+queue_deploy_secret ADMIN_EMAILS "$TF_VAR_admin_emails"
 
 # ── 7. Let GitHub Actions deploy, with no stored keys ─────────────────────
 stage "An Azure identity for GitHub Actions"
@@ -389,8 +423,15 @@ JSON
     gh api --method POST "repos/$REPO/environments/$environment/deployment-branch-policies" \
       -f name=main -f type=branch >/dev/null 2>&1 || note "$environment already limited to main"
   done
+  # Guarded: under `set -u`, bash before 4.4 calls an empty array unbound.
+  if (( ${#QUEUED_NAMES[@]} )); then
+    for i in "${!QUEUED_NAMES[@]}"; do
+      set_deploy_secret "${QUEUED_NAMES[$i]}" "${QUEUED_VALUES[$i]}"
+    done
+  fi
 else
-  warn "Skipped. The deploy workflow needs both environments."
+  warn "Skipped. The deploy workflow needs both environments, and its secrets"
+  warn "go into them: re-run this wizard to set them."
 fi
 
 finish

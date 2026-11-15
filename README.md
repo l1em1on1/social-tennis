@@ -79,7 +79,7 @@ The typed client (`web/src/lib/api/schema.d.ts`) is generated from the API's Ope
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web sh -c "npm install && npm run api:generate"
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web sh -c "npm ci && npm run api:generate"
 ```
 
 Drift check (CI runs this): regenerate, then `git diff --exit-code web/src/lib/api/schema.d.ts`.
@@ -123,7 +123,21 @@ Then, from the repo root:
 
 ```sh
 docker compose -f infra/compose.yml run --rm infra sh ./init.sh
-docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
+read -rs NEON_API_KEY && read -rs CLOUDFLARE_API_TOKEN   # paste each; nothing is echoed
+NEON_API_KEY="$NEON_API_KEY" CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
+  docker compose -f infra/compose.yml run --rm infra terraform plan -var image_tag=<commit sha>
+```
+
+The two API credentials live only in the `production-plan` and `production` environments' secrets, never in `infra/.env`, so a local plan takes them from your shell for that one command.
+
+The Terraform state's storage account accepts only Entra ID sign-in, with blob versioning and 30-day soft delete. The wizard sets that up on a new account; for one created before it did, run once:
+
+```sh
+docker compose -f infra/compose.yml run --rm infra sh -c \
+  'az storage account update -n "$TFSTATE_STORAGE_ACCOUNT" -g "$TFSTATE_RESOURCE_GROUP" --allow-shared-key-access false &&
+   az storage account blob-service-properties update --account-name "$TFSTATE_STORAGE_ACCOUNT" -g "$TFSTATE_RESOURCE_GROUP" \
+     --enable-versioning true --enable-delete-retention true --delete-retention-days 30 \
+     --enable-container-delete-retention true --container-delete-retention-days 30'
 ```
 
 Releases normally go through GitHub: a merge to `main` that changes `web/` or `api/` publishes images, and **Actions → deploy → Run workflow** plans, waits for approval, applies, and checks the site. It deploys the newest published images unless you give it a commit SHA; to roll back, give it an earlier published one.

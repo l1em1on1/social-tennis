@@ -1,4 +1,10 @@
-# Weekly update PRs, grouped so one ecosystem is one PR to review.
+# Monthly update PRs, grouped so one ecosystem is one PR to review (#113).
+#
+# Minor and patch versions only. A major version is a migration, not a bump,
+# and is taken by hand when it is wanted: Dependabot's one-PR-per-major-per-
+# project stream was closed unmerged every week. `ignore` is a version-updates
+# option; a vulnerability still raises a Dependabot alert (Security tab) and a
+# security update, whatever its version.
 #
 # Versions that must move together:
 #   @playwright/test (npm) and the mcr.microsoft.com/playwright image tag in
@@ -11,31 +17,48 @@ updates:
   - package-ecosystem: npm
     directory: /web
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
 
+  # The solution file covers the API and both test projects, so a package they
+  # share moves in one PR.
   - package-ecosystem: nuget
     directory: /api
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       api-minor-and-patch:
         update-types: [minor, patch]
 
+  # Actions are pinned by commit SHA with the version in a comment; Dependabot
+  # moves both.
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       actions:
         patterns: ["*"]
 
+  # Base images are pinned as tag@sha256 digest (#25); Dependabot moves both.
   - package-ecosystem: docker
     directories: [/api, /web, /infra]
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       base-images:
         patterns: ["*"]
@@ -43,7 +66,10 @@ updates:
   - package-ecosystem: terraform
     directory: /infra
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       terraform-providers:
         patterns: ["*"]
@@ -51,9 +77,11 @@ updates:
   - package-ecosystem: docker-compose
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       compose-images:
         patterns: ["*"]
     ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: mcr.microsoft.com/playwright
