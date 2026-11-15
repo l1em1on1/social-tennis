@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
-import { ACTING_PLAYER_COOKIE, secureCookies, sessionCookie } from "@/lib/session";
+import { ACTING_PLAYER_COOKIE, cookieOptions, sessionCookie } from "@/lib/session";
 import { getViewer } from "@/lib/viewer";
 import { LEAGUE_TYPES, type LeagueStructure, type LeagueType, type StageLengthUnit } from "@/lib/league";
 
@@ -20,12 +20,7 @@ export async function switchActingPlayer(formData: FormData) {
     return;
   }
 
-  (await cookies()).set(ACTING_PLAYER_COOKIE, playerId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: secureCookies(),
-    path: "/",
-  });
+  (await cookies()).set(ACTING_PLAYER_COOKIE, playerId, cookieOptions());
 }
 
 export async function logout() {
@@ -34,8 +29,9 @@ export async function logout() {
   // survives somewhere — then drop the cookies.
   await api.DELETE("/auth/sessions/current");
   const jar = await cookies();
-  jar.delete(sessionCookie());
-  jar.delete(ACTING_PLAYER_COOKIE);
+  // With the attributes they were set with: see cookieOptions.
+  jar.delete({ name: sessionCookie(), ...cookieOptions() });
+  jar.delete({ name: ACTING_PLAYER_COOKIE, ...cookieOptions() });
   redirect("/login");
 }
 

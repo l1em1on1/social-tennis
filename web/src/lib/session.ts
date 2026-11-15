@@ -34,3 +34,17 @@ export const publicUrl = (path: string) =>
  * https (redirects depend on it), so real deployments stay Secure.
  */
 export const secureCookies = () => publicUrl("").startsWith("https://");
+
+/**
+ * The attributes the session and acting-Player cookies are set with, and must
+ * be cleared with: a browser accepts a `__Host-` cookie, its expiry included,
+ * only with Secure and Path=/. `cookies().delete(name)` alone sends neither
+ * Secure nor HttpOnly, so logging out over https would leave the cookie in
+ * place (PR #129 review).
+ */
+export const cookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: secureCookies(),
+  path: "/",
+});
