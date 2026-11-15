@@ -9,10 +9,17 @@ export interface PlayerClub {
   approved: boolean;
 }
 
-/** One of the User's Players: enough to name it, switch to it, and say which Clubs it is in. */
+/** What a Player plays as, for men's, women's and mixed leagues. */
+export type PlayerGender = "Male" | "Female";
+
+/** One of the User's Players: who they are, and which Clubs they are in. No Rating: Managers see that. */
 export interface PlayerSummary {
   id: string;
   name: string;
+  /** Not asked at first sign-in, so it may be unset. */
+  gender: PlayerGender | null;
+  /** The club's informal grouping, 1 to 5; unset until given. */
+  level: number | null;
   clubs: PlayerClub[];
 }
 

@@ -22,6 +22,8 @@ public static class CreatePlayer
         {
             Id = Guid.NewGuid(),
             Name = request.Name.Trim(),
+            Gender = request.Gender,
+            Level = request.Level,
             UserId = user.UserId(),
             CreatedAt = clock.GetUtcNow(),
         };

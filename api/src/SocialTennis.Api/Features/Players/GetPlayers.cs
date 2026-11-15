@@ -24,6 +24,8 @@ public static class GetPlayers
             .Select(p => new PlayerSummary(
                 p.Id,
                 p.Name,
+                p.Gender,
+                p.Level,
                 p.Memberships
                     .OrderBy(m => m.Club.Name)
                     .Select(m => new PlayerClub(m.ClubId, m.Club.Name, m.Status == ClubMembershipStatus.Active))

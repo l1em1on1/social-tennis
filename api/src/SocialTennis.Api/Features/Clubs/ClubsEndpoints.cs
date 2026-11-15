@@ -41,6 +41,11 @@ public static class ClubsEndpoints
             .RequireAuthorization(Policies.Manager)
             .WithName(nameof(RemoveClubMember));
 
+        group.MapPost("/{clubId:guid}/players", AddClubPlayer.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<AddClubPlayerRequest, AddClubPlayerRequest.Validator>()
+            .WithName(nameof(AddClubPlayer));
+
         group.MapPost("/{clubId:guid}/invites", InviteToClub.HandleAsync)
             .RequireAuthorization(Policies.Manager)
             .ValidatesBody<InviteToClubRequest, InviteToClubRequest.Validator>()
