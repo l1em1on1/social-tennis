@@ -72,23 +72,26 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.Manager, policy => policy.RequireRole(Policies.Manager))
     .AddPolicy(Policies.Admin, policy => policy.RequireRole(Policies.Admin));
 
-// A ceiling on magic-link requests across all callers. It is not per client:
-// every request arrives from the BFF, so the API never sees a browser's
-// address. Per-address throttling is in RequestMagicLink; per-client limiting
-// belongs at the edge, where the client's address is known.
+// Magic-link requests are limited per client (#108): the BFF reports the
+// browser's address in a header (Authentication/ClientAddress.cs), and each
+// client gets its own fixed window. The ceiling across all clients is checked
+// after this, in the handler (MagicLinkCeiling), so a client refused here
+// doesn't use it up. Per-address throttling is in RequestMagicLink.
 // Configured through IOptions so the limit is read when the limiter is first
 // used, after test hosts have applied their configuration overrides.
 builder.Services.AddRateLimiter(_ => { });
 builder.Services.AddOptions<RateLimiterOptions>().Configure<IOptions<AuthOptions>>((limiter, auth) =>
 {
     limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    limiter.AddFixedWindowLimiter(AuthOptions.MagicLinkRateLimitPolicy, window =>
-    {
-        window.PermitLimit = auth.Value.MagicLinkRequestsPerMinute;
-        window.Window = TimeSpan.FromMinutes(1);
-        window.QueueLimit = 0;
-    });
+    limiter.AddPolicy(AuthOptions.MagicLinkRateLimitPolicy, context =>
+        RateLimitPartition.GetFixedWindowLimiter(ClientAddress.KeyOf(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = auth.Value.MagicLinkRequestsPerClientPerMinute,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
+builder.Services.AddSingleton<MagicLinkCeiling>();
 
 builder.Services.AddJobs();
 

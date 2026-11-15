@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Npgsql;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -12,9 +11,15 @@ namespace SocialTennis.Api.Features.Auth;
 
 /// <summary>
 /// Always 202: the response must not reveal whether the address has an account
-/// (no user enumeration). Unknown addresses create the User — sign-up and login
-/// are the same gesture. An address that already holds its quota of live links
-/// gets the same 202 and no new email.
+/// (no user enumeration). Asking for a link creates nothing but the link: the
+/// User is created when a link is redeemed (#108), so sign-up and login stay
+/// the same gesture without an unanswered request leaving a User behind. An
+/// address that already holds its quota of live links gets the same 202 and
+/// no new email.
+/// <para>
+/// 429 when this client has asked too often (the rate-limiting middleware,
+/// per client) or every client together has (<see cref="MagicLinkCeiling"/>).
+/// </para>
 /// <para>
 /// 503 when the email could not be handed to the mail provider. That says
 /// nothing about the address either: every address is sent to. The link that
@@ -25,47 +30,37 @@ public static class RequestMagicLink
 {
     public static async Task<Results<Accepted, ProblemHttpResult>> HandleAsync(
         MagicLinkRequest request,
+        HttpContext http,
         TennisDbContext db,
         IMagicLinkSender sender,
+        MagicLinkCeiling ceiling,
         IOptions<AuthOptions> authOptions,
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
-        var email = EmailAddress.Normalize(request.Email);
-
-        var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
-        var now = clock.GetUtcNow();
-
-        if (user is null)
+        if (!ceiling.TryEnter())
         {
-            user = new User { Id = Guid.NewGuid(), Email = email, CreatedAt = now };
-            db.Users.Add(user);
-            try
-            {
-                await db.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException exception)
-                when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-            {
-                // Two first requests for one address raced, and the other one
-                // created the User. Use theirs rather than answering 500.
-                db.Entry(user).State = EntityState.Detached;
-                user = await db.Users.SingleAsync(u => u.Email == email, cancellationToken);
-            }
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status429TooManyRequests,
+                title: "Too many sign-in requests.",
+                detail: "Try again in a minute.");
         }
 
-        // Count and insert as one step per address. Without the row lock, two
+        var email = EmailAddress.Normalize(request.Email);
+        var clientHash = Tokens.Hash(ClientAddress.KeyOf(http));
+        var options = authOptions.Value;
+        var now = clock.GetUtcNow();
+
+        // Count and insert as one step per address. Without the lock, two
         // requests could both count one short of the quota and both send.
         // Requests for the same address queue here; others are unaffected.
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlAsync(
-            $"""SELECT 1 FROM "Users" WHERE "Id" = {user.Id} FOR UPDATE""",
-            cancellationToken);
+        await using var transaction = await AddressLock.BeginAsync(db, email, cancellationToken);
 
-        var liveLinks = await db.MagicLinkTokens.CountAsync(
-            t => t.UserId == user.Id && t.UsedAt == null && t.ExpiresAt > now,
-            cancellationToken);
-        if (liveLinks >= authOptions.Value.MaxLiveMagicLinksPerAddress)
+        var live = db.MagicLinkTokens.Where(t => t.Email == email && t.UsedAt == null && t.ExpiresAt > now);
+        var liveFromEveryClient = await live.CountAsync(cancellationToken);
+        var liveFromThisClient = await live.CountAsync(t => t.ClientHash == clientHash, cancellationToken);
+        if (liveFromEveryClient >= options.MaxLiveMagicLinksPerAddress
+            || liveFromThisClient >= options.MaxLiveMagicLinksPerAddressAndClient)
         {
             return TypedResults.Accepted((string?)null);
         }
@@ -75,15 +70,16 @@ public static class RequestMagicLink
         db.MagicLinkTokens.Add(new MagicLinkToken
         {
             Id = tokenId,
-            UserId = user.Id,
+            Email = email,
+            ClientHash = clientHash,
             TokenHash = Tokens.Hash(rawToken),
-            ExpiresAt = now.AddMinutes(authOptions.Value.MagicLinkLifetimeMinutes),
+            ExpiresAt = now.AddMinutes(options.MagicLinkLifetimeMinutes),
             CreatedAt = now,
         });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        var link = $"{authOptions.Value.VerifyUrlBase}?token={Uri.EscapeDataString(rawToken)}";
+        var link = $"{options.VerifyUrlBase}?token={Uri.EscapeDataString(rawToken)}";
         try
         {
             await sender.SendAsync(email, link, cancellationToken);

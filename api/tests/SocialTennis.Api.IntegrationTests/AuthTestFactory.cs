@@ -70,6 +70,9 @@ public class AuthTestFactory : WebApplicationFactory<Program>
             services.AddSingleton<IEmailSender>(Sender);
         });
         builder.UseSetting("Auth:AdminEmails", $"someone@example.test, {AdminEmail}");
+        // Test clients send no client address, so every test is one client to
+        // the per-client limit (#108). Tests of that limit set it themselves.
+        builder.UseSetting("Auth:MagicLinkRequestsPerClientPerMinute", "100000");
     }
 
     /// <summary>

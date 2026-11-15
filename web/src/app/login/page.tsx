@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { buttonClasses } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -6,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { ErrorState } from "@/components/ui/states";
 import { api } from "@/lib/api/client";
+import { CLIENT_ADDRESS_HEADER, clientAddress } from "@/lib/client-address";
 import { mockApi } from "@/lib/mock-mode";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +21,12 @@ async function requestMagicLink(formData: FormData) {
     redirect("/login?error=invalid-email");
   }
 
-  const { response } = await api.POST("/auth/magic-link", { body: { email } });
+  // The API limits requests per client (#108); it can't see the browser itself.
+  const address = clientAddress((await headers()).get("x-forwarded-for"));
+  const { response } = await api.POST("/auth/magic-link", {
+    body: { email },
+    headers: address ? { [CLIENT_ADDRESS_HEADER]: address } : undefined,
+  });
   if (response.status === 429) {
     redirect("/login?error=try-later");
   }

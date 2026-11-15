@@ -53,7 +53,10 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
         {
             token.Property(t => t.TokenHash).HasMaxLength(64);
             token.HasIndex(t => t.TokenHash).IsUnique();
-            token.HasOne(t => t.User).WithMany().OnDelete(DeleteBehavior.Cascade);
+            // Same length as User.Email. No foreign key: the User may not exist yet (#108).
+            token.Property(t => t.Email).HasMaxLength(320);
+            token.Property(t => t.ClientHash).HasMaxLength(64);
+            token.HasIndex(t => t.Email);
         });
 
         modelBuilder.Entity<Player>(player =>
