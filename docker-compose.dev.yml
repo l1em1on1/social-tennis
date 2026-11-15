@@ -14,6 +14,8 @@ services:
       ConnectionStrings__Default: "Host=postgres;Database=tennis;Username=tennis;Password=tennis"
       ASPNETCORE_ENVIRONMENT: Development
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
+      # As api-tests: build output apart from the language server's (#121).
+      SOCIAL_TENNIS_CONTAINER_BUILD: "true"
     command: dotnet watch --project src/SocialTennis.Api run --urls http://0.0.0.0:8080
     # The base file's probe runs the published DLL, which `dotnet watch` has no
     # copy of here. The SDK image has a shell, so speak HTTP over bash's /dev/tcp.
