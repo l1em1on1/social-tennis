@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/players/{playerId}/leagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPlayerLeagues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clubs": {
         parameters: {
             query?: never;
@@ -292,6 +308,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clubs/{clubId}/leagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetClubLeagues"];
+        put?: never;
+        post: operations["CreateLeague"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetLeague"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/participants/{playerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AddLeagueParticipant"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/join-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AskToJoinLeague"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/join-requests/{playerId}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ApproveLeagueJoinRequest"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/join-requests/{playerId}/rejection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["RejectLeagueJoinRequest"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -305,6 +417,10 @@ export interface components {
             playerId: string;
             name: string;
         };
+        AskToJoinLeagueRequest: {
+            /** Format: uuid */
+            playerId: string;
+        };
         ClubInviteSummary: {
             /** Format: uuid */
             id: string;
@@ -312,6 +428,24 @@ export interface components {
             joined: boolean;
             /** Format: date-time */
             invitedAt: string;
+        };
+        ClubLeague: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            type: components["schemas"]["LeagueType"];
+            structure: components["schemas"]["LeagueStructure"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            stageLength: components["schemas"]["StageLength"];
+            stageRoll: null | components["schemas"]["StageRoll"];
+            scoreFormat: components["schemas"]["ScoreFormat"];
+            /** Format: int32 */
+            participantCount: number | string;
+            /** Format: int32 */
+            pendingRequestCount: number | string;
         };
         ClubMember: {
             /** Format: uuid */
@@ -341,6 +475,23 @@ export interface components {
             id: string;
             name: string;
         };
+        CreateLeagueRequest: {
+            name: string;
+            type: components["schemas"]["LeagueType"];
+            structure: components["schemas"]["LeagueStructure"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            stageLength: components["schemas"]["StageLength"];
+            stageRoll: null | components["schemas"]["StageRoll"];
+            scoreFormat: components["schemas"]["ScoreFormat"];
+        };
+        CreateLeagueResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
         CreatePlayerRequest: {
             name: string;
             gender?: null | components["schemas"]["PlayerGender"];
@@ -351,6 +502,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        GetClubLeaguesResponse: {
+            leagues: components["schemas"]["ClubLeague"][];
+            page: components["schemas"]["PageInfo"];
         };
         GetClubMembersResponse: {
             members: components["schemas"]["ClubMember"][];
@@ -366,6 +521,29 @@ export interface components {
             userId: string;
             email: string;
             roles: string[];
+        };
+        GetLeagueResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            clubId: string;
+            clubName: string;
+            name: string;
+            type: components["schemas"]["LeagueType"];
+            structure: components["schemas"]["LeagueStructure"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            stageLength: components["schemas"]["StageLength"];
+            stageRoll: null | components["schemas"]["StageRoll"];
+            scoreFormat: components["schemas"]["ScoreFormat"];
+            participants: components["schemas"]["LeagueParticipantSummary"][];
+            joinRequests: components["schemas"]["LeagueJoinRequestSummary"][];
+        };
+        GetPlayerLeaguesResponse: {
+            leagues: components["schemas"]["PlayerLeague"][];
+            page: components["schemas"]["PageInfo"];
         };
         GetPlayersResponse: {
             players: components["schemas"]["PlayerSummary"][];
@@ -389,6 +567,35 @@ export interface components {
         InviteToClubRequest: {
             email: string;
         };
+        /** @enum {unknown} */
+        LeagueJoinRequestStatus: "Pending" | "Approved" | "Rejected";
+        LeagueJoinRequestSummary: {
+            /** Format: uuid */
+            playerId: string;
+            name: string;
+            email: string;
+            /** Format: int32 */
+            rating: number | string;
+            status: components["schemas"]["LeagueJoinRequestStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            decidedAt: null | string;
+        };
+        LeagueParticipantSummary: {
+            /** Format: uuid */
+            playerId: string;
+            name: string;
+            email: string;
+            /** Format: int32 */
+            rating: number | string;
+            /** Format: date-time */
+            joinedAt: string;
+        };
+        /** @enum {unknown} */
+        LeagueStructure: "Divisional" | "Knockout";
+        /** @enum {unknown} */
+        LeagueType: "SinglesMen" | "SinglesWomen" | "SinglesMixed" | "DoublesMen" | "DoublesWomen" | "DoublesMix" | "Foursomes";
         MagicLinkRequest: {
             email: string;
         };
@@ -404,6 +611,34 @@ export interface components {
         };
         /** @enum {unknown} */
         PlayerGender: "Male" | "Female" | null;
+        PlayerLeague: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            clubId: string;
+            clubName: string;
+            name: string;
+            type: components["schemas"]["LeagueType"];
+            structure: components["schemas"]["LeagueStructure"];
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            stageLength: components["schemas"]["StageLength"];
+            stageRoll: null | components["schemas"]["StageRoll"];
+            scoreFormat: components["schemas"]["ScoreFormat"];
+            /** Format: int32 */
+            participantCount: number | string;
+            joined: boolean;
+            joinRequest: null | components["schemas"]["PlayerLeagueJoinRequest"];
+        };
+        PlayerLeagueJoinRequest: {
+            status: components["schemas"]["LeagueJoinRequestStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            decidedAt: null | string;
+        };
         PlayerSummary: {
             /** Format: uuid */
             id: string;
@@ -432,10 +667,26 @@ export interface components {
         RenameClubRequest: {
             name: string;
         };
+        ScoreFormat: {
+            /** Format: int32 */
+            gamesPerSet: number | string;
+            /** Format: int32 */
+            setsPerGame: number | string;
+            matchTiebreakDecider: boolean;
+        };
         SetPlayerRatingRequest: {
             /** Format: int32 */
             rating: number | string;
         };
+        StageLength: {
+            /** Format: int32 */
+            count: number | string;
+            unit: components["schemas"]["StageLengthUnit"];
+        };
+        /** @enum {unknown} */
+        StageLengthUnit: "Weeks" | "Months";
+        /** @enum {unknown} */
+        StageRoll: "Automatic" | "Manual" | null;
         UpdatePlayerRequest: {
             name: string;
             gender?: null | components["schemas"]["PlayerGender"];
@@ -466,6 +717,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    GetPlayerLeagues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetPlayerLeaguesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GetClubs: {
         parameters: {
             query?: never;
@@ -1275,6 +1564,320 @@ export interface operations {
             path: {
                 userId: string;
                 role: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetClubLeagues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetClubLeaguesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CreateLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLeagueRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateLeagueResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetLeagueResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AddLeagueParticipant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AskToJoinLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskToJoinLeagueRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ApproveLeagueJoinRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RejectLeagueJoinRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
             };
             cookie?: never;
         };

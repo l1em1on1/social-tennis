@@ -1,6 +1,6 @@
 import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
-import type { paths } from "@/lib/api/schema";
+import type { components, paths } from "@/lib/api/schema";
 
 /**
  * Mocked API (ADR-0009), typed against the committed OpenAPI schema: a path,
@@ -127,6 +127,78 @@ function clubsOf(request: Request) {
   }
   return clubs;
 }
+
+type Schemas = components["schemas"];
+
+/**
+ * Leagues, shared by every session as the Club's side is: a Player asks to
+ * join in one session what a Manager created in another. The Manage page
+ * lists only the Leagues its own session created, so one test's League never
+ * appears in another test's snapshot of it.
+ */
+interface MockLeague {
+  id: string;
+  clubId: string;
+  session: string;
+  name: string;
+  type: Schemas["LeagueType"];
+  structure: Schemas["LeagueStructure"];
+  startDate: string;
+  endDate: string;
+  stageLength: { count: number; unit: Schemas["StageLengthUnit"] };
+  stageRoll: Schemas["StageRoll"];
+  scoreFormat: { gamesPerSet: number; setsPerGame: number; matchTiebreakDecider: boolean };
+  participants: { playerId: string; joinedAt: string }[];
+  requests: { playerId: string; status: Schemas["LeagueJoinRequestStatus"]; requestedAt: string; decidedAt: string | null }[];
+}
+
+const leagues: MockLeague[] = [];
+let leaguesMade = 0;
+
+const leagueById = (id: string) => leagues.find((league) => league.id === id);
+const isClubMember = (player: MockPlayer | undefined, clubId: string) =>
+  clubId === MOCK_CLUB.id && player?.membership?.approved === true;
+
+/** The API's CreateLeagueRequest rules, field by field (CreateLeagueRequest.Validator). */
+function leagueErrors(body: Schemas["CreateLeagueRequest"]): Record<string, string[]> {
+  const errors: Record<string, string[]> = {};
+  const add = (field: string, message: string) => (errors[field] = [...(errors[field] ?? []), message]);
+  const sets = Number(body.scoreFormat.setsPerGame);
+  if (body.name.trim().length === 0 || body.name.trim().length > 200) add("name", "A name is required.");
+  if (body.type === "Foursomes" && body.structure === "Knockout")
+    add("structure", "Foursomes is played in Divisions of 4 only, so a Foursomes League can't be Knockout.");
+  if (!(body.endDate > body.startDate)) add("endDate", "The League has to end after it starts.");
+  const count = Number(body.stageLength.count);
+  if (!Number.isInteger(count) || count < 1 || count > 12)
+    add("stageLength.count", "A Stage lasts from 1 to 12 weeks or months.");
+  if (body.structure === "Divisional" && !body.stageRoll)
+    add("stageRoll", "Choose whether each Stage closes automatically or when you close it.");
+  if (body.structure === "Knockout" && body.stageRoll)
+    add("stageRoll", "A Knockout League has no Relegation, so its Stages don't roll: leave this out.");
+  if (![6, 9].includes(Number(body.scoreFormat.gamesPerSet))) add("scoreFormat.gamesPerSet", "A Set is played to 6 or 9 games.");
+  if (![1, 3].includes(sets)) add("scoreFormat.setsPerGame", "A Game is one Set, or best of three.");
+  if (body.scoreFormat.matchTiebreakDecider && sets !== 3)
+    add(
+      "scoreFormat.matchTiebreakDecider",
+      "A Match Tiebreak can only decide a best-of-three Game. A one-Set Game has no decider.",
+    );
+  return errors;
+}
+
+/** The fields every League contract shares. */
+const leagueFacts = (league: MockLeague) => ({
+  id: league.id,
+  name: league.name,
+  type: league.type,
+  structure: league.structure,
+  startDate: league.startDate,
+  endDate: league.endDate,
+  stageLength: league.stageLength,
+  stageRoll: league.stageRoll,
+  scoreFormat: league.scoreFormat,
+});
+
+const conflict = (type: string, title: string) => ({ type, title, status: 409 });
 
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
@@ -263,6 +335,185 @@ export const handlers = [
       player.membership = { approved: true, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
     }
     return response(204).empty();
+  }),
+
+  http.get("/clubs/{clubId}/leagues", ({ request, params, response }) => {
+    const session = sessionOf(request) ?? "";
+    const list = leagues
+      .filter((league) => league.clubId === params.clubId && league.session === session)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate) || a.name.localeCompare(b.name))
+      .map((league) => ({
+        ...leagueFacts(league),
+        participantCount: league.participants.length,
+        pendingRequestCount: league.requests.filter((joinRequest) => joinRequest.status === "Pending").length,
+      }));
+    return response(200).json({ leagues: list, page: { total: list.length } });
+  }),
+
+  http.post("/clubs/{clubId}/leagues", async ({ request, params, response }) => {
+    if (params.clubId !== MOCK_CLUB.id && !clubsOf(request).some((club) => club.id === params.clubId)) {
+      return response(404).empty();
+    }
+    const body = await request.json();
+    const errors = leagueErrors(body);
+    if (Object.keys(errors).length > 0) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    const league: MockLeague = {
+      id: `00000000-0000-4000-8000-4${String((leaguesMade += 1)).padStart(11, "0")}`,
+      clubId: params.clubId,
+      session: sessionOf(request) ?? "",
+      name: body.name.trim(),
+      type: body.type,
+      structure: body.structure,
+      startDate: body.startDate,
+      endDate: body.endDate,
+      stageLength: { count: Number(body.stageLength.count), unit: body.stageLength.unit },
+      stageRoll: body.stageRoll,
+      scoreFormat: {
+        gamesPerSet: Number(body.scoreFormat.gamesPerSet),
+        setsPerGame: Number(body.scoreFormat.setsPerGame),
+        matchTiebreakDecider: body.scoreFormat.matchTiebreakDecider,
+      },
+      participants: [],
+      requests: [],
+    };
+    leagues.push(league);
+    return response(201).json({ id: league.id, name: league.name });
+  }),
+
+  http.get("/leagues/{leagueId}", ({ request, params, response }) => {
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    const player = (id: string) => allPlayers().find((candidate) => candidate.id === id)!;
+    const clubName =
+      league.clubId === MOCK_CLUB.id
+        ? MOCK_CLUB.name
+        : (clubsOf(request).find((club) => club.id === league.clubId)?.name ?? "");
+    const pendingFirst = [...league.requests].sort(
+      (a, b) =>
+        Number(a.status !== "Pending") - Number(b.status !== "Pending") ||
+        (a.status === "Pending" ? a.requestedAt.localeCompare(b.requestedAt) : (b.decidedAt ?? "").localeCompare(a.decidedAt ?? "")),
+    );
+    return response(200).json({
+      ...leagueFacts(league),
+      clubId: league.clubId,
+      clubName,
+      participants: league.participants.map(({ playerId, joinedAt }) => ({
+        playerId,
+        name: player(playerId).name,
+        email: player(playerId).email,
+        rating: player(playerId).rating,
+        joinedAt,
+      })),
+      joinRequests: pendingFirst.map((joinRequest) => ({
+        ...joinRequest,
+        name: player(joinRequest.playerId).name,
+        email: player(joinRequest.playerId).email,
+        rating: player(joinRequest.playerId).rating,
+      })),
+    });
+  }),
+
+  http.put("/leagues/{leagueId}/participants/{playerId}", ({ params, response }) => {
+    const league = leagueById(params.leagueId);
+    const player = allPlayers().find((candidate) => candidate.id === params.playerId);
+    if (!league || !player) {
+      return response(404).empty();
+    }
+    if (league.participants.some((participant) => participant.playerId === player.id)) {
+      return response(204).empty();
+    }
+    if (!isClubMember(player, league.clubId)) {
+      return response(409).json(conflict("not-a-club-member", "This Player isn't a member of the League's Club."), problemJson);
+    }
+    const now = new Date().toISOString();
+    const pending = league.requests.find((joinRequest) => joinRequest.playerId === player.id && joinRequest.status === "Pending");
+    if (pending) {
+      pending.status = "Approved";
+      pending.decidedAt = now;
+    }
+    league.participants.push({ playerId: player.id, joinedAt: pending?.requestedAt ?? now });
+    return response(204).empty();
+  }),
+
+  http.post("/leagues/{leagueId}/join-requests", async ({ request, params, response }) => {
+    const { playerId } = await request.json();
+    const player = playersOf(request).find((candidate) => candidate.id === playerId);
+    const league = leagueById(params.leagueId);
+    if (!player || !league || !isClubMember(player, league.clubId)) {
+      return response(404).empty();
+    }
+    if (league.participants.some((participant) => participant.playerId === player.id)) {
+      return response(409).json(conflict("already-in-league", "This Player is already in the League."), problemJson);
+    }
+    if (league.requests.some((joinRequest) => joinRequest.playerId === player.id)) {
+      return response(409).json(conflict("already-asked", "This Player has already asked to join the League."), problemJson);
+    }
+    league.requests.push({ playerId: player.id, status: "Pending", requestedAt: new Date().toISOString(), decidedAt: null });
+    return response(204).empty();
+  }),
+
+  http.put("/leagues/{leagueId}/join-requests/{playerId}/approval", ({ params, response }) => {
+    const league = leagueById(params.leagueId);
+    const joinRequest = league?.requests.find((candidate) => candidate.playerId === params.playerId);
+    if (!league || !joinRequest) {
+      return response(404).empty();
+    }
+    if (joinRequest.status === "Rejected") {
+      return response(409).json(conflict("join-request-decided", "This request was already rejected."), problemJson);
+    }
+    if (joinRequest.status === "Pending") {
+      joinRequest.status = "Approved";
+      joinRequest.decidedAt = new Date().toISOString();
+      league.participants.push({ playerId: joinRequest.playerId, joinedAt: joinRequest.requestedAt });
+    }
+    return response(204).empty();
+  }),
+
+  http.put("/leagues/{leagueId}/join-requests/{playerId}/rejection", ({ params, response }) => {
+    const joinRequest = leagueById(params.leagueId)?.requests.find((candidate) => candidate.playerId === params.playerId);
+    if (!joinRequest) {
+      return response(404).empty();
+    }
+    if (joinRequest.status === "Approved") {
+      return response(409).json(conflict("join-request-decided", "This request was already approved."), problemJson);
+    }
+    if (joinRequest.status === "Pending") {
+      joinRequest.status = "Rejected";
+      joinRequest.decidedAt = new Date().toISOString();
+    }
+    return response(204).empty();
+  }),
+
+  http.get("/players/{playerId}/leagues", ({ request, params, response }) => {
+    const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
+    if (!player) {
+      return response(404).empty();
+    }
+    const list = leagues
+      .filter(
+        (league) =>
+          league.participants.some((participant) => participant.playerId === player.id) ||
+          isClubMember(player, league.clubId),
+      )
+      .sort((a, b) => b.startDate.localeCompare(a.startDate) || a.name.localeCompare(b.name))
+      .map((league) => {
+        const joinRequest = league.requests.find((candidate) => candidate.playerId === player.id);
+        return {
+          ...leagueFacts(league),
+          clubId: league.clubId,
+          clubName: MOCK_CLUB.name,
+          participantCount: league.participants.length,
+          joined: league.participants.some((participant) => participant.playerId === player.id),
+          joinRequest: joinRequest
+            ? { status: joinRequest.status, requestedAt: joinRequest.requestedAt, decidedAt: joinRequest.decidedAt }
+            : null,
+        };
+      });
+    return response(200).json({ leagues: list, page: { total: list.length } });
   }),
 
   http.post("/auth/magic-link", ({ response }) => response(202).empty()),

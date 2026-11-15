@@ -49,8 +49,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             title="No games yet"
             description={`${actingPlayer.name}'s games appear here once a league they're in starts.`}
             action={
-              <ButtonLink href="/ladder" variant="secondary">
-                View the ladder
+              <ButtonLink href="/leagues" variant="secondary">
+                See leagues
               </ButtonLink>
             }
           />

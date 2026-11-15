@@ -63,7 +63,7 @@ test("an Admin makes a User a Manager, and it takes effect without signing in ag
 }, testInfo) => {
   const email = personaEmail(testInfo, "promoted");
   await logIn(page, testInfo, email);
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles"]);
 
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
@@ -74,7 +74,7 @@ test("an Admin makes a User a Manager, and it takes effect without signing in ag
   await expect(row.getByText("Manager", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage"]);
   await mainNav(page).getByRole("link", { name: "Manage" }).click();
   await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
 
@@ -106,14 +106,14 @@ test("an Admin makes another User an Admin after confirming, and can take it bac
   await expect(row.getByText("Admin", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles", "Manage", "Admin"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
 
   await row.getByRole("button", { name: `Remove admin from ${email}` }).click();
   await expect(row.getByRole("button", { name: `Make manager of ${email}` })).toBeVisible();
   await adminContext.close();
 
   await page.reload();
-  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Ladder", "Profiles"]);
+  await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles"]);
 });
 
 test("the Admin set in the app's configuration can't be demoted here", async ({ page }, testInfo) => {
