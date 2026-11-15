@@ -9,7 +9,7 @@ import type { paths } from "@/lib/api/schema";
  *
  * Mock auth has no inbox: any magic-link token redeems, and the session
  * remembers it — when the token is an email address, /auth/me reports that
- * email, and the email picks the roles (manager@…, admin@…).
+ * email, and the email picks the starting roles (manager@…, admin@…).
  *
  * Players are kept in memory per session. Every sign-in is a new session and
  * so a new User with no Player, as a first sign-in is with the real API.
@@ -20,7 +20,6 @@ const apiOrigin = new URL(process.env.API_URL ?? "http://api:8080").origin;
 // Session tokens must survive a cookie round trip unencoded, like the real
 // API's base64url tokens do — so the remembered value is base64url too.
 const SESSION_PREFIX = "mock-session.";
-const MOCK_USER_ID = "00000000-0000-4000-8000-000000000001";
 const MOCK_CLUB = { id: "00000000-0000-4000-8000-0000000000c1", name: "Riverside Tennis Club" };
 
 interface MockPlayer {
@@ -67,11 +66,87 @@ function playersOf(request: Request): MockPlayer[] {
 
 const allPlayers = () => [...playersBySession.values()].flat();
 
+/**
+ * Users by email, made the first time an email signs in. Roles start from the
+ * email, so a test picks one by who it signs in as ("manager" in the local
+ * part is a Manager, "admin" an Admin), and an Admin can then change them.
+ * `admin@example.com` plays the Admin set in configuration: it can't be demoted.
+ */
+interface MockUser {
+  id: string;
+  manager: boolean;
+  admin: boolean;
+}
+
+const CONFIGURED_ADMIN = "admin@example.com";
+const usersByEmail = new Map<string, MockUser>();
+
+function userOf(email: string): MockUser {
+  let user = usersByEmail.get(email);
+  if (!user) {
+    const local = email.split("@")[0].split("+")[0];
+    user = {
+      id: `00000000-0000-4000-8000-2${String(usersByEmail.size + 1).padStart(11, "0")}`,
+      manager: local.includes("manager"),
+      admin: local.includes("admin"),
+    };
+    usersByEmail.set(email, user);
+  }
+  return user;
+}
+
+const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
+
+/**
+ * Clubs an Admin created, by session. Kept to the session that made them, so
+ * one test's Club never appears on another test's pages. Nobody can join one.
+ */
+const clubsBySession = new Map<string, { id: string; name: string }[]>();
+let clubsMade = 0;
+
+function clubsOf(request: Request) {
+  const session = sessionOf(request) ?? "";
+  let clubs = clubsBySession.get(session);
+  if (!clubs) {
+    clubs = [];
+    clubsBySession.set(session, clubs);
+  }
+  return clubs;
+}
+
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
 
 export const handlers = [
-  http.get("/clubs", ({ response }) => response(200).json({ clubs: [MOCK_CLUB], page: { total: 1 } })),
+  http.get("/clubs", ({ request, response }) => {
+    const clubs = [MOCK_CLUB, ...clubsOf(request)];
+    return response(200).json({ clubs, page: { total: clubs.length } });
+  }),
+
+  http.post("/clubs", async ({ request, response }) => {
+    const name = (await request.json()).name.trim();
+    if (name.length === 0 || name.length > 200) {
+      return response(400).json(invalid("name"), problemJson);
+    }
+    const club = { id: `00000000-0000-4000-8000-3${String((clubsMade += 1)).padStart(11, "0")}`, name };
+    clubsOf(request).push(club);
+    return response(201).json(club);
+  }),
+
+  http.put("/clubs/{clubId}", async ({ request, params, response }) => {
+    const name = (await request.json()).name.trim();
+    if (name.length === 0 || name.length > 200) {
+      return response(400).json(invalid("name"), problemJson);
+    }
+    const club = clubsOf(request).find((candidate) => candidate.id === params.clubId);
+    if (club) {
+      club.name = name;
+    } else if (params.clubId !== MOCK_CLUB.id) {
+      return response(404).empty();
+    }
+    // The shared Club keeps its name: every other test's pages show it.
+    return response(204).empty();
+  }),
 
   // Asking to join: waits for a Manager unless the email was invited.
   http.put("/clubs/{clubId}/members/{playerId}", ({ request, params, response }) => {
@@ -84,7 +159,10 @@ export const handlers = [
   }),
 
   // The Manager's side. The mock doesn't check the role: the pages do.
-  http.get("/clubs/{clubId}/members", ({ response }) => {
+  http.get("/clubs/{clubId}/members", ({ params, response }) => {
+    if (params.clubId !== MOCK_CLUB.id) {
+      return response(200).json({ members: [], invites: [], page: { total: 0 } });
+    }
     const members = allPlayers()
       .filter((player) => player.membership)
       .map((player) => ({
@@ -160,13 +238,56 @@ export const handlers = [
     if (!sessionOf(request)) {
       return response(401).json({ title: "Unauthorized", status: 401 }, problemJson);
     }
-    // Mock roles come from the email, so a test picks one by who it signs in
-    // as: "manager" in the local part is a Manager, "admin" an Admin (who is
-    // a Manager too, as with the real API).
     const email = emailOf(request);
-    const local = email.split("@")[0].split("+")[0];
-    const roles = local.includes("admin") ? ["Admin", "Manager"] : local.includes("manager") ? ["Manager"] : [];
-    return response(200).json({ userId: MOCK_USER_ID, email, roles });
+    const user = userOf(email);
+    // An Admin is a Manager too, as with the real API.
+    const roles = user.admin ? ["Admin", "Manager"] : user.manager ? ["Manager"] : [];
+    return response(200).json({ userId: user.id, email, roles });
+  }),
+
+  // An Admin's side. The mock doesn't check the role: the pages do.
+  http.get("/users", ({ response }) => {
+    const users = [...usersByEmail]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([email, user]) => ({
+        id: user.id,
+        email,
+        manager: user.manager,
+        admin: user.admin,
+        adminBySetting: email === CONFIGURED_ADMIN,
+        // Never: the configured Admin can always sign in.
+        lastAdmin: false,
+        players: allPlayers()
+          .filter((player) => player.email === email)
+          .map((player) => ({ id: player.id, name: player.name })),
+      }));
+    return response(200).json({ users, page: { total: users.length } });
+  }),
+
+  http.put("/users/{userId}/roles/{role}", ({ params, response }) => {
+    const user = userById(params.userId);
+    if (!user) {
+      return response(404).empty();
+    }
+    if (params.role === "Admin") user.admin = true;
+    else user.manager = true;
+    return response(204).empty();
+  }),
+
+  http.delete("/users/{userId}/roles/{role}", ({ params, response }) => {
+    const user = userById(params.userId);
+    if (!user) {
+      return response(404).empty();
+    }
+    if (params.role === "Admin") {
+      if (usersByEmail.get(CONFIGURED_ADMIN) === user) {
+        return response(409).json({ title: "The Admin role can't be removed from this User.", status: 409 }, problemJson);
+      }
+      user.admin = false;
+    } else {
+      user.manager = false;
+    }
+    return response(204).empty();
   }),
 
   http.delete("/auth/sessions/current", ({ response }) => response(204).empty()),

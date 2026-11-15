@@ -42,8 +42,7 @@ export async function requestSignInLink(page: Page, testInfo: TestInfo, email: s
   if (testInfo.project.name === "mock") {
     return `/auth/verify?token=${encodeURIComponent(email)}`;
   }
-  const token = randomBytes(32).toString("base64url");
-  await replaceNewestMagicLinkToken(email, token);
+  const token = await takeNewestMagicLink(email);
   await grantRolesNamedInEmail(email);
   return `/auth/verify?token=${encodeURIComponent(token)}`;
 }
@@ -85,6 +84,16 @@ export async function addAnotherPlayer(page: Page, name: string) {
   await sheet.getByLabel("Name").fill(name);
   await sheet.getByRole("button", { name: "Add player" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
+}
+
+/**
+ * Stands in for reading the email: makes the newest unused sign-in link for
+ * this address redeemable with a token the caller knows, and returns it.
+ */
+export async function takeNewestMagicLink(email: string): Promise<string> {
+  const token = randomBytes(32).toString("base64url");
+  await replaceNewestMagicLinkToken(email, token);
+  return token;
 }
 
 /** UserRoles in the API: Manager = 1, Admin = 2. */

@@ -36,13 +36,6 @@ namespace SocialTennis.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Clubs");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("6edb14f9-1b3d-4a63-b998-0d5757a5c8f1"),
-                            Name = "Social Tennis Club"
-                        });
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.ClubInvite", b =>

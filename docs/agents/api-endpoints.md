@@ -18,6 +18,7 @@ api/src/SocialTennis.Api/
 ├── OpenApi/                    document transformers (the 401 on every non-anonymous operation)
 ├── Authentication/             scheme handler, AuthOptions, Tokens, EmailAddress, sender seam
 ├── Membership/                 ClubAdmission: who is in a Club without asking (used by Clubs and Players)
+├── Roles/                      AdminRoleRules: when the Admin role may be removed
 ├── Data/  Domain/  Migrations/
 ```
 
