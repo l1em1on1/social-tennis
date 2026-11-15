@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PlayerNameForm } from "@/components/player-name-form";
+import { PlayerForm } from "@/components/player-form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
@@ -10,7 +10,7 @@ import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Profiles" };
 
-/** The Players on this login: add one, rename one, choose who to play as. And sign-out. */
+/** The Players on this login: add one, edit one, choose who to play as, leave a Club. And sign-out. */
 export default async function ProfilesPage({ searchParams }: PageProps<"/profiles">) {
   const [viewer, { error }] = await Promise.all([getViewer(), searchParams]);
 
@@ -19,7 +19,7 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
       <h1 className="text-2xl font-bold">Profiles</h1>
 
       {error === "name" && (
-        <ErrorState title="That name didn't work" description="Enter a name of up to 100 characters." />
+        <ErrorState title="That didn't save" description="Enter a name of up to 100 characters, and choose a level and gender from the lists." />
       )}
 
       <Card title="Players on this login">
@@ -33,10 +33,20 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
             {viewer.players.map((player) => {
               const acting = player.id === viewer.actingPlayer?.id;
               return (
-                // Keyed by the name too: a rename remounts the row, so its sheet starts closed with the new name.
-                <li key={`${player.id}:${player.name}`} className="flex flex-col gap-2 py-3">
+                // Keyed by what the sheet edits: saving remounts the row, so its sheet starts closed with the new values.
+                <li
+                  key={`${player.id}:${player.name}:${player.gender}:${player.level}`}
+                  className="flex flex-col gap-2 py-3"
+                >
                   <div className="flex min-h-11 items-center justify-between gap-3">
-                    <span className="font-medium">{player.name}</span>
+                    <div>
+                      <p className="font-medium">{player.name}</p>
+                      <p className="text-sm text-fg-muted">
+                        {[player.gender, player.level === null ? null : `Level ${player.level}`]
+                          .filter(Boolean)
+                          .join(" · ") || "Level and gender not set"}
+                      </p>
+                    </div>
                     {acting && <Badge tone="accent">Playing as</Badge>}
                   </div>
                   {player.clubs.length === 0 ? (
@@ -95,18 +105,19 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                       </form>
                     )}
                     <Sheet
-                      title={`Rename ${player.name}`}
+                      title={`Edit ${player.name}`}
                       trigger={
                         <>
-                          Rename<span className="sr-only"> {player.name}</span>
+                          Edit<span className="sr-only"> {player.name}</span>
                         </>
                       }
                     >
-                      <PlayerNameForm
-                        id={`name-${player.id}`}
+                      <PlayerForm
+                        id={`player-${player.id}`}
                         label="Name"
-                        submitLabel="Save name"
+                        submitLabel="Save"
                         from="/profiles"
+                        details
                         player={player}
                       />
                     </Sheet>
@@ -120,8 +131,8 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
         {/* Keyed by the count: adding a Player remounts the sheet, so it starts empty next time. */}
         <div className="mt-4" key={viewer.players.length}>
           <Sheet title="Add a player" trigger={viewer.players.length === 0 ? "Add yourself" : "Add another player"}>
-            <PlayerNameForm
-              id="new-player-name"
+            <PlayerForm
+              id="new-player"
               label="Name"
               hint={
                 viewer.players.length === 0
@@ -130,6 +141,7 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
               }
               submitLabel="Add player"
               from="/profiles"
+              details
             />
           </Sheet>
         </div>

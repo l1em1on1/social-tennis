@@ -1,3 +1,4 @@
+using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Features.Players.Contracts;
 using SocialTennis.Api.Validation;
 
@@ -6,8 +7,9 @@ namespace SocialTennis.Api.Features.Players;
 public static class PlayersEndpoints
 {
     /// <summary>
-    /// The signed-in User's own Players. Every route here is scoped to the
-    /// caller: there is no way to list or change another User's Players.
+    /// The signed-in User's own Players. Every route but the Rating one is
+    /// scoped to the caller: there is no way to list another User's Players or
+    /// change their Name, Gender or Level.
     /// </summary>
     public static IEndpointRouteBuilder MapPlayersEndpoints(this IEndpointRouteBuilder app)
     {
@@ -20,9 +22,16 @@ public static class PlayersEndpoints
             .ValidatesBody<CreatePlayerRequest, CreatePlayerRequest.Validator>()
             .WithName(nameof(CreatePlayer));
 
-        group.MapPut("/{playerId:guid}", RenamePlayer.HandleAsync)
-            .ValidatesBody<RenamePlayerRequest, RenamePlayerRequest.Validator>()
-            .WithName(nameof(RenamePlayer));
+        group.MapPut("/{playerId:guid}", UpdatePlayer.HandleAsync)
+            .ValidatesBody<UpdatePlayerRequest, UpdatePlayerRequest.Validator>()
+            .WithName(nameof(UpdatePlayer));
+
+        // The one route here that isn't the holder's: Rating is a Manager's to
+        // set, for any Player (roles are club-wide in v1, ADR-0003).
+        group.MapPut("/{playerId:guid}/rating", SetPlayerRating.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<SetPlayerRatingRequest, SetPlayerRatingRequest.Validator>()
+            .WithName(nameof(SetPlayerRating));
 
         // The Player's own way out. A Manager removing them is in ClubsEndpoints.
         group.MapDelete("/{playerId:guid}/clubs/{clubId:guid}", LeaveClub.HandleAsync)

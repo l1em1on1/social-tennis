@@ -25,6 +25,9 @@ const MOCK_CLUB = { id: "00000000-0000-4000-8000-0000000000c1", name: "Riverside
 interface MockPlayer {
   id: string;
   name: string;
+  gender: "Male" | "Female" | null;
+  level: number | null;
+  rating: number;
   /** Email of the session that made it. */
   email: string;
   /** Present once the Player has asked to join the one Club. */
@@ -54,17 +57,28 @@ function emailOf(request: Request): string {
   return remembered.includes("@") ? remembered.toLowerCase() : "player@example.com";
 }
 
+const nextPlayerId = () => `00000000-0000-4000-8000-${String((playersMade += 1)).padStart(12, "0")}`;
+
 function playersOf(request: Request): MockPlayer[] {
   const session = sessionOf(request) ?? "";
   let players = playersBySession.get(session);
   if (!players) {
-    players = [];
+    // Signing in: whatever a Manager added for this email is theirs now.
+    const email = emailOf(request);
+    players = addedByManager.filter((player) => player.email === email);
+    for (const player of players) addedByManager.splice(addedByManager.indexOf(player), 1);
     playersBySession.set(session, players);
   }
   return players;
 }
 
-const allPlayers = () => [...playersBySession.values()].flat();
+/** Players a Manager added for an email nobody has signed in with yet. */
+const addedByManager: MockPlayer[] = [];
+
+const allPlayers = () => [...playersBySession.values()].flat().concat(addedByManager);
+
+const validLevel = (level: unknown): level is number | null | undefined =>
+  level === null || level === undefined || (typeof level === "number" && level >= 1 && level <= 5);
 
 /**
  * Users by email, made the first time an email signs in. Roles start from the
@@ -169,7 +183,12 @@ export const handlers = [
         playerId: player.id,
         name: player.name,
         email: player.email,
+        // Players a Manager added sit in no session until that email signs in.
+        signedIn: !addedByManager.includes(player),
         approved: player.membership!.approved,
+        gender: player.gender,
+        level: player.level,
+        rating: player.rating,
         requestedAt: player.membership!.requestedAt,
       }));
     const joined = new Set(members.filter((member) => member.approved).map((member) => member.email));
@@ -204,6 +223,29 @@ export const handlers = [
       if (invite.id === params.inviteId) invitedEmails.delete(email);
     }
     return response(204).empty();
+  }),
+
+  http.post("/clubs/{clubId}/players", async ({ request, response }) => {
+    const body = await request.json();
+    const name = body.name.trim();
+    const email = body.email.trim().toLowerCase();
+    if (name.length === 0 || name.length > 100 || !email.includes("@")) {
+      return response(400).json(invalid("name"), problemJson);
+    }
+    const player: MockPlayer = {
+      id: nextPlayerId(),
+      name,
+      gender: null,
+      level: null,
+      rating: 1,
+      email,
+      membership: { approved: true, requestedAt: new Date().toISOString() },
+    };
+    // It waits for the next sign-in with that email. The mock's Players
+    // belong to a session, not an email, so one already signed in doesn't
+    // receive it as it would with the real API.
+    addedByManager.push(player);
+    return response(201).json({ playerId: player.id, name: player.name });
   }),
 
   http.post("/clubs/{clubId}/invites", async ({ request, response }) => {
@@ -296,20 +338,26 @@ export const handlers = [
     const players = playersOf(request).map((player) => ({
       id: player.id,
       name: player.name,
+      gender: player.gender,
+      level: player.level,
       clubs: player.membership ? [{ ...MOCK_CLUB, approved: player.membership.approved }] : [],
     }));
     return response(200).json({ players, page: { total: players.length } });
   }),
 
   http.post("/players", async ({ request, response }) => {
-    const name = (await request.json()).name.trim();
-    if (name.length === 0 || name.length > 100) {
+    const body = await request.json();
+    const name = body.name.trim();
+    if (name.length === 0 || name.length > 100 || !validLevel(body.level)) {
       return response(400).json(invalid("name"), problemJson);
     }
     const email = emailOf(request);
     const player: MockPlayer = {
-      id: `00000000-0000-4000-8000-${String((playersMade += 1)).padStart(12, "0")}`,
+      id: nextPlayerId(),
       name,
+      gender: body.gender ?? null,
+      level: body.level ?? null,
+      rating: 1,
       email,
       // Invited ahead of time: in the Club from the start.
       membership: invitedEmails.has(email) ? { approved: true, requestedAt: new Date().toISOString() } : undefined,
@@ -319,8 +367,9 @@ export const handlers = [
   }),
 
   http.put("/players/{playerId}", async ({ request, params, response }) => {
-    const name = (await request.json()).name.trim();
-    if (name.length === 0 || name.length > 100) {
+    const body = await request.json();
+    const name = body.name.trim();
+    if (name.length === 0 || name.length > 100 || !validLevel(body.level)) {
       return response(400).json(invalid("name"), problemJson);
     }
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
@@ -328,6 +377,21 @@ export const handlers = [
       return response(404).empty();
     }
     player.name = name;
+    player.gender = body.gender ?? null;
+    player.level = body.level ?? null;
+    return response(204).empty();
+  }),
+
+  http.put("/players/{playerId}/rating", async ({ request, params, response }) => {
+    const { rating } = await request.json();
+    if (typeof rating !== "number" || rating < 1 || rating > 10_000) {
+      return response(400).json(invalid("rating"), problemJson);
+    }
+    const player = allPlayers().find((candidate) => candidate.id === params.playerId);
+    if (!player) {
+      return response(404).empty();
+    }
+    player.rating = rating;
     return response(204).empty();
   }),
 

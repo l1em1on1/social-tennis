@@ -4,7 +4,7 @@ import { expect, test } from "@chromatic-com/playwright";
 import { addFirstPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
-test("a first sign-in asks for a name, and the name can be changed in Profiles", async ({ page }, testInfo) => {
+test("a first sign-in asks for a name; name, gender and level are edited in Profiles", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 
   // Nobody to play as yet: no "Playing as", and the question is on Home.
@@ -16,18 +16,23 @@ test("a first sign-in asks for a name, and the name can be changed in Profiles",
   await expect(page.getByRole("heading", { name: "Welcome! What's your name?" })).toHaveCount(0);
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profiles" }).click();
-  await page.getByRole("button", { name: "Rename Sam Smith" }).click();
-  const sheet = page.getByRole("dialog", { name: "Rename Sam Smith" });
+  await page.getByRole("button", { name: "Edit Sam Smith" }).click();
+  const sheet = page.getByRole("dialog", { name: "Edit Sam Smith" });
   await expectNoSeriousA11yViolations(page);
   await sheet.getByLabel("Name").fill("Samantha Smith");
-  await sheet.getByRole("button", { name: "Save name" }).click();
+  await sheet.getByLabel("Plays as").selectOption("Female");
+  await sheet.getByLabel("Level").selectOption("3");
+  await sheet.getByRole("button", { name: "Save" }).click();
 
   await expect(page.getByTestId("acting-player")).toHaveText("Samantha Smith");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
+  await expect(page.getByText("Female · Level 3")).toBeVisible();
+
   // It is stored, not just shown.
   await page.reload();
   await expect(page.getByTestId("acting-player")).toHaveText("Samantha Smith");
+  await expect(page.getByText("Female · Level 3")).toBeVisible();
 });
 
 test("a name of only spaces is refused with a message", async ({ page }, testInfo) => {
@@ -104,7 +109,7 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
-  await manager.getByLabel("Email address").first().fill(email);
+  await manager.getByLabel("Email address", { exact: true }).first().fill(email);
   await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
   const invites = manager.getByRole("list", { name: "Invited addresses" });
@@ -146,7 +151,7 @@ test("a Manager removes a member, and withdraws an invite", async ({ page, brows
 
   // An invite nobody has used can be taken back.
   const email = personaEmail(testInfo, "withdrawn");
-  await manager.getByLabel("Email address").first().fill(email);
+  await manager.getByLabel("Email address", { exact: true }).first().fill(email);
   await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
   await manager.getByRole("button", { name: `Withdraw invite for ${email}` }).click();
@@ -189,6 +194,51 @@ test("a Player takes back a request, and a member leaves a Club", async ({ page,
   await expectNoSeriousA11yViolations(page);
   await sheet.getByRole("button", { name: "Leave club" }).click();
   await expect(page.getByText("Not in a club yet")).toBeVisible();
+});
+
+test("a Manager adds a Player by name and email, rates them, and they hold it on signing in", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const child = uniqueName(testInfo, "Casey Child");
+  const email = personaEmail(testInfo, "newparent");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await manager.goto("/manage");
+  // The first Club listed: the Admin specs create others, which sort after it.
+  const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
+  await manager.getByLabel("Player's name").first().fill(child);
+  await manager.getByLabel("Their email address").first().fill(email);
+  await manager.getByRole("button", { name: "Add player" }).first().click();
+  await expect(manager.getByRole("status")).toContainText(`${child} is added`);
+
+  // Listed under the login that will hold it, which nobody has used yet.
+  const held = manager.getByRole("list", { name: `Players of ${email}` }).first();
+  await expect(held.getByText(child, { exact: true }).first()).toBeVisible();
+
+  // A new Player's Rating is 1; the Manager sets it by hand.
+  await held.getByRole("button", { name: `Rating 1 for ${child}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Rating for ${child}` });
+  await expectNoSeriousA11yViolations(manager);
+  await sheet.getByLabel("Rating").fill("7");
+  await sheet.getByRole("button", { name: "Save rating" }).click();
+  await expect(held.getByRole("button", { name: `Rating 7 for ${child}` })).toBeVisible();
+  await managerContext.close();
+
+  // Signing in with that address: the Player is theirs, already a member, with no name to ask for.
+  await logIn(page, testInfo, email);
+  await expect(page.getByTestId("acting-player")).toHaveText(child);
+  await expect(page.getByRole("heading", { name: "Welcome! What's your name?" })).toHaveCount(0);
+  await expect(page.getByRole("listitem").filter({ hasText: clubName })).toContainText("Member");
+
+  // Their Rating is the Manager's business: Profiles neither shows nor edits it.
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profiles" }).click();
+  await expect(page.getByText(child, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/rating/i)).toHaveCount(0);
+  await page.getByRole("button", { name: `Edit ${child}` }).click();
+  await expect(page.getByRole("dialog", { name: `Edit ${child}` }).getByLabel(/rating/i)).toHaveCount(0);
 });
 
 test("a Player can't open the Manager's members list", async ({ page }, testInfo) => {

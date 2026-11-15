@@ -44,6 +44,19 @@ function nameFormPage(formData: FormData): NameFormPage {
   return formData.get("from") === "/profiles" ? "/profiles" : "/";
 }
 
+/** Gender and Level as a form sends them: absent or "" is unset. Null if the value isn't one a form offers. */
+function playerDetails(formData: FormData): { gender: "Male" | "Female" | null; level: number | null } | null {
+  const gender = formData.get("gender") ?? "";
+  const level = formData.get("level") ?? "";
+  if ((gender !== "" && gender !== "Male" && gender !== "Female") || typeof level !== "string") {
+    return null;
+  }
+  if (level !== "" && !/^[1-5]$/.test(level)) {
+    return null;
+  }
+  return { gender: gender === "" ? null : gender, level: level === "" ? null : Number(level) };
+}
+
 /**
  * Add a Player to this login. The first one becomes the Acting Player by being
  * the only one; later ones don't take over.
@@ -51,12 +64,13 @@ function nameFormPage(formData: FormData): NameFormPage {
 export async function createPlayer(formData: FormData) {
   const page = nameFormPage(formData);
   const name = formData.get("name");
-  if (typeof name !== "string") {
+  const details = playerDetails(formData);
+  if (typeof name !== "string" || !details) {
     redirect(`${page}?error=name`);
   }
 
   const api = await apiWithSession();
-  const { response } = await api.POST("/players", { body: { name } });
+  const { response } = await api.POST("/players", { body: { name, ...details } });
   if (response.status === 400) {
     redirect(`${page}?error=name`);
   }
@@ -68,18 +82,22 @@ export async function createPlayer(formData: FormData) {
   redirect(page);
 }
 
-/** Change the Name of a Player this login holds. */
-export async function renamePlayer(formData: FormData) {
+/**
+ * Change the Name, Gender and Level of a Player this login holds. The API
+ * replaces all three, so the form sends all three.
+ */
+export async function updatePlayer(formData: FormData) {
   const playerId = formData.get("playerId");
   const name = formData.get("name");
-  if (typeof playerId !== "string" || typeof name !== "string") {
+  const details = playerDetails(formData);
+  if (typeof playerId !== "string" || typeof name !== "string" || !details) {
     redirect("/profiles?error=name");
   }
 
   const api = await apiWithSession();
   const { response } = await api.PUT("/players/{playerId}", {
     params: { path: { playerId } },
-    body: { name },
+    body: { name, ...details },
   });
   if (response.status === 400) {
     redirect("/profiles?error=name");
@@ -281,4 +299,52 @@ export async function revokeRole(formData: FormData) {
     throw new Error(`Removing ${path.role} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
+}
+
+/** A Manager adds a Player to a Club by name and email, for someone who may not have signed in yet. */
+export async function addClubPlayer(formData: FormData) {
+  const clubId = formData.get("clubId");
+  const name = formData.get("name");
+  const email = formData.get("email");
+  if (typeof clubId !== "string" || typeof name !== "string" || typeof email !== "string") {
+    redirect("/manage?error=player");
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/clubs/{clubId}/players", {
+    params: { path: { clubId } },
+    body: { name, email },
+  });
+  if (response.status === 400) {
+    redirect("/manage?error=player");
+  }
+  if (!response.ok) {
+    throw new Error(`Adding a player to club ${clubId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage?added=${encodeURIComponent(name.trim())}`);
+}
+
+/** A Manager sets a Player's Rating. Nothing else ever changes it. */
+export async function setPlayerRating(formData: FormData) {
+  const playerId = formData.get("playerId");
+  const rating = formData.get("rating");
+  if (typeof playerId !== "string" || typeof rating !== "string" || !/^\d{1,5}$/.test(rating)) {
+    redirect("/manage?error=rating");
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/players/{playerId}/rating", {
+    params: { path: { playerId } },
+    body: { rating: Number(rating) },
+  });
+  if (response.status === 400) {
+    redirect("/manage?error=rating");
+  }
+  // 404: the Player was removed meanwhile. The refreshed list shows that.
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Setting a rating failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect("/manage");
 }

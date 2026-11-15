@@ -32,7 +32,11 @@ public static class GetClubMembers
                 m.PlayerId,
                 m.Player.Name,
                 m.Player.User.Email,
+                db.SessionTokens.Any(s => s.UserId == m.Player.UserId),
                 m.Status == ClubMembershipStatus.Active,
+                m.Player.Gender,
+                m.Player.Level,
+                m.Player.Rating,
                 m.RequestedAt))
             .ToListAsync(cancellationToken);
 

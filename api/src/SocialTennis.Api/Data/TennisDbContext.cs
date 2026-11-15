@@ -53,6 +53,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
         modelBuilder.Entity<Player>(player =>
         {
             player.Property(p => p.Name).HasMaxLength(Player.NameMaxLength);
+            // Rows that predate the column are Players too, and none is unrated.
+            player.Property(p => p.Rating).HasDefaultValue(Player.DefaultRating);
             player.HasOne(p => p.User).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 

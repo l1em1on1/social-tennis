@@ -6,7 +6,7 @@ import { apiWithSession } from "@/lib/api/server";
 import { ACTING_PLAYER_COOKIE } from "@/lib/session";
 import type { Role, Viewer } from "./types";
 
-export type { PlayerClub, PlayerSummary, Role, Viewer } from "./types";
+export type { PlayerClub, PlayerGender, PlayerSummary, Role, Viewer } from "./types";
 
 /**
  * The current User, their roles and Players, and the Player they're acting as.
@@ -38,7 +38,11 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   // The API names roles as strings; anything this build doesn't know is dropped.
   const roles = me.roles.filter((role): role is Role => role === "Manager" || role === "Admin");
   // Oldest first, so with no choice made the User acts as the first Player they added.
-  const players = playerList.players;
+  // The generated type allows a level as text (how the API's schema describes an integer); it is always a number.
+  const players = playerList.players.map((player) => ({
+    ...player,
+    level: player.level === null ? null : Number(player.level),
+  }));
   const chosen = (await cookies()).get(ACTING_PLAYER_COOKIE)?.value;
   const actingPlayer = players.find((player) => player.id === chosen) ?? players[0] ?? null;
 

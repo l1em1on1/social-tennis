@@ -1,4 +1,4 @@
-import { PlayerNameForm } from "@/components/player-name-form";
+import { PlayerForm } from "@/components/player-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,10 +33,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <ErrorState title="That name didn't work" description="Enter a name of up to 100 characters." />
             </div>
           )}
-          <PlayerNameForm
+          <PlayerForm
             id="welcome-name"
             label="Your name"
-            hint="The name other players see on ladders and scores. You can change it later in Profiles."
+            hint="The name other players see on ladders and scores. You can change it, and add your level, in Profiles."
             submitLabel="Save my name"
             from="/"
           />
