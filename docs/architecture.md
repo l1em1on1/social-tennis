@@ -418,6 +418,8 @@ flowchart LR
 
 **Wireframes on GitHub Pages.** A third workflow, `pages.yml`, publishes `docs/ui/*.html` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder. It copies static files and builds nothing. It reports no check on pull requests.
 
+**Code review.** `review.yml` has Claude (Opus, through `anthropics/claude-code-action`) review every pull request and comment on it directly: inline on the lines concerned, plus one summary. It is advice, not a gate: its check should not be required, and it builds and runs nothing from the repository. It runs only for branches of this repository (not forks, not Dependabot, not drafts), with tools limited to reading files, reading the PR and commenting, and it posts with the workflow's own token. It needs the `ANTHROPIC_API_KEY` secret and says so, passing, while that is unset. Each push to an open PR is one review.
+
 **Build hygiene.** `api/Directory.Build.props` turns warnings into errors with the recommended analyzers, and `api/.editorconfig` holds the C# style rules `dotnet format` checks. It lives under `api/` because the compose services mount `./api` alone. EF Core's generated migrations are marked `generated_code`. ESLint runs in its own job because `next build` no longer lints.
 
 **Dependency updates.** Dependabot (`.github/dependabot.yml`) opens weekly grouped PRs for npm, NuGet, GitHub Actions and the Docker base images. The Playwright image tag is excluded, because it must equal the `@playwright/test` version: bump it by hand on the npm PR.
