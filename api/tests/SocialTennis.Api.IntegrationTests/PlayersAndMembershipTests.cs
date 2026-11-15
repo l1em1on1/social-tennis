@@ -237,6 +237,103 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Withdrawing_an_invite_keeps_members_it_let_in_but_admits_nobody_new()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"withdrawn-{Guid.NewGuid():N}@example.test";
+        var clubId = await AnyClubIdAsync(manager);
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var early = await CreatePlayerAsync(client, "Early");
+        var invite = (await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email);
+
+        var withdraw = await manager.DeleteAsync($"/clubs/{clubId}/invites/{invite.Id}");
+        var again = await manager.DeleteAsync($"/clubs/{clubId}/invites/{invite.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, withdraw.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        Assert.DoesNotContain((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
+        var late = await CreatePlayerAsync(client, "Late");
+        var players = await PlayersAsync(client);
+        Assert.True(Assert.Single(players.Single(p => p.Id == early.Id).Clubs).Approved);
+        Assert.Empty(players.Single(p => p.Id == late.Id).Clubs);
+    }
+
+    [Fact]
+    public async Task An_invite_of_another_Club_is_not_withdrawn_through_this_one()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"kept-{Guid.NewGuid():N}@example.test";
+        var clubId = await AnyClubIdAsync(manager);
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+        var invite = (await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email);
+
+        await manager.DeleteAsync($"/clubs/{Guid.NewGuid()}/invites/{invite.Id}");
+
+        Assert.Contains((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
+    }
+
+    [Fact]
+    public async Task A_Player_can_leave_a_Club_or_take_back_a_waiting_request()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
+        var member = await CreatePlayerAsync(client, "Member");
+        var waiting = await CreatePlayerAsync(client, "Waiting");
+        var clubId = await AnyClubIdAsync(client);
+        await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
+        await manager.PutAsync($"/clubs/{clubId}/members/{member.Id}/approval", null);
+
+        var leave = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
+        var takeBack = await client.DeleteAsync($"/players/{waiting.Id}/clubs/{clubId}");
+        var again = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, takeBack.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        Assert.All(await PlayersAsync(client), p => Assert.Empty(p.Clubs));
+        var listed = (await MembersAsync(manager, clubId)).Members;
+        Assert.DoesNotContain(listed, m => m.PlayerId == member.Id || m.PlayerId == waiting.Id);
+
+        // Having left, coming back means asking again.
+        await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
+        Assert.False(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == member.Id).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task An_invited_Player_who_leaves_can_come_back_without_asking()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"returning-{Guid.NewGuid():N}@example.test";
+        var clubId = await AnyClubIdAsync(manager);
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var player = await CreatePlayerAsync(client, "Pat");
+
+        await client.DeleteAsync($"/players/{player.Id}/clubs/{clubId}");
+        Assert.Empty(Assert.Single(await PlayersAsync(client)).Clubs);
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
+        Assert.True(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task Another_Users_Player_cannot_be_made_to_leave()
+    {
+        using var owner = await factory.CreateSignedInClientAsync();
+        using var other = await factory.CreateSignedInClientAsync();
+        var player = await CreatePlayerAsync(owner, "Sam");
+        var clubId = await AnyClubIdAsync(owner);
+        await owner.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
+        var response = await other.DeleteAsync($"/players/{player.Id}/clubs/{clubId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Single(Assert.Single(await PlayersAsync(owner)).Clubs);
+    }
+
+    [Fact]
     public async Task Two_Managers_inviting_the_same_address_at_once_both_succeed()
     {
         using var first = await factory.CreateManagerClientAsync();
@@ -307,6 +404,9 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         Assert.Equal(
             HttpStatusCode.Forbidden,
             (await client.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email = "friend@example.test" })).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await client.DeleteAsync($"/clubs/{clubId}/invites/{Guid.NewGuid()}")).StatusCode);
         Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
     }
 

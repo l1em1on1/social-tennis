@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { logout, switchActingPlayer } from "@/lib/actions";
+import { leaveClub, logout, switchActingPlayer } from "@/lib/actions";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Profiles" };
@@ -39,13 +39,54 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                     <span className="font-medium">{player.name}</span>
                     {acting && <Badge tone="accent">Playing as</Badge>}
                   </div>
-                  <p className="text-sm text-fg-muted">
-                    {player.clubs.length === 0
-                      ? "Not in a club yet"
-                      : player.clubs
-                          .map((club) => (club.approved ? `Member of ${club.name}` : `Waiting for approval at ${club.name}`))
-                          .join(" · ")}
-                  </p>
+                  {player.clubs.length === 0 ? (
+                    <p className="text-sm text-fg-muted">Not in a club yet</p>
+                  ) : (
+                    <ul aria-label={`${player.name}'s clubs`} className="flex flex-col gap-2">
+                      {player.clubs.map((club) => (
+                        <li key={club.id} className="flex min-h-11 items-center justify-between gap-3">
+                          <span className="text-sm text-fg-muted">
+                            {club.approved ? `Member of ${club.name}` : `Waiting for approval at ${club.name}`}
+                          </span>
+                          {club.approved ? (
+                            // Behind a sheet: coming back means asking a Manager again.
+                            <Sheet
+                              title={`Leave ${club.name}?`}
+                              trigger={
+                                <>
+                                  Leave<span className="sr-only"> {club.name}</span>
+                                </>
+                              }
+                            >
+                              <p className="text-fg-muted">
+                                {player.name} will no longer be a member of {club.name}. Joining again may need a
+                                manager&apos;s approval.
+                              </p>
+                              <form action={leaveClub}>
+                                <input type="hidden" name="clubId" value={club.id} />
+                                <input type="hidden" name="playerId" value={player.id} />
+                                <SubmitButton variant="danger" fullWidth pendingLabel="Leaving…">
+                                  Leave club
+                                </SubmitButton>
+                              </form>
+                            </Sheet>
+                          ) : (
+                            <form action={leaveClub}>
+                              <input type="hidden" name="clubId" value={club.id} />
+                              <input type="hidden" name="playerId" value={player.id} />
+                              <SubmitButton
+                                variant="secondary"
+                                pendingLabel="Cancelling…"
+                                aria-label={`Cancel request to join ${club.name}`}
+                              >
+                                Cancel request
+                              </SubmitButton>
+                            </form>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {!acting && (
                       <form action={switchActingPlayer}>

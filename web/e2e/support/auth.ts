@@ -10,13 +10,16 @@ import { Client } from "pg";
  * Every login is a new User with no Player: see `addFirstPlayer`.
  *
  * real: a random `+tag` keeps tests from sharing a User in the one database.
- * mock: no tag. Nothing is shared there, and Chromatic snapshots the mock
- *   project, so every page that shows the email must render identically.
+ * mock: no tag on a first attempt. Chromatic snapshots the mock project, so
+ *   every page that shows the email must render identically. A retry gets a
+ *   tag: the mock remembers invites by email for the whole suite, and the
+ *   failed attempt may have left one.
  */
 export function personaEmail(testInfo: TestInfo, persona: string): string {
-  return testInfo.project.name === "mock"
-    ? `${persona}@example.com`
-    : `${persona}+${randomBytes(4).toString("hex")}@example.com`;
+  if (testInfo.project.name === "mock") {
+    return testInfo.retry === 0 ? `${persona}@example.com` : `${persona}+retry${testInfo.retry}@example.com`;
+  }
+  return `${persona}+${randomBytes(4).toString("hex")}@example.com`;
 }
 
 /**
