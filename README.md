@@ -163,6 +163,10 @@ docker compose -f infra/compose.yml run --rm infra \
 
 Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so the link is in `docker compose logs api`. The compose file sets `Email__AllowLogProvider: "true"` for that; anywhere else outside Development, the API refuses to start on `Log` without it (#107).
 
+### Finding an error
+
+Outside Development the API logs one JSON object per line (#115). In the Azure portal, open the Log Analytics workspace `social-tennis-logs` → **Logs** → **Queries** → **Social tennis** → **API errors**: errors and crashes in the API and its scheduled jobs, newest first, with the request path and trace id when the error happened during a request. Logs are kept for 30 days.
+
 ## License
 
 GPLv3
