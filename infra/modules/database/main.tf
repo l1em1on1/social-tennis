@@ -1,6 +1,6 @@
 # The database: one Neon project on the free plan.
 #
-# This module's whole contract is its two outputs. If the Neon provider ever
+# This module's whole contract is its outputs. If the Neon provider ever
 # becomes a problem, create the project by hand in the Neon console and replace
 # this module with one that returns the same outputs from variables.
 
@@ -68,4 +68,20 @@ output "connection_string" {
 output "database_name" {
   description = "Name of the app's database. Also where the migration lock is taken, since a Neon role may not be allowed into the postgres database."
   value       = neon_project.this.database_name
+}
+
+output "libpq_uri" {
+  description = "The same database as a libpq connection URI, for pg_dump in the backup job (#137)."
+  sensitive   = true
+
+  # Direct endpoint, like the API. verify-full against the system's CA bundle
+  # (sslrootcert=system, libpq 16 and later) checks Neon's certificate and
+  # host name.
+  value = format(
+    "postgresql://%s:%s@%s/%s?sslmode=verify-full&sslrootcert=system",
+    urlencode(neon_project.this.database_user),
+    urlencode(neon_project.this.database_password),
+    neon_project.this.database_host,
+    neon_project.this.database_name,
+  )
 }

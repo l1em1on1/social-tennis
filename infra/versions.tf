@@ -30,7 +30,15 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    # Storage accounts are managed through Azure Resource Manager only. The
+    # backup account accepts Entra ID sign-in only (#137), and the deploy
+    # identity has no data-plane role; nothing here uses queue properties or
+    # static websites, the only settings that need the data plane.
+    storage {
+      data_plane_available = false
+    }
+  }
 }
 
 # Reads NEON_API_KEY from the environment.

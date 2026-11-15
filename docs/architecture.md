@@ -307,7 +307,9 @@ flowchart LR
         W["web<br/>public ingress, https<br/>0–1 replicas"]
         A["api<br/>internal ingress only<br/>0–1 replicas"]
         J["job-purge-tokens<br/>api image, cron 03:00 UTC<br/>runs and exits"]
+        K["job-backup-database<br/>pg_dump, then az upload<br/>cron 02:30 UTC and before each deploy"]
     end
+    S[("Backup storage<br/>Entra ID only, dumps kept 14 days")]
     N[("Neon Postgres<br/>free plan, suspends when idle")]
     G[["GHCR<br/>web and api images"]]
     L[["Log Analytics"]]
@@ -319,6 +321,8 @@ flowchart LR
     W -->|"https://api.internal.&lt;env domain&gt;<br/>https only"| A
     A -->|"TLS, direct endpoint"| N
     J -->|"TLS, direct endpoint"| N
+    K -->|"pg_dump, TLS verify-full"| N
+    K -->|"managed identity"| S
     G -.->|"image pull"| W & A & J
     W & A & J -.->|"logs"| L
     A -->|"sign-in emails"| M
@@ -333,6 +337,12 @@ flowchart LR
 - **Addresses** (ADR-0021). The app is served at `https://<app_domain>`: a custom domain on `web` with an Azure-managed certificate, reached through a DNS-only A record (to the environment's static address) and an `asuid` ownership TXT record in Cloudflare. `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform: from `app_domain` once `app_domain_ready` is true, and from the environment's own domain before that or when `app_domain` is empty. Either way the address is https, so session cookies are `Secure`. The address Azure assigns keeps answering (Terraform output `default_url`). Getting there takes the same two deploys as email, with `scripts/setup-domain.sh` binding the certificate in between: the provider can't bind a managed certificate, and its custom domain resource ignores the binding so later applies leave it alone.
 - **Email** (ADR-0020). Sign-in emails go out through Azure Communication Services from `DoNotReply@<email_domain>`. The domain's DNS is in Cloudflare, where Terraform creates the ownership, SPF, DKIM and DMARC records. It takes two deploys, because Azure checks the records in between and Terraform has no resource for that step: the first (with `email_domain` set) creates the mail resources and DNS records; `scripts/setup-domain.sh` then has Azure verify them and sets `email_domain_verified`; the second links the domain and gives the API its `Email__*` settings, the connection string as a Container Apps secret. Until that second deploy, and whenever `email_domain` is empty, the API logs sign-in links instead (README, "Hosting").
 - **Scheduled jobs** (#112). Nothing runs all the time, so work on a timer is a Container Apps Job per job (`azurerm_container_app_job.scheduled` in `modules/compute`, cron in UTC). It starts the API image with `job <name>` (`dotnet SocialTennis.Api.dll job <name>`), which builds the API's services, runs that one job (`api/src/SocialTennis.Api/Jobs/`), and exits: 0 when it finished, 1 when it threw, 2 for an unknown name. It neither serves requests nor applies migrations, so a job that runs before the first start of a new API version can fail, and is retried once, then runs again the next day. Jobs are idempotent and read time from the injected clock (ADR-0016). Today there is one: `purge-tokens`, daily at 03:00 UTC, deletes used or expired sign-in links and expired or revoked sessions. Retention (#117) and auto-roll (#10) will be more. Locally: `docker compose run --rm api job purge-tokens`.
+- **Backups** (#137, `modules/backup`). Neon's free plan keeps 6 hours of point-in-time history. A second copy, kept longer and outside Neon:
+  - **The job.** `job-backup-database` runs at 02:30 UTC, before the token purge. An init container (`postgres:18-alpine`) runs `pg_dump --format=custom --no-owner --no-privileges` into an EmptyDir volume, over the direct endpoint with `sslmode=verify-full` against the image's CA bundle (`modules/database` output `libpq_uri`). Then the Azure CLI image signs in as the job's user-assigned identity and uploads the file to `backups/dumps/<UTC time>.dump`. No image is built for it: both are public and pinned by digest.
+  - **The storage.** Its own account: Entra ID only (no shared key, no SAS, nothing public), TLS 1.2, infrastructure encryption. A lifecycle rule deletes dumps after 14 days, and blob soft delete keeps a deleted one for 7 more. Terraform manages the account through Azure Resource Manager only (`features.storage.data_plane_available = false` in `versions.tf`), so the Contributor deploy identity needs no data-plane role.
+  - **The one owner step.** The deploy identity can't grant roles, so the owner gives the job's identity Storage Blob Data Contributor on the container, once, after the deploy that creates it (README, "Backups").
+  - **Before each deploy.** The apply job signs in with `azure/login` and starts the job through Azure Resource Manager (`az rest`), waiting up to 15 minutes. A failed backup stops the deploy. `skip_backup` skips it, and on the first deploy, before the job exists, the step says so and goes on.
+  - **Restoring:** `docs/runbooks/restore-database.md`, which #52's drill follows.
 - **Cost guard.** A budget on the resource group emails when actual or forecast spend reaches the configured amount.
 
 ### Terraform (`infra/`)
@@ -341,9 +351,10 @@ flowchart LR
 |---|---|---|
 | Toolbox image | `infra/Dockerfile`, `infra/compose.yml` | Terraform + Azure CLI in one image, so neither is installed on the host (ADR-0005) |
 | Root | `infra/*.tf` | Resource group, the four modules, the budget |
-| `modules/database` | Neon project, database, role | Its contract is two outputs (connection string, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
+| `modules/database` | Neon project, database, role | Its contract is three outputs (Npgsql connection string, the same as a libpq URI for `pg_dump`, database name), so the community-maintained Neon provider can be swapped for a hand-made project |
 | `modules/compute` | Log Analytics (with the saved "API errors" query), environment, `web`, `api`, scheduled jobs | One Container Apps Job per entry in `local.jobs` |
 | `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
+| `modules/backup` | Storage account and container for dumps, lifecycle rule, the job's identity, `job-backup-database` | The job's role on the container is granted by the owner, once (README, "Backups") |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Providers | `infra/.terraform.lock.hcl` | Versions and checksums for `linux_amd64` and `linux_arm64`. Every `terraform init` (CI, deploy, `init.sh`) runs with `-lockfile=readonly`, so a provider that doesn't match its checksum stops the run |
@@ -358,7 +369,8 @@ flowchart LR
     M["merge to main<br/>that changes web/ or api/"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
     D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>SHA on main? tag → digests<br/>terraform plan, printed to the log"]
     PL --> AP{{"approval<br/>environment: production"}}
-    AP --> A["apply<br/>terraform apply<br/>images by digest"]
+    AP --> BK["backup<br/>run job-backup-database, wait<br/>(skip_backup skips)"]
+    BK --> A["apply<br/>terraform apply<br/>images by digest"]
     A --> C["check<br/>GET /health (web reaches api), up to 3 minutes"]
 ```
 
@@ -367,6 +379,7 @@ flowchart LR
 - **Only `main`, and only what was planned.** The plan job refuses a SHA that is not a commit on `main` (GitHub's compare API), then resolves the two images' tags to digests. Terraform gets `image@sha256:…`, and the apply job is handed the same digests, so it runs exactly the images that were planned even if a tag is pushed again in between. A plan run by hand with only `-var image_tag=SHA` still works, by tag.
 - **One mechanism.** A release is `terraform apply` with different images, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
 - **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the Cloudflare API token (DNS edit on the one zone), the alert email and the Admin addresses are secrets of the `production-plan` and `production` environments, never repository secrets (#104, #113): only the deploy jobs, running from `main`, can read them. The setup wizards set them there and never write the two API credentials to `infra/.env`; a local plan or apply takes them from the shell (`infra/compose.yml`). The email domain, the app's domain, and whether each is ready are repository variables. The Terraform state account allows only Entra ID access (no shared keys), with blob versioning and 30-day soft delete.
+- **Back up, then apply.** After approval, the database is dumped first (see "Backups" above), and a failed backup means nothing is deployed.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests web's `/health`, which answers 200 only when web reaches the API over the address production uses (#111). It allows three minutes because the first request after a deploy is a cold start of web and then the API. The database isn't touched.
@@ -490,6 +503,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
 | Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
 | Trivy | `aquasec/trivy:0.76.2@sha256:…` | The CI image scan (`scripts/scan-image.sh`). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts. Bump to a release published after any advisory on Trivy itself |
+| Backup job images | `postgres:18-alpine@sha256:…`, `mcr.microsoft.com/azure-cli:2.92.0@sha256:…` | `infra/modules/backup` only. Pinned by digest in Terraform, by hand: Dependabot can't see images named there. `pg_dump`'s major version must be at least Neon's server version |
 | curl image | `curlimages/curl:8.11.1@sha256:…` | `scripts/setup-domain.sh` only (the host may have no curl). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts |
 | csharp-ls / typescript-language-server / typescript | 0.28.0 / 6.1.0 / 5.9.3 | sbx template (`.sbx/Dockerfile`); exact pins. Claude Code comes with the template's base image, and `sandbox.sh` runs `claude update` on every start |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
