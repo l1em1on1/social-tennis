@@ -2,8 +2,13 @@
  * Name of the HttpOnly cookie holding the opaque API session token. Lives in
  * its own dependency-free module because proxy.ts must not import server-only
  * modules (Next proxy runs outside the RSC runtime).
+ *
+ * Over https it carries the `__Host-` prefix (#53): the browser then accepts
+ * it only if it is Secure, has Path=/ and no Domain, so no other subdomain can
+ * plant a session cookie for this app. Over plain http (the compose network)
+ * a Secure cookie is never sent back, so the prefix can't be used there.
  */
-export const SESSION_COOKIE = "st_session";
+export const sessionCookie = () => (secureCookies() ? "__Host-st_session" : "st_session");
 
 /**
  * Which of the User's Players they are currently acting as (CONTEXT: User —
@@ -29,3 +34,17 @@ export const publicUrl = (path: string) =>
  * https (redirects depend on it), so real deployments stay Secure.
  */
 export const secureCookies = () => publicUrl("").startsWith("https://");
+
+/**
+ * The attributes the session and acting-Player cookies are set with, and must
+ * be cleared with: a browser accepts a `__Host-` cookie, its expiry included,
+ * only with Secure and Path=/. `cookies().delete(name)` alone sends neither
+ * Secure nor HttpOnly, so logging out over https would leave the cookie in
+ * place (PR #129 review).
+ */
+export const cookieOptions = () => ({
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: secureCookies(),
+  path: "/",
+});

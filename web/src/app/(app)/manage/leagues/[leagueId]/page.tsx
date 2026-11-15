@@ -9,12 +9,11 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { addLeagueParticipant, approveLeagueJoinRequest, rejectLeagueJoinRequest } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
+import { isId } from "@/lib/ids";
 import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "League" };
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * One League as a Manager runs it (wireframe M3, without Teams: #6): Join
@@ -28,7 +27,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     params,
     searchParams,
   ]);
-  if (!viewer.roles.includes("Manager") || !UUID.test(leagueId)) {
+  if (!viewer.roles.includes("Manager") || !isId(leagueId)) {
     notFound();
   }
 
