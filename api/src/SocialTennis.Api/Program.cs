@@ -31,8 +31,15 @@ if (args is ["healthcheck"])
 var jobName = args is ["job", var name, ..] ? name : null;
 var builder = WebApplication.CreateBuilder(jobName is null ? args : args[2..]);
 
-builder.Services.AddDbContext<TennisDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+// GSS (Kerberos) encryption off: nothing here uses Kerberos, and Npgsql's
+// default (Prefer) loads libgssapi_krb5 to try it, which the chiseled runtime
+// image doesn't have (#25), so every connection printed an error first. TLS is
+// unaffected: that is SSL Mode, set by the connection string.
+var connectionString = new NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("Default"))
+{
+    GssEncryptionMode = GssEncryptionMode.Disable,
+}.ConnectionString;
+builder.Services.AddDbContext<TennisDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddOpenApi(options => options.AddOperationTransformer<UnauthorizedResponseTransformer>());
 
 // One clock for the whole app. Nothing reads DateTimeOffset.UtcNow directly, so
