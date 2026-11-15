@@ -161,7 +161,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                                 trigger={
                                   <>
                                     Rating {member.rating}
-                                    <span className="sr-only">, change for {member.name}</span>
+                                    <span className="sr-only"> for {member.name}. Change</span>
                                   </>
                                 }
                               >

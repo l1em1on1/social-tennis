@@ -16,6 +16,8 @@ const userRow = (page: Page, email: string) =>
 test.use({ disableAutoSnapshot: true });
 
 test("an Admin creates a Club and renames it", async ({ page }, testInfo) => {
+  // Two axe scans of a page that lists every User: slow against a database many runs have filled.
+  test.slow();
   // "Zz": sorts after the Club the other specs join, which they find as the first one listed.
   const name = uniqueName(testInfo, "Zz Hilltop Tennis Club");
   const renamed = uniqueName(testInfo, "Zz Valley Tennis Club");

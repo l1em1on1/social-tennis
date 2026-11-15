@@ -51,13 +51,11 @@ function sessionOf(request: Request): string | undefined {
   return bearer?.startsWith(SESSION_PREFIX) ? bearer : undefined;
 }
 
-function emailOfSession(session: string): string {
-  const encoded = session.slice(SESSION_PREFIX.length).split(".")[0];
+function emailOf(request: Request): string {
+  const encoded = (sessionOf(request) ?? "").slice(SESSION_PREFIX.length).split(".")[0];
   const remembered = Buffer.from(encoded, "base64url").toString();
   return remembered.includes("@") ? remembered.toLowerCase() : "player@example.com";
 }
-
-const emailOf = (request: Request) => emailOfSession(sessionOf(request) ?? "");
 
 const nextPlayerId = () => `00000000-0000-4000-8000-${String((playersMade += 1)).padStart(12, "0")}`;
 
@@ -243,9 +241,10 @@ export const handlers = [
       email,
       membership: { approved: true, requestedAt: new Date().toISOString() },
     };
-    // Theirs at once if that email has a session already; otherwise it waits for them.
-    const holder = [...playersBySession].find(([session]) => emailOfSession(session) === email);
-    (holder ? holder[1] : addedByManager).push(player);
+    // It waits for the next sign-in with that email. The mock's Players
+    // belong to a session, not an email, so one already signed in doesn't
+    // receive it as it would with the real API.
+    addedByManager.push(player);
     return response(201).json({ playerId: player.id, name: player.name });
   }),
 
