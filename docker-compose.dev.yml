@@ -15,6 +15,17 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
     command: dotnet watch --project src/SocialTennis.Api run --urls http://0.0.0.0:8080
+    # The base file's probe runs the published DLL, which `dotnet watch` has no
+    # copy of here. The SDK image has a shell, so speak HTTP over bash's /dev/tcp.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          head -n1 <&3 | grep -q ' 200 '
 
   web:
     image: node:24-alpine

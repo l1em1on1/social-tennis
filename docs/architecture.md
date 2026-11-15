@@ -182,7 +182,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       └── rtk/                registers RTK's Claude Code hook at creation
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
-│   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0 runtime
+│   ├── Dockerfile              multi-stage: sdk:10.0 build → aspnet:10.0-noble-chiseled-extra runtime (non-root, no shell)
 │   ├── dotnet-tools.json       local tool manifest (dotnet-ef)
 │   ├── src/SocialTennis.Api/
 │   │   ├── Program.cs          minimal API: DI, deny-by-default auth, migrate-on-start, feature registration, OpenAPI, /health
@@ -208,7 +208,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       ├── SocialTennis.Api.IntegrationTests/   HTTP + real Postgres
 │       └── SocialTennis.Api.UnitTests/          pure logic only, no DbContext
 └── web/
-    ├── Dockerfile              multi-stage: node:24 build → standalone runtime; MOCK_API build arg
+    ├── Dockerfile              multi-stage: node:24-alpine build → standalone runtime as `node`; MOCK_API build arg
     ├── next.config.ts          output: "standalone"; MOCK_API inlined via env; static security headers
     ├── playwright.config.ts    E2E projects: mock (web-mock) and real (web-e2e)
     ├── e2e/                    Playwright specs; support/ (login, axe, stack readiness)
@@ -239,14 +239,14 @@ One compose file is the truth for topology; overlays change *how* services run, 
 
 | | Base (`docker compose up`) | Dev overlay (`-f docker-compose.dev.yml`) | Dev Container | Docker Sandbox (`./sandbox.sh`) |
 |---|---|---|---|---|
-| api | Built image (publish, `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Editor toolchain; stack still via compose | Agent toolchain in the sbx template |
+| api | Built image (publish, chiseled `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Editor toolchain; stack still via compose | Agent toolchain in the sbx template |
 | web | Built image (standalone `server.js`) | `node:24-alpine` + bind mount + `next dev` | 〃 | 〃 |
 | postgres | `postgres:18-alpine`, `pgdata` volume | same | same | same |
 | Use for | Prod-like verification | Day-to-day development | IntelliSense, debugging, terminals, agents | Isolated autonomous agents, deny-by-default egress |
 
 **Mocked API.** With `MOCK_API=1` in the environment, the dev overlay's `web` runs with MSW answering every API call. Start it with `--no-deps` and no `api` or `postgres` is needed. The `e2e` profile's `web-mock` service is the production-build equivalent: the same mocks, baked in with the `MOCK_API` build arg.
 
-**Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` probe calls `/health/ready` over bash's `/dev/tcp`, because the runtime image has no curl or wget; a shell-less image (#25) needs a different probe. The web probe requests `/login` on loopback; the image sets `HOSTNAME=0.0.0.0` so the standalone server listens on all interfaces rather than only the container's own name. `start_period` is 180s to cover the dev overlay's first restore and compile.
+**Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` image is chiseled, with no shell, curl or wget (#25), so its probe is the app itself: `dotnet SocialTennis.Api.dll healthcheck` requests `/health/ready` and exits 0 or 1 without building a host. Under the dev overlay, which runs the SDK image, the probe calls `/health/ready` over bash's `/dev/tcp` instead. The web probe requests `/login` on loopback; the image sets `HOSTNAME=0.0.0.0` so the standalone server listens on all interfaces rather than only the container's own name. `start_period` is 180s to cover the dev overlay's first restore and compile.
 
 Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries).
 
@@ -456,6 +456,9 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | FluentValidation | 12.1.1 | Core package only — validators are constructed, not DI-resolved (ADR-0011) |
 | Next.js / React | 16.3 / 19.2 | `output: "standalone"` for the Docker runtime image |
 | Node | 24 (LTS) | Container-only, never on the host |
+| API runtime image | `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra@sha256:…` | Ubuntu chiseled (#25): no shell or package manager, runs as `app` (UID 1654). `-extra` adds ICU and tzdata. With no shell, compose's healthcheck is the app probing itself (`dotnet SocialTennis.Api.dll healthcheck`, `HealthProbe.cs`); the dev overlay, on the SDK image, keeps a bash probe. Azure probes over HTTP |
+| Web runtime image | `node:24-alpine@sha256:…` | Runs as the image's `node` user (UID 1000); the app's files are root-owned, only `.next/cache` is writable |
+| Build images | `dotnet/sdk:10.0@sha256:…`, `node:24-alpine@sha256:…` | Pinned the same way, so a build is reproducible |
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
 | msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. msw 3 renamed `onUnhandledRequest` to `onUnhandledFrame` |
@@ -469,6 +472,8 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension (unpinned) for `scripts/setup-domain.sh` |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
 | sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
+
+**Bumping a digest-pinned base image** (#25). Each `FROM` in `api/Dockerfile` and `web/Dockerfile` is `tag@sha256:digest`: the tag says what it is, the digest fixes the exact image. Dependabot's `docker` updates (monthly, #113) open a PR that moves both; CI builds and tests it like any change. By hand: `docker buildx imagetools inspect <image>:<tag>` prints the current digest (the `Digest:` line); put it after the tag, then run the API and E2E suites. Keep the tag, never a digest alone, so a reader and Dependabot both know what is pinned.
 
 ## Where this goes next
 

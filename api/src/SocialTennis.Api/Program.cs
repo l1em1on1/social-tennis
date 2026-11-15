@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using SocialTennis.Api;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
@@ -17,14 +18,28 @@ using SocialTennis.Api.Features.Users;
 using SocialTennis.Api.Jobs;
 using SocialTennis.Api.OpenApi;
 
+// `healthcheck`: probe the running API and exit, for compose's HEALTHCHECK in
+// the shell-less runtime image (#25). Before anything else: it needs no host.
+if (args is ["healthcheck"])
+{
+    return await HealthProbe.RunAsync();
+}
+
 // `job <name>` runs one scheduled job and exits instead of serving (ADR-0019,
 // #112): `dotnet SocialTennis.Api.dll job purge-tokens`. The job's words are
 // taken off before the host reads the rest of the command line as configuration.
 var jobName = args is ["job", var name, ..] ? name : null;
 var builder = WebApplication.CreateBuilder(jobName is null ? args : args[2..]);
 
-builder.Services.AddDbContext<TennisDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+// GSS (Kerberos) encryption off: nothing here uses Kerberos, and Npgsql's
+// default (Prefer) loads libgssapi_krb5 to try it, which the chiseled runtime
+// image doesn't have (#25), so every connection printed an error first. TLS is
+// unaffected: that is SSL Mode, set by the connection string.
+var connectionString = new NpgsqlConnectionStringBuilder(builder.Configuration.GetConnectionString("Default"))
+{
+    GssEncryptionMode = GssEncryptionMode.Disable,
+}.ConnectionString;
+builder.Services.AddDbContext<TennisDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddOpenApi(options => options.AddOperationTransformer<UnauthorizedResponseTransformer>());
 
 // One clock for the whole app. Nothing reads DateTimeOffset.UtcNow directly, so
