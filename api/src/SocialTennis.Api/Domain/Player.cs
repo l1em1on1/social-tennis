@@ -18,7 +18,11 @@ public class Player
 
     public const int MaxLevel = 5;
 
-    /// <summary>How many Players a login may add for itself (CreatePlayer, #109).</summary>
+    /// <summary>
+    /// How many Players a login may hold before it can't add another itself
+    /// (CreatePlayer, #109). Players a Manager added count; a Manager adding
+    /// one is never refused.
+    /// </summary>
     public const int MaxPerUser = 10;
 
     /// <summary>Every new Player's Rating: nobody is unrated (ADR-0007).</summary>

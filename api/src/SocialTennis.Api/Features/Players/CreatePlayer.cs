@@ -13,7 +13,9 @@ namespace SocialTennis.Api.Features.Players;
 /// The signed-in User adds a Player, which they then hold. Refused (409) once
 /// the login holds <see cref="Player.MaxPerUser"/> Players (#109): enough for a
 /// family, and a ceiling on how many join requests one login can put in front of
-/// a Club's Managers. A Manager adding a Player (AddClubPlayer) isn't limited.
+/// a Club's Managers. Every Player the login holds counts, including ones a
+/// Manager added for its email; a Manager adding a Player (AddClubPlayer) is
+/// never refused, so a Manager can still add more.
 /// </summary>
 public static class CreatePlayer
 {

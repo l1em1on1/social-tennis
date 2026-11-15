@@ -191,6 +191,30 @@ public class HardeningTests(AuthTestFactory factory) : IClassFixture<AuthTestFac
     }
 
     [Fact]
+    public async Task Players_a_Manager_added_count_towards_the_limit_and_a_Manager_can_still_add_more()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await factory.AClubIdAsync();
+        var email = NewEmail();
+        for (var i = 1; i <= Player.MaxPerUser; i++)
+        {
+            (await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = $"Junior {i}", email }))
+                .EnsureSuccessStatusCode();
+        }
+
+        using var parent = await factory.CreateSignedInClientAsync(email);
+        var ownAdd = await parent.PostAsJsonAsync("/players", new { name = "One more" });
+
+        Assert.Equal(HttpStatusCode.Conflict, ownAdd.StatusCode);
+        Assert.Equal("player-limit", (await ownAdd.Content.ReadFromJsonAsync<ProblemDetails>())!.Type);
+
+        var managerAdd = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Junior 11", email });
+        Assert.Equal(HttpStatusCode.Created, managerAdd.StatusCode);
+        var players = await parent.GetFromJsonAsync<GetPlayersResponse>("/players");
+        Assert.Equal(Player.MaxPerUser + 1, players!.Players.Count);
+    }
+
+    [Fact]
     public async Task A_session_stops_working_when_it_expires()
     {
         var clock = new MovableClock(DateTimeOffset.UtcNow);
