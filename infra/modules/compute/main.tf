@@ -189,12 +189,17 @@ resource "azurerm_container_app" "api" {
         value = "${local.web_url}/auth/verify"
       }
 
-      # Without these the API's Email:Provider stays "Log" (ADR-0020).
+      # Without these the API's Email:Provider stays "Log" (ADR-0020). Outside
+      # Development the API refuses to start on "Log" unless it is allowed
+      # explicitly (#107), which only the no-email path does: there, sign-in
+      # links are read from the API's logs on purpose.
       dynamic "env" {
         for_each = var.email_enabled ? {
           Email__Provider    = "AzureCommunicationServices"
           Email__FromAddress = var.email_from_address
-        } : {}
+          } : {
+          Email__AllowLogProvider = "true"
+        }
         content {
           name  = env.key
           value = env.value

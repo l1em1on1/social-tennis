@@ -23,6 +23,14 @@ public class EmailOptions
     /// </summary>
     public string FromAddress { get; set; } = "";
 
+    /// <summary>
+    /// Lets the <see cref="EmailProvider.Log"/> provider run outside
+    /// Development. That provider writes every sign-in link, token included,
+    /// to the log, so outside Development it must be asked for explicitly:
+    /// a missing or misspelled Email:Provider must not turn it on (#107).
+    /// </summary>
+    public bool AllowLogProvider { get; set; }
+
     public AzureCommunicationServicesOptions AzureCommunicationServices { get; set; } = new();
 
     public class AzureCommunicationServicesOptions
@@ -32,8 +40,11 @@ public class EmailOptions
     }
 
     /// <summary>What is missing for the chosen provider, or null when it is fully configured.</summary>
-    public string? Problem() => Provider switch
+    public string? Problem(bool isDevelopment) => Provider switch
     {
+        EmailProvider.Log when !isDevelopment && !AllowLogProvider =>
+            "Email:Provider is Log (the default), which writes sign-in links to the log, outside Development. " +
+            "Set Email__Provider to a real provider, or set Email__AllowLogProvider=true to log links on purpose.",
         EmailProvider.Log => null,
         _ when string.IsNullOrWhiteSpace(FromAddress) =>
             $"Email:FromAddress is required when Email:Provider is {Provider}.",

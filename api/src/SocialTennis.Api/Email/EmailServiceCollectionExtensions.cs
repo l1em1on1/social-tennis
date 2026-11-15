@@ -12,12 +12,13 @@ public static class EmailServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddEmail(this IServiceCollection services, IConfiguration configuration)
     {
-        // Checked at startup: a production host with half its mail settings
-        // should fail to start, not fail on the first sign-in.
+        // Checked at startup: a production host with half its mail settings, or
+        // with no provider at all, should fail to start, not fail (or log a
+        // sign-in link) on the first sign-in.
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))
-            .Validate(options => options.Problem() is null, "The Email configuration section is incomplete for its Provider.")
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<EmailOptions>, EmailOptionsValidator>();
 
         // Chosen when first resolved rather than here, so the choice reads the
         // final configuration, including a test host's overrides.

@@ -200,6 +200,8 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         using var failingFactory = factory.WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(Environments.Production);
+            // The email sender is replaced below; this only lets the host start (#107).
+            builder.UseSetting("Email:AllowLogProvider", "true");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IMagicLinkSender>();

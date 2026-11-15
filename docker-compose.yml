@@ -30,6 +30,10 @@ services:
       # Local only: sign in as this address to be an Admin (Manage tab, approving
       # club members). Production reads the ADMIN_EMAILS secret.
       Auth__AdminEmails: admin@example.com
+      # Local only: this stack runs the API as Production, where logging
+      # sign-in links must be asked for explicitly (#107). Locally that is the
+      # point: the link is read from `docker compose logs api`.
+      Email__AllowLogProvider: "true"
     depends_on:
       postgres:
         condition: service_healthy

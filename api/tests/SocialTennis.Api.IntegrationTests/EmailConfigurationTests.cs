@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SocialTennis.Api.Email;
 
@@ -41,5 +42,29 @@ public class EmailConfigurationTests(WebApplicationFactory<Program> factory)
             builder.UseSetting("Email:Provider", "AzureCommunicationServices"));
 
         Assert.Throws<OptionsValidationException>(() => misconfigured.Services);
+    }
+
+    // #107: outside Development a missing provider must not quietly log links.
+    [Fact]
+    public void Outside_development_the_log_provider_stops_the_host_starting()
+    {
+        using var production = factory.WithWebHostBuilder(builder =>
+            builder.UseEnvironment(Environments.Production));
+
+        var error = Assert.Throws<OptionsValidationException>(() => production.Services);
+        Assert.Contains("Email__Provider", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Email__AllowLogProvider", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Outside_development_the_log_provider_runs_when_allowed_explicitly()
+    {
+        using var production = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment(Environments.Production);
+            builder.UseSetting("Email:AllowLogProvider", "true");
+        });
+
+        Assert.IsType<LoggingEmailSender>(production.Services.GetRequiredService<IEmailSender>());
     }
 }
