@@ -300,7 +300,8 @@ flowchart LR
 ```
 
 - **`github` kit** uses sbx's built-in `github` service with a PAT of `l1em1on1-claude`, a dedicated account with write access to this repo only, and sets `GIT_AUTHOR_*`/`GIT_COMMITTER_*` so sandbox commits are that account's — environment variables, because the bind-mounted `.git/config` holds the host's identity and repo config beats `--global`. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
-- **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths, and the bind-mounted `obj/` is shared with the Dev Container, so the two environments overwrite each other's restore output.
+- **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths.
+- **Language-server restores** (#121). A `SessionStart` hook (`.claude/hooks/lsp-restore.sh`) restores what the language servers read when it is missing or stale: `dotnet restore` synchronously (seconds; Claude's first reply waits for it), `npm ci --ignore-scripts --no-bin-links` in `web/` asynchronously (minutes on the bind mount, which refuses symlinks). Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which `api/Directory.Build.props` maps to `obj/container/` and `bin/container/`, so Docker builds and tests never overwrite the language server's `obj/`. These restores feed the language servers only; builds and tests stay in compose.
 - **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
 - **`rtk` kit** has no egress or credential. Its setup command runs `rtk init -g --auto-patch` as the agent user, registering RTK's PreToolUse hook in `~/.claude/settings.json` after sbx has written that file. The binary comes from the template, so nothing is fetched at creation.
 
@@ -353,6 +354,7 @@ flowchart LR
 | `modules/domain` | Cloudflare A and `asuid` TXT records, custom domain on `web`, managed certificate | Only created when `app_domain` is set. Waits 60 seconds after creating the TXT record, since Azure checks it at once. Binding the certificate is the wizard's step |
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
+| Providers | `infra/.terraform.lock.hcl` | Versions and checksums for `linux_amd64` and `linux_arm64`. Every `terraform init` (CI, deploy, `init.sh`) runs with `-lockfile=readonly`, so a provider that doesn't match its checksum stops the run |
 | Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
 
 `infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow below, which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
@@ -362,19 +364,31 @@ flowchart LR
 ```mermaid
 flowchart LR
     M["merge to main<br/>that changes web/ or api/"] --> P["publish<br/>web and api images to GHCR<br/>tagged with the commit SHA"]
-    D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>terraform plan, printed to the log"]
+    D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>SHA on main? tag → digests<br/>terraform plan, printed to the log"]
     PL --> AP{{"approval<br/>environment: production"}}
-    AP --> A["apply<br/>terraform apply -var image_tag=SHA"]
+    AP --> A["apply<br/>terraform apply<br/>images by digest"]
     A --> C["check<br/>GET /login, up to 3 minutes"]
 ```
 
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
 - **Which images.** With no SHA given, the workflow walks back from the commit it runs on to the first one that has images. Commits in between changed neither app, so those images hold the same code.
-- **One mechanism.** A release is `terraform apply` with a different `image_tag`, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
+- **Only `main`, and only what was planned.** The plan job refuses a SHA that is not a commit on `main` (GitHub's compare API), then resolves the two images' tags to digests. Terraform gets `image@sha256:…`, and the apply job is handed the same digests, so it runs exactly the images that were planned even if a tag is pushed again in between. A plan run by hand with only `-var image_tag=SHA` still works, by tag.
+- **One mechanism.** A release is `terraform apply` with different images, so infrastructure changes and releases take the same path. **Rollback** is the same run with an earlier SHA.
 - **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the Cloudflare API token (DNS edit on the one zone), the alert email and the Admin addresses are secrets of the `production-plan` and `production` environments, never repository secrets (#104, #113): only the deploy jobs, running from `main`, can read them. The setup wizards set them there and never write the two API credentials to `infra/.env`; a local plan or apply takes them from the shell (`infra/compose.yml`). The email domain, the app's domain, and whether each is ready are repository variables. The Terraform state account allows only Entra ID access (no shared keys), with blob versioning and 30-day soft delete.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
 - **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
+
+### Updating Terraform providers
+
+Because `init` is read-only, changing a provider version is a deliberate step. Edit the constraint in `infra/versions.tf`, then update the lock file and commit it with the change:
+
+```bash
+docker compose -f infra/compose.yml run --rm infra sh -c \
+  "terraform init -backend=false -upgrade && terraform providers lock -platform=linux_amd64 -platform=linux_arm64"
+```
+
+This needs the Terraform registry, which the Docker Sandbox can't reach. The lock file was first generated on a GitHub runner.
 
 ## Database and migrations
 
@@ -472,7 +486,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
 | eslint / eslint-config-next | 9.x / 16.3.0 | `typescript-estree`'s `minimatch` is overridden to ^11.0.1 (no fixed 10.x, #133). Drop each override in `web/package.json` once its parent ships a fixed version |
 | msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. msw 3 renamed `onUnhandledRequest` to `onUnhandledFrame` |
-| @playwright/test | 1.65.0 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.0-noble` image tag in `docker-compose.yml` (browsers ship in the image) |
+| @playwright/test | 1.65.1 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.1-noble` image tag in `docker-compose.yml` (browsers ship in the image). Dependabot ignores the image (named `playwright` there), so both move together by hand on the npm PR |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |

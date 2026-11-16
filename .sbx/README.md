@@ -248,10 +248,30 @@ An existing sandbox predates the kit; add it with
 `sbx kit add social-tennis ./.sbx/kits/nuget` (recreates the container), or
 or approve the pending `api.nuget.org` request with `sbx policy approval respond <approval-id> --option allow` (list the ID with `sbx policy approval ls`).
 
-**`obj/` is shared.** `project.assets.json` holds absolute paths — the package
-folder and the project path. The workspace bind mount means the sandbox
-(`/c/Users/.../social-tennis`, packages in `/home/agent/.nuget`) and the Dev
-Container (`/workspaces/social-tennis`, packages in `/home/vscode/.nuget`)
-overwrite each other's restore output. Whichever restored last has working C#
-LSP; the other needs `dotnet restore api/SocialTennis.slnx` again. Even a
-*failed* restore rewrites the file, with an empty package list.
+**Restores for the language servers are automatic (#121).** A `SessionStart`
+hook (`.claude/hooks/lsp-restore.sh`, registered in `.claude/settings.json`)
+keeps them current:
+
+- `dotnet` (synchronous, seconds once the package cache is warm): runs
+  `dotnet restore api/SocialTennis.slnx` when a project's
+  `obj/project.assets.json` is missing, older than its project file or
+  `api/Directory.Build.props`, or written for another checkout path.
+- `npm` (async, about two minutes on the bind mount): runs
+  `npm ci --ignore-scripts --no-bin-links` in `web/` when `node_modules` is
+  missing or older than `package-lock.json`. `--no-bin-links` because the
+  bind mount from a Windows host refuses symlinks.
+
+Both are no-ops where `dotnet`/`npm` isn't installed, and log to
+`/tmp/social-tennis-lsp-restore.log`.
+
+**Container builds don't touch it.** `project.assets.json` holds absolute
+paths (the package folder and the project path), and `obj/` is on the bind
+mount. Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which
+`api/Directory.Build.props` turns into `obj/container/` and `bin/container/`,
+so a test run in Docker no longer overwrites the language server's restore.
+The sandbox (`/c/...`) and the Dev Container (`/workspaces/...`) still share
+`obj/`: switching between them, the hook sees the other path and restores.
+
+If C# lookups still report every package type missing (`Fact`, `Assert`,
+`WebApplicationFactory`), csharp-ls loaded the solution before a first-ever
+restore finished: run `/reload-plugins`, or start a new session.

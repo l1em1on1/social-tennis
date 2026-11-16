@@ -84,4 +84,6 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: mcr.microsoft.com/playwright
+      # Dependabot names this image "playwright", not by its full path: the
+      # full name never matched, and #142 bumped the image alone (#145).
+      - dependency-name: playwright

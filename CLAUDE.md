@@ -31,7 +31,7 @@ The `csharp-lsp` and `typescript-lsp` plugins are installed. Use the `LSP` tool 
 - **`goToDefinition` / `hover`** to resolve what a type actually is, rather than tracing `using` and `import` chains by hand.
 - **`hover` for a type question on `.cs`**, where it pays most: checking it by compiling costs a `docker compose run`, and hover costs nothing.
 
-This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Dev Container** — `.devcontainer/post-create.sh` installs `csharp-ls`, `typescript-language-server`, and the Claude Code CLI itself, so an agent gets symbol intelligence with nothing but Docker on the host. Builds, tests, migrations, and package installs still run as compose services, always.
+This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Dev Container** — `.devcontainer/post-create.sh` installs `csharp-ls`, `typescript-language-server`, and the Claude Code CLI itself, so an agent gets symbol intelligence with nothing but Docker on the host. Builds, tests, migrations, and package installs still run as compose services, always. A `SessionStart` hook restores the packages the language servers read (`.claude/hooks/lsp-restore.sh`, #121); if C# lookups report every package type missing, run `/reload-plugins`.
 
 The container uses **docker-in-docker**, so `docker compose` works unchanged from a container terminal: the inner daemon resolves the relative bind mounts (`./api:/src`) against the container's own filesystem. Running compose from *outside* the container works too, from a host terminal.
 

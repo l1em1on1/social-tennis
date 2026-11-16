@@ -54,8 +54,8 @@ module "compute" {
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
 
-  web_image     = "${var.image_repository_prefix}-web:${var.image_tag}"
-  api_image     = "${var.image_repository_prefix}-api:${var.image_tag}"
+  web_image     = var.web_image_digest != null ? "${var.image_repository_prefix}-web@${var.web_image_digest}" : "${var.image_repository_prefix}-web:${var.image_tag}"
+  api_image     = var.api_image_digest != null ? "${var.image_repository_prefix}-api@${var.api_image_digest}" : "${var.image_repository_prefix}-api:${var.image_tag}"
   always_on     = var.always_on
   long_cooldown = var.long_cooldown
   admin_emails  = var.admin_emails
