@@ -26,6 +26,32 @@ variable "image_tag" {
   type        = string
 }
 
+# The deploy workflow resolves the tag to these digests in its plan job, so
+# the apply job runs exactly the images that were planned, even if a tag were
+# pushed again in between (#111). Left unset (a plan run by hand), the tag
+# alone picks the images.
+variable "web_image_digest" {
+  description = "Digest of the web image to run (sha256:...). Overrides image_tag for web when set."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.web_image_digest == null || can(regex("^sha256:[0-9a-f]{64}$", var.web_image_digest))
+    error_message = "web_image_digest must look like sha256:<64 hex characters>."
+  }
+}
+
+variable "api_image_digest" {
+  description = "Digest of the api image to run (sha256:...). Overrides image_tag for api when set."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.api_image_digest == null || can(regex("^sha256:[0-9a-f]{64}$", var.api_image_digest))
+    error_message = "api_image_digest must look like sha256:<64 hex characters>."
+  }
+}
+
 variable "always_on" {
   description = "Keep one replica of web and api running. Removes cold starts and leaves the free grant (ADR-0019)."
   type        = bool

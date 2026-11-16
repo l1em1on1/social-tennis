@@ -86,6 +86,8 @@ jobs:
       packages: read
     outputs:
       image_tag: ${{ steps.image.outputs.tag }}
+      web_digest: ${{ steps.image.outputs.web_digest }}
+      api_digest: ${{ steps.image.outputs.api_digest }}
     env:
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -116,6 +118,7 @@ jobs:
         id: image
         env:
           REQUESTED: ${{ inputs.image_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           published() {
@@ -135,10 +138,42 @@ jobs:
             done
             [ -n "$tag" ] || { echo "::error::No published images in the last 100 commits."; exit 1; }
           fi
-          echo "Deploying images tagged ${tag}"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "TF_VAR_image_tag=${tag}" >> "$GITHUB_ENV"
-          echo "Images: \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
+          # Only code that reached main is deployed: an image built from any
+          # other commit is refused, even if it was published (#111).
+          # "ahead" or "identical": main contains the commit.
+          status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${tag}...main" --jq .status 2>/dev/null)" || status=""
+          case "$status" in
+            ahead|identical) ;;
+            *) echo "::error::${tag} is not a commit on main (compare: ${status:-not found})."; exit 1 ;;
+          esac
+
+          # The digests, not the tag, go to Terraform: plan and apply then run
+          # exactly these images, whatever happens to the tag in between.
+          digest() {
+            docker buildx imagetools inspect "${IMAGE_PREFIX}-$1:${tag}" --format '{{.Manifest.Digest}}'
+          }
+          web_digest="$(digest web)"
+          api_digest="$(digest api)"
+          for d in "$web_digest" "$api_digest"; do
+            echo "$d" | grep -qE '^sha256:[0-9a-f]{64}$' || { echo "::error::Could not resolve the digests of the ${tag} images."; exit 1; }
+          done
+
+          echo "Deploying images tagged ${tag}: web ${web_digest}, api ${api_digest}"
+          {
+            echo "tag=${tag}"
+            echo "web_digest=${web_digest}"
+            echo "api_digest=${api_digest}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "TF_VAR_image_tag=${tag}"
+            echo "TF_VAR_web_image_digest=${web_digest}"
+            echo "TF_VAR_api_image_digest=${api_digest}"
+          } >> "$GITHUB_ENV"
+          {
+            echo "Images: \`${tag}\`"
+            echo "- web: \`${web_digest}\`"
+            echo "- api: \`${api_digest}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Plan
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
@@ -168,6 +203,8 @@ jobs:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS }}
       TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
+      TF_VAR_web_image_digest: ${{ needs.plan.outputs.web_digest }}
+      TF_VAR_api_image_digest: ${{ needs.plan.outputs.api_digest }}
       TF_VAR_always_on: ${{ inputs.always_on }}
       TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}
       # The club's domain (ADR-0020, ADR-0021). Unset until

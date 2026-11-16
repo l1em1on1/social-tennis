@@ -52,6 +52,8 @@ services:
       - TF_VAR_alert_email
       - TF_VAR_admin_emails
       - TF_VAR_image_tag
+      - TF_VAR_web_image_digest
+      - TF_VAR_api_image_digest
       - TF_VAR_always_on
       - TF_VAR_long_cooldown
 
