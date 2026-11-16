@@ -1,0 +1,10 @@
+{
+  // Offered in a VS Code window connected to the Docker Sandbox over SSH
+  // (.sbx/README.md, "VS Code"); they install and run inside the sandbox.
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "ms-azuretools.vscode-docker"
+  ]
+}

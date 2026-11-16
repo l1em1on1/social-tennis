@@ -2,7 +2,8 @@
 
 Runs Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/)
 (`sbx`), so an agent gets the project toolchain without anything landing on the
-host — the same constraint ADR-0005 places on the Dev Container.
+host (ADR-0005). VS Code connects to the same sandbox over SSH for editing: see
+[VS Code](#vs-code).
 
 - `Dockerfile` — sandbox template image: .NET SDK, the language servers behind
   the `csharp-lsp`/`typescript-lsp` plugins, the Context7 plugin, and RTK.
@@ -104,6 +105,56 @@ The sandbox runs Claude Code with `--dangerously-skip-permissions`, so whoever
 is signed in to that claude.ai account can run anything the sandbox can —
 which is the sandbox's own limits: the allow-listed egress and the
 `l1em1on1-claude` GitHub token.
+
+## VS Code
+
+VS Code edits inside the sandbox over SSH
+([sbx docs](https://docs.docker.com/ai/sandboxes/integrations/vscode/)): files,
+terminals and extensions run in the sandbox, under its network policy. The
+host needs VS Code with the Remote - SSH extension
+(`ms-vscode-remote.remote-ssh`) and an OpenSSH client. macOS and most Linux
+distributions include one; on Windows, install the OpenSSH client (an optional
+Windows feature). PuTTY is not supported.
+
+1. `./sandbox.sh --editor` creates the sandbox if needed, runs
+   `sbx setup ssh`, prints the host and folder, and exits without starting
+   Claude. `sbx setup ssh` writes a managed block to `~/.ssh/config`
+   (`%USERPROFILE%\.ssh\config` on Windows); don't edit that block by hand.
+   It is safe to re-run.
+2. Check from a terminal: `ssh social-tennis.sbx`.
+3. In VS Code, run **Remote-SSH: Connect to Host...** and type
+   `social-tennis.sbx`. The host list doesn't show sandbox names. Then
+   **Open Folder** at the path the script printed: the workspace keeps its
+   host path, so `C:\Projects\AI\social-tennis` is
+   `/c/Projects/AI/social-tennis` inside.
+4. Install the recommended extensions when VS Code offers them
+   (`.vscode/extensions.json`).
+
+Connecting starts a stopped sandbox. SSH ends at the sbx daemon, which accepts
+a connection only while you are signed in to Docker; no SSH server runs in the
+sandbox.
+
+**Network.** The first connection installs the VS Code Server in the sandbox.
+If the sandbox can't download it, VS Code downloads it on the host and copies
+it over. Extensions, and the C# extension's own dependencies, download from
+inside the sandbox, partly from hosts the policy doesn't allow yet (such as
+the extension CDN, `*.gallerycdn.vsassets.io`, and
+`download.visualstudio.microsoft.com`). Each one comes up as a pending
+approval on the host:
+
+```bash
+sbx policy approval ls
+sbx policy approval respond <approval-id> --option <option-id>
+```
+
+Once the first connection has shown which hosts VS Code needs, they can move
+into a kit.
+
+**Ports.** `docker compose up` in a VS Code terminal publishes the web app on
+port 3000 inside the sandbox. Forward it from VS Code's Ports view and open
+the local address it shows.
+
+**Not covered yet:** a debugger configuration (`.vscode/launch.json`).
 
 ## Context7 API key
 
@@ -269,8 +320,6 @@ paths (the package folder and the project path), and `obj/` is on the bind
 mount. Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which
 `api/Directory.Build.props` turns into `obj/container/` and `bin/container/`,
 so a test run in Docker no longer overwrites the language server's restore.
-The sandbox (`/c/...`) and the Dev Container (`/workspaces/...`) still share
-`obj/`: switching between them, the hook sees the other path and restores.
 
 If C# lookups still report every package type missing (`Fact`, `Assert`,
 `WebApplicationFactory`), csharp-ls loaded the solution before a first-ever

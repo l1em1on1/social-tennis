@@ -20,7 +20,7 @@ SECRETS=(github context7)
 usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
-Usage: ./sandbox.sh [--rebuild] [--no-remote-control] [--set-secret SERVICE] [--help]
+Usage: ./sandbox.sh [--rebuild] [--no-remote-control] [--editor] [--set-secret SERVICE] [--help]
 
 Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
 Code in it, then attach with Remote Control on. Runs on the host; needs
@@ -30,6 +30,10 @@ Options:
   --rebuild             rebuild and reload the template image first
   --no-remote-control   attach without Remote Control, and leave sbx's
                         claude.remoteControl setting as it is
+  --editor              set up SSH so VS Code can connect to the sandbox
+                        (\`sbx setup ssh\`, which adds a managed block to your
+                        SSH config), print how to connect, then exit
+                        without starting Claude
   --set-secret SERVICE  replace one stored secret, then exit
                         (SERVICE: $services)
   -h, --help            show this help, then exit
@@ -57,12 +61,14 @@ secret_label() {
 
 REBUILD=false
 REMOTE_CONTROL=true
+EDITOR_SETUP=false
 SET_SECRET=""
 while (($#)); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --rebuild) REBUILD=true ;;
     --no-remote-control) REMOTE_CONTROL=false ;;
+    --editor) EDITOR_SETUP=true ;;
     --set-secret)
       SET_SECRET=${2:-}
       secret_label "$SET_SECRET" >/dev/null || exit 2
@@ -120,6 +126,25 @@ fi
 if ! sbx ls 2>/dev/null | awk -v n="$NAME" '$1 == n { found=1 } END { exit !found }'; then
   kit_args=(); for k in "${KITS[@]}"; do kit_args+=(--kit "$k"); done
   sbx create --name "$NAME" -t "$TEMPLATE" "${kit_args[@]}" claude .
+fi
+
+# --- Editor: VS Code over SSH (#151) ---------------------------------------
+# SSH ends at the sbx daemon (no SSH server runs in the sandbox), and
+# connecting starts a stopped sandbox, so nothing here needs to keep it
+# running. `sbx setup ssh` is safe to re-run.
+# https://docs.docker.com/ai/sandboxes/integrations/vscode/
+if $EDITOR_SETUP; then
+  sbx setup ssh
+  cat <<EDITOR
+
+VS Code: install the Remote - SSH extension, run "Remote-SSH: Connect to
+Host...", type $NAME.sbx, then open this folder:
+
+  $PWD
+
+Check from a terminal first: ssh $NAME.sbx
+EDITOR
+  exit 0
 fi
 
 # --- Remote Control: drive the session from claude.ai/code or the phone -----

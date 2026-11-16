@@ -7,7 +7,7 @@ Mobile-first web app for organizing league and social tennis games at a club —
 
 ## Prerequisites
 
-**Docker. Nothing else.** No .NET SDK, Node, or npm on the host — every command below runs in a container (ADR-0005). For an IDE experience, open the repo in VS Code and *Reopen in Container*: the [Dev Container](.devcontainer/devcontainer.json) carries both toolchains, the C#/TypeScript language servers, and the Claude Code CLI, and runs its own Docker daemon so the commands below work unchanged from a container terminal.
+**Docker. Nothing else.** No .NET SDK, Node, or npm on the host — every command below runs in a container (ADR-0005). For an IDE experience, connect VS Code to the [Docker Sandbox](.sbx/README.md#vs-code) over SSH (`./sandbox.sh --editor` sets it up; needs [`sbx`](https://docs.docker.com/ai/sandboxes/)): the sandbox carries the .NET toolchain, the C#/TypeScript language servers and Claude Code, and runs its own Docker daemon, so the commands below work unchanged from a VS Code terminal.
 
 ## Run the stack
 
