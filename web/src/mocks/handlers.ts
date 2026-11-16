@@ -417,6 +417,20 @@ export const handlers = [
     });
   }),
 
+  // Renaming (#153): only the name changes.
+  http.put("/leagues/{leagueId}", async ({ request, params, response }) => {
+    const name = (await request.json()).name.trim();
+    if (name.length === 0 || name.length > 200) {
+      return response(400).json(invalid("name"), problemJson);
+    }
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    league.name = name;
+    return response(204).empty();
+  }),
+
   http.put("/leagues/{leagueId}/participants/{playerId}", ({ params, response }) => {
     const league = leagueById(params.leagueId);
     const player = allPlayers().find((candidate) => candidate.id === params.playerId);

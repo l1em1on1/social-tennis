@@ -153,6 +153,45 @@ test("the League setup form keeps to the rules the API enforces", async ({ page 
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
 });
 
+test("a Manager renames a League, and its Player sees the new name", async ({ page, browser }, testInfo) => {
+  // Two sign-ins and several round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Autumn Ladder");
+  const renamed = uniqueName(testInfo, "Spring Ladder");
+  const kim = uniqueName(testInfo, "Kim League");
+  const email = personaEmail(testInfo, "renamed");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, kim, email);
+  await createLeague(manager, league);
+  await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${kim} (${email})` });
+  await manager.getByRole("button", { name: "Add to league" }).click();
+  await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(kim);
+
+  // A blank name is refused, and the League keeps its name.
+  await manager.getByRole("button", { name: `Rename ${league}` }).click();
+  await manager.getByLabel("League name").fill("   ");
+  await manager.getByRole("button", { name: "Save name" }).click();
+  await expect(manager.getByText("That league name didn't work")).toBeVisible();
+  await expect(manager.getByRole("heading", { name: league, level: 1 })).toBeVisible();
+
+  await manager.getByRole("button", { name: `Rename ${league}` }).click();
+  await manager.getByLabel("League name").fill(renamed);
+  await manager.getByRole("button", { name: "Save name" }).click();
+  await expect(manager.getByRole("heading", { name: renamed, level: 1 })).toBeVisible();
+  await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(kim);
+  await expectNoSeriousA11yViolations(manager);
+  await managerContext.close();
+
+  await logIn(page, testInfo, email);
+  await page.goto("/leagues");
+  const mine = page.getByRole("region", { name: `${kim}'s leagues` });
+  await expect(mine.getByRole("region", { name: renamed })).toContainText("Joined");
+  await expect(page.getByRole("region", { name: league, exact: true })).toHaveCount(0);
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");
