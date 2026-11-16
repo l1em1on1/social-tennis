@@ -1,0 +1,9 @@
+{
+  // Recommended for editing on the host. The C# extensions are left out: they
+  // need the .NET SDK, which the host doesn't have (ADR-0005).
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "ms-azuretools.vscode-docker"
+  ]
+}

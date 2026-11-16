@@ -69,10 +69,6 @@ services:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     profiles: ["test"]
     working_dir: /src
-    # DEV_UID/DEV_GID unset (CI, bare host) -> "" -> no override, root as before.
-    # Dev Container exports both as 1000 so obj/bin land owned by its vscode
-    # user instead of root, which otherwise blocks csharp-ls from writing them.
-    user: "${DEV_UID:-}:${DEV_GID:-}"
     volumes:
       - ./api:/src
       - nuget:/root/.nuget/packages
@@ -119,8 +115,6 @@ services:
     image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["e2e"]
     working_dir: /src
-    # No DEV_UID override here, unlike api-tests: node_modules lives in a
-    # fresh named volume, which Docker creates root-owned.
     volumes:
       - ./web:/src
       # Own volume, not web_node_modules: that one holds Alpine (musl) native

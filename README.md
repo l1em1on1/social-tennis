@@ -7,7 +7,7 @@ Mobile-first web app for organizing league and social tennis games at a club —
 
 ## Prerequisites
 
-**Docker. Nothing else.** No .NET SDK, Node, or npm on the host — every command below runs in a container (ADR-0005). For an IDE experience, open the repo in VS Code and *Reopen in Container*: the [Dev Container](.devcontainer/devcontainer.json) carries both toolchains, the C#/TypeScript language servers, and the Claude Code CLI, and runs its own Docker daemon so the commands below work unchanged from a container terminal.
+**Docker. Nothing else.** No .NET SDK, Node, or npm on the host — every command below runs in a container (ADR-0005). Edit with any editor on the host, and run the commands below from its terminal. Without the .NET SDK on the host, an editor's C# support can't load the projects, so expect syntax highlighting rather than C# IntelliSense. Claude Code works in a [Docker Sandbox](.sbx/README.md), which has the toolchain and language servers.
 
 ## Run the stack
 

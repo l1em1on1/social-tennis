@@ -2,7 +2,8 @@
 
 Runs Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/)
 (`sbx`), so an agent gets the project toolchain without anything landing on the
-host — the same constraint ADR-0005 places on the Dev Container.
+host (ADR-0005). It is for agents: people edit on the host and run the stack
+with `docker compose` (see the main README).
 
 - `Dockerfile` — sandbox template image: .NET SDK, the language servers behind
   the `csharp-lsp`/`typescript-lsp` plugins, the Context7 plugin, and RTK.
@@ -269,8 +270,6 @@ paths (the package folder and the project path), and `obj/` is on the bind
 mount. Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which
 `api/Directory.Build.props` turns into `obj/container/` and `bin/container/`,
 so a test run in Docker no longer overwrites the language server's restore.
-The sandbox (`/c/...`) and the Dev Container (`/workspaces/...`) still share
-`obj/`: switching between them, the hook sees the other path and restores.
 
 If C# lookups still report every package type missing (`Fact`, `Assert`,
 `WebApplicationFactory`), csharp-ls loaded the solution before a first-ever

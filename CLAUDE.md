@@ -11,7 +11,7 @@ Easy to use mobile first web application to manage social leagues, gather match 
 
 **Never run `dotnet`, `npm`, `node`, `npx`, or EF tooling directly on the host machine.** The host has Docker and an editor; it does not have the toolchain, and must not be assumed to.
 
-Every build, test, migration, package install, and codegen run executes inside a container — `docker compose run --rm <service> <command>`, or the equivalent from inside the Dev Container. This applies to agents exactly as it does to humans.
+Every build, test, migration, package install, and codegen run executes inside a container — `docker compose run --rm <service> <command>`, from a host terminal or from inside the Docker Sandbox. This applies to agents exactly as it does to humans.
 
 When adding a workflow, document it as a container invocation. A bare `dotnet test` or `npm install` in a README, script, or CI step is a bug.
 
@@ -31,15 +31,15 @@ The `csharp-lsp` and `typescript-lsp` plugins are installed. Use the `LSP` tool 
 - **`goToDefinition` / `hover`** to resolve what a type actually is, rather than tracing `using` and `import` chains by hand.
 - **`hover` for a type question on `.cs`**, where it pays most: checking it by compiling costs a `docker compose run`, and hover costs nothing.
 
-This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Dev Container** — `.devcontainer/post-create.sh` installs `csharp-ls`, `typescript-language-server`, and the Claude Code CLI itself, so an agent gets symbol intelligence with nothing but Docker on the host. Builds, tests, migrations, and package installs still run as compose services, always. A `SessionStart` hook restores the packages the language servers read (`.claude/hooks/lsp-restore.sh`, #121); if C# lookups report every package type missing, run `/reload-plugins`.
+This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Docker Sandbox** (`./sandbox.sh`, see `.sbx/README.md`): its template installs `csharp-ls`, `typescript-language-server` and the plugins, so an agent gets symbol intelligence with nothing but Docker and `sbx` on the host. Builds, tests, migrations, and package installs still run as compose services, always. A `SessionStart` hook restores the packages the language servers read (`.claude/hooks/lsp-restore.sh`, #121); if C# lookups report every package type missing, run `/reload-plugins`.
 
-The container uses **docker-in-docker**, so `docker compose` works unchanged from a container terminal: the inner daemon resolves the relative bind mounts (`./api:/src`) against the container's own filesystem. Running compose from *outside* the container works too, from a host terminal.
+The sandbox runs its own Docker daemon, so `docker compose` works unchanged inside it: that daemon resolves the relative bind mounts (`./api:/src`) against the sandbox's filesystem. Running compose from a host terminal works too.
 
-An LSP call failing with "command not found" means the session is running on the host rather than in the Dev Container — reopen in the container. Do not install the servers to fix it: `dotnet tool install` and `npm install -g` on the host are exactly what the Docker rule forbids. Say which it is and fall back to grep.
+An LSP call failing with "command not found" means the session is running on the host rather than in the sandbox: start it with `./sandbox.sh`. Do not install the servers to fix it: `dotnet tool install` and `npm install -g` on the host are exactly what the Docker rule forbids. Say which it is and fall back to grep.
 
 ## Keep `docs/architecture.md` current
 
-`docs/architecture.md` is the technical documentation of the system as built — topology, request flow, contract pipeline, repo layout, runtime configurations, testing seam, version pins. **Any change that alters one of those must update the document (including its mermaid diagrams) in the same commit.** Concretely: adding/removing a service or endpoint surface, changing how the TS client is generated, moving folders, changing compose/devcontainer behaviour, bumping a pinned version, or changing how tests run. A stale architecture doc is a bug, same as a stale README command.
+`docs/architecture.md` is the technical documentation of the system as built — topology, request flow, contract pipeline, repo layout, runtime configurations, testing seam, version pins. **Any change that alters one of those must update the document (including its mermaid diagrams) in the same commit.** Concretely: adding/removing a service or endpoint surface, changing how the TS client is generated, moving folders, changing compose or sandbox behaviour, bumping a pinned version, or changing how tests run. A stale architecture doc is a bug, same as a stale README command.
 
 ## Agent skills
 
@@ -61,7 +61,7 @@ Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs
 
 ## Compact command output with RTK
 
-The Dev Container and the Docker Sandbox install RTK (`rtk`), which compresses command output so it costs less context. Its Claude Code hook rewrites Bash commands automatically (`git status` → `rtk git status`); call it explicitly for the wrappers below, and `rtk proxy <cmd>` when you need the raw output.
+The Docker Sandbox installs RTK (`rtk`), which compresses command output so it costs less context. Its Claude Code hook rewrites Bash commands automatically (`git status` → `rtk git status`); call it explicitly for the wrappers below, and `rtk proxy <cmd>` when you need the raw output.
 
 RTK filters output and runs the command exactly where it stands, so the Docker rule above still decides *where* things run. Wrap the compose invocation itself:
 

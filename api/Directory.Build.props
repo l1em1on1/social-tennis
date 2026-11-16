@@ -11,10 +11,10 @@
   <!-- Compose's .NET services (api-tests, the dev overlay's api) set
        SOCIAL_TENNIS_CONTAINER_BUILD=true, and their restore and build output go
        to obj/container/ and bin/container/ (#121). A container run then never
-       overwrites the restore that the sandbox's or Dev Container's C# language
-       server reads from obj/, whose paths would otherwise be the container's
-       (/src/..., /root/.nuget/packages). Set here because Microsoft.Common.props
-       reads BaseIntermediateOutputPath right after importing this file. -->
+       overwrites the restore that the sandbox's C# language server reads from
+       obj/, whose paths would otherwise be the container's (/src/...,
+       /root/.nuget/packages). Set here because Microsoft.Common.props reads
+       BaseIntermediateOutputPath right after importing this file. -->
   <PropertyGroup Condition="'$(SOCIAL_TENNIS_CONTAINER_BUILD)' == 'true'">
     <BaseIntermediateOutputPath>obj/container/</BaseIntermediateOutputPath>
     <BaseOutputPath>bin/container/</BaseOutputPath>
