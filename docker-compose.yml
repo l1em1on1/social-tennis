@@ -78,6 +78,9 @@ services:
       - nuget:/root/.nuget/packages
     environment:
       ConnectionStrings__Default: "Host=postgres;Database=tennis_test;Username=tennis;Password=tennis"
+      # Restore and build into obj/container and bin/container, so the language
+      # server's restore in obj/ survives a test run (api/Directory.Build.props, #121).
+      SOCIAL_TENNIS_CONTAINER_BUILD: "true"
     depends_on:
       postgres:
         condition: service_healthy
