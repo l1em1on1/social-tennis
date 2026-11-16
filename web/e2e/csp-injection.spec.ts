@@ -1,5 +1,4 @@
-// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts). Otherwise identical to @playwright/test.
+// Chromatic's test, with its end-of-test snapshot turned off below.
 // Its own file: the browser flag below can only be set for a whole file.
 import { expect, test } from "@chromatic-com/playwright";
 import { cspViolations, recordCspViolations } from "./support/csp";
@@ -16,9 +15,15 @@ import { cspViolations, recordCspViolations } from "./support/csp";
  * page makes to the web container's private address: no CSS, no fonts, none of
  * the app's own scripts (#135). The check is off for this test alone. It has
  * nothing to do with the CSP, which still applies in full.
+ *
+ * No Chromatic snapshot (#155): the page is rewritten in flight, its recording
+ * differs from run to run, and every build asked for it to be accepted again.
+ * The login page's look is covered by the auth and security-headers snapshots.
+ * `true`, never a computed value (ADR-0015).
  */
 test.use({
   launchOptions: { args: ["--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests"] },
+  disableAutoSnapshot: true,
 });
 
 test("an inline script in the page without the nonce is blocked", async ({ page }) => {
