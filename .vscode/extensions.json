@@ -1,8 +1,7 @@
 {
-  // Offered in a VS Code window connected to the Docker Sandbox over SSH
-  // (.sbx/README.md, "VS Code"); they install and run inside the sandbox.
+  // Recommended for editing on the host. The C# extensions are left out: they
+  // need the .NET SDK, which the host doesn't have (ADR-0005).
   "recommendations": [
-    "ms-dotnettools.csdevkit",
     "dbaeumer.vscode-eslint",
     "bradlc.vscode-tailwindcss",
     "ms-azuretools.vscode-docker"
