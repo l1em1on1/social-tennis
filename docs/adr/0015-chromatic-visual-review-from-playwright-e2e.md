@@ -20,3 +20,5 @@ ADR-0014 made Playwright the frontend test seam. It checks behaviour and accessi
 - A `test.use({ disableAutoSnapshot })` inside a spec overrides the project-level setting, including the real project's opt-out. Set it to `true` there, never to a computed value that can be `false`.
 - The e2e CI job checks out the PR's **head** commit with full history, not GitHub's merge commit, as Chromatic recommends for baselines. The E2E run therefore tests the branch as pushed, not the result of merging it.
 - Visual changes need a reviewer in Chromatic, in addition to code review on GitHub.
+
+**Amended (2026-11-16) — Dependabot PRs aren't visually reviewed (#158).** They see only Dependabot's own secrets, so Chromatic never runs on them, and the owner chose not to give them the token. A `web` job reports the required "UI Tests" status as passed on Dependabot PRs only, with the description "Not run on Dependabot PRs". Their other checks, the e2e suite included, still run. A dependency update that changes how pages look shows up in the next Chromatic build on `main`.

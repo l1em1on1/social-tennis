@@ -153,3 +153,25 @@ jobs:
           CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CHROMATIC_SLUG: ${{ github.repository }}
         run: docker compose --profile e2e run --rm --no-deps chromatic npx chromatic --skip
+
+  # Dependabot PRs get no visual review (owner's decision, #158; ADR-0015).
+  # They see only Dependabot's own secrets, so Chromatic never runs on them and
+  # never reports "UI Tests", which `main` requires: the PR would wait forever.
+  # This reports the check as passed, saying it was not run. The required
+  # check accepts a status from any source. GitHub lets a Dependabot run raise
+  # its read-only token with `permissions:`; this job gets statuses only.
+  ui-tests-dependabot:
+    name: UI Tests (not run on Dependabot PRs)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Report "UI Tests" as not run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${SHA}"
+          -f state=success -f context="UI Tests"
+          -f description="Not run on Dependabot PRs (#158)"
