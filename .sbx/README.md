@@ -34,12 +34,14 @@ docker save social-tennis-sbx:latest -o social-tennis-sbx.tar
 sbx template load social-tennis-sbx.tar          # into the sandbox image store
 ```
 
-Store the secrets — both prompt for the value (see
-[GitHub access](#github-access) and [Context7 API key](#context7-api-key)):
+Store the secrets. Both prompt for the value (see
+[GitHub access](#github-access) and [Context7 API key](#context7-api-key)).
+They are global, for every sandbox: that is sbx's default since v0.38.0, and
+the old `-g` flag now only prints a deprecation warning (#173).
 
 ```bash
-sbx secret set -g github          # PAT of the l1em1on1-claude account
-sbx secret set -g context7        # raw key, no `Bearer `
+sbx secret set github             # PAT of the l1em1on1-claude account
+sbx secret set context7           # raw key, no `Bearer `
 ```
 
 Then create the sandbox with the kits attached:
@@ -124,7 +126,7 @@ files, so an exported `CONTEXT7_API_KEY` on the host does nothing
 ([kit spec reference](https://docs.docker.com/ai/sandboxes/customize/kit-reference/)).
 
 `../sandbox.sh` asks for the key (from the [Context7 dashboard](https://context7.com/dashboard))
-with a hidden prompt the first time and stores it with `sbx secret set -g
+with a hidden prompt the first time and stores it with `sbx secret set
 context7`, piped on stdin. Later runs reuse the stored secret without asking.
 To rotate it, `../sandbox.sh --set-secret context7` asks for the new key,
 replaces the stored one, and exits. Store the raw `ctx7sk-...` key — the kit's `format: Bearer
@@ -159,7 +161,7 @@ For the record, the `set-custom` equivalent — not used here — needs no kit
 repeated by hand on each machine:
 
 ```bash
-sbx secret set-custom -g \
+sbx secret set-custom \
   --host mcp.context7.com \
   --env CONTEXT7_API_KEY \
   --value "Bearer ctx7sk-..."
@@ -172,7 +174,7 @@ lands in shell history and the process list — `set-custom` has no stdin option
 
 Don't combine the two: both set `CONTEXT7_API_KEY` in the sandbox and would
 fight over it. A custom secret left over from an earlier setup can be found
-with `sbx secret ls -g` and removed with `sbx secret rm -g --placeholder <value>`.
+with `sbx secret ls` and removed with `sbx secret rm --placeholder <value>`.
 
 Use sbx **v0.42.0 or later**. Earlier versions dropped the injected header for
 kit credentials that used `scheme: bearer` without an explicit `header:`
@@ -190,7 +192,7 @@ token never enters the container.
 The agent works as its own GitHub account, **`l1em1on1-claude`**, a
 collaborator with write access to this repo and nothing else. Its token is
 entered by hand exactly like the Context7 key: `../sandbox.sh` asks for it
-(hidden) when none is stored, and pipes it to `sbx secret set -g github` on
+(hidden) when none is stored, and pipes it to `sbx secret set github` on
 stdin. A stored token is never asked for again; to replace it, run
 `../sandbox.sh --set-secret github`.
 
