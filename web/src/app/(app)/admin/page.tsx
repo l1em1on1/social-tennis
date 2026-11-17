@@ -11,6 +11,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { grantRole, revokeRole } from "@/lib/actions";
+import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
 
@@ -27,15 +28,6 @@ const errors: Record<string, { title: string; description: string }> = {
 
 /** Users per page (#134). The API allows up to 100. */
 const USERS_PER_PAGE = 50;
-
-/** The Admin page at this search and starting point; the first page has no offset. */
-function usersHref(search: string, offset: number) {
-  const params = new URLSearchParams();
-  if (search) params.set("q", search);
-  if (offset > 0) params.set("offset", String(offset));
-  const query = params.toString();
-  return query ? `/admin?${query}` : "/admin";
-}
 
 /**
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
@@ -64,6 +56,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   // The schema allows a numeric string for an int32 (System.Text.Json reads either); the API sends a number.
   const total = Number(userList?.page.total ?? 0);
   const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
+  // A refused role change redirects with its error; these bring it back to this search and page.
+  const keepView = (
+    <>
+      <input type="hidden" name="q" value={search} />
+      <input type="hidden" name="offset" value={start} />
+    </>
+  );
 
   return (
     <>
@@ -177,6 +176,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <form action={revokeRole}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="role" value="Admin" />
+                      {keepView}
                       {/* The spoken name starts with the visible text (WCAG 2.5.3) and adds who. */}
                       <SubmitButton variant="secondary" pendingLabel="Removing…">
                         Remove admin<span className="sr-only"> from {who}</span>
@@ -188,6 +188,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <form action={user.manager ? revokeRole : grantRole}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="role" value="Manager" />
+                      {keepView}
                       <SubmitButton variant="secondary" pendingLabel="Saving…">
                         {user.manager ? "Remove manager" : "Make manager"}
                         <span className="sr-only">
@@ -226,8 +227,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <div className="mt-4">
           <Pager
             label="users"
-            previousHref={start > 0 ? usersHref(search, Math.max(0, start - USERS_PER_PAGE)) : undefined}
-            nextHref={start + users.length < total ? usersHref(search, start + USERS_PER_PAGE) : undefined}
+            previousHref={
+              start > 0 ? adminHref({ search, offset: Math.max(0, start - USERS_PER_PAGE) }) : undefined
+            }
+            nextHref={start + users.length < total ? adminHref({ search, offset: start + USERS_PER_PAGE }) : undefined}
           />
         </div>
       </Card>

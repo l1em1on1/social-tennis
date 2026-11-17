@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { ACTING_PLAYER_COOKIE, cookieOptions, sessionCookie } from "@/lib/session";
@@ -295,7 +296,16 @@ export async function revokeRole(formData: FormData) {
   const api = await apiWithSession();
   const { response } = await api.DELETE("/users/{userId}/roles/{role}", { params: { path } });
   if (response.status === 409) {
-    redirect("/admin?error=admin-kept");
+    // Back to the search and page the Admin was on (#134), with the reason.
+    const search = formData.get("q");
+    const offset = formData.get("offset");
+    redirect(
+      adminHref({
+        error: "admin-kept",
+        search: typeof search === "string" ? search.trim() : "",
+        offset: typeof offset === "string" ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0,
+      }),
+    );
   }
   if (!response.ok) {
     throw new Error(`Removing ${path.role} failed with ${response.status}`);
