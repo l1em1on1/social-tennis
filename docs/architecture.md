@@ -223,7 +223,8 @@ Statuses that come from middleware rather than a handler are put into the docume
         ├── app/
         │   ├── (app)/          signed-in shell: /, /leagues, /profiles, /manage (+ /manage/leagues/new, /manage/leagues/[leagueId]), /admin, /dev/ui
         │   ├── login/          magic-link request
-        │   └── auth/verify/    magic-link landing page; its "Sign in" button redeems the token
+        │   ├── auth/verify/    magic-link landing page; its "Sign in" button redeems the token
+        │   └── health/         route handler: 200 when web reaches the API (the deploy check)
         ├── components/
         │   ├── ui/             owned primitives (ADR-0014)
         │   ├── shell/          bottom nav, Player switcher
@@ -315,7 +316,7 @@ flowchart LR
 
     B -->|"https://&lt;app_domain&gt;<br/>Azure-managed certificate"| W
     B -.->|"resolves the address"| C
-    W -->|"http://api"| A
+    W -->|"https://api.internal.&lt;env domain&gt;<br/>https only"| A
     A -->|"TLS, direct endpoint"| N
     J -->|"TLS, direct endpoint"| N
     G -.->|"image pull"| W & A & J
@@ -325,7 +326,8 @@ flowchart LR
 ```
 
 - **Scale to zero.** After about five idle minutes both apps stop and Neon suspends its compute. The next request starts `web`, then `api` (which checks migrations), then the database. The first page load after idle has not been measured yet; it is recorded here once the environment exists.
-- **Probes.** Azure probes the API on `/health`, which runs no checks, so probing never wakes the database. The startup probe allows two minutes for a cold start. `web` is probed on `/login`, which calls nothing.
+- **web to api over https** (#111). `API_URL` is the api app's internal address (`ingress[0].fqdn`, `api.internal.<environment domain>`) with `https://`, and the api ingress sets `allow_insecure_connections = false`, so a plain-http request is redirected rather than served. The short name `http://api` that Container Apps also resolves is plain http, so web doesn't use it. Traffic never leaves the environment either way; https keeps session tokens off the wire in clear inside it too.
+- **Probes.** Azure probes the API on `/health`, which runs no checks, so probing never wakes the database. The startup probe allows two minutes for a cold start. `web` is probed on `/login`, which calls nothing. Web's own `/health` (`src/app/health/route.ts`) asks the API's `/health` and answers 200 or 503; anonymous visitors may open it. The deploy check uses it, not the probe, since it wakes the API.
 - **Single replica.** Each app runs at most one replica, because the API migrates on startup. `always_on = true` raises the minimum from 0 to 1. `long_cooldown = true` keeps an idle app for 30 minutes before it scales to zero, not Azure's default 5. Both are inputs of the deploy workflow, off by default, and hold only until the next deploy.
 - **Database connection.** The API uses Neon's direct endpoint, not its pooler: startup migration holds a session advisory lock, which a pooled connection would break. The lock is taken on the app's own database (`Database__MigrationLockDatabase`), since a Neon role may not be allowed into `postgres`.
 - **Addresses** (ADR-0021). The app is served at `https://<app_domain>`: a custom domain on `web` with an Azure-managed certificate, reached through a DNS-only A record (to the environment's static address) and an `asuid` ownership TXT record in Cloudflare. `PUBLIC_BASE_URL` and `Auth__VerifyUrlBase` are derived in Terraform: from `app_domain` once `app_domain_ready` is true, and from the environment's own domain before that or when `app_domain` is empty. Either way the address is https, so session cookies are `Secure`. The address Azure assigns keeps answering (Terraform output `default_url`). Getting there takes the same two deploys as email, with `scripts/setup-domain.sh` binding the certificate in between: the provider can't bind a managed certificate, and its custom domain resource ignores the binding so later applies leave it alone.
@@ -357,7 +359,7 @@ flowchart LR
     D["Run workflow<br/>(default: newest published images)"] --> PL["plan<br/>environment: production-plan<br/>SHA on main? tag → digests<br/>terraform plan, printed to the log"]
     PL --> AP{{"approval<br/>environment: production"}}
     AP --> A["apply<br/>terraform apply<br/>images by digest"]
-    A --> C["check<br/>GET /login, up to 3 minutes"]
+    A --> C["check<br/>GET /health (web reaches api), up to 3 minutes"]
 ```
 
 - **Publishing and deploying are separate.** A merge to `main` that changes `web/` or `api/` publishes images; other merges build nothing. Nothing is deployed until someone runs the workflow and approves it.
@@ -367,7 +369,7 @@ flowchart LR
 - **Credentials.** Azure trusts a short-lived OIDC token, and only for the `production-plan` and `production` GitHub environments; both deploy from `main` only, and `production` needs a reviewer. No cloud key is stored in GitHub. The Neon API key, the Cloudflare API token (DNS edit on the one zone), the alert email and the Admin addresses are secrets of the `production-plan` and `production` environments, never repository secrets (#104, #113): only the deploy jobs, running from `main`, can read them. The setup wizards set them there and never write the two API credentials to `infra/.env`; a local plan or apply takes them from the shell (`infra/compose.yml`). The email domain, the app's domain, and whether each is ready are repository variables. The Terraform state account allows only Entra ID access (no shared keys), with blob versioning and 30-day soft delete.
 - **The plan is never uploaded.** A saved plan file contains the database password, and a public repo's artifacts can be downloaded, so `apply` plans again.
 - **Migrations** still run when the API starts.
-- **The check** requests `/login`, which needs only `web`. It allows three minutes because the first request after a deploy is a cold start.
+- **The check** requests web's `/health`, which answers 200 only when web reaches the API over the address production uses (#111). It allows three minutes because the first request after a deploy is a cold start of web and then the API. The database isn't touched.
 
 ### Updating Terraform providers
 
