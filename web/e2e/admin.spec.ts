@@ -1,6 +1,6 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
 // see playwright.config.ts). Otherwise identical to @playwright/test.
-import { expect, test } from "@chromatic-com/playwright";
+import { expect, takeSnapshot, test } from "@chromatic-com/playwright";
 import type { Page } from "@playwright/test";
 import { logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
@@ -18,13 +18,14 @@ const userRow = (page: Page, email: string) =>
 async function findUser(page: Page, email: string) {
   await page.goto("/admin");
   await page.getByLabel("Find a user").fill(email);
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/[?&]q=/);
   return userRow(page, email);
 }
 
 // The Admin page lists every User and Club in a store the whole suite shares,
-// so its snapshot would differ from run to run.
+// so its snapshot would differ from run to run. The one exception is taken
+// explicitly: a search that matches a single User (#134).
 test.use({ disableAutoSnapshot: true });
 
 test("an Admin creates a Club and renames it", async ({ page }, testInfo) => {
@@ -134,6 +135,21 @@ test("the Admin set in the app's configuration can't be demoted here", async ({ 
   const row = await findUser(page, "admin@example.com");
   await expect(row).toContainText("Admin in the app's configuration");
   await expect(row.getByRole("button")).toHaveCount(0);
+});
+
+test("an Admin finds a User by searching, one page at a time", async ({ page }, testInfo) => {
+  // The view Chromatic reviews (#134). Mock only: only the mock project's
+  // archives are uploaded, and there an address with "admin" in it is an
+  // Admin. Nobody else's address contains this one, so it is always one row.
+  test.skip(testInfo.project.name !== "mock", "Visual review runs on the mock project");
+  const email = personaEmail(testInfo, "search-admin");
+  await logIn(page, testInfo, email);
+
+  const row = await findUser(page, email);
+  await expect(row).toContainText("(you)");
+  await expect(page.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Pages of users" })).toHaveCount(0);
+  await takeSnapshot(page, "Users, searched for one address", testInfo);
 });
 
 test("a Manager can't open the Admin page", async ({ page }, testInfo) => {
