@@ -154,10 +154,26 @@ run, in four parts:
   you attach to starts already connected too. It appears in the session list
   under the sandbox's hostname.
 
-The server lives as long as the sandbox runs. After `sbx stop`, a daemon
-restart or a host reboot, run `../sandbox.sh` again, with `--no-attach` to
-start everything and exit. Nothing restarts it at boot (#179 leaves that
-out): sbx documents no service for its daemon.
+The server lives as long as the sandbox runs. After `sbx stop` or a daemon
+restart, run `../sandbox.sh` again, with `--no-attach` to start everything and
+exit.
+
+**At boot, with no login** (#180, Linux with systemd):
+`../sandbox.sh --install-service` writes a systemd user unit,
+`~/.config/systemd/user/sbx-social-tennis.service`, and enables it. The unit
+is a oneshot that runs `sandbox.sh --no-attach` at boot. sbx starts its daemon
+on demand, and `RemainAfterExit=yes` leaves the daemon running in the unit's
+cgroup after the script exits. The option also runs `loginctl enable-linger`,
+so your user's systemd starts at boot without a login and keeps running after
+logout. The secrets are asked for in your terminal first, because the service
+has no one to ask. The unit retries every 30 seconds if the script fails, and
+stopping it runs `sbx stop`.
+
+```bash
+../sandbox.sh --install-service                  # or --name <name> --install-service
+journalctl --user -u sbx-social-tennis           # what it did at boot
+systemctl --user disable --now sbx-social-tennis # undo (stops the sandbox too)
+```
 
 There is no kit for it and no extra egress. Remote Control only makes outbound
 requests to `api.anthropic.com`, which the `claude` agent is allowed already;

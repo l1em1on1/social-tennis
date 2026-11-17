@@ -27,7 +27,7 @@ usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
 Usage: ./sandbox.sh [--name NAME] [--debug] [--no-attach] [--no-remote-control]
-                    [--set-secret SERVICE] [--help]
+                    [--install-service] [--set-secret SERVICE] [--help]
 
 Create the "$NAME" Docker Sandbox if it doesn't exist, and start it
 detached, so it keeps running after this terminal closes or you log out.
@@ -41,6 +41,9 @@ Options:
   --debug               create with sbx's debug output (\`sbx -D\`): each kit
                         install hook's output, and the startup log
   --no-attach           start everything, then exit instead of attaching
+  --install-service     Linux with systemd: start the sandbox at boot, with
+                        no login (a user unit running this script with
+                        --no-attach, and lingering), then exit
   --no-remote-control   no Remote Control server, attach without Remote
                         Control, and leave sbx's claude.remoteControl
                         setting as it is
@@ -71,6 +74,7 @@ secret_label() {
 
 REMOTE_CONTROL=true
 ATTACH=true
+INSTALL_SERVICE=false
 SBX_FLAGS=()
 SET_SECRET=""
 while (($#)); do
@@ -82,6 +86,7 @@ while (($#)); do
       shift ;;
     --no-remote-control) REMOTE_CONTROL=false ;;
     --no-attach) ATTACH=false ;;
+    --install-service) INSTALL_SERVICE=true ;;
     --debug) SBX_FLAGS=(-D) ;;
     --set-secret)
       SET_SECRET=${2:-}
@@ -133,6 +138,51 @@ if [[ -n "$SET_SECRET" ]]; then
 fi
 
 for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
+
+# --- boot service: start at boot, with no login (#180) ---------------------
+# A systemd user unit that runs this script with --no-attach at boot. sbx
+# starts its daemon on demand, and the daemon stays in the unit's cgroup: a
+# oneshot with RemainAfterExit is left running after the script exits.
+# Lingering starts the user's systemd at boot without a login, and keeps it
+# running after logout. The secrets are asked for above, in this terminal:
+# the service has none to answer with. Restart=on-failure is valid for a
+# oneshot (systemd rejects only always and on-success there).
+if $INSTALL_SERVICE; then
+  command -v systemctl >/dev/null 2>&1 ||
+    { echo "--install-service needs systemd (Linux)" >&2; exit 1; }
+  unit="sbx-$NAME.service"
+  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  # In unit files % starts a specifier, so a literal one is %%.
+  esc() { printf '%s' "${1//%/%%}"; }
+  mkdir -p "$unit_dir"
+  cat > "$unit_dir/$unit" <<UNIT
+# Written by sandbox.sh --install-service (#180). Undo:
+#   systemctl --user disable --now $unit && rm "$unit_dir/$unit"
+[Unit]
+Description=Docker Sandbox $NAME, detached, with a Remote Control server
+Documentation=https://github.com/l1em1on1/social-tennis/blob/main/.sbx/README.md
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart="$(esc "$PWD/sandbox.sh")" --name "$(esc "$NAME")" --no-attach
+ExecStop="$(esc "$(command -v sbx)")" stop "$(esc "$NAME")"
+# The first start builds the kits, which takes minutes.
+TimeoutStartSec=20min
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+UNIT
+  loginctl enable-linger "$USER" ||
+    echo "warning: could not turn on lingering; without it the sandbox starts at your first login, not at boot. Run: sudo loginctl enable-linger $USER" >&2
+  systemctl --user daemon-reload
+  systemctl --user enable --now "$unit"
+  echo "Installed $unit_dir/$unit: $NAME starts at boot, with no login."
+  echo "Logs: journalctl --user -u $unit. Undo: systemctl --user disable --now $unit"
+  exit 0
+fi
 
 # --- sandbox: create if missing, then run ---------------------------------
 # Exact match on the name column: `grep -w` would also match claude-$NAME.
