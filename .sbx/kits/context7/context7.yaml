@@ -1,0 +1,82 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: Context7 Docs MCP
+description: "Context7 remote MCP server, with the API key held by the sandbox proxy"
+sourceUrl: https://context7.com
+
+# The plugin is written into ~/.claude at creation, after the claude kit's hook
+# writes settings.json: install hooks run a provider's before its requirers'.
+requires:
+  - claude
+
+capabilities:
+  # Sandboxes deny egress by default, so the MCP endpoint has to be named or
+  # every tool call fails at the proxy rather than at Context7. GitHub only
+  # while install hooks run: the plugin marketplace is a git repository.
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      install:
+        allow:
+          - github.com
+      runtime:
+        allow:
+          - mcp.context7.com
+
+  # Inside the sandbox CONTEXT7_API_KEY is a sentinel, not the key; the proxy
+  # sets the real value on requests to mcp.context7.com. The key comes from
+  # sbx's secret store, matched by `service:`: store the raw key with
+  # `sbx secret set context7` (sandbox.sh asks for it), and the format adds
+  # "Bearer ". Docker MCP Toolkit's copy can't be reused: `docker mcp secret`
+  # has no export. See README.md.
+  - type: com.docker.sandbox/credential@1
+    description: Context7 API key, for its MCP server
+    config:
+      service: context7
+      phase: runtime
+      apiKey:
+        name: CONTEXT7_API_KEY
+        proxyManaged: true
+        inject:
+          - {domain: mcp.context7.com, header: Authorization, format: "Bearer %s"}
+
+  # `add` fails when another kit's hook added the marketplace first; then
+  # `update` succeeds, so the order of the two kits doesn't matter.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - command:
+            - sh
+            - -c
+            - |
+              set -e
+              export PATH="$HOME/.local/bin:$PATH"
+              claude plugin marketplace add anthropics/claude-plugins-official ||
+                claude plugin marketplace update claude-plugins-official
+              claude plugin install context7@claude-plugins-official
+          user: agent
+          description: Install Claude Code's Context7 plugin, which registers the MCP server
+
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config: &context
+      content: |
+        # Context7
+
+        Context7 is available as an MCP server (`resolve-library-id`,
+        `query-docs`).
+
+        Per CLAUDE.md, query it before writing, changing, or reviewing code that
+        touches a library or framework: Next.js, React, EF Core, ASP.NET Core,
+        Npgsql, openapi-fetch/openapi-typescript, Tailwind, xUnit. One focused
+        question per concept. Where Context7's docs and training data disagree,
+        the docs win; cite the doc-backed reason in the code comment or PR
+        description.
+
+        The API key is injected by the sandbox proxy. `CONTEXT7_API_KEY` reads
+        as a proxy-managed sentinel inside the sandbox. That is correct, not a
+        broken config, and there is nothing to fix by setting the real key.
+
+  - type: com.docker.sandbox/agent-context@2
+    optional: true
+    config: *context

@@ -1,0 +1,91 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: GitHub (gh + git over HTTPS)
+description: "gh and git push to github.com as l1em1on1-claude, with the token held by the sandbox proxy"
+sourceUrl: https://github.com/l1em1on1/social-tennis
+
+# The sandbox commits as the l1em1on1-claude account (its GitHub noreply
+# address, keyed by account id 356328941). Environment variables, not
+# `git config --global`: the bind-mounted repo's .git/config sets the host
+# user's identity, repo config beats global config, and these variables beat
+# both while touching nothing the host reads. An arg's `env` is how a v3 kit
+# sets the container's environment. (git-identity@1 doesn't fit: it supplies
+# the host user's identity, and repository config still wins over it.)
+args:
+  gitAuthorName:
+    default: l1em1on1-claude
+    env: GIT_AUTHOR_NAME
+    description: Author name of the sandbox's commits
+  gitAuthorEmail:
+    default: 356328941+l1em1on1-claude@users.noreply.github.com
+    env: GIT_AUTHOR_EMAIL
+    description: Author email of the sandbox's commits
+  gitCommitterName:
+    default: l1em1on1-claude
+    env: GIT_COMMITTER_NAME
+    description: Committer name of the sandbox's commits
+  gitCommitterEmail:
+    default: 356328941+l1em1on1-claude@users.noreply.github.com
+    env: GIT_COMMITTER_EMAIL
+    description: Committer email of the sandbox's commits
+
+capabilities:
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - github.com
+          - api.github.com
+
+  # The token is sbx's built-in `github` service secret: a fine-grained PAT of
+  # l1em1on1-claude, a write collaborator on this repo only, which sandbox.sh
+  # asks for. GH_TOKEN is a sentinel (gh refuses to run without one); the proxy
+  # sets the real token on requests to these hosts. Bearer on github.com too:
+  # Docker's docs say sbx ignores `scheme` (Basic) in v3 kits.
+  - type: com.docker.sandbox/credential@1
+    description: GitHub token for gh and git push, held by the proxy
+    config:
+      service: github
+      phase: runtime
+      apiKey:
+        name: GH_TOKEN
+        proxyManaged: true
+        inject:
+          - {domain: api.github.com, header: Authorization, format: "Bearer %s"}
+          - {domain: github.com, header: Authorization, format: "Bearer %s"}
+
+  # The repo's `origin` is SSH (git@github.com:...), and sandbox egress denies
+  # github.com:22. Rewrite to HTTPS in the agent's *global* git config, so the
+  # bind-mounted repo's own .git/config, shared with the host, is untouched.
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - command: [git, config, --global, url.https://github.com/.insteadOf, "git@github.com:"]
+          user: agent
+          description: Route git@github.com remotes over HTTPS, where the proxy sets the token
+
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config: &context
+      content: |
+        # GitHub
+
+        GitHub is reachable from this sandbox over HTTPS: `gh` (issues, PRs)
+        and `git fetch`/`git push` to github.com both work.
+
+        `GH_TOKEN` reads as a proxy-managed sentinel. That is correct, not a
+        missing login: the sandbox proxy injects the real token. Do not run
+        `gh auth login` or set a token yourself. SSH to github.com is blocked
+        by design; `git@github.com:` remotes are rewritten to HTTPS in the
+        global git config.
+
+        Commits are authored as `l1em1on1-claude` through `GIT_AUTHOR_*` /
+        `GIT_COMMITTER_*` environment variables, which override the repo's
+        `.git/config` identity (the host user's). Leave both as they are.
+
+        Push only to feature branches, never to `main`.
+
+  - type: com.docker.sandbox/agent-context@2
+    optional: true
+    config: *context

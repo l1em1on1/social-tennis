@@ -1,33 +1,38 @@
 #!/usr/bin/env bash
 #
 # sandbox.sh — create the project's Docker Sandbox if it doesn't exist, then run it.
-# Runs on the HOST. Needs `docker` and `sbx`. Options: see usage() or --help.
+# Runs on the HOST. Needs `sbx` 0.51 or later. Options: see usage() or --help.
 #
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 NAME=social-tennis
-TEMPLATE=social-tennis-sbx
+# v3 kits (#175): sbx 0.51 made the built-in `claude` agent a v3 kit, and an
+# agent's kits must all be one format. The toolchain kit replaces the custom
+# template of the v2 setup.
 KITS=(
+  ./.sbx/kits/toolchain
   ./.sbx/kits/context7
   ./.sbx/kits/github
   ./.sbx/kits/nuget
   ./.sbx/kits/rtk
 )
+SBX_MIN_VERSION=0.51.0
 
 SECRETS=(github context7)
 
 usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
-Usage: ./sandbox.sh [--rebuild] [--no-remote-control] [--set-secret SERVICE] [--help]
+Usage: ./sandbox.sh [--name NAME] [--no-remote-control] [--set-secret SERVICE] [--help]
 
 Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
 Code in it, then attach with Remote Control on. Runs on the host; needs
-docker and sbx.
+sbx $SBX_MIN_VERSION or later.
 
 Options:
-  --rebuild             rebuild and reload the template image first
+  --name NAME           use the sandbox NAME instead of "$NAME", e.g. to
+                        create a new one beside an existing sandbox
   --no-remote-control   attach without Remote Control, and leave sbx's
                         claude.remoteControl setting as it is
   --set-secret SERVICE  replace one stored secret, then exit
@@ -55,13 +60,15 @@ secret_label() {
   esac
 }
 
-REBUILD=false
 REMOTE_CONTROL=true
 SET_SECRET=""
 while (($#)); do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --rebuild) REBUILD=true ;;
+    --name)
+      NAME=${2:-}
+      [[ -n "$NAME" ]] || { echo "--name needs a sandbox name" >&2; exit 2; }
+      shift ;;
     --no-remote-control) REMOTE_CONTROL=false ;;
     --set-secret)
       SET_SECRET=${2:-}
@@ -71,6 +78,17 @@ while (($#)); do
   esac
   shift
 done
+
+# --- sbx version: v3 kits need 0.51 ------------------------------------------
+# An older sbx reads the kits' schemaVersion "3" as unknown and refuses them.
+# If the version can't be read, the script goes on and sbx has the last word.
+sbx_version=$(sbx version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)
+if [[ -z "$sbx_version" ]]; then
+  echo "warning: could not read sbx's version; the kits need $SBX_MIN_VERSION or later" >&2
+elif [[ "$(printf '%s\n' "$SBX_MIN_VERSION" "$sbx_version" | sort -V | head -n 1)" != "$SBX_MIN_VERSION" ]]; then
+  echo "sbx $sbx_version is too old: the kits are v3, which needs sbx $SBX_MIN_VERSION or later." >&2
+  exit 1
+fi
 
 # --- secrets: stored globally in sbx, so they survive rebuilds -------------
 # Global is sbx's default for secrets since v0.38.0; `-g` is deprecated (#173).
@@ -103,25 +121,13 @@ fi
 
 for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
 
-# --- template: build + load if missing (sbx has its own image store) -------
-if $REBUILD || ! sbx template ls 2>/dev/null | grep -qw "$TEMPLATE"; then
-  docker build -t "$TEMPLATE" .sbx
-  # A temp dir, not `$(mktemp).tar`: that leaks the file mktemp made. The trap
-  # covers a failed save/load under `set -e`; the explicit rm covers success,
-  # because the closing `exec` replaces the shell before EXIT traps would run.
-  tardir=$(mktemp -d)
-  trap 'rm -rf "$tardir"' EXIT
-  docker save "$TEMPLATE" -o "$tardir/$TEMPLATE.tar"
-  sbx template load "$tardir/$TEMPLATE.tar"
-  rm -rf "$tardir"
-  trap - EXIT
-fi
-
 # --- sandbox: create if missing, then run ---------------------------------
 # Exact match on the name column: `grep -w` would also match claude-$NAME.
+# sbx builds the local kits itself at creation (the toolchain kit's image takes
+# a few minutes the first time), so there is no template to build here.
 if ! sbx ls 2>/dev/null | awk -v n="$NAME" '$1 == n { found=1 } END { exit !found }'; then
   kit_args=(); for k in "${KITS[@]}"; do kit_args+=(--kit "$k"); done
-  sbx create --name "$NAME" -t "$TEMPLATE" "${kit_args[@]}" claude .
+  sbx create --name "$NAME" "${kit_args[@]}" claude .
 fi
 
 # --- Remote Control: drive the session from claude.ai/code or the phone -----
@@ -138,10 +144,10 @@ if $REMOTE_CONTROL && [[ "$(sbx settings get claude.remoteControl 2>/dev/null)" 
     echo "warning: could not turn on sbx's claude.remoteControl; Remote Control will not connect" >&2
 fi
 
-# Update Claude Code on every run: the sandbox otherwise stays at whatever
-# version the template shipped. `claude update` picks the right path for however
-# the base image installed it. A failed update (e.g. offline) only warns, so it
-# never blocks attaching.
+# Update Claude Code on every run: the sandbox otherwise stays at the version
+# the claude kit's image carried when it was created. The kit installs it in
+# the agent's ~/.local/bin, which `claude update` can write. A failed update
+# (e.g. offline) only warns, so it never blocks attaching.
 sbx exec -it "$NAME" claude update ||
   echo "warning: claude update failed; continuing with the installed version" >&2
 

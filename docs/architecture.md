@@ -176,14 +176,14 @@ Statuses that come from middleware rather than a handler are put into the docume
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
 ├── scripts/setup-hosting.sh    one-time hosting setup wizard (accounts, state storage, GitHub identity)
-├── sandbox.sh                  host entry point for the Docker Sandbox: secrets, template, create, run
+├── sandbox.sh                  host entry point for the Docker Sandbox: sbx version, secrets, create, run
 ├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
-│   ├── Dockerfile              template image: .NET 10 SDK, language servers, Claude Code plugins, RTK
-│   └── kits/                   mixin kits attached at sandbox creation
-│       ├── context7/           Context7 MCP egress + proxy-injected API key
-│       ├── github/             gh + git push over HTTPS, proxy-injected PAT
+│   └── kits/                   v3 mixin kits attached at sandbox creation (<kit>.yaml, + <kit>.dockerfile)
+│       ├── toolchain/          .NET 10 SDK + ICU, Node 24, csharp-ls, typescript-language-server; LSP plugins
+│       ├── context7/           Context7 MCP egress + proxy-injected API key; Context7 plugin
+│       ├── github/             gh + git push over HTTPS, proxy-injected PAT, commit identity
 │       ├── nuget/              nuget.org egress for dotnet restore / csharp-ls
-│       └── rtk/                registers RTK's Claude Code hook at creation
+│       └── rtk/                the RTK binary, and its Claude Code hook registered at creation
 ├── .vscode/extensions.json     extensions VS Code recommends for editing on the host (no C#: no SDK there)
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
@@ -245,7 +245,7 @@ One compose file is the truth for topology; overlays change *how* services run, 
 
 | | Base (`docker compose up`) | Dev overlay (`-f docker-compose.dev.yml`) | Docker Sandbox (`./sandbox.sh`) |
 |---|---|---|---|
-| api | Built image (publish, chiseled `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Language servers in the sbx template; stack still via compose, on the sandbox's own Docker daemon |
+| api | Built image (publish, chiseled `aspnet:10.0`) | `sdk:10.0` + bind mount + `dotnet watch` | Language servers from the sbx `toolchain` kit; stack still via compose, on the sandbox's own Docker daemon |
 | web | Built image (standalone `server.js`) | `node:24-alpine` + bind mount + `next dev` | 〃 |
 | postgres | `postgres:18-alpine`, `pgdata` volume | same | same |
 | Use for | Prod-like verification | Day-to-day development (edit on the host, reload on save) | Agents; deny-by-default egress |
@@ -262,23 +262,25 @@ Where agents run: Claude Code inside a [Docker Sandbox](https://docs.docker.com/
 
 `sandbox.sh` (run on the host; `--help` lists its options) is idempotent. Each step runs only when its output is missing:
 
+0. **sbx version**: the kits are v3, which needs sbx 0.51 or later. An older sbx stops the script; a version it can't read only warns.
+
 1. **Secrets**: prompts with hidden input for any of `github` and `context7` that is missing from sbx's global secret store, and pipes each value in on stdin. `--set-secret <service>` replaces one secret.
-2. **Template**: `sbx` has its own image store, separate from the Docker daemon's. A plain `docker build` is invisible to it, and `sbx create -t` would try to pull from Docker Hub and get 403. So the script runs `docker build` → `docker save` into a temp dir → `sbx template load`, and an EXIT trap removes the tarball if a step fails. It runs when the template is missing or `--rebuild` is passed.
-3. **Sandbox**: `sbx create` with all four kits, if no sandbox named `social-tennis` exists. Kits attach only at creation, so adding one later needs `sbx kit add` (which recreates the container) or `sbx rm` followed by a re-run.
-4. **Remote Control**: `sbx settings set claude.remoteControl true` if it is not already on. This is a host-wide sbx setting, not a kit: sbx keeps Remote Control's credentials on the host, and its proxy supplies them to sandboxes only while the setting is on. A failure only warns. `--no-remote-control` skips this step and the flag in step 5.
-5. **Run**: `claude update` inside the sandbox (a failure only warns), then `exec sbx run -- --remote-control`, so the session is reachable from claude.ai/code and the Claude mobile app as soon as it starts. It needs a claude.ai `/login` inside the sandbox, and no egress beyond `api.anthropic.com`.
+2. **Sandbox**: `sbx create ... claude .` with all five kits, if no sandbox named `social-tennis` (or `--name`) exists. sbx builds the local kits' images itself, so there is no template step. Kits attach only at creation, so changing one needs `sbx rm` followed by a re-run; `--name` creates a second sandbox beside a working one.
+3. **Remote Control**: `sbx settings set claude.remoteControl true` if it is not already on. This is a host-wide sbx setting, not a kit: sbx keeps Remote Control's credentials on the host, and its proxy supplies them to sandboxes only while the setting is on. A failure only warns. `--no-remote-control` skips this step and the flag in step 4.
+4. **Run**: `claude update` inside the sandbox (a failure only warns), then `exec sbx run -- --remote-control`, so the session is reachable from claude.ai/code and the Claude mobile app as soon as it starts. It needs a claude.ai `/login` inside the sandbox, and no egress beyond `api.anthropic.com`.
 
-The template (`.sbx/Dockerfile`) extends `docker/sandbox-templates:claude-code-docker` with the .NET 10 SDK, `csharp-ls`, `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), and the `csharp-lsp`, `typescript-lsp` and `context7` plugins, plus the RTK binary at the same pin. RTK's Claude Code hook is registered by the `rtk` kit's setup command at creation, not in the image, because sbx writes `~/.claude/settings.json` when it creates the sandbox. `PATH` gets the user's `~/.dotnet/tools` and `~/.local/bin` (`ENV` in the image), because the LSP plugin starts `csharp-ls` from Claude Code's environment, not a login shell.
+The sandbox is sbx's built-in **`claude` agent**, a published v3 kit (`docker.io/sbx/claude`: Debian 13, Claude Code, git, gh, Docker), plus five **v3 mixin kits** (#175). sbx 0.51 made the built-in agent v3, and a sandbox can't mix v3 kits with v1 or v2 ones, which ended the earlier custom template and v2 kits. Each kit is a descriptor (`<kit>.yaml`, Docker's [sandbox kit spec](https://github.com/docker/sandbox-kit-spec)) of capabilities: `network-policy@1` for egress, `credential@1` for a proxy-held secret, `lifecycle@1` for install hooks, `agent-context@1`/`@2` for instructions. Two kits also have image content (`<kit>.dockerfile`, multi-stage, ending `FROM scratch`), which sbx builds and layers over the agent's image. The wiring lives in the repo, and the only per-machine step is storing the secret values. sbx writes the kits' instructions into a section it manages in the sandbox's `~/.claude/CLAUDE.md`, outside the workspace, so the tracked `CLAUDE.md` is never modified. `docker buildx build -f .sbx/kits/<kit>/<kit>.yaml .sbx/kits/<kit>` checks a descriptor strictly with only Docker.
 
-Integrations are **schema-v2 mixin kits**, so their wiring lives in the repo and the only per-machine step is storing the secret values. Each kit declares its egress allow-list, agent instructions, and where needed a proxy-managed credential and setup commands. sbx writes those instructions into its own generated `CLAUDE.md` outside the workspace, so the tracked `CLAUDE.md` is never modified.
+- **`toolchain` kit** carries what the claude kit lacks: the .NET 10 SDK copied from the same `dotnet/sdk` image and digest as `api/Dockerfile` (ICU from that image too, since the claude kit has none), Node 24 and `typescript-language-server` with TypeScript pinned to 5.x (the 7.x native port ships no `lib/tsserver.js`, which the language server loads), and `csharp-ls`, each linked into `/usr/local/bin`. Nothing relies on an `ENV` in the kit's image, which Docker's docs don't say reaches the sandbox: `/usr/local/bin` is on the claude kit's `PATH`, which the LSP plugins inherit from Claude Code, and .NET tools find the runtime through `/etc/dotnet/install_location`. An install hook adds the `csharp-lsp` and `typescript-lsp` plugins, with `github.com` allowed while hooks run (the marketplace is a git repository).
+- **Hook order.** The claude kit's own install hook writes `~/.claude/settings.json` from scratch, and install hooks run a provider's before its requirers'. So every kit whose hook changes Claude Code's configuration (`toolchain`, `context7`, `rtk`) declares `requires: [claude]`.
 
 ```mermaid
 flowchart LR
     subgraph host ["Host"]
         S["sandbox.sh"] -->|"stdin"| SS[("sbx secret store<br/>github · context7")]
     end
-    subgraph sbx ["Docker Sandbox: social-tennis"]
-        C["Claude Code<br/>GH_TOKEN=proxy-managed<br/>CONTEXT7_API_KEY=sentinel"]
+    subgraph sbx ["Docker Sandbox: social-tennis (claude kit + 5 mixin kits)"]
+        C["Claude Code<br/>GH_TOKEN=sentinel<br/>CONTEXT7_API_KEY=sentinel"]
     end
     PX["sbx egress proxy<br/>deny-by-default allow-list"]
     C -->|"gh / git over HTTPS"| PX
@@ -290,11 +292,11 @@ flowchart LR
     PX -->|"api.nuget.org"| NG[NuGet]
 ```
 
-- **`github` kit** uses sbx's built-in `github` service with a PAT of `l1em1on1-claude`, a dedicated account with write access to this repo only, and sets `GIT_AUTHOR_*`/`GIT_COMMITTER_*` so sandbox commits are that account's — environment variables, because the bind-mounted `.git/config` holds the host's identity and repo config beats `--global`. It sets `GH_TOKEN=proxy-managed`, because `gh` refuses to run without a token in its environment. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
+- **`github` kit** declares sbx's built-in `github` service as a `credential@1`, with a PAT of `l1em1on1-claude`, a dedicated account with write access to this repo only. The proxy sets `Authorization: Bearer <token>` on `github.com` and `api.github.com` (Docker's docs say sbx ignores the spec's Basic `scheme` in v3). The credential names `GH_TOKEN`, so it holds a sentinel, because `gh` refuses to run without a token in its environment. Four args with `env:` set `GIT_AUTHOR_*`/`GIT_COMMITTER_*` so sandbox commits are that account's. These are environment variables because the bind-mounted `.git/config` holds the host's identity and repo config beats `--global`. SSH (`github.com:22`) is blocked, so the kit adds a global `url.https://github.com/.insteadOf git@github.com:` rewrite to the agent's own git config. The bind-mounted `.git/config` stays on SSH for the host.
 - **`nuget` kit** only allows egress to `api.nuget.org`; it has no credential. `csharp-ls` needs a restore done *in the sandbox*, because `obj/project.assets.json` records absolute package and project paths.
 - **Language-server restores** (#121). A `SessionStart` hook (`.claude/hooks/lsp-restore.sh`) restores what the language servers read when it is missing or stale: `dotnet restore` synchronously (seconds; Claude's first reply waits for it), `npm ci --ignore-scripts --no-bin-links` in `web/` asynchronously (minutes on the bind mount, which refuses symlinks). Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which `api/Directory.Build.props` maps to `obj/container/` and `bin/container/`, so Docker builds and tests never overwrite the language server's `obj/`. These restores feed the language servers only; builds and tests stay in compose.
-- **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own.
-- **`rtk` kit** has no egress or credential. Its setup command runs `rtk init -g --auto-patch` as the agent user, registering RTK's PreToolUse hook in `~/.claude/settings.json` after sbx has written that file. The binary comes from the template, so nothing is fetched at creation.
+- **`context7` kit** declares a custom `context7` service. The proxy rewrites the plugin's `Authorization` header to `Bearer <key>` for `mcp.context7.com`. The Docker MCP Toolkit's stored copy of the key can't be read back, so sbx keeps its own. Its install hook adds the Context7 plugin.
+- **`rtk` kit** has no egress or credential. Its image content is the RTK binary in `/usr/local/bin`, and its install hook runs `rtk init -g --auto-patch` as the agent, registering RTK's PreToolUse hook in `~/.claude/settings.json` after the claude kit has written that file.
 
 ## Deployment (PoC)
 
@@ -498,16 +500,16 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
-| TypeScript (language server only) | 5.x | sbx template; 7.x ships no `lib/tsserver.js` |
-| RTK | 1.2.0 | sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
+| TypeScript (language server only) | 5.x | sbx `toolchain` kit; 7.x ships no `lib/tsserver.js` |
+| RTK | 1.2.0 | sbx `rtk` kit; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest"; it checks the release checksum |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
 | Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
 | Trivy | `aquasec/trivy:0.76.2@sha256:…` | The CI image scan (`scripts/scan-image.sh`). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts. Bump to a release published after any advisory on Trivy itself |
 | Backup job images | `postgres:18-alpine@sha256:…`, `mcr.microsoft.com/azure-cli:2.92.0@sha256:…` | `infra/modules/backup` only. Pinned by digest in Terraform, by hand: Dependabot can't see images named there. `pg_dump`'s major version must be at least Neon's server version |
 | curl image | `curlimages/curl:8.11.1@sha256:…` | `scripts/setup-domain.sh` only (the host may have no curl). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts |
-| csharp-ls / typescript-language-server / typescript | 0.28.0 / 6.1.0 / 5.9.3 | sbx template (`.sbx/Dockerfile`); exact pins. Claude Code comes with the template's base image, and `sandbox.sh` runs `claude update` on every start |
+| csharp-ls / typescript-language-server / typescript | 0.28.0 / 6.1.0 / 5.9.3 | sbx `toolchain` kit (`.sbx/kits/toolchain/toolchain.dockerfile`); exact pins. Its stages are pinned by digest: `dotnet/sdk:10.0` (the same digest as `api/Dockerfile`; SDK 10.0.404), `node:24-trixie-slim` (Node 24.22.3), `debian:trixie-slim`. Dependabot doesn't watch `.sbx/`: bump these by hand. Claude Code comes with the claude kit's image, and `sandbox.sh` runs `claude update` on every start |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |
-| sbx (Docker Sandboxes) | ≥ 0.42.0 | Earlier versions dropped kit-injected headers (docker/sbx-releases#490); kits use `schemaVersion: "2"` |
+| sbx (Docker Sandboxes) | ≥ 0.51.0 | Kits are `schemaVersion: "3"` (#175): 0.51 made the built-in `claude` agent a v3 kit, which can't be combined with v1/v2 kits. `sandbox.sh` checks the version |
 
 **Bumping a digest-pinned base image** (#25). Each `FROM` in `api/Dockerfile` and `web/Dockerfile` is `tag@sha256:digest`: the tag says what it is, the digest fixes the exact image. Dependabot's `docker` updates (monthly, #113) open a PR that moves both; CI builds and tests it like any change. By hand: `docker buildx imagetools inspect <image>:<tag>` prints the current digest (the `Digest:` line); put it after the tag, then run the API and E2E suites. Keep the tag, never a digest alone, so a reader and Dependabot both know what is pinned.
 

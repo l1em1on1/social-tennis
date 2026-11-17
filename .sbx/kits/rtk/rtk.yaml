@@ -1,0 +1,40 @@
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: RTK command-output compaction
+description: "The RTK binary, and its Claude Code hook, which rewrites Bash commands to compact their output"
+sourceUrl: https://github.com/rtk-ai/rtk
+provides:
+  - rtk@1.2.0
+
+# Install hooks run in dependency order, a provider's before its requirers'.
+# Requiring claude runs `rtk init` after the claude kit's hook writes
+# ~/.claude/settings.json, which would otherwise drop RTK's hook.
+requires:
+  - claude
+
+capabilities:
+  # --auto-patch: install hooks have no TTY, and the prompt would default to "no".
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - command: [rtk, init, -g, --auto-patch]
+          user: agent
+          description: Register RTK's PreToolUse hook in Claude Code's global settings
+
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config: &context
+      content: |
+        # RTK
+
+        RTK is installed and hooked into Claude Code: Bash commands such as
+        `git status` are rewritten to `rtk git status` automatically, so their
+        output arrives compacted. `rtk proxy <cmd>` runs a command with raw,
+        unfiltered output when the compact form hides something you need.
+
+  - type: com.docker.sandbox/agent-context@2
+    optional: true
+    config: *context
+
+dockerfile: rtk.dockerfile

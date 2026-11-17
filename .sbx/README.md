@@ -5,34 +5,60 @@ Runs Claude Code inside a [Docker Sandbox](https://docs.docker.com/ai/sandboxes/
 host (ADR-0005). It is for agents: people edit on the host and run the stack
 with `docker compose` (see the main README).
 
-- `Dockerfile` — sandbox template image: .NET SDK, the language servers behind
-  the `csharp-lsp`/`typescript-lsp` plugins, the Context7 plugin, and RTK.
-- `kits/context7/` — kit wiring the Context7 MCP server's API key through the
-  sandbox proxy.
-- `kits/github/` — kit giving the sandbox `gh` (issues, PRs) and `git push` to
-  github.com over HTTPS, with the token held by the sandbox proxy.
-- `kits/nuget/` — kit allowing egress to `api.nuget.org`, so `dotnet restore`
-  works and `csharp-ls` can resolve packages. See [NuGet restore](#nuget-restore).
-- `kits/rtk/` — kit registering RTK's Claude Code hook at sandbox creation; the
-  `rtk` binary itself is baked into the template.
+The sandbox is sbx's built-in `claude` agent with five **v3 mixin kits**
+(#175):
 
-Kits use the `schemaVersion: "2"` field names — `permissions.network`,
-`setup.install`, `agentInstructions.content`. The v1 names (`caps`, `commands`,
-`agentContext`) are rejected by `sbx kit inspect` on current sbx; run it after
-editing a kit, since `sbx kit validate` alone has let them through.
+- `kits/toolchain/`: the .NET 10 SDK (with ICU), Node 24, `csharp-ls` and
+  `typescript-language-server`, linked into `/usr/local/bin`, plus an install
+  hook that adds Claude Code's `csharp-lsp` and `typescript-lsp` plugins.
+- `kits/context7/`: the Context7 MCP server's API key, through the sandbox
+  proxy, and the Context7 plugin.
+- `kits/github/`: `gh` (issues, PRs) and `git push` to github.com over HTTPS as
+  `l1em1on1-claude`, with the token held by the sandbox proxy.
+- `kits/nuget/`: egress to `api.nuget.org`, so `dotnet restore` works and
+  `csharp-ls` can resolve packages. See [NuGet restore](#nuget-restore).
+- `kits/rtk/`: the RTK binary, and its Claude Code hook, registered at creation.
+
+Each kit is a directory with a descriptor, `<kit>.yaml`. The toolchain and rtk
+kits also have `<kit>.dockerfile`, their image content. The format is Docker's
+[sandbox kit spec](https://github.com/docker/sandbox-kit-spec), v3. Its
+capabilities include `network-policy@1` (egress), `credential@1` (a
+proxy-held secret), `lifecycle@1` (install hooks) and `agent-context@1`/`@2`
+(instructions for the agent).
+
+**Why v3.** sbx 0.51 made the built-in `claude` agent a published v3 kit
+(`docker.io/sbx/claude`), and a sandbox can't mix v3 kits with v1 or v2 ones.
+The v2 setup, a custom template image plus four v2 kits, could no longer
+create a sandbox. The template is gone: its tools are now the toolchain kit's
+image content, which sbx builds itself.
+
+**Checking a kit after editing it.** Build it with the kit frontend. It decodes
+the descriptor strictly, so an unknown field is an error, and it needs only
+Docker:
+
+```bash
+docker buildx build -f .sbx/kits/<kit>/<kit>.yaml -t sbx-kit-<kit>:dev .sbx/kits/<kit>
+```
+
+On the host, `sbx kit inspect ./.sbx/kits/<kit>` also checks the kit against
+what that sbx supports.
+
+**Hooks run after the claude kit's.** The claude kit's own install hook writes
+`~/.claude/settings.json` from scratch. Install hooks run in dependency order,
+a provider's before its requirers'. So the kits that change Claude Code's
+configuration (toolchain, context7 and rtk, for plugins and RTK's hook)
+declare `requires: [claude]`. Otherwise what they write could be overwritten.
+
+**Nothing relies on a kit's `ENV`.** Docker's docs don't say a mixin's image
+`ENV` reaches the sandbox. The tools are linked into `/usr/local/bin`, which is
+already on the claude kit's `PATH`. .NET finds its runtime through
+`/etc/dotnet/install_location`. The github kit's commit identity uses args
+with `env:`, the spec's way to set the container's environment.
 
 ## Running
 
-`sbx` does not share an image store with the Docker daemon — it has its own,
-listed by `sbx template ls`. A locally built image is invisible to it, and
-`sbx create -t <name>` falls back to pulling `docker.io/library/<name>`, which
-fails with **403 Forbidden: pull failed for image**. Build, export, and load:
-
-```bash
-docker build -t social-tennis-sbx .sbx
-docker save social-tennis-sbx:latest -o social-tennis-sbx.tar
-sbx template load social-tennis-sbx.tar          # into the sandbox image store
-```
+`../sandbox.sh` does all of this. It needs sbx 0.51 or later, and checks the
+version. By hand:
 
 Store the secrets. Both prompt for the value (see
 [GitHub access](#github-access) and [Context7 API key](#context7-api-key)).
@@ -44,32 +70,32 @@ sbx secret set github             # PAT of the l1em1on1-claude account
 sbx secret set context7           # raw key, no `Bearer `
 ```
 
-Then create the sandbox with the kits attached:
+Then create the sandbox with the kits. The first time, sbx builds the
+toolchain and rtk kits' images, which takes a few minutes.
 
 ```bash
-sbx create --name social-tennis -t social-tennis-sbx \
-  --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github \
+sbx create --name social-tennis \
+  --kit ./.sbx/kits/toolchain --kit ./.sbx/kits/context7 --kit ./.sbx/kits/github \
   --kit ./.sbx/kits/nuget --kit ./.sbx/kits/rtk claude .
 sbx settings set claude.remoteControl true       # see Remote Control below
 sbx run --name social-tennis -- --remote-control
 ```
 
-Kits are attached at creation only. To give an existing sandbox a new kit,
-`sbx kit add social-tennis ./.sbx/kits/<kit>` recreates its container with the
-kit appended, or `sbx rm social-tennis` and run `../sandbox.sh` again. The
-workspace is a bind mount, so neither touches the repo.
-
-Re-run the build/save/load trio after any change to `Dockerfile`; `sbx template
-ls` shows what the sandbox runtime actually holds.
+Kits are attached at creation only. After changing a kit, run
+`sbx rm social-tennis` and then `../sandbox.sh` again. The workspace is a bind
+mount, so neither touches the repo. To try a changed kit beside a sandbox that
+works, `../sandbox.sh --name <another-name>` creates a second sandbox. Both
+work on the same checkout, so don't work in both at once.
 
 `../sandbox.sh` runs `claude update` inside the sandbox on every start, before
-attaching, so the sandbox never lags behind the template's Claude Code version.
-A failed update (e.g. offline) prints a warning and attaches anyway.
+attaching. Otherwise the sandbox would stay at the Claude Code version the
+claude kit's image had when the sandbox was created. A failed update (e.g.
+offline) prints a warning and attaches anyway.
 
-Each mixin kit's `agentInstructions` goes into a per-kit memory file that sbx
-links from a `## Kits` section of its generated `CLAUDE.md`, outside the
-workspace, so the repo's own tracked `CLAUDE.md` is never modified. Claude
-Code reads both.
+Each kit's `agent-context` text reaches Claude Code through
+`~/.claude/CLAUDE.md` in the sandbox. sbx writes it into a section it manages
+there and keeps the rest of the file. That file is outside the workspace, so
+the repo's own tracked `CLAUDE.md` is never modified. Claude Code reads both.
 
 ## Remote Control
 
@@ -120,10 +146,10 @@ that entry is write-only from our side: `docker mcp secret` offers only
 `credentials not found in native keychain`. The toolkit's key reaches the
 toolkit's own gateway and nothing else. `sbx` needs its own copy.
 
-The kit's `credentials:` entry takes its value from sbx's secret store, matched
-by `service:` — here `context7`. It cannot read host environment variables or
+The kit's `credential@1` entry takes its value from sbx's secret store,
+matched by `service:`. Here that is `context7`. It cannot read host environment variables or
 files, so an exported `CONTEXT7_API_KEY` on the host does nothing
-([kit spec reference](https://docs.docker.com/ai/sandboxes/customize/kit-reference/)).
+([credential@1](https://github.com/docker/sandbox-kit-spec/blob/main/docs/spec/capabilities/com.docker.sandbox/credential@1.md)).
 
 `../sandbox.sh` asks for the key (from the [Context7 dashboard](https://context7.com/dashboard))
 with a hidden prompt the first time and stores it with `sbx secret set
@@ -137,27 +163,29 @@ replaces the stored one, and exits. Store the raw `ctx7sk-...` key — the kit's
 
 ### How the key reaches Context7
 
-The key stays on the host. `kits/context7/spec.yaml` declares it `proxyManaged`,
+The key stays on the host. `kits/context7/context7.yaml` declares it `proxyManaged`,
 so inside the sandbox `CONTEXT7_API_KEY` holds a sentinel, not the key. The
 Context7 plugin sends `Authorization: ${CONTEXT7_API_KEY}` to
 `https://mcp.context7.com/mcp`, and the sandbox proxy rewrites that header to
 `Bearer <real key>` on the way out. A shell inside the sandbox cannot read the
 key, and neither can anything the agent runs.
 
-`permissions.network.allow` lists `mcp.context7.com` because sandbox egress denies by
-default — without it, tool calls fail at the proxy rather than at Context7.
+The kit's `network-policy@1` allows `mcp.context7.com` at runtime, because
+sandbox egress denies by default. Without it, tool calls would fail at the
+proxy rather than at Context7. It also allows `github.com` while install hooks
+run, because the plugin's marketplace is a git repository.
 
 ### Why a kit credential rather than `sbx secret set-custom`
 
 `set-custom` uses the same placeholder swap, but it is declared imperatively on
 each machine, and the stored value must carry the `Bearer ` prefix itself. The
-kit keeps the wiring — env var, target domain, header, format — in the repo, so
+kit keeps the wiring (env var, target domain, header, format) in the repo, so
 the only per-machine step is the key itself. Follow the same pattern for future
 integrations: declare the credential in a kit, store the value under its
 `service:` name.
 
 For the record, the `set-custom` equivalent — not used here — needs no kit
-`credentials:` block, but the value carries the prefix and every flag is
+credential, but the value carries the prefix and every flag is
 repeated by hand on each machine:
 
 ```bash
@@ -176,18 +204,15 @@ Don't combine the two: both set `CONTEXT7_API_KEY` in the sandbox and would
 fight over it. A custom secret left over from an earlier setup can be found
 with `sbx secret ls` and removed with `sbx secret rm --placeholder <value>`.
 
-Use sbx **v0.42.0 or later**. Earlier versions dropped the injected header for
-kit credentials that used `scheme: bearer` without an explicit `header:`
-([sbx-releases#490](https://github.com/docker/sbx-releases/issues/490)). This
-kit names `header: Authorization`, so it should not hit that bug, but the fix
-is where kit-declared services were confirmed working.
 ## GitHub access
 
 The `github` kit lets the agent read and update issues with `gh`, and push
-branches with `git`. It reuses sbx's built-in `github` service secret, which the
-proxy injects into requests to `github.com` and `api.github.com`
-([credentials](https://docs.docker.com/ai/sandboxes/security/credentials/)). The
-token never enters the container.
+branches with `git`. Its `credential@1` entry uses sbx's built-in `github`
+service secret, which the proxy sets as `Authorization: Bearer <token>` on
+requests to `github.com` and `api.github.com`
+([credentials](https://docs.docker.com/ai/sandboxes/configuration/credentials/)).
+The token never enters the container. Bearer on `github.com` too, for `git`:
+Docker's docs say sbx doesn't use the spec's Basic `scheme` in v3 kits.
 
 The agent works as its own GitHub account, **`l1em1on1-claude`**, a
 collaborator with write access to this repo and nothing else. Its token is
@@ -219,24 +244,24 @@ line is an instruction to the agent, not an enforcement.
 
 Commits are authored and committed as `l1em1on1-claude`
 (`356328941+l1em1on1-claude@users.noreply.github.com`) through the kit's
-`GIT_AUTHOR_*` / `GIT_COMMITTER_*` environment variables. `git config
+`GIT_AUTHOR_*` / `GIT_COMMITTER_*` environment variables, set by four args
+with `env:`. `git config
 --global` would not do it: the bind-mounted repo's `.git/config` sets
 `user.name`/`user.email` for the host, and repo config beats global config,
-while the variables beat both and change nothing the host reads.
+while the variables beat both and change nothing the host reads. The spec's
+`git-identity@1` capability doesn't fit: it supplies the host user's identity,
+and repository config still wins over it.
 
 Two gaps the kit closes, both found by probing a sandbox:
 
 - **`gh` refuses to run without a token in its environment**, even though the
-  proxy rewrites the `Authorization` header anyway. The kit sets
-  `GH_TOKEN=proxy-managed`; any non-empty value works.
+  proxy rewrites the `Authorization` header anyway. The credential names
+  `GH_TOKEN`, so sbx sets it to a sentinel, which is enough.
 - **SSH to GitHub is blocked** — the policy denies `github.com:22` — and this
   repo's `origin` is `git@github.com:...`. The kit's install step adds
   `url.https://github.com/.insteadOf git@github.com:` to the agent's *global*
   git config, so pushes go over HTTPS. The repo's own `.git/config` is shared
   with the host through the bind mount and stays on SSH.
-
-Commit identity comes from the repo's git config, so sandbox commits are
-authored as you.
 
 ## NuGet restore
 
@@ -246,10 +271,6 @@ with `NU1301 ... 403 (Forbidden)` and the C# language server can still parse
 files but flags every package type (`WebApplicationFactory`, `Fact`, `Assert`)
 as missing. The `nuget` kit allows `api.nuget.org`, which serves both the
 service index and the package downloads.
-
-An existing sandbox predates the kit; add it with
-`sbx kit add social-tennis ./.sbx/kits/nuget` (recreates the container), or
-or approve the pending `api.nuget.org` request with `sbx policy approval respond <approval-id> --option allow` (list the ID with `sbx policy approval ls`).
 
 **Restores for the language servers are automatic (#121).** A `SessionStart`
 hook (`.claude/hooks/lsp-restore.sh`, registered in `.claude/settings.json`)
