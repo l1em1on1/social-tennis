@@ -465,7 +465,7 @@ export async function askToJoinLeague(formData: FormData) {
  * goes back to the page as a message; a 404 means it's gone, which the
  * refreshed page shows.
  */
-async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejection" | "add") {
+async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejection" | "add" | "remove") {
   const path = leagueAndPlayer(formData);
   if (!path) return;
 
@@ -473,9 +473,11 @@ async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejecti
   const { response } =
     kind === "add"
       ? await api.PUT("/leagues/{leagueId}/participants/{playerId}", { params: { path } })
-      : kind === "approval"
-        ? await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/approval", { params: { path } })
-        : await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/rejection", { params: { path } });
+      : kind === "remove"
+        ? await api.DELETE("/leagues/{leagueId}/participants/{playerId}", { params: { path } })
+        : kind === "approval"
+          ? await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/approval", { params: { path } })
+          : await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/rejection", { params: { path } });
   if (response.status === 409) {
     redirect(`/manage/leagues/${path.leagueId}?error=conflict`);
   }
@@ -495,6 +497,11 @@ export async function rejectLeagueJoinRequest(formData: FormData) {
 
 export async function addLeagueParticipant(formData: FormData) {
   await manageLeagueEntry(formData, "add");
+}
+
+/** A Manager takes a Player out of a League before it starts (#159). They may ask to join again. */
+export async function removeLeagueParticipant(formData: FormData) {
+  await manageLeagueEntry(formData, "remove");
 }
 
 /** A Manager renames a League (#153). Nothing else about it changes. */

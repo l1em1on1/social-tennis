@@ -8,7 +8,13 @@ import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { addLeagueParticipant, approveLeagueJoinRequest, rejectLeagueJoinRequest, renameLeague } from "@/lib/actions";
+import {
+  addLeagueParticipant,
+  approveLeagueJoinRequest,
+  rejectLeagueJoinRequest,
+  removeLeagueParticipant,
+  renameLeague,
+} from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
@@ -182,7 +188,30 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                   <p className="font-medium">{participant.name}</p>
                   <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
                 </div>
-                <span className="font-mono text-sm">{participant.rating}</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-mono text-sm">{participant.rating}</span>
+                  {/* Behind a sheet: removing is one tap away from a name in a list. */}
+                  <Sheet
+                    title={`Remove ${participant.name}?`}
+                    trigger={
+                      <>
+                        Remove<span className="sr-only"> {participant.name}</span>
+                      </>
+                    }
+                  >
+                    <p className="text-fg-muted">
+                      {participant.name} will no longer be in {league.name}. They can ask to join again, or you can add
+                      them back.
+                    </p>
+                    <form action={removeLeagueParticipant}>
+                      <input type="hidden" name="leagueId" value={league.id} />
+                      <input type="hidden" name="playerId" value={participant.playerId} />
+                      <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                        Remove from league
+                      </SubmitButton>
+                    </form>
+                  </Sheet>
+                </div>
               </li>
             ))}
           </ul>

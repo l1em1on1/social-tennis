@@ -42,6 +42,10 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(AddLeagueParticipant));
 
+        league.MapDelete("/participants/{playerId:guid}", RemoveLeagueParticipant.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(RemoveLeagueParticipant));
+
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
             .ProducesProblem(StatusCodes.Status409Conflict)

@@ -192,6 +192,38 @@ test("a Manager renames a League, and its Player sees the new name", async ({ pa
   await expect(page.getByRole("region", { name: league, exact: true })).toHaveCount(0);
 });
 
+test("a Manager removes a Player from a League, and they can ask to join again", async ({ page, browser }, testInfo) => {
+  // Two sign-ins and several round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Removal Ladder");
+  const lee = uniqueName(testInfo, "Lee League");
+  const email = personaEmail(testInfo, "removed");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, lee, email);
+  await createLeague(manager, league);
+  await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${lee} (${email})` });
+  await manager.getByRole("button", { name: "Add to league" }).click();
+  const players = manager.getByRole("list", { name: "Players in the league" });
+  await expect(players).toContainText(lee);
+
+  await manager.getByRole("button", { name: `Remove ${lee}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Remove ${lee}?` });
+  await expect(sheet).toContainText("They can ask to join again");
+  await expectNoSeriousA11yViolations(manager);
+  await sheet.getByRole("button", { name: "Remove from league" }).click();
+  await expect(manager.getByText("No players yet")).toBeVisible();
+  await managerContext.close();
+
+  await logIn(page, testInfo, email);
+  await page.goto("/leagues");
+  const joinable = page.getByRole("region", { name: "You can join" });
+  await expect(joinable.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
+  await expect(page.getByRole("region", { name: `${lee}'s leagues` }).getByRole("region", { name: league })).toHaveCount(0);
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");

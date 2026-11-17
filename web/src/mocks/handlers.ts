@@ -453,6 +453,22 @@ export const handlers = [
     return response(204).empty();
   }),
 
+  // Removing before the start (#159): an approved request goes too, so they may ask again.
+  http.delete("/leagues/{leagueId}/participants/{playerId}", ({ params, response }) => {
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    const before = league.participants.length;
+    league.participants = league.participants.filter((participant) => participant.playerId !== params.playerId);
+    if (league.participants.length < before) {
+      league.requests = league.requests.filter(
+        (joinRequest) => !(joinRequest.playerId === params.playerId && joinRequest.status === "Approved"),
+      );
+    }
+    return response(204).empty();
+  }),
+
   http.post("/leagues/{leagueId}/join-requests", async ({ request, params, response }) => {
     const { playerId } = await request.json();
     const player = playersOf(request).find((candidate) => candidate.id === playerId);
