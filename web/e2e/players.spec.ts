@@ -110,9 +110,9 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   // The first Club listed: the Admin specs create others, which sort after it.
   const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
   await manager.getByLabel("Email address", { exact: true }).first().fill(email);
-  await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
-  await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
-  const invites = manager.getByRole("list", { name: "Invited addresses" });
+  await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
+  await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
+  const invites = manager.getByRole("list", { name: "Pre-approved addresses" });
   const invite = invites.getByRole("listitem").filter({ hasText: email });
   await expect(invite).toBeVisible();
   // The mock keeps its invites until its server restarts, so a second local
@@ -152,10 +152,10 @@ test("a Manager removes a member, and withdraws an invite", async ({ page, brows
   // An invite nobody has used can be taken back.
   const email = personaEmail(testInfo, "withdrawn");
   await manager.getByLabel("Email address", { exact: true }).first().fill(email);
-  await manager.getByRole("button", { name: "Invite", exact: true }).first().click();
-  await expect(manager.getByRole("status")).toContainText(`${email} is invited`);
-  await manager.getByRole("button", { name: `Withdraw invite for ${email}` }).click();
-  await expect(manager.getByRole("list", { name: "Invited addresses" }).getByText(email)).toHaveCount(0);
+  await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
+  await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
+  await manager.getByRole("button", { name: `Withdraw pre-approval for ${email}` }).click();
+  await expect(manager.getByRole("list", { name: "Pre-approved addresses" }).getByText(email)).toHaveCount(0);
   await managerContext.close();
 
   await page.reload();
