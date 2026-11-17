@@ -58,7 +58,10 @@ with `env:`, the spec's way to set the container's environment.
 ## Running
 
 `../sandbox.sh` does all of this. It needs sbx 0.51 or later, and checks the
-version. By hand:
+version. If creating fails, `../sandbox.sh --debug` passes sbx's `-D`, which
+prints each kit install hook's output and the startup log. In a sandbox that
+was created, the install logs are at `/var/log/sbx-kits/<kit>/install-<n>.log`
+(`sbx exec <name> cat ...`). By hand:
 
 Store the secrets. Both prompt for the value (see
 [GitHub access](#github-access) and [Context7 API key](#context7-api-key)).

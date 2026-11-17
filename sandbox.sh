@@ -26,7 +26,7 @@ SECRETS=(github context7)
 usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
-Usage: ./sandbox.sh [--name NAME] [--no-remote-control] [--set-secret SERVICE] [--help]
+Usage: ./sandbox.sh [--name NAME] [--debug] [--no-remote-control] [--set-secret SERVICE] [--help]
 
 Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
 Code in it, then attach with Remote Control on. Runs on the host; needs
@@ -35,6 +35,8 @@ sbx $SBX_MIN_VERSION or later.
 Options:
   --name NAME           use the sandbox NAME instead of "$NAME", e.g. to
                         create a new one beside an existing sandbox
+  --debug               create with sbx's debug output (\`sbx -D\`): each kit
+                        install hook's output, and the startup log
   --no-remote-control   attach without Remote Control, and leave sbx's
                         claude.remoteControl setting as it is
   --set-secret SERVICE  replace one stored secret, then exit
@@ -63,6 +65,7 @@ secret_label() {
 }
 
 REMOTE_CONTROL=true
+SBX_FLAGS=()
 SET_SECRET=""
 while (($#)); do
   case "$1" in
@@ -72,6 +75,7 @@ while (($#)); do
       [[ -n "$NAME" ]] || { echo "--name needs a sandbox name" >&2; exit 2; }
       shift ;;
     --no-remote-control) REMOTE_CONTROL=false ;;
+    --debug) SBX_FLAGS=(-D) ;;
     --set-secret)
       SET_SECRET=${2:-}
       secret_label "$SET_SECRET" >/dev/null || exit 2
@@ -144,7 +148,7 @@ if ! sbx ls 2>/dev/null | awk -v n="$NAME" '$1 == n { found=1 } END { exit !foun
     fi
   fi
   kit_args=(); for k in "${KITS[@]}"; do kit_args+=(--kit "$k"); done
-  sbx create --name "$NAME" "${kit_args[@]}" claude .
+  sbx ${SBX_FLAGS[@]+"${SBX_FLAGS[@]}"} create --name "$NAME" "${kit_args[@]}" claude .
 fi
 
 # --- Remote Control: drive the session from claude.ai/code or the phone -----
