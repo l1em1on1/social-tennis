@@ -121,8 +121,9 @@ the repo's own tracked `CLAUDE.md` is never modified. Claude Code reads both.
 ## Remote Control
 
 [Remote Control](https://code.claude.com/docs/en/remote-control) drives the
-sandbox's Claude Code session from claude.ai/code or the Claude mobile app.
-`../sandbox.sh` sets it up on every run, in two parts:
+sandbox's Claude Code from claude.ai/code or the Claude mobile app, **also
+after you log out of the host** (#179). `../sandbox.sh` sets it up on every
+run, in four parts:
 
 - **`sbx settings set claude.remoteControl true`**, on the host. sbx keeps
   Remote Control's environment and session credentials on the host, and its
@@ -131,20 +132,48 @@ sandbox's Claude Code session from claude.ai/code or the Claude mobile app.
   With it off, `/remote-control` inside the sandbox registers a session that
   never connects. The setting is host-wide — it covers every sandbox on the
   machine — and takes effect on running sandboxes within seconds.
-- **`sbx run ... -- --remote-control`**, so the session starts already
-  connected instead of waiting for `/remote-control`. It appears in the session
-  list under the sandbox's hostname, `social-tennis`.
+- **`sbx run -d --name social-tennis`**, which starts the sandbox detached.
+  A sandbox started by `sbx create` "stops automatically when no sessions keep
+  it running". A detached one "keeps running until you stop it with
+  `sbx stop` or remove it with `sbx rm`"
+  ([usage](https://docs.docker.com/ai/sandboxes/usage/)). So closing the
+  terminal, or logging out, doesn't stop it. `sbx run --name social-tennis`
+  still attaches to it.
+- **A Remote Control server**: `claude remote-control`, Claude Code's server
+  mode, which has no local session. claude.ai/code and the app list it as
+  `social-tennis` and start sessions in the repo on demand (`--spawn
+  same-dir`, `--permission-mode bypassPermissions`). It runs in a tmux session
+  in the sandbox, `remote-control`, started through `sbx exec`. That way the
+  sessions it starts have the sandbox's whole environment: the commit
+  identity, and the `GH_TOKEN` and `CONTEXT7_API_KEY` sentinels. A kit startup
+  hook sees only the variables it lists. The server's loop restarts it every
+  30 seconds if it exits. To watch it:
+  `sbx exec -it social-tennis tmux attach -t remote-control` (detach with
+  Ctrl-b d).
+- **`sbx run ... -- --remote-control`** (unless `--no-attach`), so the session
+  you attach to starts already connected too. It appears in the session list
+  under the sandbox's hostname.
+
+The server lives as long as the sandbox runs. After `sbx stop`, a daemon
+restart or a host reboot, run `../sandbox.sh` again, with `--no-attach` to
+start everything and exit. Nothing restarts it at boot (#179 leaves that
+out): sbx documents no service for its daemon.
 
 There is no kit for it and no extra egress. Remote Control only makes outbound
 requests to `api.anthropic.com`, which the `claude` agent is allowed already;
 `claude.ai` is opened on the phone or browser, not from the sandbox.
 
-**It needs a claude.ai sign-in inside the sandbox**: run `/login` once and
-choose the subscription account. An API key stored with `sbx secret set
-anthropic` runs Claude Code but cannot use Remote Control.
+**It needs a claude.ai sign-in inside the sandbox**: run `/login` once, in an
+attached session, and choose the subscription account. Until then the server
+prints "You must be logged in to use Remote Control" and retries. The first
+time, it may also ask "Enable Remote Control? (y/n)": answer it in the tmux
+session above. An API key stored with `sbx secret set anthropic` runs Claude
+Code but cannot use Remote Control, and neither can a `claude setup-token`
+token.
 
-`../sandbox.sh --no-remote-control` attaches without it and leaves the sbx
-setting as it is. To turn it off for running sandboxes too:
+`../sandbox.sh --no-remote-control` starts no server, attaches without
+Remote Control and leaves the sbx setting as it is. A server already running
+keeps running until the sandbox stops. To turn it off for running sandboxes too:
 
 ```bash
 sbx settings set claude.remoteControl false

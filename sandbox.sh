@@ -26,19 +26,24 @@ SECRETS=(github context7)
 usage() {
   local services; services=$(printf ' | %s' "${SECRETS[@]}"); services=${services:3}
   cat <<USAGE
-Usage: ./sandbox.sh [--name NAME] [--debug] [--no-remote-control] [--set-secret SERVICE] [--help]
+Usage: ./sandbox.sh [--name NAME] [--debug] [--no-attach] [--no-remote-control]
+                    [--set-secret SERVICE] [--help]
 
-Create the "$NAME" Docker Sandbox if it doesn't exist, update Claude
-Code in it, then attach with Remote Control on. Runs on the host; needs
-sbx $SBX_MIN_VERSION or later.
+Create the "$NAME" Docker Sandbox if it doesn't exist, and start it
+detached, so it keeps running after this terminal closes or you log out.
+Update Claude Code in it, start a Remote Control server in it (sessions on
+demand from claude.ai/code or the Claude app), then attach with Remote
+Control on. Runs on the host; needs sbx $SBX_MIN_VERSION or later.
 
 Options:
   --name NAME           use the sandbox NAME instead of "$NAME", e.g. to
                         create a new one beside an existing sandbox
   --debug               create with sbx's debug output (\`sbx -D\`): each kit
                         install hook's output, and the startup log
-  --no-remote-control   attach without Remote Control, and leave sbx's
-                        claude.remoteControl setting as it is
+  --no-attach           start everything, then exit instead of attaching
+  --no-remote-control   no Remote Control server, attach without Remote
+                        Control, and leave sbx's claude.remoteControl
+                        setting as it is
   --set-secret SERVICE  replace one stored secret, then exit
                         (SERVICE: $services)
   -h, --help            show this help, then exit
@@ -65,6 +70,7 @@ secret_label() {
 }
 
 REMOTE_CONTROL=true
+ATTACH=true
 SBX_FLAGS=()
 SET_SECRET=""
 while (($#)); do
@@ -75,6 +81,7 @@ while (($#)); do
       [[ -n "$NAME" ]] || { echo "--name needs a sandbox name" >&2; exit 2; }
       shift ;;
     --no-remote-control) REMOTE_CONTROL=false ;;
+    --no-attach) ATTACH=false ;;
     --debug) SBX_FLAGS=(-D) ;;
     --set-secret)
       SET_SECRET=${2:-}
@@ -165,12 +172,49 @@ if $REMOTE_CONTROL && [[ "$(sbx settings get claude.remoteControl 2>/dev/null)" 
     echo "warning: could not turn on sbx's claude.remoteControl; Remote Control will not connect" >&2
 fi
 
+# --- keep running: detached, so no session has to stay open (#179) ----------
+# A sandbox started by `sbx create` "stops automatically when no sessions keep
+# it running"; a detached one "keeps running until you stop it with sbx stop
+# or remove it with sbx rm" (https://docs.docker.com/ai/sandboxes/usage/).
+# `run -d` on an existing sandbox switches it to detached mode for good, and
+# `sbx run --name` still attaches to it.
+sbx run -d --name "$NAME" >/dev/null
+
+# -it only from a terminal, so --no-attach also works from a script.
+exec_tty=(); [[ -t 0 && -t 1 ]] && exec_tty=(-it)
+
 # Update Claude Code on every run: the sandbox otherwise stays at the version
 # the claude kit's image carried when it was created. The kit installs it in
 # the agent's ~/.local/bin, which `claude update` can write. A failed update
 # (e.g. offline) only warns, so it never blocks attaching.
-sbx exec -it "$NAME" claude update ||
+sbx exec ${exec_tty[@]+"${exec_tty[@]}"} "$NAME" claude update ||
   echo "warning: claude update failed; continuing with the installed version" >&2
+
+# --- Remote Control server: sessions on demand, with nothing attached (#179) -
+# `claude remote-control` is Claude Code's server mode: no local session, and
+# claude.ai/code or the Claude app starts sessions in the repo on demand. It
+# runs in a tmux session inside the sandbox, started through `sbx exec`, so it
+# and the sessions it starts have the sandbox's whole environment (the commit
+# identity, the GH_TOKEN sentinel). A kit startup hook would see only the
+# variables it lists. It needs a claude.ai sign-in in the sandbox (/login in
+# an attached session) and a one-time "Enable Remote Control?" answer; until
+# then it exits, and the loop retries every 30 s. A sandbox stop ends it, and
+# the next run of this script starts it again. Watch it with
+#   sbx exec -it <name> tmux attach -t remote-control   (detach: Ctrl-b d)
+RC_SESSION=remote-control
+rc_loop="cd \"\${WORKSPACE_DIR:-$PWD}\" || exit 1
+export PATH=\"\$HOME/.local/bin:\$PATH\"
+while :; do
+  claude remote-control --name $(printf '%q' "$NAME") --spawn same-dir --permission-mode bypassPermissions
+  echo \"claude remote-control stopped (exit \$?); retrying in 30 s. If it said you are not signed in, run /login in an attached session.\"
+  sleep 30
+done"
+if $REMOTE_CONTROL && ! sbx exec "$NAME" tmux has-session -t "$RC_SESSION" 2>/dev/null; then
+  sbx exec "$NAME" tmux new-session -d -s "$RC_SESSION" "$rc_loop" ||
+    echo "warning: could not start the Remote Control server; claude.ai sessions need an attached one" >&2
+fi
+
+$ATTACH || { echo "$NAME is running detached. Attach with ./sandbox.sh --name $NAME, stop with sbx stop $NAME."; exit 0; }
 
 # Arguments after `--` go to Claude Code. sbx keeps its own default flags
 # (--dangerously-skip-permissions) when the first one is itself a flag.
