@@ -161,19 +161,32 @@ exit.
 **At boot, with no login** (#180, Linux with systemd):
 `../sandbox.sh --install-service` writes a systemd user unit,
 `~/.config/systemd/user/sbx-social-tennis.service`, and enables it. The unit
-is a oneshot that runs `sandbox.sh --no-attach` at boot. sbx starts its daemon
-on demand, and `RemainAfterExit=yes` leaves the daemon running in the unit's
-cgroup after the script exits. The option also runs `loginctl enable-linger`,
-so your user's systemd starts at boot without a login and keeps running after
-logout. The secrets are asked for in your terminal first, because the service
-has no one to ask. The unit retries every 30 seconds if the script fails, and
-stopping it runs `sbx stop`.
+is a oneshot that runs `sandbox.sh --no-attach` at boot, adding
+`--no-remote-control` and `--debug` when you pass them with
+`--install-service`. sbx starts its daemon on demand, and
+`RemainAfterExit=yes` leaves the daemon running in the unit's cgroup after the
+script exits. The option also runs `loginctl enable-linger`, so your user's
+systemd starts at boot without a login and keeps running after logout. The
+secrets are asked for in your terminal first, because the service has no one
+to ask. The unit retries every 30 seconds if the script fails.
+
+**Stopping the unit stops this sandbox only.** That daemon runs every sandbox
+on the host, so the unit sets `KillMode=process`. Stopping it runs
+`sbx stop <name>`, and the daemon and every other sandbox keep running. So
+does a failed start before its retry. With systemd's default,
+`control-group`, a stop would kill the daemon too. Because the daemon is left
+in the unit's cgroup, the journal says "remains running after unit stopped" on
+a stop and "Found left-over process" on the next start. Both are expected.
 
 ```bash
 ../sandbox.sh --install-service                  # or --name <name> --install-service
 journalctl --user -u sbx-social-tennis           # what it did at boot
-systemctl --user disable --now sbx-social-tennis # undo (stops the sandbox too)
+systemctl --user disable --now sbx-social-tennis # undo (stops this sandbox only)
 ```
+
+A unit written before `KillMode=process` (#180) kills the daemon on a stop.
+After `git pull`, run `--install-service` again to rewrite it. That takes
+effect at once and doesn't restart the sandbox.
 
 There is no kit for it and no extra egress. Remote Control only makes outbound
 requests to `api.anthropic.com`, which the `claude` agent is allowed already;

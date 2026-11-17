@@ -43,7 +43,8 @@ Options:
   --no-attach           start everything, then exit instead of attaching
   --install-service     Linux with systemd: start the sandbox at boot, with
                         no login (a user unit running this script with
-                        --no-attach, and lingering), then exit
+                        --no-attach, plus any --no-remote-control or
+                        --debug given here, and lingering), then exit
   --no-remote-control   no Remote Control server, attach without Remote
                         Control, and leave sbx's claude.remoteControl
                         setting as it is
@@ -140,9 +141,17 @@ fi
 for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
 
 # --- boot service: start at boot, with no login (#180) ---------------------
-# A systemd user unit that runs this script with --no-attach at boot. sbx
-# starts its daemon on demand, and the daemon stays in the unit's cgroup: a
+# A systemd user unit that runs this script with --no-attach at boot, plus
+# --no-remote-control and --debug when they are given here. sbx starts its
+# daemon on demand, so after a boot the daemon is in the unit's cgroup: a
 # oneshot with RemainAfterExit is left running after the script exits.
+# That daemon runs every sandbox on the host, not only $NAME. So the unit sets
+# KillMode=process: stopping it runs ExecStop (`sbx stop $NAME`) and kills
+# nothing else, and neither does a failed start before its retry. The default,
+# control-group, would kill the daemon and every other sandbox with it.
+# Moving the daemon out with `systemd-run --scope` was tried and rejected: at
+# shutdown the scope can stop before ExecStop runs, so `sbx stop` finds no
+# daemon.
 # Lingering starts the user's systemd at boot without a login, and keeps it
 # running after logout. The secrets are asked for above, in this terminal:
 # the service has none to answer with. Restart=on-failure is valid for a
@@ -156,19 +165,29 @@ if $INSTALL_SERVICE; then
   unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
   # In unit files % starts a specifier, so a literal one is %%.
   esc() { printf '%s' "${1//%/%%}"; }
+  # The options that change what a run does hold at boot too.
+  svc_flags=""
+  $REMOTE_CONTROL || svc_flags+=" --no-remote-control"
+  ((${#SBX_FLAGS[@]} == 0)) || svc_flags+=" --debug"
+  description="Docker Sandbox $NAME, detached"
+  $REMOTE_CONTROL && description+=", with a Remote Control server"
   mkdir -p "$unit_dir"
   cat > "$unit_dir/$unit" <<UNIT
-# Written by sandbox.sh --install-service (#180). Undo:
+# Written by sandbox.sh --install-service (#180). Undo (stops $NAME only):
 #   systemctl --user disable --now $unit && rm "$unit_dir/$unit"
 [Unit]
-Description=Docker Sandbox $NAME, detached, with a Remote Control server
+Description=$description
 Documentation=https://github.com/l1em1on1/social-tennis/blob/main/.sbx/README.md
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# The sbx daemon this starts runs every sandbox, so a stop kills at most the
+# script, if it is still running: ExecStop stops $NAME, and the daemon and
+# other sandboxes run on.
+KillMode=process
 # Through bash, so the script's file mode doesn't matter.
-ExecStart="$(esc "$(command -v bash)")" "$(esc "$PWD/sandbox.sh")" --name "$(esc "$NAME")" --no-attach
+ExecStart="$(esc "$(command -v bash)")" "$(esc "$PWD/sandbox.sh")" --name "$(esc "$NAME")" --no-attach$svc_flags
 ExecStop="$(esc "$(command -v sbx)")" stop "$(esc "$NAME")"
 # The first start builds the kits, which takes minutes.
 TimeoutStartSec=20min
@@ -199,7 +218,7 @@ UNIT
   systemctl --user daemon-reload
   systemctl --user enable --now "$unit"
   echo "Installed $unit_dir/$unit: $NAME starts at boot, with no login."
-  echo "Logs: journalctl --user -u $unit. Undo: systemctl --user disable --now $unit"
+  echo "Logs: journalctl --user -u $unit. Undo: systemctl --user disable --now $unit (stops $NAME only)"
   exit 0
 fi
 
