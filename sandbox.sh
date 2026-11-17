@@ -73,11 +73,13 @@ while (($#)); do
 done
 
 # --- secrets: stored globally in sbx, so they survive rebuilds -------------
-# Exact match on the SERVICE column (SCOPE SERVICE SECRET): a plain grep also
-# matches the "No secrets found for ... service "<name>"" message.
+# Global is sbx's default for secrets since v0.38.0; `-g` is deprecated (#173).
+# Exact match on the SCOPE and SERVICE columns (SCOPE SERVICE SECRET): a plain
+# grep also matches the "No secrets found for ... service "<name>"" message,
+# and without `-g` the list includes secrets scoped to one sandbox.
 have_secret() {
-  sbx secret ls -g --service "$1" 2>/dev/null |
-    awk -v n="$1" '$2 == n { found=1 } END { exit !found }'
+  sbx secret ls --service "$1" 2>/dev/null |
+    awk -v n="$1" '$1 == "(global)" && $2 == n { found=1 } END { exit !found }'
 }
 
 # store_secret SERVICE — ask for a secret (hidden) and store it under SERVICE,
@@ -89,8 +91,8 @@ store_secret() {
   label=$(secret_label "$service")
   read -rsp "${label}: " value; echo
   [[ -n "$value" ]] || { echo "${label} is required." >&2; exit 1; }
-  have_secret "$service" && sbx secret rm -g "$service" -f
-  printf '%s' "$value" | sbx secret set -g "$service"
+  have_secret "$service" && sbx secret rm "$service" -f
+  printf '%s' "$value" | sbx secret set "$service"
 }
 
 if [[ -n "$SET_SECRET" ]]; then
