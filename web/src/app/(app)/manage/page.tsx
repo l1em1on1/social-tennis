@@ -84,7 +84,8 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
       )}
       {typeof invited === "string" && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
-          <strong>{invited}</strong> is invited. They are in the club as soon as they sign in and save their name.
+          <strong>{invited}</strong> is pre-approved. They&apos;re in the club as soon as they sign in with that address and
+          save their name. We don&apos;t email them, so let them know.
         </p>
       )}
 
@@ -242,8 +243,8 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                                 }
                               >
                                 <p className="text-fg-muted">
-                                  {member.name} will no longer be a member of {club.name}. If their email was invited,
-                                  the invite is withdrawn too. They can ask to join again.
+                                  {member.name} will no longer be a member of {club.name}. If their email was
+                                  pre-approved, that is withdrawn too. They can ask to join again.
                                 </p>
                                 <form action={removeClubMember}>
                                   <input type="hidden" name="clubId" value={club.id} />
@@ -287,23 +288,23 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
 
             <section aria-labelledby={`invite-${club.id}`} className="mt-5 flex flex-col gap-3">
               <h3 id={`invite-${club.id}`} className="font-semibold">
-                Invite by email
+                Pre-approve an email address
               </h3>
               <form action={inviteToClub} className="flex flex-col gap-3">
                 <input type="hidden" name="clubId" value={club.id} />
                 <Field
                   id={`invite-email-${club.id}`}
                   label="Email address"
-                  hint="They join without needing approval. No email is sent: tell them to sign in with this address."
+                  hint="They join without asking once they sign in with this address. We don't email them, so let them know."
                 >
                   {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
                 </Field>
-                <SubmitButton variant="secondary" pendingLabel="Inviting…">
-                  Invite
+                <SubmitButton variant="secondary" pendingLabel="Saving…">
+                  Pre-approve
                 </SubmitButton>
               </form>
               {club.invites.length > 0 && (
-                <ul aria-label="Invited addresses" className="divide-y divide-border">
+                <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
                   {club.invites.map((invite) => (
                     <li key={invite.id} className="flex flex-col gap-2 py-3">
                       <div className="flex items-center justify-between gap-3">
@@ -316,9 +317,9 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                         <SubmitButton
                           variant="secondary"
                           pendingLabel="Withdrawing…"
-                          aria-label={`Withdraw invite for ${invite.email}`}
+                          aria-label={`Withdraw pre-approval for ${invite.email}`}
                         >
-                          Withdraw invite
+                          Withdraw
                         </SubmitButton>
                       </form>
                     </li>
@@ -327,7 +328,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
               )}
               {club.invites.some((invite) => invite.joined) && (
                 <p className="text-sm text-fg-muted">
-                  Withdrawing an invite keeps the members it let in. To take someone out, remove them above.
+                  Withdrawing a pre-approval keeps the members it let in. To take someone out, remove them above.
                 </p>
               )}
             </section>
