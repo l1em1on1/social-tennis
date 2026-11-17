@@ -150,6 +150,8 @@ for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
 if $INSTALL_SERVICE; then
   command -v systemctl >/dev/null 2>&1 ||
     { echo "--install-service needs systemd (Linux)" >&2; exit 1; }
+  [[ $EUID -ne 0 ]] ||
+    { echo "--install-service sets up your own user's service: run it as yourself, not as root or with sudo" >&2; exit 1; }
   unit="sbx-$NAME.service"
   unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
   # In unit files % starts a specifier, so a literal one is %%.
@@ -177,6 +179,18 @@ WantedBy=default.target
 UNIT
   loginctl enable-linger "$USER" ||
     echo "warning: could not turn on lingering; without it the sandbox starts at your first login, not at boot. Run: sudo loginctl enable-linger $USER" >&2
+  # systemctl --user reaches the user's systemd over $XDG_RUNTIME_DIR/bus,
+  # which a login session sets. A shell without one (su, some SSH or tmux
+  # setups) fails with "Failed to connect to user scope bus". Lingering has
+  # just started that systemd, so point at its runtime directory and give it
+  # a few seconds to open the bus.
+  if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
+    XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export XDG_RUNTIME_DIR
+    for _ in {1..20}; do [[ -S "$XDG_RUNTIME_DIR/bus" ]] && break; sleep 0.5; done
+  fi
+  [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] ||
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
   systemctl --user daemon-reload
   systemctl --user enable --now "$unit"
   echo "Installed $unit_dir/$unit: $NAME starts at boot, with no login."
