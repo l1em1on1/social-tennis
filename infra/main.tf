@@ -70,6 +70,18 @@ module "compute" {
   email_from_address      = local.email_sending ? module.email[0].from_address : null
 }
 
+# A nightly dump of the database, and one before each deploy (#137).
+module "backup" {
+  source = "./modules/backup"
+
+  name                         = local.name
+  location                     = azurerm_resource_group.this.location
+  resource_group_name          = azurerm_resource_group.this.name
+  resource_group_id            = azurerm_resource_group.this.id
+  container_app_environment_id = module.compute.environment_id
+  database_uri                 = module.database.libpq_uri
+}
+
 # Absent until a hostname is named. The app keeps answering on Azure's address
 # as well; app_domain_ready only decides which one it calls its own.
 module "domain" {

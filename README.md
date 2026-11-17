@@ -176,6 +176,23 @@ Locally nothing is ever sent: the API's `Email:Provider` defaults to `Log`, so t
 
 Outside Development the API logs one JSON object per line (#115). In the Azure portal, open the Log Analytics workspace `social-tennis-logs` → **Logs** → **Queries** → **Social tennis** → **API errors**: errors and crashes in the API and its scheduled jobs, newest first, with the request path and trace id when the error happened during a request. Logs are kept for 30 days.
 
+### Backups
+
+A job dumps the database every night at 02:30 UTC, and the deploy workflow runs it again before each deploy, which stops if the backup fails (#137). The dumps are kept for 14 days in their own storage account, outside Neon. Neon's own 6 hours of point-in-time history is unaffected. To deploy without the backup, tick **skip_backup** on "Run workflow".
+
+**Once, after the first deploy that creates the job:** let it write its dumps. The deploy identity can't grant roles, so the owner runs:
+
+```sh
+docker compose -f infra/compose.yml run --rm infra sh -c 'sh ./init.sh >/dev/null &&
+  az role assignment create --assignee-object-id "$(terraform output -raw backup_principal_id)" \
+    --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" \
+    --scope "$(terraform output -raw backup_container_id)"'
+```
+
+Until then the job runs but fails at the upload, and so does the backup step of a deploy: use **skip_backup** for that deploy.
+
+Restoring, from Neon's history or from a dump: [docs/runbooks/restore-database.md](docs/runbooks/restore-database.md).
+
 ## License
 
 GPLv3

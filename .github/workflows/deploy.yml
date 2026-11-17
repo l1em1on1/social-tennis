@@ -17,6 +17,11 @@
 # the `production-plan` and `production` environments of this repo
 # (scripts/setup-hosting.sh creates both). No cloud key is stored in GitHub.
 #
+# Before applying, the apply job backs the database up (#137) by starting the
+# backup job and waiting for it; a failed backup stops the deploy. The
+# skip_backup input skips it. On the first deploy the job doesn't exist yet,
+# and the step says so and goes on.
+#
 # The plan is printed to the log, never uploaded: a saved plan file contains
 # the database password and the mail connection string, and artifacts of a
 # public repo can be downloaded.
@@ -45,6 +50,11 @@ on:
         default: false
       long_cooldown:
         description: "Keep the apps running 30 minutes after the last request, not 5 (fewer cold starts; spends the free grant faster)"
+        required: false
+        type: boolean
+        default: false
+      skip_backup:
+        description: "Skip the database backup that runs before applying (e.g. a web-only change, or while the backup job can't write yet)"
         required: false
         type: boolean
         default: false
@@ -217,6 +227,52 @@ jobs:
       TF_VAR_app_domain_ready: ${{ vars.APP_DOMAIN_READY || 'false' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Sign in to Azure for the backup
+        if: ${{ !inputs.skip_backup }}
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Back up the database first
+        if: ${{ !inputs.skip_backup }}
+        # Starts the backup job (infra/modules/backup) through Azure Resource
+        # Manager and waits for that run. `az rest`, because `az containerapp`
+        # is an extension the runner doesn't have. The resource group is
+        # infra/main.tf's local.name.
+        env:
+          BACKUP_JOB: /subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/social-tennis/providers/Microsoft.App/jobs/job-backup-database
+        run: |
+          base="https://management.azure.com${BACKUP_JOB}"
+          api="api-version=2024-03-01"
+          if ! found="$(az rest --method get --url "${base}?${api}" --output none 2>&1)"; then
+            if printf '%s' "$found" | grep -q "ResourceNotFound"; then
+              echo "::notice title=No backup before this deploy::The backup job doesn't exist yet; this deploy creates it."
+              exit 0
+            fi
+            echo "::error title=Backup not started::Couldn't read the backup job: ${found}"
+            exit 1
+          fi
+          execution="$(az rest --method post --url "${base}/start?${api}" --query name --output tsv)"
+          if [ -z "$execution" ]; then
+            execution="$(az rest --method get --url "${base}/executions?${api}" \
+              --query "sort_by(value, &properties.startTime)[-1].name" --output tsv)"
+          fi
+          echo "Started backup ${execution}."
+          for _ in $(seq 1 90); do
+            status="$(az rest --method get --url "${base}/executions/${execution}?${api}" --query properties.status --output tsv)"
+            case "$status" in
+              Succeeded)
+                echo "Backed up the database first (${execution})." >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+              Failed|Stopped|Degraded)
+                echo "::error title=Backup failed, nothing deployed::Backup ${execution} ended ${status}. Its logs: Container Apps, job-backup-database, Execution history. To deploy anyway, run again with skip_backup."
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error title=Backup too slow, nothing deployed::Backup ${execution} hadn't finished after 15 minutes."
+          exit 1
       - name: Apply
         run: >-
           docker compose -f infra/compose.yml run --rm infra sh -c
