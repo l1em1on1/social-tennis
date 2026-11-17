@@ -29,6 +29,9 @@ const errors: Record<string, { title: string; description: string }> = {
 /** Users per page (#134). The API allows up to 100. */
 const USERS_PER_PAGE = 50;
 
+/** The API reads the offset as an int32 and refuses a larger one (400). */
+const MAX_OFFSET = 2_147_483_647;
+
 /**
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
  * Managers or Admins. Admins only — refused here as well as hidden from the
@@ -41,20 +44,26 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     notFound();
   }
   const search = typeof q === "string" ? q.trim() : "";
-  const start = Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0);
+  const start = Math.min(
+    MAX_OFFSET,
+    Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0),
+  );
 
   const [{ data: clubList }, { data: userList, response: usersResponse }] = await Promise.all([
     api.GET("/clubs"),
     api.GET("/users", { params: { query: { q: search || undefined, offset: start, limit: USERS_PER_PAGE } } }),
   ]);
   // A 400 is a search the API won't run (a control character, say): say so, list no one.
-  const searchRefused = usersResponse.status === 400;
+  // The offset is kept in range above, so without a search a 400 is a fault, not a refusal.
+  const searchRefused = search !== "" && usersResponse.status === 400;
   if (!clubList || (!userList && !searchRefused)) {
     throw new Error("The Admin page's data didn't load");
   }
   const users = userList?.users ?? [];
   // The schema allows a numeric string for an int32 (System.Text.Json reads either); the API sends a number.
   const total = Number(userList?.page.total ?? 0);
+  // Where the last page starts. From past the end (a hand-typed offset), Previous goes there.
+  const lastPageStart = Math.max(0, Math.floor((total - 1) / USERS_PER_PAGE) * USERS_PER_PAGE);
   const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
   // A refused role change redirects with its error; these bring it back to this search and page.
   const keepView = (
@@ -120,10 +129,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <p role="status" className="mb-2 text-sm text-fg-muted">
           {users.length > 0
             ? `${pageRange(start, users.length, total)}${search ? ` matching “${search}”` : ""}, newest first.`
-            : search
-              ? `No one matches “${search}”.`
-              : total > 0
-                ? "No users on this page."
+            : total > 0
+              ? "No users on this page."
+              : search
+                ? `No one matches “${search}”.`
                 : "No users yet."}
           {search && (
             <>
@@ -228,7 +237,9 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           <Pager
             label="users"
             previousHref={
-              start > 0 ? adminHref({ search, offset: Math.max(0, start - USERS_PER_PAGE) }) : undefined
+              start > 0
+                ? adminHref({ search, offset: Math.max(0, Math.min(start - USERS_PER_PAGE, lastPageStart)) })
+                : undefined
             }
             nextHref={start + users.length < total ? adminHref({ search, offset: start + USERS_PER_PAGE }) : undefined}
           />

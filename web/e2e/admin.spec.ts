@@ -1,7 +1,9 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
 // see playwright.config.ts). Otherwise identical to @playwright/test.
+import { randomBytes } from "node:crypto";
 import { expect, takeSnapshot, test } from "@chromatic-com/playwright";
 import type { Page } from "@playwright/test";
+import { Client } from "pg";
 import { logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -21,6 +23,25 @@ async function findUser(page: Page, email: string) {
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/[?&]q=/);
   return userRow(page, email);
+}
+
+/**
+ * Real API only: adds Users with these emails straight to the database, each a
+ * second older than the one before, so newest first is the order given.
+ */
+async function addUsers(emails: string[]) {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(
+      `INSERT INTO "Users" ("Id", "Email", "CreatedAt", "Roles")
+       SELECT gen_random_uuid(), email, now() - make_interval(secs => n), 0
+       FROM unnest($1::text[]) WITH ORDINALITY AS added(email, n)`,
+      [emails],
+    );
+  } finally {
+    await client.end();
+  }
 }
 
 // The Admin page lists every User and Club in a store the whole suite shares,
@@ -150,6 +171,41 @@ test("an Admin finds a User by searching, one page at a time", async ({ page }, 
   await expect(page.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Pages of users" })).toHaveCount(0);
   await takeSnapshot(page, "Users, searched for one address", testInfo);
+});
+
+test("an Admin pages through a search with Next and Previous", async ({ page }, testInfo) => {
+  // A page is 50 Users, so this needs 51 that match. Only the real database can
+  // be given them directly; the mock makes a User only when someone signs in.
+  test.skip(testInfo.project.name === "mock", "Needs 51 Users, added straight to the database");
+  const tag = `pager-${randomBytes(4).toString("hex")}`;
+  await addUsers(Array.from({ length: 51 }, (_, i) => `${tag}-${i}@example.com`));
+  await logIn(page, testInfo, personaEmail(testInfo, "admin"));
+  await page.goto("/admin");
+  await page.getByLabel("Find a user").fill(tag);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByText(`1–50 of 51 matching “${tag}”`)).toBeVisible();
+
+  // Next keeps the search and moves on a page; Previous comes back to the first.
+  const pager = page.getByRole("navigation", { name: "Pages of users" });
+  await expect(pager.getByRole("link", { name: "Previous" })).toHaveCount(0);
+  await pager.getByRole("link", { name: "Next" }).click();
+  await expect(page.getByText(`51–51 of 51 matching “${tag}”`)).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${tag}(&|$)`));
+  await expect(page).toHaveURL(/[?&]offset=50(&|$)/);
+  await expect(userRow(page, `${tag}-50@example.com`)).toBeVisible();
+  await expect(pager.getByRole("link", { name: "Next" })).toHaveCount(0);
+  await pager.getByRole("link", { name: "Previous" }).click();
+  await expect(page.getByText(`1–50 of 51 matching “${tag}”`)).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${tag}(&|$)`));
+  await expect(page).not.toHaveURL(/[?&]offset=/);
+
+  // An offset past what the API takes is an empty page, not a refused search,
+  // and Previous from there goes to the last page (#167's review).
+  await page.goto(`/admin?q=${tag}&offset=9999999999`);
+  await expect(page.getByText("No users on this page.")).toBeVisible();
+  await expect(page.getByText("That search didn't work")).toHaveCount(0);
+  await pager.getByRole("link", { name: "Previous" }).click();
+  await expect(page.getByText(`51–51 of 51 matching “${tag}”`)).toBeVisible();
 });
 
 test("a Manager can't open the Admin page", async ({ page }, testInfo) => {
