@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import Form from "next/form";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClubNameForm } from "@/components/club-name-form";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Field, Input } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -19,24 +22,48 @@ const errors: Record<string, { title: string; description: string }> = {
     title: "The Admin role wasn't removed",
     description: "That person is the only Admin, or is an Admin in the app's configuration.",
   },
+  search: { title: "That search didn't work", description: "Search with letters, numbers, spaces and punctuation." },
 };
+
+/** Users per page (#134). The API allows up to 100. */
+const USERS_PER_PAGE = 50;
+
+/** The Admin page at this search and starting point; the first page has no offset. */
+function usersHref(search: string, offset: number) {
+  const params = new URLSearchParams();
+  if (search) params.set("q", search);
+  if (offset > 0) params.set("offset", String(offset));
+  const query = params.toString();
+  return query ? `/admin?${query}` : "/admin";
+}
 
 /**
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
  * Managers or Admins. Admins only — refused here as well as hidden from the
- * nav, and the API refuses each call by role.
+ * nav, and the API refuses each call by role. Users come a page at a time,
+ * newest first, searchable by email or Player name (#134).
  */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
-  const [viewer, api, { error }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
+  const [viewer, api, { error, q, offset }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
   if (!viewer.roles.includes("Admin")) {
     notFound();
   }
+  const search = typeof q === "string" ? q.trim() : "";
+  const start = Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0);
 
-  const [{ data: clubList }, { data: userList }] = await Promise.all([api.GET("/clubs"), api.GET("/users")]);
-  if (!clubList || !userList) {
+  const [{ data: clubList }, { data: userList, response: usersResponse }] = await Promise.all([
+    api.GET("/clubs"),
+    api.GET("/users", { params: { query: { q: search || undefined, offset: start, limit: USERS_PER_PAGE } } }),
+  ]);
+  // A 400 is a search the API won't run (a control character, say): say so, list no one.
+  const searchRefused = usersResponse.status === 400;
+  if (!clubList || (!userList && !searchRefused)) {
     throw new Error("The Admin page's data didn't load");
   }
-  const problem = typeof error === "string" ? errors[error] : undefined;
+  const users = userList?.users ?? [];
+  // The schema allows a numeric string for an int32 (System.Text.Json reads either); the API sends a number.
+  const total = Number(userList?.page.total ?? 0);
+  const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
 
   return (
     <>
@@ -76,13 +103,42 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </div>
       </Card>
 
-      <Card title={`Users (${userList.users.length})`}>
+      <Card title={`Users (${total})`}>
         <p className="mb-3 text-sm text-fg-muted">
           Managers approve who joins a club and run its leagues. Admins can also do everything on this page. A change
           takes effect straight away.
         </p>
+        <Form action="/admin" role="search" className="mb-3 flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <Field id="user-search" label="Find a user" hint="Part of an email address or a player's name.">
+              {(control) => (
+                <Input {...control} type="search" name="q" defaultValue={search} maxLength={320} autoComplete="off" />
+              )}
+            </Field>
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </Form>
+        <p role="status" className="mb-2 text-sm text-fg-muted">
+          {users.length > 0
+            ? `${start + 1}–${start + users.length} of ${total}${search ? ` matching “${search}”` : ""}, newest first.`
+            : search
+              ? `No one matches “${search}”.`
+              : total > 0
+                ? "No users on this page."
+                : "No users yet."}
+          {search && (
+            <>
+              {" "}
+              <Link href="/admin" className="underline">
+                Show everyone
+              </Link>
+            </>
+          )}
+        </p>
         <ul className="-my-2 divide-y divide-border">
-          {userList.users.map((user) => {
+          {users.map((user) => {
             const you = user.id === viewer.userId;
             const who = user.players.length > 0 ? user.players.map((player) => player.name).join(", ") : user.email;
             return (
@@ -169,6 +225,22 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             );
           })}
         </ul>
+        {(start > 0 || start + users.length < total) && (
+          <nav aria-label="Pages of users" className="mt-4 flex justify-between gap-2">
+            {start > 0 ? (
+              <ButtonLink href={usersHref(search, Math.max(0, start - USERS_PER_PAGE))} variant="secondary">
+                Previous
+              </ButtonLink>
+            ) : (
+              <span />
+            )}
+            {start + users.length < total && (
+              <ButtonLink href={usersHref(search, start + USERS_PER_PAGE)} variant="secondary">
+                Next
+              </ButtonLink>
+            )}
+          </nav>
+        )}
       </Card>
     </>
   );

@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SocialTennis.Api.Authentication;
@@ -6,20 +8,77 @@ using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Users.Contracts;
 using SocialTennis.Api.Roles;
+using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Features.Users;
 
-/// <summary>Every User, with their roles and Players, for an Admin granting roles. By email.</summary>
+/// <summary>
+/// Users with their roles and Players, for an Admin granting roles: newest
+/// first, one page at a time, optionally searched by email or Player name
+/// (#134). Every User used to come back in one response, which grew with the
+/// Club until the Admin page was too slow to use.
+/// </summary>
 public static class GetUsers
 {
-    public static async Task<GetUsersResponse> HandleAsync(
+    public const int DefaultLimit = 50;
+    public const int MaxLimit = 100;
+
+    /// <summary>A search longer than any email or Player name can't match anything.</summary>
+    public const int MaxSearchLength = 320;
+
+    /// <param name="q">Part of an email or of a Player's name, any case. Empty: everyone.</param>
+    /// <param name="offset">How many matching Users to skip.</param>
+    /// <param name="limit">How many to return, 1 to <see cref="MaxLimit"/>.</param>
+    public static async Task<Results<Ok<GetUsersResponse>, ValidationProblem>> HandleAsync(
         TennisDbContext db,
         IOptions<AuthOptions> authOptions,
-        CancellationToken cancellationToken)
+        [FromQuery] string? q = null,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = DefaultLimit,
+        CancellationToken cancellationToken = default)
     {
-        var auth = authOptions.Value;
-        var rows = await db.Users
-            .OrderBy(u => u.Email)
+        var errors = new Dictionary<string, string[]>();
+        if (offset < 0)
+        {
+            errors["offset"] = ["The offset can't be negative."];
+        }
+        if (limit is < 1 or > MaxLimit)
+        {
+            errors["limit"] = [$"The limit is from 1 to {MaxLimit}."];
+        }
+        if (q is not null && (q.Length > MaxSearchLength || !TextRules.HasNoControlCharacters(q)))
+        {
+            errors["q"] = [$"Search with up to {MaxSearchLength} letters, numbers, spaces and punctuation."];
+        }
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var matching = db.Users.AsQueryable();
+        var search = q?.Trim();
+        if (!string.IsNullOrEmpty(search))
+        {
+            // The search is a substring, not a pattern: its own % and _ match
+            // themselves (Npgsql's ILike with an escape character).
+            var pattern = $"%{EscapeLikePattern(search)}%";
+            matching = matching.Where(u =>
+                EF.Functions.ILike(u.Email, pattern, LikeEscape)
+                || db.Players.Any(p => p.UserId == u.Id && EF.Functions.ILike(p.Name, pattern, LikeEscape)));
+        }
+
+        var total = await matching.CountAsync(cancellationToken);
+        // Newest first. A search that is someone's whole email puts them first,
+        // so an exact address is never pushed off the page by newer Users whose
+        // addresses merely contain it. Emails are stored lower-case.
+        var exactEmail = search?.ToLowerInvariant();
+        var ordered = string.IsNullOrEmpty(exactEmail)
+            ? matching.OrderByDescending(u => u.CreatedAt)
+            : matching.OrderByDescending(u => u.Email == exactEmail).ThenByDescending(u => u.CreatedAt);
+        var rows = await ordered
+            .ThenBy(u => u.Id)
+            .Skip(offset)
+            .Take(limit)
             .Select(u => new
             {
                 u.Id,
@@ -33,7 +92,10 @@ public static class GetUsers
             })
             .ToListAsync(cancellationToken);
 
-        var grantedAdmins = rows.Count(u => u.Roles.HasFlag(UserRoles.Admin));
+        // Across every User, not just this page: whether an Admin is the last
+        // one doesn't depend on what the Admin page is showing.
+        var grantedAdmins = await db.Users.CountAsync(u => (u.Roles & UserRoles.Admin) == UserRoles.Admin, cancellationToken);
+        var auth = authOptions.Value;
         var users = rows
             .Select(u =>
             {
@@ -51,6 +113,13 @@ public static class GetUsers
             })
             .ToList();
 
-        return new GetUsersResponse(users, new PageInfo(users.Count));
+        return TypedResults.Ok(new GetUsersResponse(users, new PageInfo(total, offset, limit)));
     }
+
+    private const string LikeEscape = "\\";
+
+    private static string EscapeLikePattern(string value) =>
+        value.Replace(LikeEscape, LikeEscape + LikeEscape)
+            .Replace("%", LikeEscape + "%")
+            .Replace("_", LikeEscape + "_");
 }

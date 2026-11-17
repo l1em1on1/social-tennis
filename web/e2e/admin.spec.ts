@@ -11,6 +11,18 @@ const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const userRow = (page: Page, email: string) =>
   page.getByRole("listitem").filter({ has: page.getByText(email, { exact: true }) });
 
+/**
+ * On Admin, searches for this email and returns its row. The Users list is
+ * paged, newest first (#134), so a User may not be on the first page.
+ */
+async function findUser(page: Page, email: string) {
+  await page.goto("/admin");
+  await page.getByLabel("Find a user").fill(email);
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page).toHaveURL(/[?&]q=/);
+  return userRow(page, email);
+}
+
 // The Admin page lists every User and Club in a store the whole suite shares,
 // so its snapshot would differ from run to run.
 test.use({ disableAutoSnapshot: true });
@@ -68,8 +80,8 @@ test("an Admin makes a User a Manager, and it takes effect without signing in ag
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
-  await admin.goto("/admin");
-  const row = userRow(admin, email);
+  const row = await findUser(admin, email);
+  await expect(admin.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
   await row.getByRole("button", { name: `Make manager of ${email}` }).click();
   await expect(row.getByText("Manager", { exact: true })).toBeVisible();
 
@@ -96,8 +108,7 @@ test("an Admin makes another User an Admin after confirming, and can take it bac
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
-  await admin.goto("/admin");
-  const row = userRow(admin, email);
+  const row = await findUser(admin, email);
   await row.getByRole("button", { name: `Make admin of ${email}` }).click();
   const sheet = admin.getByRole("dialog", { name: `Make ${email} an Admin?` });
   await expect(sheet).toBeVisible();
@@ -118,10 +129,9 @@ test("an Admin makes another User an Admin after confirming, and can take it bac
 
 test("the Admin set in the app's configuration can't be demoted here", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
-  await page.goto("/admin");
-
   // admin@example.com: listed in the api's Auth__AdminEmails (docker-compose.yml), and the mock's equivalent.
-  const row = userRow(page, "admin@example.com");
+  // A whole email is listed first, whatever newer addresses contain it.
+  const row = await findUser(page, "admin@example.com");
   await expect(row).toContainText("Admin in the app's configuration");
   await expect(row.getByRole("button")).toHaveCount(0);
 });
