@@ -59,6 +59,9 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   const pending = league.joinRequests.filter((request) => request.status === "Pending");
   const decided = league.joinRequests.filter((request) => request.status !== "Pending");
   const inLeague = new Set(league.participants.map((participant) => participant.playerId));
+  // Removal keeps a rejected request, and the API refuses a second ask (409), so
+  // a Player who was turned down can only be added back.
+  const turnedDown = new Set(decided.filter((request) => request.status === "Rejected").map((request) => request.playerId));
   const addable = members.members.filter((member) => member.approved && !inLeague.has(member.playerId));
 
   return (
@@ -200,8 +203,10 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                     }
                   >
                     <p className="text-fg-muted">
-                      {participant.name} will no longer be in {league.name}. They can ask to join again, or you can add
-                      them back.
+                      {participant.name} will no longer be in {league.name}.{" "}
+                      {turnedDown.has(participant.playerId)
+                        ? "Their request to join was turned down, so they can't ask again, but you can add them back."
+                        : "They can ask to join again, or you can add them back."}
                     </p>
                     <form action={removeLeagueParticipant}>
                       <input type="hidden" name="leagueId" value={league.id} />

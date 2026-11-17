@@ -106,6 +106,18 @@ test("a rejected Player sees the outcome; a Manager adds a club member straight 
   const players = manager.getByRole("list", { name: "Players in the league" });
   await expect(players).toContainText(ed);
   await expect(players).not.toContainText(dana);
+
+  // Dana, turned down, is added and then removed. Her rejection stays, so the
+  // sheet doesn't promise she can ask again (#168's review), and the end of
+  // this test shows she can't.
+  await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${dana} (${danaEmail})` });
+  await manager.getByRole("button", { name: "Add to league" }).click();
+  await expect(players).toContainText(dana);
+  await manager.getByRole("button", { name: `Remove ${dana}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Remove ${dana}?` });
+  await expect(sheet).toContainText("they can't ask again, but you can add them back");
+  await sheet.getByRole("button", { name: "Remove from league" }).click();
+  await expect(players).not.toContainText(dana);
   await expectNoSeriousA11yViolations(manager);
   await managerContext.close();
 
