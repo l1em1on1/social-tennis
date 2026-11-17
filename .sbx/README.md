@@ -71,7 +71,12 @@ sbx secret set context7           # raw key, no `Bearer `
 ```
 
 Then create the sandbox with the kits. The first time, sbx builds the
-toolchain and rtk kits' images, which takes a few minutes.
+toolchain and rtk kits' images, which takes a few minutes. It builds a kit
+directory on demand, cached by its source, with the host's Docker Buildx when
+there is one ([kit spec README](https://github.com/docker/sandbox-kit-spec#readme),
+"The local loop"). If that builder can't export OCI images, which the classic
+image store can't, set `SBX_KIT_BUILDER=sandbox` to build in a builder sandbox
+instead.
 
 ```bash
 sbx create --name social-tennis \
