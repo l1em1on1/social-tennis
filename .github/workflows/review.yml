@@ -11,6 +11,7 @@
 # same usage allowance as the owner's own Claude sessions, which is why it runs
 # only on request. There is deliberately no `anthropic_api_key` input: the CLI
 # prefers an API key over the OAuth token, so passing both would bill credits.
+# What each run used is in its job summary and under Claude's summary. (#176)
 #
 # How to use it: add the `claude-review` label. The job removes the label as it
 # starts, so adding it again asks for a re-review of the latest commits.
@@ -75,8 +76,13 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
+      # Also notes when the run started, so that "Report usage" can tell the
+      # summary Claude posts in this run from an earlier review's.
       - name: Take the request (remove the label)
-        run: gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label claude-review
+        id: take
+        run: |
+          echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label claude-review
 
       # A secret can't be read in `if`, so whether it is set is passed on.
       - name: Check the token is set
@@ -208,6 +214,73 @@ jobs:
             --max-turns 40
             --add-dir pr-head
             --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+      # What the review used, from the result message the action leaves in
+      # RUNNER_TEMP: tokens per model, turns, time, and what the tokens would
+      # cost on the API (the subscription is billed, not that). Totals come
+      # from `modelUsage`, since `usage` counts only the main agent loop, not
+      # subagents or compaction (Agent SDK docs, "Track cost and usage"). Only
+      # numbers are read: the action's `display_report` would publish the
+      # whole session. They go in the job summary and, as a footer, on the
+      # summary comment Claude posted in this run, if it posted one. This runs
+      # before the failure step, so that step's comment is never the one
+      # edited. (#176)
+      - name: Report usage
+        if: ${{ !cancelled() && steps.token.outputs.set == 'true' }}
+        # A report that fails must not turn the PR red: the review is advice.
+        continue-on-error: true
+        env:
+          STARTED: ${{ steps.take.outputs.at }}
+        run: |
+          file="$RUNNER_TEMP/claude-execution-output.json"
+          result="$(jq -c '[.[] | select(.type == "result")] | last // empty' "$file" 2>/dev/null || true)"
+          if [ -z "$result" ] || [ "$(jq '.modelUsage // {} | length' <<<"$result")" = 0 ]; then
+            printf '### Review usage\n\nClaude Code recorded no usage for this run.\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # The `$` names in these filters are jq's, not the shell's.
+          # shellcheck disable=SC2016
+          defs='
+            def commas: if . >= 1000 then "\(. / 1000 | floor | commas),\(. % 1000 | tostring | ("00" + .)[-3:])" else tostring end;
+            def usd: (. * 100 | round) as $c | "$\($c / 100 | floor).\($c % 100 | tostring | ("0" + .)[-2:])";
+            def took: (. / 1000 | round) as $s | if $s >= 60 then "\($s / 60 | floor)m \($s % 60)s" else "\($s)s" end;
+            def models: .modelUsage | to_entries | map({model: .key,
+              input: (.value.inputTokens // 0), write: (.value.cacheCreationInputTokens // 0),
+              read: (.value.cacheReadInputTokens // 0), output: (.value.outputTokens // 0),
+              cost: (.value.costUSD // 0)});
+            def total: models | {input: (map(.input) | add), write: (map(.write) | add),
+              read: (map(.read) | add), output: (map(.output) | add)};
+          '
+          summary="$(jq -r "$defs"'
+            total as $t
+            | "### Review usage\n\n"
+            + "| Model | Uncached input | Cache write | Cache read | Output | At API prices |\n"
+            + "|---|--:|--:|--:|--:|--:|\n"
+            + (models | map("| `\(.model)` | \(.input | commas) | \(.write | commas) | \(.read | commas) | \(.output | commas) | \(.cost | usd) |\n") | join(""))
+            + "| **Total** | \($t.input | commas) | \($t.write | commas) | \($t.read | commas) | \($t.output | commas) | \(.total_cost_usd // 0 | usd) |\n\n"
+            + "\(.num_turns // 0) turns in \(.duration_ms // 0 | took). The review is billed to the Claude subscription: the last column is what the same tokens would cost on the API, not a charge."
+          ' <<<"$result")"
+          footer="$(jq -r "$defs"'
+            total as $t
+            | "<sub>Usage, added by the workflow: \($t.input + $t.write + $t.read | commas) input tokens (\($t.read | commas) read from cache), \($t.output | commas) output tokens, \(.num_turns // 0) turns, \(.duration_ms // 0 | took). \(.total_cost_usd // 0 | usd) at API prices; the review is billed to the Claude subscription.</sub>"
+          ' <<<"$result")"
+          printf '%s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
+
+          # The last comment the workflow's bot created since the run started is
+          # Claude's summary: inline findings are review comments, not listed here.
+          [ -n "$STARTED" ] || exit 0
+          id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?since=$STARTED&per_page=100" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and .created_at >= \"$STARTED\") | .id" | tail -n 1)"
+          if [ -z "$id" ]; then
+            echo "Claude posted no summary in this run, so the usage is in the job summary only."
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/issues/comments/$id" > "$RUNNER_TEMP/summary-comment.json"
+          jq --arg footer "$footer" '{body: ((.body | sub("\\s+$"; "")) + "\n\n---\n" + $footer)}' \
+            "$RUNNER_TEMP/summary-comment.json" \
+            | gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" --input - --silent
+          echo "Added the usage to comment $id."
 
       # The action hides Claude's output, its error included (show_full_output
       # would publish the whole session, and this repo is public). It still
