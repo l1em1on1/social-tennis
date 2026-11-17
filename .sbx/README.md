@@ -72,11 +72,24 @@ sbx secret set context7           # raw key, no `Bearer `
 
 Then create the sandbox with the kits. The first time, sbx builds the
 toolchain and rtk kits' images, which takes a few minutes. It builds a kit
-directory on demand, cached by its source, with the host's Docker Buildx when
-there is one ([kit spec README](https://github.com/docker/sandbox-kit-spec#readme),
-"The local loop"). If that builder can't export OCI images, which the classic
-image store can't, set `SBX_KIT_BUILDER=sandbox` to build in a builder sandbox
-instead.
+directory on demand, cached by its source, with the host's Docker Buildx
+([kit spec README](https://github.com/docker/sandbox-kit-spec#readme),
+"The local loop"). That needs a builder that exports OCI images, which
+Buildx's default `docker` driver can't do with Docker's classic image store:
+`OCI exporter is not supported for the docker driver`. So `../sandbox.sh`
+creates a `docker-container` builder, `sbx-kit-builder`, once, and selects it
+with `BUILDX_BUILDER` for `sbx create`. By hand:
+
+```bash
+docker buildx create --name sbx-kit-builder --driver docker-container --bootstrap
+BUILDX_BUILDER=sbx-kit-builder sbx create ...     # as below
+```
+
+The builder is a BuildKit container on the host's Docker, and it keeps the
+build cache. `docker buildx rm sbx-kit-builder` removes both. Setting
+`SBX_KIT_BUILDER=sandbox` instead builds in a builder sandbox, with no host
+Docker needed; the script leaves either variable alone when it is already
+set.
 
 ```bash
 sbx create --name social-tennis \

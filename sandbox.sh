@@ -18,6 +18,8 @@ KITS=(
   ./.sbx/kits/rtk
 )
 SBX_MIN_VERSION=0.51.0
+# The Buildx builder sbx builds the kits with (see "sandbox" below).
+KIT_BUILDER=sbx-kit-builder
 
 SECRETS=(github context7)
 
@@ -126,6 +128,21 @@ for s in "${SECRETS[@]}"; do have_secret "$s" || store_secret "$s"; done
 # sbx builds the local kits itself at creation (the toolchain kit's image takes
 # a few minutes the first time), so there is no template to build here.
 if ! sbx ls 2>/dev/null | awk -v n="$NAME" '$1 == n { found=1 } END { exit !found }'; then
+  # sbx builds the kits that have a Dockerfile (toolchain, rtk) with the host's
+  # Docker Buildx, exporting OCI images. Buildx's default `docker` driver can't
+  # with Docker's classic image store ("OCI exporter is not supported for the
+  # docker driver"), so a docker-container builder is created once and used,
+  # unless the caller picked a builder (BUILDX_BUILDER, or SBX_KIT_BUILDER).
+  # Without Docker, sbx builds in a builder sandbox of its own.
+  # https://github.com/docker/sandbox-kit-spec#readme, "The local loop"
+  if [[ -z "${BUILDX_BUILDER:-}${SBX_KIT_BUILDER:-}" ]] && command -v docker >/dev/null 2>&1; then
+    if docker buildx inspect "$KIT_BUILDER" >/dev/null 2>&1 ||
+       docker buildx create --name "$KIT_BUILDER" --driver docker-container --bootstrap >/dev/null; then
+      export BUILDX_BUILDER=$KIT_BUILDER
+    else
+      echo "warning: could not create the $KIT_BUILDER Buildx builder; sbx picks its own" >&2
+    fi
+  fi
   kit_args=(); for k in "${KITS[@]}"; do kit_args+=(--kit "$k"); done
   sbx create --name "$NAME" "${kit_args[@]}" claude .
 fi
