@@ -196,11 +196,20 @@ requests to `api.anthropic.com`, which the `claude` agent is allowed already;
 
 **It needs a claude.ai sign-in inside the sandbox**: run `/login` once, in an
 attached session, and choose the subscription account. Until then the server
-prints "You must be logged in to use Remote Control" and retries. The first
-time, it may also ask "Enable Remote Control? (y/n)": answer it in the tmux
-session above. An API key stored with `sbx secret set anthropic` runs Claude
-Code but cannot use Remote Control, and neither can a `claude setup-token`
-token.
+prints "You must be logged in to use Remote Control" and retries. An API key
+stored with `sbx secret set anthropic` runs Claude Code but cannot use Remote
+Control, and neither can a `claude setup-token` token.
+
+**The server's first start asks "Enable Remote Control? (y/n)", and the loop
+answers `y` itself.** Until that question is answered, the server isn't on
+your phone's list. Then the only entry is the session you attached to, which
+goes away when you exit it. Nobody would see the question in a detached pane,
+or at boot, and running `../sandbox.sh` with Remote Control on is the consent.
+For the first 2 minutes of each start, the loop types `y` and then Enter, but
+only when the pane's last line is exactly that question. Claude Code stores
+the answer in the sandbox's `~/.claude.json`, so it is asked again only after
+`sbx rm`. If a Claude Code update changes the wording, nothing is typed and
+the server waits as before: answer it in the tmux session above.
 
 `../sandbox.sh --no-remote-control` starts no server, attaches without
 Remote Control and leaves the sbx setting as it is. A server already running

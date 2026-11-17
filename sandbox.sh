@@ -285,16 +285,37 @@ sbx exec ${exec_tty[@]+"${exec_tty[@]}"} "$NAME" claude update ||
 # and the sessions it starts have the sandbox's whole environment (the commit
 # identity, the GH_TOKEN sentinel). A kit startup hook would see only the
 # variables it lists. It needs a claude.ai sign-in in the sandbox (/login in
-# an attached session) and a one-time "Enable Remote Control?" answer; until
-# then it exits, and the loop retries every 30 s. A sandbox stop ends it, and
-# the next run of this script starts it again. Watch it with
+# an attached session); until then it exits, and the loop retries every 30 s.
+# A sandbox stop ends it, and the next run of this script starts it again.
+# Watch it with
 #   sbx exec -it <name> tmux attach -t remote-control   (detach: Ctrl-b d)
+#
+# The first start in a new sandbox asks "Enable Remote Control? (y/n)" and
+# waits. Nobody sees that in a detached pane, or at boot, and until it is
+# answered the server is not on the phone's list. So the loop answers y
+# itself: running this script with Remote Control on is the consent. For the
+# first 2 minutes of each start (the question comes within seconds), a
+# watcher types y, then Enter as a separate key, but only when the pane's
+# last line is exactly that question. Claude Code keeps the answer in the
+# sandbox's ~/.claude.json, so it comes back only after `sbx rm`. If the
+# wording changes, nothing is typed and the server waits as before: answer
+# it in the tmux session.
 RC_SESSION=remote-control
 rc_loop="cd \"\${WORKSPACE_DIR:-$PWD}\" || exit 1
 export PATH=\"\$HOME/.local/bin:\$PATH\"
 while :; do
+  (n=0; while [ \$n -lt 120 ] && sleep 1; do
+    n=\$((n + 1))
+    tmux capture-pane -p -t \"\$TMUX_PANE\" | grep -v '^[[:space:]]*\$' | tail -n 1 |
+      grep -q '^Enable Remote Control? (y/n) *\$' || continue
+    tmux send-keys -t \"\$TMUX_PANE\" y; sleep 1; tmux send-keys -t \"\$TMUX_PANE\" Enter
+    break
+  done) &
+  answer=\$!
   claude remote-control --name $(printf '%q' "$NAME") --spawn same-dir --permission-mode bypassPermissions
-  echo \"claude remote-control stopped (exit \$?); retrying in 30 s. If it said you are not signed in, run /login in an attached session.\"
+  status=\$?
+  kill \$answer 2>/dev/null
+  echo \"claude remote-control stopped (exit \$status); retrying in 30 s. If it said you are not signed in, run /login in an attached session.\"
   sleep 30
 done"
 # Another start can create the session between the check and new-session,
