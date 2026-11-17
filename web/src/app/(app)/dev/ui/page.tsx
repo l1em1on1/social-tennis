@@ -5,6 +5,8 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { Pager, pageRange } from "@/components/ui/pager";
+import { SearchForm } from "@/components/ui/search-form";
 import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState, Skeleton, SkeletonGroup } from "@/components/ui/states";
@@ -58,6 +60,25 @@ export default function UiShowcasePage() {
               </Select>
             )}
           </Field>
+        </div>
+      </Card>
+
+      <Card title="Search and paging">
+        <div className="flex flex-col gap-4">
+          <SearchForm
+            action="/dev/ui"
+            id="demo-search"
+            label="Find a user"
+            hint="Part of an email address or a player's name."
+            defaultValue="anna"
+          />
+          <p className="text-sm text-fg-muted">{pageRange(50, 50, 312)} matching “anna”, newest first.</p>
+          <p className="text-sm font-medium">First page</p>
+          <Pager label="users, first page" nextHref="/dev/ui?offset=50" />
+          <p className="text-sm font-medium">A middle page</p>
+          <Pager label="users, middle page" previousHref="/dev/ui" nextHref="/dev/ui?offset=100" />
+          <p className="text-sm font-medium">Last page</p>
+          <Pager label="users, last page" previousHref="/dev/ui?offset=250" />
         </div>
       </Card>
 

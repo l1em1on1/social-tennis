@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Form from "next/form";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClubNameForm } from "@/components/club-name-form";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/field";
+import { Pager, pageRange } from "@/components/ui/pager";
+import { SearchForm } from "@/components/ui/search-form";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -108,21 +108,19 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           Managers approve who joins a club and run its leagues. Admins can also do everything on this page. A change
           takes effect straight away.
         </p>
-        <Form action="/admin" role="search" className="mb-3 flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <Field id="user-search" label="Find a user" hint="Part of an email address or a player's name.">
-              {(control) => (
-                <Input {...control} type="search" name="q" defaultValue={search} maxLength={320} autoComplete="off" />
-              )}
-            </Field>
-          </div>
-          <Button type="submit" variant="secondary">
-            Search
-          </Button>
-        </Form>
+        <div className="mb-3">
+          <SearchForm
+            action="/admin"
+            id="user-search"
+            label="Find a user"
+            hint="Part of an email address or a player's name."
+            defaultValue={search}
+            maxLength={320}
+          />
+        </div>
         <p role="status" className="mb-2 text-sm text-fg-muted">
           {users.length > 0
-            ? `${start + 1}–${start + users.length} of ${total}${search ? ` matching “${search}”` : ""}, newest first.`
+            ? `${pageRange(start, users.length, total)}${search ? ` matching “${search}”` : ""}, newest first.`
             : search
               ? `No one matches “${search}”.`
               : total > 0
@@ -225,22 +223,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             );
           })}
         </ul>
-        {(start > 0 || start + users.length < total) && (
-          <nav aria-label="Pages of users" className="mt-4 flex justify-between gap-2">
-            {start > 0 ? (
-              <ButtonLink href={usersHref(search, Math.max(0, start - USERS_PER_PAGE))} variant="secondary">
-                Previous
-              </ButtonLink>
-            ) : (
-              <span />
-            )}
-            {start + users.length < total && (
-              <ButtonLink href={usersHref(search, start + USERS_PER_PAGE)} variant="secondary">
-                Next
-              </ButtonLink>
-            )}
-          </nav>
-        )}
+        <div className="mt-4">
+          <Pager
+            label="users"
+            previousHref={start > 0 ? usersHref(search, Math.max(0, start - USERS_PER_PAGE)) : undefined}
+            nextHref={start + users.length < total ? usersHref(search, start + USERS_PER_PAGE) : undefined}
+          />
+        </div>
       </Card>
     </>
   );
