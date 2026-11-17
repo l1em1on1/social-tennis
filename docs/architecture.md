@@ -434,16 +434,19 @@ flowchart LR
         T0["format<br/>dotnet format --verify-no-changes"]
         T1["integration-tests<br/>docker compose run --rm api-tests"]
         T2["client-drift<br/>up api → regen client → git diff --exit-code"]
+        T6["image-scan<br/>docker compose build api<br/>→ scripts/scan-image.sh (Trivy)"]
     end
     subgraph webwf ["web.yml — web/**, api/**, compose"]
         T5["lint<br/>npm run lint (eslint)"]
-        T3["build<br/>docker compose build web<br/>+ assert no MSW in the image"]
+        T3["build<br/>docker compose build web<br/>+ assert no MSW in the image<br/>+ scripts/scan-image.sh (Trivy)"]
         T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>then run --rm --no-deps chromatic (if token set)<br/>report uploaded on failure"]
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
 
 **Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip`, because Chromatic's own "UI Tests" check is only posted when a build is published and would otherwise stay unreported.
+
+**Image scan** (#114). Both production images are scanned as CI builds them: `web` in the build job, `api` in its own `image-scan` job. `scripts/scan-image.sh` runs Trivy from its official image, pinned by digest (Trivy's own release channels were compromised once, GHSA-69fq-xp46-6x23, so a tag alone isn't trusted). It fails on a **critical** vulnerability **that has a fix**; anything without a fix, or below critical, is reported only by Dependabot alerts and the monthly base-image PRs. An accepted finding goes in `.trivyignore.yaml` with a statement and an `expired_at` review date, after which Trivy stops honouring it and the scan fails again. The scan runs when its app's files change, so a vulnerability published later shows up on the next PR that touches that app, or the next base-image PR. Locally: `docker compose build api && scripts/scan-image.sh social-tennis-api`.
 
 **Infrastructure.** `infra.yml` runs `terraform fmt -check` and `terraform validate` in the toolbox image when `infra/` changes, with the same always-reports structure as the other two.
 
@@ -484,6 +487,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | RTK | 1.2.0 | sbx template; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest" |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
 | Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
+| Trivy | `aquasec/trivy:0.76.2@sha256:…` | The CI image scan (`scripts/scan-image.sh`). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts. Bump to a release published after any advisory on Trivy itself |
 | curl image | `curlimages/curl:8.11.1@sha256:…` | `scripts/setup-domain.sh` only (the host may have no curl). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts |
 | csharp-ls / typescript-language-server / typescript | 0.28.0 / 6.1.0 / 5.9.3 | sbx template (`.sbx/Dockerfile`); exact pins. Claude Code comes with the template's base image, and `sandbox.sh` runs `claude update` on every start |
 | Azure.Communication.Email | 1.1.0 | The API's only mail provider SDK (ADR-0020) |

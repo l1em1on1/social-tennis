@@ -1,0 +1,18 @@
+# Accepted vulnerability findings for scripts/scan-image.sh (#114).
+#
+# The image scan fails CI on a critical vulnerability that has a fix. When one
+# can't be fixed yet (no patched base image, or the code never reaches it),
+# accept it here, one entry per finding:
+#
+#   vulnerabilities:
+#     - id: CVE-2026-12345
+#       paths:                       # optional: only in this package
+#         - "usr/lib/libexample.so"
+#       statement: "Why it's acceptable, and what would make it go away"
+#       expired_at: 2027-01-31       # the review date: after it, CI fails again
+#
+# Keep expired_at no more than three months out, and remove an entry once the
+# fix is in the image. Trivy's format:
+# https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+
+vulnerabilities: []
