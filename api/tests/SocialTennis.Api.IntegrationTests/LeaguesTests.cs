@@ -190,9 +190,11 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsync($"/leagues/{leagueId}/participants/{playerId}", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/approval", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/rejection", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsJsonAsync($"/leagues/{leagueId}", new { name = "Mine" })).StatusCode);
 
         // Nothing changed.
         var league = await LeagueAsync(manager, leagueId);
+        Assert.Equal("Winter Singles", league.Name);
         Assert.Empty(league.Participants);
         Assert.Equal(LeagueJoinRequestStatus.Pending, Assert.Single(league.JoinRequests).Status);
     }
@@ -393,5 +395,62 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.NotFound, (await manager.PostAsJsonAsync($"/clubs/{missing}/leagues", ALeague())).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/clubs/{missing}/leagues")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/leagues/{missing}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.PutAsJsonAsync($"/leagues/{missing}", new { name = "Spring" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_Manager_renames_a_League_and_nothing_else_about_it_changes()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId, ALeague(name: "Winter Singles"));
+        var (asker, askerId) = await MemberAsync(manager, clubId, "Robin");
+        var (player, playerId) = await MemberAsync(manager, clubId, "Sam");
+        (await AskAsync(asker, leagueId, askerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/leagues/{leagueId}/participants/{playerId}", null)).EnsureSuccessStatusCode();
+        var before = await LeagueAsync(manager, leagueId);
+
+        var response = await manager.PutAsJsonAsync($"/leagues/{leagueId}", new { name = "  Spring Singles  " });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var after = await LeagueAsync(manager, leagueId);
+        Assert.Equal("Spring Singles", after.Name);
+        Assert.Equal(before with { Name = after.Name, Participants = after.Participants, JoinRequests = after.JoinRequests }, after);
+        Assert.Equal(before.Participants, after.Participants);
+        Assert.Equal(before.JoinRequests, after.JoinRequests);
+
+        // Players and the Club's list see the new name.
+        Assert.Equal("Spring Singles", Assert.Single(await PlayerLeaguesAsync(player, playerId)).Name);
+        Assert.Equal("Spring Singles", Assert.Single(await PlayerLeaguesAsync(asker, askerId)).Name);
+        var clubLeagues = await manager.GetFromJsonAsync<GetClubLeaguesResponse>($"/clubs/{clubId}/leagues");
+        Assert.Equal("Spring Singles", Assert.Single(clubLeagues!.Leagues).Name);
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("Tab\tin the name")]
+    public async Task Renaming_a_League_to_a_blank_or_unprintable_name_is_refused(string name)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId, ALeague(name: "Winter Singles"));
+
+        var problem = await ValidationProblemAsync(await manager.PutAsJsonAsync($"/leagues/{leagueId}", new { name }));
+
+        Assert.True(problem.Errors.ContainsKey("name"));
+        Assert.Equal("Winter Singles", (await LeagueAsync(manager, leagueId)).Name);
+    }
+
+    [Fact]
+    public async Task Renaming_a_League_to_more_than_200_characters_is_refused()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+
+        var problem = await ValidationProblemAsync(
+            await manager.PutAsJsonAsync($"/leagues/{leagueId}", new { name = new string('a', League.NameMaxLength + 1) }));
+
+        Assert.Contains("200", Assert.Single(problem.Errors["name"]));
     }
 }

@@ -32,6 +32,11 @@ public static class LeaguesEndpoints
             .RequireAuthorization(Policies.Manager)
             .WithName(nameof(GetLeague));
 
+        league.MapPut("", RenameLeague.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<RenameLeagueRequest, RenameLeagueRequest.Validator>()
+            .WithName(nameof(RenameLeague));
+
         league.MapPut("/participants/{playerId:guid}", AddLeagueParticipant.HandleAsync)
             .RequireAuthorization(Policies.Manager)
             .ProducesProblem(StatusCodes.Status409Conflict)

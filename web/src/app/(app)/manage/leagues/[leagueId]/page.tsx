@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
+import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { addLeagueParticipant, approveLeagueJoinRequest, rejectLeagueJoinRequest } from "@/lib/actions";
+import { addLeagueParticipant, approveLeagueJoinRequest, rejectLeagueJoinRequest, renameLeague } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
@@ -15,10 +16,14 @@ import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "League" };
 
+/** Matches the API's limit (League.NameMaxLength). */
+const NAME_MAX_LENGTH = 200;
+
 /**
- * One League as a Manager runs it (wireframe M3, without Teams: #6): Join
- * Requests to approve or reject first, since they hold up the start; then who
- * is in, by join time; then adding a Club member straight in.
+ * One League as a Manager runs it (wireframe M3, without Teams: #6): its name,
+ * which the Manager can change (#153); Join Requests to approve or reject
+ * first, since they hold up the start; then who is in, by join time; then
+ * adding a Club member straight in.
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
   const [viewer, api, { leagueId }, { created, error }] = await Promise.all([
@@ -52,12 +57,46 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">{league.name}</h1>
-        <p className="text-fg-muted">
-          {league.clubName} · {typeLabel(league.type)}
-        </p>
+      {/* Keyed by the name: a rename remounts it, so the sheet starts closed with the new name. */}
+      <div key={league.name} className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-2xl font-bold break-words">{league.name}</h1>
+          <p className="text-fg-muted">
+            {league.clubName} · {typeLabel(league.type)}
+          </p>
+        </div>
+        <Sheet
+          title={`Rename ${league.name}`}
+          trigger={
+            <>
+              Rename<span className="sr-only"> {league.name}</span>
+            </>
+          }
+        >
+          <form action={renameLeague} className="flex flex-col gap-4">
+            <input type="hidden" name="leagueId" value={league.id} />
+            <Field id="league-name" label="League name" hint="Only the name changes: players, requests and format stay.">
+              {(control) => (
+                <Input
+                  {...control}
+                  name="name"
+                  required
+                  maxLength={NAME_MAX_LENGTH}
+                  autoComplete="off"
+                  defaultValue={league.name}
+                />
+              )}
+            </Field>
+            <SubmitButton fullWidth pendingLabel="Saving…">
+              Save name
+            </SubmitButton>
+          </form>
+        </Sheet>
       </div>
+
+      {error === "name" && (
+        <ErrorState title="That league name didn't work" description="Enter a name of up to 200 characters." />
+      )}
 
       {created === "1" && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">

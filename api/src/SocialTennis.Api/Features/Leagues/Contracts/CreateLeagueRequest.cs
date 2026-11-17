@@ -1,6 +1,5 @@
 using FluentValidation;
 using SocialTennis.Api.Domain;
-using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Features.Leagues.Contracts;
 
@@ -29,14 +28,7 @@ public record CreateLeagueRequest(
     {
         public Validator()
         {
-            RuleFor(request => request.Name).Cascade(CascadeMode.Stop)
-                .Must(name => !string.IsNullOrWhiteSpace(name))
-                .WithMessage("A name is required.")
-                .Must(name => name.Trim().Length <= League.NameMaxLength)
-                .WithMessage($"A name can be at most {League.NameMaxLength} characters.")
-                .Must(TextRules.HasNoControlCharacters)
-                .WithMessage(TextRules.ControlCharacterMessage)
-                .OverridePropertyName("name");
+            RuleFor(request => request.Name).LeagueName();
 
             RuleFor(request => request.Type).IsInEnum()
                 .WithMessage("Choose a League Type.")

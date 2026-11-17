@@ -496,3 +496,25 @@ export async function rejectLeagueJoinRequest(formData: FormData) {
 export async function addLeagueParticipant(formData: FormData) {
   await manageLeagueEntry(formData, "add");
 }
+
+/** A Manager renames a League (#153). Nothing else about it changes. */
+export async function renameLeague(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const name = formData.get("name");
+  if (!isId(leagueId)) return;
+  if (typeof name !== "string") {
+    redirect(`/manage/leagues/${leagueId}?error=name`);
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/leagues/{leagueId}", { params: { path: { leagueId } }, body: { name } });
+  if (response.status === 400) {
+    redirect(`/manage/leagues/${leagueId}?error=name`);
+  }
+  if (!response.ok) {
+    throw new Error(`PUT /leagues/${leagueId} failed with ${response.status}`);
+  }
+  // Players' League lists and the Manage page show the name too.
+  revalidatePath("/", "layout");
+  redirect(`/manage/leagues/${leagueId}`);
+}

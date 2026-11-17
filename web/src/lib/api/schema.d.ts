@@ -332,7 +332,7 @@ export interface paths {
             cookie?: never;
         };
         get: operations["GetLeague"];
-        put?: never;
+        put: operations["RenameLeague"];
         post?: never;
         delete?: never;
         options?: never;
@@ -665,6 +665,9 @@ export interface components {
             expiresAt: string;
         };
         RenameClubRequest: {
+            name: string;
+        };
+        RenameLeagueRequest: {
             name: string;
         };
         ScoreFormat: {
@@ -1719,6 +1722,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetLeagueResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RenameLeague: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameLeagueRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
             /** @description Unauthorized */
