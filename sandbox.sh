@@ -178,8 +178,12 @@ RestartSec=30
 [Install]
 WantedBy=default.target
 UNIT
-  loginctl enable-linger "$USER" ||
-    echo "warning: could not turn on lingering; without it the sandbox starts at your first login, not at boot. Run: sudo loginctl enable-linger $USER" >&2
+  # Only when it's off: enabling needs polkit's consent even when it is
+  # already on, and a host may give that only to an admin (sudo).
+  if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]]; then
+    loginctl enable-linger "$USER" ||
+      echo "warning: could not turn on lingering; without it the sandbox starts at your first login, not at boot. Run: sudo loginctl enable-linger $USER" >&2
+  fi
   # systemctl --user reaches the user's systemd over $XDG_RUNTIME_DIR/bus,
   # which a login session sets. A shell without one (su, some SSH or tmux
   # setups) fails with "Failed to connect to user scope bus". Lingering has
