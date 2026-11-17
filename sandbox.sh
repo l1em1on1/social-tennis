@@ -297,9 +297,15 @@ while :; do
   echo \"claude remote-control stopped (exit \$?); retrying in 30 s. If it said you are not signed in, run /login in an attached session.\"
   sleep 30
 done"
+# Another start can create the session between the check and new-session,
+# which then fails with "duplicate session" while the server runs. So after a
+# failure, warn (with tmux's error) only if there is still no session.
 if $REMOTE_CONTROL && ! sbx exec "$NAME" tmux has-session -t "$RC_SESSION" 2>/dev/null; then
-  sbx exec "$NAME" tmux new-session -d -s "$RC_SESSION" "$rc_loop" ||
+  if ! rc_err=$(sbx exec "$NAME" tmux new-session -d -s "$RC_SESSION" "$rc_loop" 2>&1) &&
+     ! sbx exec "$NAME" tmux has-session -t "$RC_SESSION" 2>/dev/null; then
     echo "warning: could not start the Remote Control server; claude.ai sessions need an attached one" >&2
+    [[ -z "$rc_err" ]] || printf '%s\n' "$rc_err" >&2
+  fi
 fi
 
 $ATTACH || { echo "$NAME is running detached. Attach with ./sandbox.sh --name $NAME, stop with sbx stop $NAME."; exit 0; }
