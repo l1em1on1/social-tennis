@@ -167,7 +167,8 @@ Documentation=https://github.com/l1em1on1/social-tennis/blob/main/.sbx/README.md
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart="$(esc "$PWD/sandbox.sh")" --name "$(esc "$NAME")" --no-attach
+# Through bash, so the script's file mode doesn't matter.
+ExecStart="$(esc "$(command -v bash)")" "$(esc "$PWD/sandbox.sh")" --name "$(esc "$NAME")" --no-attach
 ExecStop="$(esc "$(command -v sbx)")" stop "$(esc "$NAME")"
 # The first start builds the kits, which takes minutes.
 TimeoutStartSec=20min
