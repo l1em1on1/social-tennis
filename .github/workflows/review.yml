@@ -106,14 +106,17 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      # Earlier line comments, for a re-review: `gh pr view --comments` shows a
-      # review's summary but not its line comments. Only the review bot's and
-      # collaborators' comments, written after both checkouts (a checkout
-      # cleans the directory).
+      # Earlier line comments, for a re-review: `gh pr view --comments` skips a
+      # review that has line comments and no summary (gh's DisplayableReviews,
+      # api/queries_pr_review.go). Only the review bot's and collaborators'
+      # comments, written after both checkouts (a checkout cleans the
+      # directory). If this fails, the review still runs, on an empty file.
       - name: Collect earlier line comments
         if: steps.token.outputs.set == 'true'
+        continue-on-error: true
         run: |
           mkdir -p pr-context
+          : > pr-context/line-comments.jsonl
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/comments" --jq '
             .[]
             | select(.user.login == "github-actions[bot]"
