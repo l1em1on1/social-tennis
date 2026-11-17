@@ -173,7 +173,9 @@ to ask. The unit retries every 30 seconds if the script fails.
 **Stopping the unit stops this sandbox only.** That daemon runs every sandbox
 on the host, so the unit sets `KillMode=process`. Stopping it runs
 `sbx stop <name>`, and the daemon and every other sandbox keep running. So
-does a failed start before its retry. With systemd's default,
+does a failed start before its retry. A start that times out kills only the
+script, and an `sbx` command it was running finishes beside the retry. With
+systemd's default,
 `control-group`, a stop would kill the daemon too. Because the daemon is left
 in the unit's cgroup, the journal says "remains running after unit stopped" on
 a stop and "Found left-over process" on the next start. Both are expected.
