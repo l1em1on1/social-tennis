@@ -41,6 +41,23 @@ An LSP call failing with "command not found" means the session is running on the
 
 `docs/architecture.md` is the technical documentation of the system as built — topology, request flow, contract pipeline, repo layout, runtime configurations, testing seam, version pins. **Any change that alters one of those must update the document (including its mermaid diagrams) in the same commit.** Concretely: adding/removing a service or endpoint surface, changing how the TS client is generated, moving folders, changing compose or sandbox behaviour, bumping a pinned version, or changing how tests run. A stale architecture doc is a bug, same as a stale README command.
 
+## Subagents and models
+
+Who does which job, and on which model (ADR-0023):
+
+| Job | Who | Ask first? |
+|---|---|---|
+| Planning, code, answering review findings; anything that commits, pushes or posts | Main session (Opus) | — |
+| Sweeping many files when only the answer matters | Built-in `Explore`, `model: haiku` | No |
+| Reading a long CI, Playwright or container log | `log-reader` (Haiku) | No |
+| Reviewing a branch before its PR opens: every code PR, not text-only ones | `pre-pr-reviewer` (Opus, high effort) | No |
+| A sweep of similar edits, or an audit across many files | A workflow in `.claude/workflows/` | Yes, before each run |
+| Any other delegation | — | Yes |
+
+- `log-reader` and `pre-pr-reviewer` read and report; `.claude/hooks/subagent-guard.sh` blocks their writes.
+- Workflow agents edit only the files their stage names. No subagent commits, pushes, merges or posts on GitHub.
+- Check every subagent finding against the code before acting on it.
+
 ## Agent skills
 
 ### Issue tracker

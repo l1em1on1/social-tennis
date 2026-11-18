@@ -167,7 +167,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records 0001–0019 (0016–0018 proposed)
+│   ├── adr/                    architecture decision records 0001–0023 (0016–0018 proposed)
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
@@ -184,6 +184,9 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       ├── github/             gh + git push over HTTPS, proxy-injected PAT, commit identity
 │       ├── nuget/              nuget.org egress for dotnet restore / csharp-ls
 │       └── rtk/                the RTK binary, and its Claude Code hook registered at creation
+├── .claude/                    Claude Code project config: settings.json (plugins, hooks), skills/
+│   ├── agents/                 subagents: log-reader (Haiku), pre-pr-reviewer (Opus) — ADR-0023
+│   └── hooks/                  lsp-restore.sh (SessionStart), subagent-guard.sh (the subagents' PreToolUse)
 ├── .vscode/extensions.json     extensions VS Code recommends for editing on the host (no C#: no SDK there)
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
