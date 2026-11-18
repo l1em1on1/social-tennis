@@ -63,8 +63,10 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   await expect(manager.getByText(/\brating\b/i)).toHaveCount(0);
   await manager.getByRole("button", { name: `Approve ${robin}` }).click();
   await expect(manager.getByRole("button", { name: `Approve ${robin}` })).toHaveCount(0);
-  await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(robin);
-  await expect(manager.getByText(/\brating\b/i)).toHaveCount(0);
+  const players = manager.getByRole("list", { name: "Players in the league" });
+  await expect(players).toContainText(robin);
+  // A participant's Rating was a bare number beside "Remove": no element in the row is only digits.
+  await expect(players.getByRole("listitem").filter({ hasText: robin }).getByText(/^\d+$/)).toHaveCount(0);
   await managerContext.close();
 
   await page.reload();
