@@ -139,9 +139,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               <li key={request.playerId} className="flex flex-col gap-2 py-3">
                 <div>
                   <p className="font-medium">{request.name}</p>
-                  <p className="text-sm text-fg-muted">
-                    Rating {request.rating} · asked {formatDate(request.requestedAt.slice(0, 10))}
-                  </p>
+                  <p className="text-sm text-fg-muted">Asked {formatDate(request.requestedAt.slice(0, 10))}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <form action={approveLeagueJoinRequest}>
@@ -192,7 +190,6 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                   <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <span className="font-mono text-sm">{participant.rating}</span>
                   {/* Behind a sheet: removing is one tap away from a name in a list. */}
                   <Sheet
                     title={`Remove ${participant.name}?`}

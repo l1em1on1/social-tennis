@@ -12,3 +12,5 @@ Chosen because the club knows its players and a Manager-assigned number is good 
 ## Consequences
 
 Equal Ratings are common — an untouched signup seeds everyone at 1 — so every consumer of Rating (Bracket seeding, Social pairing) must break ties by a deterministic, documented rule, never a run-dependent one. Team Rating remains derived (average of members, per `CONTEXT.md`), never stored.
+
+**Amended (2026-11-18) — hidden from the UI for now (#161).** The owner found Rating confusing while nothing uses it. The web app neither shows nor edits it; the API, the data and `PUT /players/{playerId}/rating` are unchanged, and new Players still start at 1. Editing comes back with ladder ordering (#7) or Knockout seeding (#12), whichever lands first.

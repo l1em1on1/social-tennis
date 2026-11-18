@@ -27,7 +27,7 @@ interface PlayerFormProps {
   player?: { id: string; name: string; gender: PlayerGender | null; level: number | null };
 }
 
-/** A Player's own fields: adds one, or edits the one given. Rating isn't here: a Manager sets it. */
+/** A Player's own fields: adds one, or edits the one given. No Rating: it is hidden from the UI for now (#161). */
 export function PlayerForm({ id, label, hint, submitLabel, from, details = false, player }: PlayerFormProps) {
   return (
     <form action={player ? updatePlayer : createPlayer} className="flex flex-col gap-4">
