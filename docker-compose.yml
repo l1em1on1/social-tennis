@@ -57,6 +57,7 @@ services:
     environment:
       API_URL: http://api:8080
       PUBLIC_BASE_URL: http://localhost:3000
+      PRIVACY_CONTACT_EMAIL: ${PRIVACY_CONTACT_EMAIL:-}
     ports:
       - "3000:3000"
     depends_on:
@@ -92,6 +93,8 @@ services:
     environment:
       API_URL: http://api:8080
       PUBLIC_BASE_URL: http://web-e2e:3000
+      # A fixed address for the privacy notice's e2e test (#51).
+      PRIVACY_CONTACT_EMAIL: privacy@example.com
     depends_on:
       api:
         condition: service_healthy
@@ -107,6 +110,8 @@ services:
       # Never contacted: MSW answers every call to this origin in-process.
       API_URL: http://api:8080
       PUBLIC_BASE_URL: http://web-mock:3000
+      # A fixed address for the privacy notice's e2e test (#51).
+      PRIVACY_CONTACT_EMAIL: privacy@example.com
     healthcheck: *web-healthcheck
 
   # One-shot Playwright runner. The image tag must equal the @playwright/test

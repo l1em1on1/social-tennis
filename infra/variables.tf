@@ -76,6 +76,12 @@ variable "admin_emails" {
   sensitive   = true
 }
 
+variable "privacy_contact_email" {
+  description = "Where members send data requests, shown on the privacy notice (#51). Empty: the notice says to ask the club's Admin."
+  type        = string
+  default     = ""
+}
+
 variable "monthly_budget" {
   description = "Budget for the resource group, in the subscription's billing currency. The alert fires at 100% of it."
   type        = number

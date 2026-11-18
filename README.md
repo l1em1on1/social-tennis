@@ -152,6 +152,8 @@ NEON_API_KEY="$NEON_API_KEY" CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
 
 The two API credentials live only in the `production-plan` and `production` environments' secrets, never in `infra/.env`, so a local plan takes them from your shell for that one command.
 
+The privacy notice's contact address comes from the repository **variable** (not secret) `PRIVACY_CONTACT_EMAIL`, since it's shown publicly (#51). Unset, the notice tells members to ask the club's Admin.
+
 A setup from before #113 also put `NEON_API_KEY`, `CLOUDFLARE_API_TOKEN`, `ALERT_EMAIL` and `ADMIN_EMAILS` in the repository's secrets, where any branch's workflow can read them. Once the environments have them, delete those: `gh secret delete <NAME>` for each. The wizards warn about any that are left.
 
 The Terraform state's storage account accepts only Entra ID sign-in, with blob versioning and 30-day soft delete. The wizard sets that up on a new account; for one created before it did, run once:

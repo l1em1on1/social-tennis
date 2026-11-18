@@ -45,6 +45,12 @@ variable "admin_emails" {
   sensitive   = true
 }
 
+variable "privacy_contact_email" {
+  description = "Data-request address shown on the privacy notice. May be empty."
+  type        = string
+  default     = ""
+}
+
 variable "database_connection_string" {
   description = "Npgsql connection string."
   type        = string
@@ -306,6 +312,11 @@ resource "azurerm_container_app" "web" {
       env {
         name  = "PUBLIC_BASE_URL"
         value = local.web_url
+      }
+      # Shown on the privacy notice (#51); empty is allowed.
+      env {
+        name  = "PRIVACY_CONTACT_EMAIL"
+        value = var.privacy_contact_email
       }
 
       # /login renders without calling the API, so probing it wakes nothing.

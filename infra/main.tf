@@ -60,6 +60,8 @@ module "compute" {
   long_cooldown = var.long_cooldown
   admin_emails  = var.admin_emails
 
+  privacy_contact_email = var.privacy_contact_email
+
   database_connection_string = module.database.connection_string
   database_name              = module.database.database_name
 

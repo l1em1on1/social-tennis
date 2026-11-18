@@ -109,6 +109,8 @@ jobs:
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS }}
+      # Public, shown on the privacy notice (#51): a repository variable, not a secret.
+      TF_VAR_privacy_contact_email: ${{ vars.PRIVACY_CONTACT_EMAIL }}
       TF_VAR_always_on: ${{ inputs.always_on }}
       TF_VAR_long_cooldown: ${{ inputs.long_cooldown }}
       # The club's domain (ADR-0020, ADR-0021). Unset until
@@ -212,6 +214,8 @@ jobs:
       TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS }}
+      # Public, shown on the privacy notice (#51): a repository variable, not a secret.
+      TF_VAR_privacy_contact_email: ${{ vars.PRIVACY_CONTACT_EMAIL }}
       TF_VAR_image_tag: ${{ needs.plan.outputs.image_tag }}
       TF_VAR_web_image_digest: ${{ needs.plan.outputs.web_digest }}
       TF_VAR_api_image_digest: ${{ needs.plan.outputs.api_digest }}
