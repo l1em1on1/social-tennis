@@ -44,3 +44,7 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /blob-report/
+
+# Storybook build output and logs (#46)
+/storybook-static/
+*storybook.log

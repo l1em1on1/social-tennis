@@ -337,30 +337,6 @@ export async function addClubPlayer(formData: FormData) {
   redirect(`/manage?added=${encodeURIComponent(name.trim())}`);
 }
 
-/** A Manager sets a Player's Rating. Nothing else ever changes it. */
-export async function setPlayerRating(formData: FormData) {
-  const playerId = formData.get("playerId");
-  const rating = formData.get("rating");
-  if (!isId(playerId) || typeof rating !== "string" || !/^\d{1,5}$/.test(rating)) {
-    redirect("/manage?error=rating");
-  }
-
-  const api = await apiWithSession();
-  const { response } = await api.PUT("/players/{playerId}/rating", {
-    params: { path: { playerId } },
-    body: { rating: Number(rating) },
-  });
-  if (response.status === 400) {
-    redirect("/manage?error=rating");
-  }
-  // 404: the Player was removed meanwhile. The refreshed list shows that.
-  if (!response.ok && response.status !== 404) {
-    throw new Error(`Setting a rating failed with ${response.status}`);
-  }
-  revalidatePath("/", "layout");
-  redirect("/manage");
-}
-
 /** The setup form's fields, as the API takes them. Null if a value isn't one the form offers. */
 function leagueFromForm(formData: FormData) {
   const text = (key: string) => {

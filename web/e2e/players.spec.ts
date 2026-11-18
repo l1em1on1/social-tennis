@@ -196,7 +196,7 @@ test("a Player takes back a request, and a member leaves a Club", async ({ page,
   await expect(page.getByText("Not in a club yet")).toBeVisible();
 });
 
-test("a Manager adds a Player by name and email, rates them, and they hold it on signing in", async ({
+test("a Manager adds a Player by name and email, and they hold it on signing in", async ({
   page,
   browser,
 }, testInfo) => {
@@ -218,13 +218,9 @@ test("a Manager adds a Player by name and email, rates them, and they hold it on
   const held = manager.getByRole("list", { name: `Players of ${email}` }).first();
   await expect(held.getByText(child, { exact: true }).first()).toBeVisible();
 
-  // A new Player's Rating is 1; the Manager sets it by hand.
-  await held.getByRole("button", { name: `Rating 1 for ${child}` }).click();
-  const sheet = manager.getByRole("dialog", { name: `Rating for ${child}` });
+  // Rating is hidden from the UI for now (#161).
+  await expect(manager.getByText(/\brating\b/i)).toHaveCount(0);
   await expectNoSeriousA11yViolations(manager);
-  await sheet.getByLabel("Rating").fill("7");
-  await sheet.getByRole("button", { name: "Save rating" }).click();
-  await expect(held.getByRole("button", { name: `Rating 7 for ${child}` })).toBeVisible();
   await managerContext.close();
 
   // Signing in with that address: the Player is theirs, already a member, with no name to ask for.
