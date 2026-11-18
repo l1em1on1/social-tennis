@@ -193,6 +193,13 @@ Outside Development the API logs one JSON object per line (#115). In the Azure p
 
 A job dumps the database every night at 02:30 UTC, and the deploy workflow runs it again before each deploy, which stops if the backup fails (#137). The dumps are kept for 14 days in their own storage account, outside Neon. Neon's own 6 hours of point-in-time history is unaffected. To deploy without the backup, tick **skip_backup** on "Run workflow".
 
+**Once, before the first deploy that creates the job,** on a subscription set up before the wizard registered it: register the managed-identity provider, which the job's identity needs. Without it the apply stops with `MissingSubscriptionRegistration` for `Microsoft.ManagedIdentity`.
+
+```sh
+docker compose -f infra/compose.yml run --rm infra sh -c 'sh ./init.sh >/dev/null &&
+  az provider register --namespace Microsoft.ManagedIdentity --wait'
+```
+
 **Once, after the first deploy that creates the job:** let it write its dumps. The deploy identity can't grant roles, so the owner runs:
 
 ```sh
