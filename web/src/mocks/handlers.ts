@@ -329,15 +329,14 @@ export const handlers = [
     if (!email.includes("@")) {
       return response(400).json(invalid("email"), problemJson);
     }
-    // Players the email already holds are let in now, and nothing is kept;
-    // otherwise the invite waits for the first one.
-    const held = allPlayers().filter((candidate) => candidate.email === email);
-    for (const player of held) {
+    // Players the email already holds are let in now. The API then keeps no
+    // invite; the mock keeps it anyway, because its Users are sessions and
+    // the next sign-in with this address is a new one, whose first Player
+    // uses the invite up.
+    for (const player of allPlayers().filter((candidate) => candidate.email === email)) {
       player.membership = { approved: true, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
     }
-    if (held.length > 0) {
-      invitedEmails.delete(email);
-    } else if (!invitedEmails.has(email)) {
+    if (!invitedEmails.has(email)) {
       invitedEmails.set(email, {
         id: `00000000-0000-4000-8000-1${String((invitesMade += 1)).padStart(11, "0")}`,
         invitedAt: new Date().toISOString(),
@@ -656,10 +655,11 @@ export const handlers = [
     }
     const email = emailOf(request);
     // In the Club from the start if the email was invited (used up now), or
-    // if the User (one email) already holds a member (#164).
+    // if the User already holds a member (#164). A mock User is a session:
+    // the suite signs in many sessions with one persona address, and they
+    // mustn't let each other's Players in.
     const admitted =
-      invitedEmails.delete(email) ||
-      allPlayers().some((held) => held.email === email && held.membership?.approved);
+      invitedEmails.delete(email) || playersOf(request).some((held) => held.membership?.approved);
     const player: MockPlayer = {
       id: nextPlayerId(),
       name,

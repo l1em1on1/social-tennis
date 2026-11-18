@@ -113,12 +113,7 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
   const invite = manager.getByRole("list", { name: "Pre-approved addresses" }).getByRole("listitem").filter({ hasText: email });
-  // The mock keeps its Players until its server restarts, so a second local run
-  // finds this address already holding one, and it is let in at once with
-  // nothing listed. The real API gets a new address every run.
-  if (testInfo.project.name === "real") {
-    await expect(invite).toBeVisible();
-  }
+  await expect(invite).toBeVisible();
 
   await logIn(page, testInfo, email);
   await addFirstPlayer(page, ivy);
