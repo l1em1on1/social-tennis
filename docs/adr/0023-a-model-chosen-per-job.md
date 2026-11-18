@@ -9,7 +9,7 @@ So the main session (Opus) keeps everything that needs the conversation's contex
 - **Sweeps, as dynamic workflows, asking before each run:** many similar edits (one Storybook story per primitive, #46) or an audit across many files (#106), with cheap models per item and Opus checking the result.
 - **The CI review:** Opus at high effort on every labelled PR (#171). The model isn't chosen by path, and the review uses no subagents.
 
-Only the main session changes git or GitHub. The two read-only agents get `Bash, Read, Grep, Glob`, and a `PreToolUse` hook (`.claude/hooks/subagent-guard.sh`) blocks git and GitHub writes, Docker commands other than reading, and file changes. It matches command text, so it guards against mistakes, not against intent.
+Only the main session changes git or GitHub. The two read-only agents get `Bash, Read, Grep, Glob`, and a `PreToolUse` hook (`.claude/hooks/subagent-guard.sh`, with `subagent-guard.test.sh`) blocks git and GitHub writes, Docker commands other than reading, file changes, installs and builds, and anything run through `sh -c` or `eval`. It fails closed when it can't read a command. It matches command text, so it guards against mistakes, not against intent.
 
 ## Consequences
 

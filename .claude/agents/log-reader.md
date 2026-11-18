@@ -3,6 +3,7 @@ name: log-reader
 description: Reads a long CI, Playwright or container log and reports only the failures. Use for `gh run view --log-failed`, a Playwright report or `docker compose logs`, so the log stays out of the main context.
 tools: Bash, Read, Grep, Glob
 model: haiku
+effort: low
 hooks:
   PreToolUse:
     - matcher: "Bash"

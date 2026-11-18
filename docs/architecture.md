@@ -186,7 +186,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       └── rtk/                the RTK binary, and its Claude Code hook registered at creation
 ├── .claude/                    Claude Code project config: settings.json (plugins, hooks), skills/
 │   ├── agents/                 subagents: log-reader (Haiku), pre-pr-reviewer (Opus) — ADR-0023
-│   └── hooks/                  lsp-restore.sh (SessionStart), subagent-guard.sh (the subagents' PreToolUse)
+│   └── hooks/                  lsp-restore.sh (SessionStart); subagent-guard.sh, the subagents' PreToolUse (tests: subagent-guard.test.sh)
 ├── .vscode/extensions.json     extensions VS Code recommends for editing on the host (no C#: no SDK there)
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
