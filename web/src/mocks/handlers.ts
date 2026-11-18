@@ -152,6 +152,9 @@ interface MockLeague {
   requests: { playerId: string; status: Schemas["LeagueJoinRequestStatus"]; requestedAt: string; decidedAt: string | null }[];
 }
 
+/** The page block of a list that isn't paged: every match, from the start (ADR-0012). */
+const wholeList = (total: number) => ({ total, offset: 0, limit: null });
+
 const leagues: MockLeague[] = [];
 let leaguesMade = 0;
 
@@ -206,7 +209,7 @@ const invalid = (field: string) => ({ title: "Validation failed", status: 400, e
 export const handlers = [
   http.get("/clubs", ({ request, response }) => {
     const clubs = [MOCK_CLUB, ...clubsOf(request)];
-    return response(200).json({ clubs, page: { total: clubs.length } });
+    return response(200).json({ clubs, page: wholeList(clubs.length) });
   }),
 
   http.post("/clubs", async ({ request, response }) => {
@@ -247,7 +250,7 @@ export const handlers = [
   // The Manager's side. The mock doesn't check the role: the pages do.
   http.get("/clubs/{clubId}/members", ({ params, response }) => {
     if (params.clubId !== MOCK_CLUB.id) {
-      return response(200).json({ members: [], invites: [], page: { total: 0 } });
+      return response(200).json({ members: [], invites: [], page: wholeList(0) });
     }
     const members = allPlayers()
       .filter((player) => player.membership)
@@ -267,7 +270,7 @@ export const handlers = [
     return response(200).json({
       members,
       invites: [...invitedEmails].map(([email, invite]) => ({ ...invite, email, joined: joined.has(email) })),
-      page: { total: members.length },
+      page: wholeList(members.length),
     });
   }),
 
@@ -347,7 +350,7 @@ export const handlers = [
         participantCount: league.participants.length,
         pendingRequestCount: league.requests.filter((joinRequest) => joinRequest.status === "Pending").length,
       }));
-    return response(200).json({ leagues: list, page: { total: list.length } });
+    return response(200).json({ leagues: list, page: wholeList(list.length) });
   }),
 
   http.post("/clubs/{clubId}/leagues", async ({ request, params, response }) => {
@@ -543,7 +546,7 @@ export const handlers = [
             : null,
         };
       });
-    return response(200).json({ leagues: list, page: { total: list.length } });
+    return response(200).json({ leagues: list, page: wholeList(list.length) });
   }),
 
   http.post("/auth/magic-link", ({ response }) => response(202).empty()),
@@ -569,22 +572,35 @@ export const handlers = [
   }),
 
   // An Admin's side. The mock doesn't check the role: the pages do.
-  http.get("/users", ({ response }) => {
-    const users = [...usersByEmail]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([email, user]) => ({
-        id: user.id,
-        email,
-        manager: user.manager,
-        admin: user.admin,
-        adminBySetting: email === CONFIGURED_ADMIN,
-        // Never: the configured Admin can always sign in.
-        lastAdmin: false,
-        players: allPlayers()
-          .filter((player) => player.email === email)
-          .map((player) => ({ id: player.id, name: player.name })),
-      }));
-    return response(200).json({ users, page: { total: users.length } });
+  // Paged and searchable like the API (#134): newest first, a whole-email match first.
+  http.get("/users", ({ query, response }) => {
+    const search = (query.get("q") ?? "").trim().toLowerCase();
+    const offset = Number(query.get("offset") ?? 0);
+    const limit = Number(query.get("limit") ?? 50);
+    const names = (email: string) =>
+      allPlayers()
+        .filter((player) => player.email === email)
+        .map((player) => ({ id: player.id, name: player.name }));
+    const matching = [...usersByEmail]
+      .reverse()
+      .filter(
+        ([email]) =>
+          !search ||
+          email.includes(search) ||
+          names(email).some((player) => player.name.toLowerCase().includes(search)),
+      )
+      .sort(([a], [b]) => Number(b === search) - Number(a === search));
+    const users = matching.slice(offset, offset + limit).map(([email, user]) => ({
+      id: user.id,
+      email,
+      manager: user.manager,
+      admin: user.admin,
+      adminBySetting: email === CONFIGURED_ADMIN,
+      // Never: the configured Admin can always sign in.
+      lastAdmin: false,
+      players: names(email),
+    }));
+    return response(200).json({ users, page: { total: matching.length, offset, limit } });
   }),
 
   http.put("/users/{userId}/roles/{role}", ({ params, response }) => {
@@ -623,7 +639,7 @@ export const handlers = [
       level: player.level,
       clubs: player.membership ? [{ ...MOCK_CLUB, approved: player.membership.approved }] : [],
     }));
-    return response(200).json({ players, page: { total: players.length } });
+    return response(200).json({ players, page: wholeList(players.length) });
   }),
 
   http.post("/players", async ({ request, response }) => {

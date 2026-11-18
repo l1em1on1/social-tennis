@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClubNameForm } from "@/components/club-name-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Pager, pageRange } from "@/components/ui/pager";
+import { SearchForm } from "@/components/ui/search-form";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { grantRole, revokeRole } from "@/lib/actions";
+import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
 
@@ -19,24 +23,55 @@ const errors: Record<string, { title: string; description: string }> = {
     title: "The Admin role wasn't removed",
     description: "That person is the only Admin, or is an Admin in the app's configuration.",
   },
+  search: { title: "That search didn't work", description: "Search with letters, numbers, spaces and punctuation." },
 };
+
+/** Users per page (#134). The API allows up to 100. */
+const USERS_PER_PAGE = 50;
+
+/** The API reads the offset as an int32 and refuses a larger one (400). */
+const MAX_OFFSET = 2_147_483_647;
 
 /**
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
  * Managers or Admins. Admins only — refused here as well as hidden from the
- * nav, and the API refuses each call by role.
+ * nav, and the API refuses each call by role. Users come a page at a time,
+ * newest first, searchable by email or Player name (#134).
  */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
-  const [viewer, api, { error }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
+  const [viewer, api, { error, q, offset }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
   if (!viewer.roles.includes("Admin")) {
     notFound();
   }
+  const search = typeof q === "string" ? q.trim() : "";
+  const start = Math.min(
+    MAX_OFFSET,
+    Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0),
+  );
 
-  const [{ data: clubList }, { data: userList }] = await Promise.all([api.GET("/clubs"), api.GET("/users")]);
-  if (!clubList || !userList) {
+  const [{ data: clubList }, { data: userList, response: usersResponse }] = await Promise.all([
+    api.GET("/clubs"),
+    api.GET("/users", { params: { query: { q: search || undefined, offset: start, limit: USERS_PER_PAGE } } }),
+  ]);
+  // A 400 is a search the API won't run (a control character, say): say so, list no one.
+  // The offset is kept in range above, so without a search a 400 is a fault, not a refusal.
+  const searchRefused = search !== "" && usersResponse.status === 400;
+  if (!clubList || (!userList && !searchRefused)) {
     throw new Error("The Admin page's data didn't load");
   }
-  const problem = typeof error === "string" ? errors[error] : undefined;
+  const users = userList?.users ?? [];
+  // The schema allows a numeric string for an int32 (System.Text.Json reads either); the API sends a number.
+  const total = Number(userList?.page.total ?? 0);
+  // Where the last page starts. From past the end (a hand-typed offset), Previous goes there.
+  const lastPageStart = Math.max(0, Math.floor((total - 1) / USERS_PER_PAGE) * USERS_PER_PAGE);
+  const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
+  // A refused role change redirects with its error; these bring it back to this search and page.
+  const keepView = (
+    <>
+      <input type="hidden" name="q" value={search} />
+      <input type="hidden" name="offset" value={start} />
+    </>
+  );
 
   return (
     <>
@@ -76,13 +111,40 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </div>
       </Card>
 
-      <Card title={`Users (${userList.users.length})`}>
+      <Card title={`Users (${total})`}>
         <p className="mb-3 text-sm text-fg-muted">
           Managers approve who joins a club and run its leagues. Admins can also do everything on this page. A change
           takes effect straight away.
         </p>
+        <div className="mb-3">
+          <SearchForm
+            action="/admin"
+            id="user-search"
+            label="Find a user"
+            hint="Part of an email address or a player's name."
+            defaultValue={search}
+            maxLength={320}
+          />
+        </div>
+        <p role="status" className="mb-2 text-sm text-fg-muted">
+          {users.length > 0
+            ? `${pageRange(start, users.length, total)}${search ? ` matching “${search}”` : ""}, newest first.`
+            : total > 0
+              ? "No users on this page."
+              : search
+                ? `No one matches “${search}”.`
+                : "No users yet."}
+          {search && (
+            <>
+              {" "}
+              <Link href="/admin" className="underline">
+                Show everyone
+              </Link>
+            </>
+          )}
+        </p>
         <ul className="-my-2 divide-y divide-border">
-          {userList.users.map((user) => {
+          {users.map((user) => {
             const you = user.id === viewer.userId;
             const who = user.players.length > 0 ? user.players.map((player) => player.name).join(", ") : user.email;
             return (
@@ -123,6 +185,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <form action={revokeRole}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="role" value="Admin" />
+                      {keepView}
                       {/* The spoken name starts with the visible text (WCAG 2.5.3) and adds who. */}
                       <SubmitButton variant="secondary" pendingLabel="Removing…">
                         Remove admin<span className="sr-only"> from {who}</span>
@@ -134,6 +197,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <form action={user.manager ? revokeRole : grantRole}>
                       <input type="hidden" name="userId" value={user.id} />
                       <input type="hidden" name="role" value="Manager" />
+                      {keepView}
                       <SubmitButton variant="secondary" pendingLabel="Saving…">
                         {user.manager ? "Remove manager" : "Make manager"}
                         <span className="sr-only">
@@ -169,6 +233,17 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             );
           })}
         </ul>
+        <div className="mt-4">
+          <Pager
+            label="users"
+            previousHref={
+              start > 0
+                ? adminHref({ search, offset: Math.max(0, Math.min(start - USERS_PER_PAGE, lastPageStart)) })
+                : undefined
+            }
+            nextHref={start + users.length < total ? adminHref({ search, offset: start + USERS_PER_PAGE }) : undefined}
+          />
+        </div>
       </Card>
     </>
   );

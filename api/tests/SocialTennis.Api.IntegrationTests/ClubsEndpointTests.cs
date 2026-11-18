@@ -136,6 +136,8 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         Assert.NotNull(body);
         Assert.Equal(body.Clubs.Count, body.Page.Total);
+        // Not paged: the window is the whole list (ADR-0012, #134).
+        Assert.Equal((0, (int?)null), (body.Page.Offset, body.Page.Limit));
     }
 
     [Fact]

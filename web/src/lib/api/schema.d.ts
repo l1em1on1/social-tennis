@@ -602,6 +602,13 @@ export interface components {
         PageInfo: {
             /** Format: int32 */
             total: number | string;
+            /**
+             * Format: int32
+             * @default 0
+             */
+            offset: number | string;
+            /** Format: int32 */
+            limit?: null | number | string;
         };
         PlayerClub: {
             /** Format: uuid */
@@ -1505,7 +1512,11 @@ export interface operations {
     };
     GetUsers: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string;
+                offset?: number | string;
+                limit?: number | string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1519,6 +1530,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetUsersResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
             /** @description Unauthorized */
