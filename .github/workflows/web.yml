@@ -116,7 +116,7 @@ jobs:
       - name: Run Playwright in its compose service
         run: docker compose --profile e2e run --rm e2e
       - name: Publish the snapshots to Chromatic
-        # Visual changes don't fail this job; Chromatic's own "UI Tests"
+        # Visual changes don't fail this job; Chromatic's own "UI Tests: social-tennis"
         # check on the PR holds the merge until they're accepted there.
         if: env.CHROMATIC_PROJECT_TOKEN != ''
         env:
@@ -172,7 +172,8 @@ jobs:
           docker compose --profile storybook run --rm --no-deps chromatic
           npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
 
-  # Chromatic posts its "UI Tests" check only when a build is published, so a
+  # Chromatic posts its "UI Tests: <project>" checks only when a build is
+  # published (or skipped), so a
   # PR that skips e2e would leave that check unreported and, once required,
   # blocked. `--skip` tells Chromatic this commit has nothing to review, and
   # it reports the check as passed (Chromatic docs, "Mandatory PR checks").
@@ -207,10 +208,14 @@ jobs:
 
   # Dependabot PRs get no visual review (owner's decision, #158; ADR-0015).
   # They see only Dependabot's own secrets, so Chromatic never runs on them and
-  # never reports "UI Tests", which `main` requires: the PR would wait forever.
-  # This reports the check as passed, saying it was not run. The required
-  # check accepts a status from any source. GitHub lets a Dependabot run raise
-  # its read-only token with `permissions:`; this job gets statuses only.
+  # never reports its checks, which `main` requires: the PR would wait forever.
+  # This reports each as passed, saying it was not run. A required check
+  # accepts a status from any source. GitHub lets a Dependabot run raise its
+  # read-only token with `permissions:`; this job gets statuses only.
+  #
+  # With two Chromatic projects linked to the repo, Chromatic names each
+  # check "UI Tests: <project name>" (#190). Renaming a project in Chromatic
+  # renames its check: change CHROMATIC_CHECKS and the required checks with it.
   ui-tests-dependabot:
     name: UI Tests (not run on Dependabot PRs)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
@@ -218,11 +223,15 @@ jobs:
     permissions:
       statuses: write
     steps:
-      - name: Report "UI Tests" as not run
+      - name: Report Chromatic's checks as not run
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.event.pull_request.head.sha }}
-        run: >-
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${SHA}"
-          -f state=success -f context="UI Tests"
-          -f description="Not run on Dependabot PRs (#158)"
+          CHROMATIC_CHECKS: "UI Tests: social-tennis|UI Tests: social-tennis_storybook"
+        run: |
+          IFS='|' read -ra checks <<<"$CHROMATIC_CHECKS"
+          for context in "${checks[@]}"; do
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
+              -f state=success -f context="$context" \
+              -f description="Not run on Dependabot PRs (#158)"
+          done
