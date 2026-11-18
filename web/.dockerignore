@@ -6,3 +6,7 @@ e2e/
 playwright.config.ts
 # Local secrets never go into an image (#113).
 .env*
+# Storybook isn't part of the app (#46): not in the image, and not type-checked by next build.
+.storybook/
+**/*.stories.tsx
+storybook-static/

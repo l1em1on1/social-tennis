@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Playwright output (generated, not source):
     "playwright-report/**",
     "test-results/**",
+    // Storybook build output:
+    "storybook-static/**",
   ]),
 ]);
 
