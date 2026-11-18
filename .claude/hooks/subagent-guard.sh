@@ -29,8 +29,11 @@ cmd=$(sed -E "s/'[^']*'|\"[^\"]*\"//g; s/docker-compose/docker compose/g" <<<"$r
 keys='((if|then|else|elif|do|while|until|time|!|\{)[[:space:]]+)*'
 wrap='((sudo|command|exec|env([[:space:]]+[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)*|nice([[:space:]]+-n)?([[:space:]]+-?[0-9]+)?|timeout([[:space:]]+-[^[:space:]]+)*[[:space:]]+[0-9.]+[smhd]?|xargs([[:space:]]+-[^[:space:]]+)*|rtk([[:space:]]+(proxy|test|err|bypass))?)[[:space:]]+)*'
 at='(^|[;&|(`]|\$\()[[:space:]]*'"$keys$wrap"'([^[:space:];&|()]*/)?'
-# Each invocation of a tool, up to the next ; & | or ).
-calls() { grep -oE "${at}$1([[:space:]][^;&|()]*)?([;&|()]|$)" <<<"$cmd" | sed -E "s/[;&|()]$//"; }
+# Each invocation of a tool, up to the next ; & | or ). Every separator ends
+# its own line first: grep -o consumes the separator after one call, and the
+# next call would then have nothing before it to match `at`.
+split=$(sed -E 's/([;&|(`])/\1\n/g' <<<"$cmd")
+calls() { grep -oE "${at}$1([[:space:]][^;&|()]*)?([;&|()]|$)" <<<"$split" | sed -E "s/[;&|()]$//"; }
 # Options before a subcommand. git's long options take =value only, and of
 # its short ones only -C and -c take a value, so `git --no-pager push` and
 # `git -P push` are still read as push. docker's options may take a value.
@@ -46,12 +49,14 @@ if grep -qE "${at}((ba|da|z|k)?sh[[:space:]]+-[a-zA-Z]*c|eval)([[:space:]]|$)" <
   deny "commands run through sh -c or eval"
 fi
 
-# git: reading subcommands only; anything else is blocked. fetch is allowed:
-# it updates remote-tracking refs only.
+# git: reading subcommands only; anything else is blocked. fetch is allowed
+# without a refspec, so it updates remote-tracking refs only.
 while IFS= read -r call; do
   [[ $call =~ git${gopts}[[:space:]]*$ ]] && continue # only options: --version, --help
   [[ $call =~ git${gopts}[[:space:]]+${word} ]] || deny "a git command the guard can't read"
   sub_rest
+  [[ $rest =~ (^|[[:space:]])--output([[:space:]=]|$) ]] && deny "git --output (it writes a file)"
+  [[ $sub == fetch && $rest =~ : ]] && deny "git fetch with a refspec (it can move a local branch)"
   case "$sub" in
     log | diff | show | status | blame | annotate | rev-parse | rev-list | ls-files | ls-tree | ls-remote | \
     cat-file | fetch | grep | describe | shortlog | merge-base | name-rev | for-each-ref | show-ref | \
@@ -120,10 +125,10 @@ done < <(calls docker)
 
 # Files, packages and builds: no deleting, moving, writing, installing or
 # building (that runs in compose anyway: CLAUDE.md, ADR-0005).
-if grep -qE "${at}(rm|rmdir|mv|cp|tee|truncate|chmod|chown|ln|mkdir|touch|dd|install|shred|unlink|rsync|npm|npx|pnpm|yarn|dotnet|node|python3?|ruby|php)([[:space:]]|$)" <<<"$cmd"; then
-  deny "commands that change files, install or build (use jq to read JSON)"
+if grep -qE "${at}(rm|rmdir|mv|cp|tee|truncate|chmod|chown|ln|mkdir|touch|dd|install|shred|unlink|rsync|npm|npx|pnpm|yarn|dotnet|node|python3?|ruby|php|unzip|tar|gunzip|gzip|bunzip2|unxz|xz|7z|curl|wget)([[:space:]]|$)" <<<"$cmd"; then
+  deny "commands that change files, unpack, download, install or build (use jq to read JSON)"
 fi
-if grep -qE "${at}(sed|perl)[[:space:]]+([^;&|]*[[:space:]])?-[a-zA-Z]*i" <<<"$cmd"; then
+if grep -qE "${at}(sed|perl)[[:space:]]+([^;&|]*[[:space:]])?(-[a-zA-Z]*i|--in-place)" <<<"$cmd"; then
   deny "in-place edits"
 fi
 if grep -qE "${at}find[[:space:]][^;&|]*[[:space:]]-(delete|exec|execdir|ok|okdir|fprint[f0]?|fls)([[:space:]]|$)" <<<"$cmd"; then

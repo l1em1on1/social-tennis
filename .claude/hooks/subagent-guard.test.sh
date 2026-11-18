@@ -14,9 +14,13 @@ check() {
   fi
 }
 
+cases=0
 while IFS= read -r line; do
   [ -z "$line" ] || [ "${line#\#}" != "$line" ] && continue
-  check "${line%% *}" "${line#* }"
+  command="${line#* }"
+  [ "$command" = "$line" ] && command="" # a bare "allow": the empty command
+  check "${line%% *}" "$command"
+  cases=$((cases + 1))
 done <<'EOF'
 # Reading
 allow git diff origin/main...HEAD --stat
@@ -72,8 +76,29 @@ allow git remote get-url origin
 allow git submodule status
 allow git notes show HEAD
 allow grep -n "Can't resolve" ci.log | head
+allow git status; git log --oneline -3
+allow git fetch origin main
+allow gh pr view 1; gh pr diff 1
+allow docker compose logs api; docker compose ps
 allow
 # git writes
+# from the second CI review of #188
+block git fetch origin; git reset --hard origin/main
+block git status; git commit -am x
+block git diff | git apply
+block gh pr view 1; gh pr merge 1
+block gh pr view 1; gh pr comment 1 -b x
+block docker compose logs api; docker compose run --rm api-tests
+block git tag -l; git tag -d v1
+block git fetch origin main:main
+block git fetch origin +HEAD:refs/heads/main
+block git diff --output=/tmp/pr.diff origin/main...HEAD
+block git log -p --output x
+block unzip web/test-results/x/trace.zip
+block tar -xzf a.tgz
+block sed --in-place s/a/b/ f
+block curl -sSLo x.zip https://example.com/x.zip
+block wget https://example.com/x
 # from the CI review of #188
 block rtk test docker compose run --rm api-tests
 block rtk proxy git push
@@ -161,4 +186,4 @@ block node -e 'require("fs").writeFileSync("x","y")'
 block python3 -c 'open("x","w")'
 EOF
 
-if [ "$failures" -eq 0 ]; then echo "subagent-guard: all cases pass"; else exit 1; fi
+if [ "$failures" -eq 0 ]; then echo "subagent-guard: all $cases cases pass"; else exit 1; fi
