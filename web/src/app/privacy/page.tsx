@@ -44,9 +44,13 @@ export default async function PrivacyPage() {
 
       <Section title="What we hold">
         <ul className="list-disc pl-5">
-          <li>Your email address, which is how you sign in.</li>
+          <li>Your email address, which is how you sign in, and whether you&apos;re a Manager or Admin.</li>
           <li>For each of your players: name, gender, level and rating.</li>
-          <li>Which clubs and leagues each player is in, and their games and scores.</li>
+          <li>
+            Which clubs and leagues each player is in or has asked to join, the answers, and their games and scores.
+          </li>
+          <li>An email address a Manager pre-approves for a club, before that person has signed in.</li>
+          <li>Each sign-in link, with the address it went to, until the nightly clean-up after it&apos;s used or expires.</li>
         </ul>
         <p>
           A Manager may add a member by name and email before they have signed in. The sign-in email links to this
@@ -63,8 +67,8 @@ export default async function PrivacyPage() {
 
       <Section title="Children">
         <p>
-          A child&apos;s player is held by their parent&apos;s login. Children don&apos;t sign in, and a child&apos;s
-          player holds only name, gender, level and rating.
+          A child&apos;s player is held by their parent&apos;s login, with no email or login of its own. Children
+          don&apos;t sign in.
         </p>
       </Section>
 
@@ -77,9 +81,9 @@ export default async function PrivacyPage() {
 
       <Section title="Sign-in requests">
         <p>
-          Sign-in links are limited per network address. We keep a scrambled form of the address with each link,
-          deleted within a day of the link being used or running out, and the address itself only in memory, for a
-          minute.
+          Sign-in links are limited per network address. With each link we keep a one-way hash of the address it was
+          asked from: not the address itself, though it could be matched back to it. It goes with the link, in the
+          nightly clean-up. The address itself is kept only in memory, for a minute.
         </p>
       </Section>
 
@@ -92,15 +96,15 @@ export default async function PrivacyPage() {
 
       <Section title="How long we keep it">
         <p>
-          While you use the app. An account with no sign-in for 24 months is deleted. Backups of the database are kept
-          for 14 days.
+          While you use the app. Accounts with no sign-in for 24 months are to be deleted; that starts once the app
+          records sign-ins, which is being added. Backups of the database are kept for up to three weeks.
         </p>
       </Section>
 
       <Section title="Seeing, correcting or deleting your data">
         <p>
-          Email {contact}. An Admin can delete your account: your login goes, and your players are shown as &ldquo;Former
-          player&rdquo;, so other members&apos; results stay correct.
+          Email {contact}, and we&apos;ll do it. When an account is deleted, its login goes, and its players are kept as
+          &ldquo;Former player&rdquo;, so other members&apos; results stay correct.
         </p>
       </Section>
 
