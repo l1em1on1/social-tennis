@@ -59,8 +59,42 @@ allow ls -la .claude && find . -name "*.ts" | wc -l
 allow cat web/playwright-report/index.html | head
 allow timeout 60 gh run watch 1
 allow env GH_PAGER=cat gh pr diff 1
+allow rtk git status
+allow rtk git log --oneline -3
+allow rtk recall 245ad7ed464a5dee
+allow rtk proxy git diff --stat
+allow if git diff --quiet; then echo same; fi
+allow for f in a.log b.log; do grep -c Error "$f"; done
+allow git -P log -1
+allow git -c core.pager=cat log -1
+allow git reflog -5
+allow git remote get-url origin
+allow git submodule status
+allow git notes show HEAD
+allow grep -n "Can't resolve" ci.log | head
 allow
 # git writes
+# from the CI review of #188
+block rtk test docker compose run --rm api-tests
+block rtk proxy git push
+block rtk git push origin HEAD
+block for f in web/test-results/*; do rm -rf "$f"; done
+block if git push; then echo ok; fi
+block ! git commit -m x
+block { git push; }
+block time git push
+block grep -n "Can't resolve" ci.log; rm -rf web/test-results; echo 'done'
+block git -P commit -am "x"
+block git -P reset --hard
+block git bisect start
+block git format-patch -1
+block git read-tree HEAD
+block git checkout-index -a
+block git sparse-checkout set web
+block git reflog expire --all
+block git notes add -m x
+block git remote set-url origin x
+block git frobnicate
 block git push origin HEAD
 block git commit -am "x"
 block cd web && git checkout main

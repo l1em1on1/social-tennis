@@ -16,19 +16,25 @@ deny() {
 command -v jq >/dev/null 2>&1 || deny "jq is missing, so the guard can't read the command"
 raw=$(jq -r '.tool_input.command // empty') || deny "the guard couldn't read the command"
 
-# Quoted strings are emptied, so grep "git push" or jq 'select(.n > 1)' isn't
-# read as a command. docker-compose is read as docker compose.
-cmd=$(sed -E "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g; s/docker-compose/docker compose/g" <<<"$raw")
+# Quoted strings are removed, so grep "git push" or jq 'select(.n > 1)' isn't
+# read as a command. One left-to-right pass: whichever quote opens first wins,
+# so the apostrophe in "Can't" doesn't pair with a later '. docker-compose is
+# read as docker compose.
+cmd=$(sed -E "s/'[^']*'|\"[^\"]*\"//g; s/docker-compose/docker compose/g" <<<"$raw")
 
 # A command word: at the start or after ; & | ( $( or a backtick, after any
-# wrappers (sudo, env, command, exec, nice, timeout, xargs), with any path.
-wrap='((sudo|command|exec|env([[:space:]]+[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)*|nice([[:space:]]+-n)?([[:space:]]+-?[0-9]+)?|timeout([[:space:]]+-[^[:space:]]+)*[[:space:]]+[0-9.]+[smhd]?|xargs([[:space:]]+-[^[:space:]]+)*)[[:space:]]+)*'
-at='(^|[;&|(`]|\$\()[[:space:]]*'"$wrap"'([^[:space:];&|()]*/)?'
+# shell keywords (if, then, do, ..., !, {) and wrappers (sudo, env, command,
+# exec, nice, timeout, xargs, and rtk with its proxy/test/err/bypass), with
+# any path.
+keys='((if|then|else|elif|do|while|until|time|!|\{)[[:space:]]+)*'
+wrap='((sudo|command|exec|env([[:space:]]+[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)*|nice([[:space:]]+-n)?([[:space:]]+-?[0-9]+)?|timeout([[:space:]]+-[^[:space:]]+)*[[:space:]]+[0-9.]+[smhd]?|xargs([[:space:]]+-[^[:space:]]+)*|rtk([[:space:]]+(proxy|test|err|bypass))?)[[:space:]]+)*'
+at='(^|[;&|(`]|\$\()[[:space:]]*'"$keys$wrap"'([^[:space:];&|()]*/)?'
 # Each invocation of a tool, up to the next ; & | or ).
 calls() { grep -oE "${at}$1([[:space:]][^;&|()]*)?([;&|()]|$)" <<<"$cmd" | sed -E "s/[;&|()]$//"; }
-# Options before a subcommand. git's long options take =value only (so
-# `git --no-pager push` is still read as push); docker's may take a value.
-gopts='([[:space:]]+(--[a-z-]+(=[^[:space:]]*)?|-[a-zA-Z]+([[:space:]]+[^-[:space:]][^[:space:]]*)?))*'
+# Options before a subcommand. git's long options take =value only, and of
+# its short ones only -C and -c take a value, so `git --no-pager push` and
+# `git -P push` are still read as push. docker's options may take a value.
+gopts='([[:space:]]+(--[a-z-]+(=[^[:space:]]*)?|-[Cc][[:space:]]+[^[:space:]]+|-[abd-zABD-Z]+))*'
 dopts='([[:space:]]+(--[a-z-]+((=|[[:space:]]+)[^-[:space:]][^[:space:]]*)?|-[a-zA-Z]+([[:space:]]+[^-[:space:]][^[:space:]]*)?))*'
 # A subcommand: a whole word, then the rest of the call.
 word='([a-z][a-z-]*)([[:space:]].*)?$'
@@ -40,21 +46,25 @@ if grep -qE "${at}((ba|da|z|k)?sh[[:space:]]+-[a-zA-Z]*c|eval)([[:space:]]|$)" <
   deny "commands run through sh -c or eval"
 fi
 
-# git: reading only. fetch is allowed: it updates remote-tracking refs only.
+# git: reading subcommands only; anything else is blocked. fetch is allowed:
+# it updates remote-tracking refs only.
 while IFS= read -r call; do
   [[ $call =~ git${gopts}[[:space:]]*$ ]] && continue # only options: --version, --help
   [[ $call =~ git${gopts}[[:space:]]+${word} ]] || deny "a git command the guard can't read"
   sub_rest
   case "$sub" in
-    push | commit | merge | rebase | reset | checkout | switch | restore | clean | add | rm | mv | cherry-pick | \
-    revert | am | pull | update-ref | update-index | gc | notes | submodule | prune | repack | replace | \
-    filter-branch | init | clone | symbolic-ref)
-      deny "git $sub" ;;
+    log | diff | show | status | blame | annotate | rev-parse | rev-list | ls-files | ls-tree | ls-remote | \
+    cat-file | fetch | grep | describe | shortlog | merge-base | name-rev | for-each-ref | show-ref | \
+    show-branch | whatchanged | range-diff | cherry | count-objects | check-ignore | check-attr | \
+    check-mailmap | var | version | help | diff-tree | diff-index | diff-files | verify-commit | verify-tag) ;;
+    reflog) [[ $rest =~ ^[[:space:]]*$|^[[:space:]]+(show|-) ]] || deny "git reflog (only show)" ;;
+    notes) [[ $rest =~ ^[[:space:]]+(show|list)([[:space:]]|$) ]] || deny "git notes (only show and list)" ;;
+    submodule) [[ $rest =~ ^[[:space:]]*$|^[[:space:]]+status([[:space:]]|$) ]] || deny "git submodule (only status)" ;;
     stash) [[ $rest =~ ^[[:space:]]+(list|show)([[:space:]]|$) ]] || deny "git stash (only list and show)" ;;
     worktree) [[ $rest =~ ^[[:space:]]+list([[:space:]]|$) ]] || deny "git worktree (only list)" ;;
     apply) [[ $rest =~ --(check|stat|numstat|summary) ]] || deny "git apply (only --check or --stat)" ;;
     config) [[ $rest =~ --(get|get-all|get-regexp|list|show-origin)|(^|[[:space:]])-l([[:space:]]|$) ]] || deny "git config (only reading)" ;;
-    remote) [[ $rest =~ ^[[:space:]]+(add|remove|rm|rename|set-url|set-head|set-branches|prune|update)([[:space:]]|$) ]] && deny "git remote changes" ;;
+    remote) [[ $rest =~ ^[[:space:]]*$|^[[:space:]]+(-v|--verbose|show|get-url)([[:space:]]|$) ]] || deny "git remote (only listing)" ;;
     tag)
       [[ $rest =~ ^[[:space:]]*$ || $rest =~ ^[[:space:]]+(-l|--list|-n[0-9]*|--contains|--no-contains|--points-at|--merged|--no-merged|--sort|--format)([[:space:]=]|$) ]] \
         || deny "git tag (only listing)" ;;
@@ -62,6 +72,7 @@ while IFS= read -r call; do
       if [[ $rest =~ ^[[:space:]]+[^-[:space:]] || $rest =~ (^|[[:space:]])(-[a-zA-Z]*[dDmMcCf][a-zA-Z]*|--(delete|move|copy|force|set-upstream-to|unset-upstream|edit-description))([[:space:]=]|$) ]]; then
         deny "git branch changes"
       fi ;;
+    *) deny "git $sub (not a reading subcommand)" ;;
   esac
 done < <(calls git)
 
