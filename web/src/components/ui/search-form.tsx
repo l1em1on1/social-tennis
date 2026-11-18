@@ -18,25 +18,26 @@ interface SearchFormProps {
  * A search box and its button. A GET form through `next/form`, so a search is
  * a URL (`?q=`): it survives a reload, and paging links can keep it. Client-side
  * navigation, with a plain form submit as the fallback (Next.js docs, Form).
+ *
+ * The button goes under the box, both full width, as in the app's other forms.
+ * Beside it, on a phone, the button left an email address too little room.
  */
 export function SearchForm({ action, id, label, hint, defaultValue, maxLength }: SearchFormProps) {
   return (
-    <Form action={action} role="search" className="flex items-end gap-2">
-      <div className="min-w-0 flex-1">
-        <Field id={id} label={label} hint={hint}>
-          {(control) => (
-            <Input
-              {...control}
-              type="search"
-              name="q"
-              defaultValue={defaultValue}
-              maxLength={maxLength}
-              autoComplete="off"
-            />
-          )}
-        </Field>
-      </div>
-      <Button type="submit" variant="secondary">
+    <Form action={action} role="search" className="flex flex-col gap-4">
+      <Field id={id} label={label} hint={hint}>
+        {(control) => (
+          <Input
+            {...control}
+            type="search"
+            name="q"
+            defaultValue={defaultValue}
+            maxLength={maxLength}
+            autoComplete="off"
+          />
+        )}
+      </Field>
+      <Button type="submit" variant="secondary" fullWidth>
         Search
       </Button>
     </Form>
