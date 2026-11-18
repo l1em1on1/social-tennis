@@ -71,8 +71,11 @@ public class AuthTestFactory : WebApplicationFactory<Program>
         });
         builder.UseSetting("Auth:AdminEmails", $"someone@example.test, {AdminEmail}");
         // Test clients send no client address, so every test is one client to
-        // the per-client limit (#108). Tests of that limit set it themselves.
+        // the per-client limit (#108). And every test in a class shares one app,
+        // so one ceiling across all clients. Tests of either limit set it
+        // themselves.
         builder.UseSetting("Auth:MagicLinkRequestsPerClientPerMinute", "100000");
+        builder.UseSetting("Auth:MagicLinkRequestsPerMinute", "100000");
     }
 
     /// <summary>

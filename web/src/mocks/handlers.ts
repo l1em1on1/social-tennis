@@ -656,8 +656,10 @@ export const handlers = [
     }
     const email = emailOf(request);
     // In the Club from the start if the email was invited (used up now), or
-    // if the User already holds a member (#164).
-    const admitted = invitedEmails.delete(email) || playersOf(request).some((held) => held.membership?.approved);
+    // if the User (one email) already holds a member (#164).
+    const admitted =
+      invitedEmails.delete(email) ||
+      allPlayers().some((held) => held.email === email && held.membership?.approved);
     const player: MockPlayer = {
       id: nextPlayerId(),
       name,

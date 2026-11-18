@@ -6,9 +6,10 @@ namespace SocialTennis.Api.Migrations
 {
     /// <summary>
     /// Invites are used up as they let someone in (#164). Deletes the ones that
-    /// already have: the email's User holds a Player who is an active member
-    /// (Status 1) of the invite's Club. Unused invites, and invites whose User's
-    /// Players are only waiting or have left, stay.
+    /// already have: before #164 an invite let in every Player its email's User
+    /// held, when it was made or as they were added, so an invite whose User
+    /// holds any Player has been used, even if that Player has left since.
+    /// Invites waiting for a User's first Player stay.
     /// </summary>
     public partial class UseUpJoinedInvites : Migration
     {
@@ -18,12 +19,9 @@ namespace SocialTennis.Api.Migrations
             migrationBuilder.Sql(
                 """
                 DELETE FROM "ClubInvites" AS i
-                USING "Users" AS u, "Players" AS p, "ClubMemberships" AS m
+                USING "Users" AS u, "Players" AS p
                 WHERE u."Email" = i."Email"
-                  AND p."UserId" = u."Id"
-                  AND m."PlayerId" = p."Id"
-                  AND m."ClubId" = i."ClubId"
-                  AND m."Status" = 1;
+                  AND p."UserId" = u."Id";
                 """);
         }
 

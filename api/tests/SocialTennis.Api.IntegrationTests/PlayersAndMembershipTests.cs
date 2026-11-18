@@ -384,6 +384,46 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         Assert.Equal(new[] { clubId, otherClubId }.Order(), junior.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
     }
 
+    [Fact]
+    public async Task A_Player_a_Manager_adds_in_the_inviting_Club_is_a_member_once_and_uses_the_invite_up()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"same-club-{Guid.NewGuid():N}@example.test";
+        var clubId = await factory.AClubIdAsync();
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Sam", email });
+
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var club = Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs);
+        Assert.Equal(clubId, club.Id);
+        Assert.True(club.Approved);
+    }
+
+    [Fact]
+    public async Task After_one_Player_is_removed_a_new_Player_joins_while_a_sibling_is_still_a_member()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var stays = await CreatePlayerAsync(client, "Stays");
+        var removed = await CreatePlayerAsync(client, "Removed");
+        var clubId = await factory.AClubIdAsync();
+        foreach (var player in new[] { stays, removed })
+        {
+            await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+            await manager.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null);
+        }
+
+        await manager.DeleteAsync($"/clubs/{clubId}/members/{removed.Id}");
+        var later = await CreatePlayerAsync(client, "Later");
+
+        var players = await PlayersAsync(client);
+        Assert.Empty(players.Single(p => p.Id == removed.Id).Clubs);
+        Assert.True(Assert.Single(players.Single(p => p.Id == later.Id).Clubs).Approved);
+    }
+
     /// <summary>
     /// Before #164 an invite outlived the Players it let in, so a Player who
     /// had left could find one still there. Asking to join uses it up.

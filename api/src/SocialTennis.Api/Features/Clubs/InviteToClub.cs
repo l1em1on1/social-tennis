@@ -55,7 +55,7 @@ public static class InviteToClub
             .Where(m => m.ClubId == clubId && waiting.Contains(m.PlayerId))
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
 
-        // An invite exists only while its User holds no member of the Club.
+        // An invite exists only while its User holds no Player.
         if (players.Count > 0)
         {
             await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId);

@@ -258,7 +258,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                 <Field
                   id={`invite-email-${club.id}`}
                   label="Email address"
-                  hint="They join without asking once they sign in with this address. We don't email them, so let them know."
+                  hint="Their players join without asking: now if they have one, or once they sign in with this address and save their name. We don't email them, so let them know."
                 >
                   {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
                 </Field>
