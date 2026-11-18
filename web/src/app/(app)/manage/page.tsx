@@ -82,8 +82,9 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
       )}
       {typeof invited === "string" && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
-          <strong>{invited}</strong> is pre-approved. They&apos;re in the club as soon as they sign in with that address and
-          save their name. We don&apos;t email them, so let them know.
+          <strong>{invited}</strong> is pre-approved. If they already have a player, they&apos;re in the club now; if not,
+          they&apos;re in as soon as they sign in with that address and save their name. We don&apos;t email them, so let
+          them know.
         </p>
       )}
 
@@ -205,8 +206,8 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                                 }
                               >
                                 <p className="text-fg-muted">
-                                  {member.name} will no longer be a member of {club.name}. If their email was
-                                  pre-approved, that is withdrawn too. They can ask to join again.
+                                  {member.name} will no longer be a member of {club.name}. They can ask to join
+                                  again.
                                 </p>
                                 <form action={removeClubMember}>
                                   <input type="hidden" name="clubId" value={club.id} />
@@ -269,10 +270,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                 <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
                   {club.invites.map((invite) => (
                     <li key={invite.id} className="flex flex-col gap-2 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm break-all">{invite.email}</span>
-                        {invite.joined ? <Badge tone="accent">Joined</Badge> : <Badge>Not joined yet</Badge>}
-                      </div>
+                      <span className="text-sm break-all">{invite.email}</span>
                       <form action={withdrawClubInvite}>
                         <input type="hidden" name="clubId" value={club.id} />
                         <input type="hidden" name="inviteId" value={invite.id} />
@@ -287,11 +285,6 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                     </li>
                   ))}
                 </ul>
-              )}
-              {club.invites.some((invite) => invite.joined) && (
-                <p className="text-sm text-fg-muted">
-                  Withdrawing a pre-approval keeps the members it let in. To take someone out, remove them above.
-                </p>
               )}
             </section>
           </Card>

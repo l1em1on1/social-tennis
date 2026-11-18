@@ -13,7 +13,9 @@ namespace SocialTennis.Api.Features.Clubs;
 /// person has ever signed in. This is how a League is filled before its
 /// players use the app (issue #4, ADR-0008 phasing). The Player is a member at
 /// once, and is held by whoever signs in with that email: all of them, if a
-/// parent was given several children's Players under one address.
+/// parent was given several children's Players under one address. Like a
+/// Player the User adds, it also joins the Clubs that invited the email or that
+/// the User is already in, and uses those invites up (#164).
 /// </summary>
 /// <remarks>
 /// Unlike an invite it makes the Player now, so it can be put in a League
@@ -47,6 +49,7 @@ public static class AddClubPlayer
         };
         db.Players.Add(player);
         db.ClubMemberships.Add(ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
+        await ClubAdmission.AdmitNewPlayerAsync(db, player.UserId, email, player.Id, now, cancellationToken, except: clubId);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

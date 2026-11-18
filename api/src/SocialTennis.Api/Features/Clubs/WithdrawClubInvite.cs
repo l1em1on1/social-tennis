@@ -5,9 +5,9 @@ using SocialTennis.Api.Data;
 namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
-/// A Manager takes back an invite. Players already let in by it stay members:
-/// removing someone is <see cref="RemoveClubMember"/>. From now on that email's
-/// Players have to ask like anyone else. Withdrawing one already gone is fine.
+/// A Manager takes back an invite nobody has used yet (a used one is gone
+/// already, #164). That email's Players then have to ask like anyone else.
+/// Withdrawing one already gone is fine.
 /// </summary>
 public static class WithdrawClubInvite
 {

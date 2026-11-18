@@ -1,9 +1,9 @@
 namespace SocialTennis.Api.Domain;
 
 /// <summary>
-/// An email address a Manager has let into a Club ahead of time. Every Player
-/// held by the User with that email is a member without asking: Players they
-/// already have when the invite is made, and Players they add later.
+/// An email address a Manager has let into a Club ahead of time, waiting for
+/// its User's first Player. It is used up (deleted) as soon as it lets a Player
+/// in, so it exists only while that User holds no member of the Club (#164).
 /// </summary>
 public class ClubInvite
 {

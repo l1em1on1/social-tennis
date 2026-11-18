@@ -40,7 +40,7 @@ interface MockPlayer {
  * Player asked for in another.
  */
 const playersBySession = new Map<string, MockPlayer[]>();
-/** Invites by email. */
+/** Invites by email: used up (deleted) as one lets a Player in (#164). */
 const invitedEmails = new Map<string, { id: string; invitedAt: string }>();
 let invitesMade = 0;
 let sessions = 0;
@@ -237,13 +237,13 @@ export const handlers = [
     return response(204).empty();
   }),
 
-  // Asking to join: waits for a Manager unless the email was invited.
+  // Asking to join: waits for a Manager unless the email was invited, which uses the invite up.
   http.put("/clubs/{clubId}/members/{playerId}", ({ request, params, response }) => {
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
     if (!player || params.clubId !== MOCK_CLUB.id) {
       return response(404).empty();
     }
-    player.membership ??= { approved: invitedEmails.has(player.email), requestedAt: new Date().toISOString() };
+    player.membership ??= { approved: invitedEmails.delete(player.email), requestedAt: new Date().toISOString() };
     return response(204).empty();
   }),
 
@@ -266,10 +266,9 @@ export const handlers = [
         rating: player.rating,
         requestedAt: player.membership!.requestedAt,
       }));
-    const joined = new Set(members.filter((member) => member.approved).map((member) => member.email));
     return response(200).json({
       members,
-      invites: [...invitedEmails].map(([email, invite]) => ({ ...invite, email, joined: joined.has(email) })),
+      invites: [...invitedEmails].map(([email, invite]) => ({ ...invite, email })),
       page: wholeList(members.length),
     });
   }),
@@ -287,7 +286,7 @@ export const handlers = [
     const player = allPlayers().find((candidate) => candidate.id === params.playerId);
     if (player) {
       delete player.membership;
-      // Removal withdraws the invite too, or it would let them straight back in.
+      // As the API: any invite left for the email goes too.
       invitedEmails.delete(player.email);
     }
     return response(204).empty();
@@ -318,8 +317,10 @@ export const handlers = [
     };
     // It waits for the next sign-in with that email. The mock's Players
     // belong to a session, not an email, so one already signed in doesn't
-    // receive it as it would with the real API.
+    // receive it as it would with the real API. In the Club now, so an
+    // invite for the email is used up.
     addedByManager.push(player);
+    invitedEmails.delete(email);
     return response(201).json({ playerId: player.id, name: player.name });
   }),
 
@@ -328,14 +329,19 @@ export const handlers = [
     if (!email.includes("@")) {
       return response(400).json(invalid("email"), problemJson);
     }
-    if (!invitedEmails.has(email)) {
+    // Players the email already holds are let in now, and nothing is kept;
+    // otherwise the invite waits for the first one.
+    const held = allPlayers().filter((candidate) => candidate.email === email);
+    for (const player of held) {
+      player.membership = { approved: true, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
+    }
+    if (held.length > 0) {
+      invitedEmails.delete(email);
+    } else if (!invitedEmails.has(email)) {
       invitedEmails.set(email, {
         id: `00000000-0000-4000-8000-1${String((invitesMade += 1)).padStart(11, "0")}`,
         invitedAt: new Date().toISOString(),
       });
-    }
-    for (const player of allPlayers().filter((candidate) => candidate.email === email)) {
-      player.membership = { approved: true, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
     }
     return response(204).empty();
   }),
@@ -649,6 +655,9 @@ export const handlers = [
       return response(400).json(invalid("name"), problemJson);
     }
     const email = emailOf(request);
+    // In the Club from the start if the email was invited (used up now), or
+    // if the User already holds a member (#164).
+    const admitted = invitedEmails.delete(email) || playersOf(request).some((held) => held.membership?.approved);
     const player: MockPlayer = {
       id: nextPlayerId(),
       name,
@@ -656,8 +665,7 @@ export const handlers = [
       level: body.level ?? null,
       rating: 1,
       email,
-      // Invited ahead of time: in the Club from the start.
-      membership: invitedEmails.has(email) ? { approved: true, requestedAt: new Date().toISOString() } : undefined,
+      membership: admitted ? { approved: true, requestedAt: new Date().toISOString() } : undefined,
     };
     playersOf(request).push(player);
     return response(201).json({ id: player.id, name: player.name });

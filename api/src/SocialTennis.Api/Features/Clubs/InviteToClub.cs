@@ -9,11 +9,13 @@ using SocialTennis.Api.Membership;
 namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
-/// A Manager lets an email address into a Club ahead of time. Players that
-/// email's User already holds become members now, including any whose request
-/// was waiting; Players they add later become members as they are added
-/// (<see cref="Players.CreatePlayer"/>). No email is sent: the person just
-/// signs in. Inviting the same address twice is the same as once.
+/// A Manager lets an email address into a Club ahead of time. If that email's
+/// User already holds Players, they become members now, including any whose
+/// request was waiting, and nothing is kept: the invite is used up at once.
+/// Otherwise the invite waits for the first Player, who joins as it is added
+/// (<see cref="ClubAdmission.AdmitNewPlayerAsync"/>), and later Players follow
+/// it in (#164). No email is sent: the person just signs in. Inviting the same
+/// address twice is the same as once.
 /// </summary>
 public static class InviteToClub
 {
@@ -36,11 +38,6 @@ public static class InviteToClub
         // another Manager inviting the same address.
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
 
-        if (!await db.ClubInvites.AnyAsync(i => i.ClubId == clubId && i.Email == email, cancellationToken))
-        {
-            db.ClubInvites.Add(new ClubInvite { Id = Guid.NewGuid(), ClubId = clubId, Email = email, CreatedAt = now });
-        }
-
         var players = await db.Players
             .Where(p => p.User.Email == email)
             .Select(p => new { p.Id, IsMember = p.Memberships.Any(m => m.ClubId == clubId) })
@@ -57,6 +54,16 @@ public static class InviteToClub
         await db.ClubMemberships
             .Where(m => m.ClubId == clubId && waiting.Contains(m.PlayerId))
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
+
+        // An invite exists only while its User holds no member of the Club.
+        if (players.Count > 0)
+        {
+            await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId);
+        }
+        else if (!await db.ClubInvites.AnyAsync(i => i.ClubId == clubId && i.Email == email, cancellationToken))
+        {
+            db.ClubInvites.Add(new ClubInvite { Id = Guid.NewGuid(), ClubId = clubId, Email = email, CreatedAt = now });
+        }
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
