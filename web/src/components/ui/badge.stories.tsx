@@ -21,7 +21,7 @@ export const Tones: Story = {
   ),
 };
 
-/** A Game's result status (CONTEXT.md, Result status). */
+/** Where a Game's result stands (CONTEXT.md: Game, Score, Retirement, Walkover, Void). */
 export const ResultStatuses: Story = {
   args: { children: "" },
   render: () => (

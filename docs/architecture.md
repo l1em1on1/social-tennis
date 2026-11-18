@@ -255,7 +255,7 @@ One compose file is the truth for topology; overlays change *how* services run, 
 
 **Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` image is chiseled, with no shell, curl or wget (#25), so its probe is the app itself: `dotnet SocialTennis.Api.dll healthcheck` requests `/health/ready` and exits 0 or 1 without building a host. Under the dev overlay, which runs the SDK image, the probe calls `/health/ready` over bash's `/dev/tcp` instead. The web probe requests `/login` on loopback; the image sets `HOSTNAME=0.0.0.0` so the standalone server listens on all interfaces rather than only the container's own name. `start_period` is 180s to cover the dev overlay's first restore and compile.
 
-Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries), `storybook_node_modules` (the same, for the long-running Storybook server, so an e2e `npm ci` can't replace it mid-run).
+Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries), `storybook_node_modules` and `chromatic_node_modules` (the same, one each, so no service's `npm ci` replaces another's install mid-run).
 
 ### Docker Sandbox
 
