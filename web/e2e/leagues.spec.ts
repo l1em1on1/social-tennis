@@ -58,11 +58,13 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   await expect(card.getByRole("button", { name: `Ask to join ${league}` })).toHaveCount(0);
   await expectNoSeriousA11yViolations(page);
 
-  // The Manager sees it waiting, and approves it.
+  // The Manager sees it waiting, and approves it. No Rating on requests or players (#161).
   await manager.reload();
+  await expect(manager.getByText(/\brating\b/i)).toHaveCount(0);
   await manager.getByRole("button", { name: `Approve ${robin}` }).click();
   await expect(manager.getByRole("button", { name: `Approve ${robin}` })).toHaveCount(0);
   await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(robin);
+  await expect(manager.getByText(/\brating\b/i)).toHaveCount(0);
   await managerContext.close();
 
   await page.reload();

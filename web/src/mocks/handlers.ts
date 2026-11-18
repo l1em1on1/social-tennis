@@ -679,18 +679,7 @@ export const handlers = [
     return response(204).empty();
   }),
 
-  http.put("/players/{playerId}/rating", async ({ request, params, response }) => {
-    const { rating } = await request.json();
-    if (typeof rating !== "number" || rating < 1 || rating > 10_000) {
-      return response(400).json(invalid("rating"), problemJson);
-    }
-    const player = allPlayers().find((candidate) => candidate.id === params.playerId);
-    if (!player) {
-      return response(404).empty();
-    }
-    player.rating = rating;
-    return response(204).empty();
-  }),
+  // No PUT /players/{playerId}/rating: Rating is hidden from the UI for now (#161), so nothing calls it.
 
   http.delete("/players/{playerId}/clubs/{clubId}", ({ request, params, response }) => {
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);

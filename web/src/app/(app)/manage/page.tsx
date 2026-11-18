@@ -13,7 +13,6 @@ import {
   approveClubMember,
   inviteToClub,
   removeClubMember,
-  setPlayerRating,
   withdrawClubInvite,
 } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
@@ -25,7 +24,6 @@ export const metadata: Metadata = { title: "Manage" };
 const errors: Record<string, { title: string; description: string }> = {
   email: { title: "That email address didn't work", description: "Check it and try again." },
   player: { title: "That player wasn't added", description: "Enter a name and a valid email address." },
-  rating: { title: "That rating didn't save", description: "Enter a whole number from 1 to 10000." },
 };
 
 /** Members by the email of the login holding them, in the order the logins first appear. */
@@ -40,9 +38,9 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
 /**
  * Manager area: each Club's Leagues (each opens its own page, #5), and who is
  * in the Club. Requests to join are approved or declined here, Players added
- * by name and email, Ratings set, members removed, and an email let in ahead
- * of time (or that invite taken back). Starting the ladder (#7), the to-do
- * queue and month close land here later.
+ * by name and email, members removed, and an email let in ahead of time (or
+ * that invite taken back). Starting the ladder (#7), the to-do queue and month
+ * close land here later. Rating is hidden from the UI for now (#161, ADR-0007).
  *
  * Hidden from the nav for non-Managers, and refused here too, since a URL can
  * be typed. The API is the real gate: it refuses each call by role.
@@ -79,7 +77,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
       {problem && <ErrorState title={problem.title} description={problem.description} />}
       {typeof added === "string" && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
-          <strong>{added}</strong> is added, with a rating of 1.
+          <strong>{added}</strong> is added.
         </p>
       )}
       {typeof invited === "string" && (
@@ -187,8 +185,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                       </div>
                       <ul aria-label={`Players of ${email}`} className="flex flex-col">
                         {held.map((member) => (
-                          // Keyed by the Rating too: saving one remounts the row, so its sheet starts closed.
-                          <li key={`${member.playerId}:${member.rating}`} className="flex flex-col gap-2 py-2">
+                          <li key={member.playerId} className="flex flex-col gap-2 py-2">
                             <div>
                               <p className="font-medium">{member.name}</p>
                               <p className="text-sm text-fg-muted">
@@ -198,41 +195,6 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Sheet
-                                title={`Rating for ${member.name}`}
-                                trigger={
-                                  <>
-                                    Rating {member.rating}
-                                    <span className="sr-only"> for {member.name}. Change</span>
-                                  </>
-                                }
-                              >
-                                <form action={setPlayerRating} className="flex flex-col gap-4">
-                                  <input type="hidden" name="playerId" value={member.playerId} />
-                                  <Field
-                                    id={`rating-${club.id}-${member.playerId}`}
-                                    label="Rating"
-                                    hint="Set by hand, from 1 up. It seeds brackets and balances social games; nothing changes it automatically."
-                                  >
-                                    {(control) => (
-                                      <Input
-                                        {...control}
-                                        name="rating"
-                                        type="number"
-                                        inputMode="numeric"
-                                        required
-                                        min={1}
-                                        max={10000}
-                                        step={1}
-                                        defaultValue={Number(member.rating)}
-                                      />
-                                    )}
-                                  </Field>
-                                  <SubmitButton fullWidth pendingLabel="Saving…">
-                                    Save rating
-                                  </SubmitButton>
-                                </form>
-                              </Sheet>
                               {/* Behind a sheet: removing is one tap away from a name in a list. */}
                               <Sheet
                                 title={`Remove ${member.name}?`}

@@ -12,7 +12,7 @@ export interface PlayerClub {
 /** What a Player plays as, for men's, women's and mixed leagues. */
 export type PlayerGender = "Male" | "Female";
 
-/** One of the User's Players: who they are, and which Clubs they are in. No Rating: Managers see that. */
+/** One of the User's Players: who they are, and which Clubs they are in. No Rating: the holder's routes don't return it. */
 export interface PlayerSummary {
   id: string;
   name: string;
