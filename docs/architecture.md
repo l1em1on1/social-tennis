@@ -172,7 +172,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
 │   └── ui/                     Phase 1 clickable wireframes (one static HTML file, app tokens) — design, not app code; published to GitHub Pages
-├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e profiles)
+├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e, storybook profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
 ├── scripts/setup-hosting.sh    one-time hosting setup wizard (accounts, state storage, GitHub identity)
@@ -255,7 +255,7 @@ One compose file is the truth for topology; overlays change *how* services run, 
 
 **Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` image is chiseled, with no shell, curl or wget (#25), so its probe is the app itself: `dotnet SocialTennis.Api.dll healthcheck` requests `/health/ready` and exits 0 or 1 without building a host. Under the dev overlay, which runs the SDK image, the probe calls `/health/ready` over bash's `/dev/tcp` instead. The web probe requests `/login` on loopback; the image sets `HOSTNAME=0.0.0.0` so the standalone server listens on all interfaces rather than only the container's own name. `start_period` is 180s to cover the dev overlay's first restore and compile.
 
-Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries).
+Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries), `storybook_node_modules` (the same, for the long-running Storybook server, so an e2e `npm ci` can't replace it mid-run).
 
 ### Docker Sandbox
 
@@ -429,7 +429,7 @@ flowchart LR
     WE --> A2["api"] --> DB2[("postgres: tennis")]
     E -.->|"real logins: seed the<br/>magic-link token hash"| DB2
     E -->|"mock project:<br/>DOM archives"| AR[/"web/test-results/<br/>chromatic-archives"/]
-    AR --> C["chromatic (profile e2e)<br/>npx chromatic --playwright"] --> CH(["Chromatic<br/>visual review"])
+    AR --> C["chromatic (profiles e2e, storybook)<br/>npx chromatic --playwright"] --> CH(["Chromatic<br/>visual review"])
 ```
 
 - **Two projects, one suite.** Every spec runs against `web-mock` (no API) and `web-e2e` (real API and Postgres) unless it opts out. Both are production builds served under their compose hostnames.
@@ -443,11 +443,11 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    SB["storybook (profile storybook)<br/>npm run build-storybook"] --> ST[/"web/storybook-static"/]
-    ST --> C2["chromatic (profile storybook)<br/>npx chromatic --storybook-build-dir"] --> CH2(["Chromatic Storybook project<br/>light + dark at 360px"])
+    SB["storybook (profile storybook)<br/>own node_modules volume<br/>npm run build-storybook"] --> ST[/"web/storybook-static"/]
+    ST --> C2["chromatic (profiles e2e, storybook)<br/>npx chromatic --storybook-build-dir"] --> CH2(["Chromatic Storybook project<br/>light + dark at 360px"])
 ```
 
-- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have none. Manager pages get page snapshots in #187.
+- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have none yet (#189). Manager pages get page snapshots in #187.
 - **Setup.** `@storybook/nextjs-vite` with `nextjs.appDirectory` (mocks for `next/link`, `next/form`, `usePathname`). `preview.tsx` imports `globals.css` and sets the Geist variables the root layout would.
 - **Modes.** Each story is snapshotted twice, `light` and `dark`: Chromatic's `colorScheme` sets `prefers-color-scheme`, which swaps the tokens.
 - **A second Chromatic project.** Chromatic keeps Storybook and Playwright builds in separate projects linked to the same repo, so the upload uses `CHROMATIC_STORYBOOK_PROJECT_TOKEN`, and each project posts its own checks. Until that secret is set, CI builds the stories and skips the upload.

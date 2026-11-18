@@ -143,14 +143,16 @@ services:
   # Storybook project with that project's token:
   #   CHROMATIC_PROJECT_TOKEN=<storybook project token> docker compose --profile storybook \
   #     run --rm --no-deps chromatic npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
-  # Same image and node_modules volume as e2e and chromatic (glibc).
+  # Same image as e2e and chromatic (glibc), with its own node_modules volume.
   storybook:
     image: mcr.microsoft.com/playwright:v1.65.1-noble
     profiles: ["storybook"]
     working_dir: /src
     volumes:
       - ./web:/src
-      - e2e_node_modules:/src/node_modules
+      # Its own install: the dev server keeps running while e2e's `npm ci` would
+      # replace e2e_node_modules under it.
+      - storybook_node_modules:/src/node_modules
     ports:
       - "6006:6006"
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
@@ -188,3 +190,4 @@ volumes:
   pgdata:
   nuget:
   e2e_node_modules:
+  storybook_node_modules:
