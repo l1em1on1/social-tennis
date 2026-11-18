@@ -172,7 +172,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
 │   └── ui/                     Phase 1 clickable wireframes (one static HTML file, app tokens) — design, not app code; published to GitHub Pages
-├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e profiles)
+├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e, storybook profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
 ├── scripts/setup-hosting.sh    one-time hosting setup wizard (accounts, state storage, GitHub identity)
@@ -216,6 +216,7 @@ Statuses that come from middleware rather than a handler are put into the docume
     ├── Dockerfile              multi-stage: node:24-alpine build → standalone runtime as `node`; MOCK_API build arg
     ├── next.config.ts          output: "standalone"; MOCK_API inlined via env; static security headers
     ├── playwright.config.ts    E2E projects: mock (web-mock) and real (web-e2e)
+    ├── .storybook/             Storybook (#46): main.ts, preview.tsx (globals.css, Geist), modes.ts (light/dark at 360px)
     ├── e2e/                    Playwright specs; support/ (login, axe, stack readiness)
     └── src/
         ├── proxy.ts            route gate + CSP nonce and HSTS (Next 16 middleware successor)
@@ -226,8 +227,8 @@ Statuses that come from middleware rather than a handler are put into the docume
         │   ├── auth/verify/    magic-link landing page; its "Sign in" button redeems the token
         │   └── health/         route handler: 200 when web reaches the API (the deploy check)
         ├── components/
-        │   ├── ui/             owned primitives (ADR-0014)
-        │   ├── shell/          bottom nav, Player switcher
+        │   ├── ui/             owned primitives (ADR-0014), each with a *.stories.tsx
+        │   ├── shell/          bottom nav (with stories), Player switcher
         │   └── league-setup-form.tsx   the one client-state form: fields that depend on each other
         ├── mocks/              MSW handlers (openapi-msw) + Node server
         └── lib/
@@ -254,7 +255,7 @@ One compose file is the truth for topology; overlays change *how* services run, 
 
 **Healthchecks.** `postgres`, `api` and every web service declare one, and each `depends_on` waits for `service_healthy`, so `docker compose up` brings the stack up in order and `docker compose ps` shows what isn't ready. The `api` image is chiseled, with no shell, curl or wget (#25), so its probe is the app itself: `dotnet SocialTennis.Api.dll healthcheck` requests `/health/ready` and exits 0 or 1 without building a host. Under the dev overlay, which runs the SDK image, the probe calls `/health/ready` over bash's `/dev/tcp` instead. The web probe requests `/login` on loopback; the image sets `HOSTNAME=0.0.0.0` so the standalone server listens on all interfaces rather than only the container's own name. `start_period` is 180s to cover the dev overlay's first restore and compile.
 
-Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries).
+Named volumes: `pgdata` (database, survives restarts; `down -v` resets), `nuget` (package cache), `web_node_modules` (keeps `node_modules` off the Windows bind mount), `e2e_node_modules` (the Playwright runner's own install: Ubuntu/glibc, where `web_node_modules` holds Alpine/musl binaries), `storybook_node_modules` and `chromatic_node_modules` (the same, one each, so no service's `npm ci` replaces another's install mid-run).
 
 ### Docker Sandbox
 
@@ -428,7 +429,7 @@ flowchart LR
     WE --> A2["api"] --> DB2[("postgres: tennis")]
     E -.->|"real logins: seed the<br/>magic-link token hash"| DB2
     E -->|"mock project:<br/>DOM archives"| AR[/"web/test-results/<br/>chromatic-archives"/]
-    AR --> C["chromatic (profile e2e)<br/>npx chromatic --playwright"] --> CH(["Chromatic<br/>visual review"])
+    AR --> C["chromatic (profiles e2e, storybook)<br/>npx chromatic --playwright"] --> CH(["Chromatic<br/>visual review"])
 ```
 
 - **Two projects, one suite.** Every spec runs against `web-mock` (no API) and `web-e2e` (real API and Postgres) unless it opts out. Both are production builds served under their compose hostnames.
@@ -436,7 +437,22 @@ flowchart LR
 - **Accessibility.** `@axe-core/playwright` fails a test on any *serious* or *critical* WCAG 2.1 A/AA violation. The `/dev/ui` showcase is checked in both colour schemes, and that's what keeps the token pairings at AA contrast.
 - **Real-API login without an inbox.** The E2E stack runs the `Log` email provider, so no email is sent. The test submits the real login form, then replaces the newest unused `MagicLinkTokens.TokenHash` for that email with SHA-256 of a token it knows (a persona with roles gets its User inserted first, since asking for a link creates none), opens `/auth/verify` with it and presses "Sign in". One test first fetches the link with a bare GET, as a mail scanner would, and checks it still signs in. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that this one helper (`e2e/support/auth.ts`) knows two table names.
 - **Readiness.** Compose holds the runner until `web-e2e`, `web-mock` and (through `web-e2e`) `api` are healthy. `e2e/support/global-setup.ts` repeats the wait against `/login` and the API's `/health/ready`, for runs that bypass compose's ordering (`--no-deps`, or `E2E_*_URL` overrides).
-- **Visual review (ADR-0015).** Specs import `test` from `@chromatic-com/playwright`, which archives each mock-project test's final page (plus explicit `takeSnapshot`s). The `chromatic` compose service uploads them; Chromatic diffs against the accepted baselines and its "UI Tests" check gates the PR. Dependabot PRs aren't visually reviewed: they get no Chromatic token, so the `ui-tests-dependabot` job reports "UI Tests" as passed, described as not run (#158). The real project doesn't snapshot (its data changes every run), and neither does dark mode (Playwright archives replay without `emulateMedia`). Mock logins use a fixed `<persona>@example.com` so snapshots are stable.
+- **Visual review (ADR-0015).** Specs import `test` from `@chromatic-com/playwright`, which archives each mock-project test's final page (plus explicit `takeSnapshot`s). The `chromatic` compose service uploads them; Chromatic diffs against the accepted baselines and its "UI Tests: social-tennis" check gates the PR (with two projects linked, Chromatic names each check after its project). Dependabot PRs aren't visually reviewed: they get no Chromatic token, so the `ui-tests-dependabot` job reports both projects' checks as passed, described as not run (#158). The real project doesn't snapshot (its data changes every run), and neither does dark mode (Playwright archives replay without `emulateMedia`): the stories below cover it. Mock logins use a fixed `<persona>@example.com` so snapshots are stable.
+
+### Component stories: Storybook (#46)
+
+```mermaid
+flowchart LR
+    SB["storybook (profile storybook)<br/>own node_modules volume<br/>npm run build-storybook"] --> ST[/"web/storybook-static"/]
+    ST --> C2["chromatic (profiles e2e, storybook)<br/>npx chromatic --storybook-build-dir"] --> CH2(["Chromatic Storybook project<br/>light + dark at 360px"])
+```
+
+- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have none yet (#189). Manager pages get page snapshots in #187.
+- **Setup.** `@storybook/nextjs-vite` with `nextjs.appDirectory` (mocks for `next/link`, `next/form`, `usePathname`). `preview.tsx` imports `globals.css` and sets the Geist variables the root layout would.
+- **Modes.** Each story is snapshotted twice, `light` and `dark`: Chromatic's `colorScheme` sets `prefers-color-scheme`, which swaps the tokens.
+- **A second Chromatic project.** Chromatic keeps Storybook and Playwright builds in separate projects linked to the same repo, so the upload uses `CHROMATIC_STORYBOOK_PROJECT_TOKEN`, and each project posts its own checks. Until that secret is set, CI builds the stories and skips the upload.
+- **Not in the app.** `.dockerignore` keeps `.storybook/` and the stories out of the production image, so `next build` doesn't type-check them; the CI job runs `tsc` for that.
+- **The `/dev/ui` showcase stays** (owner, 2026-11-18): its spec runs axe on every primitive in both colour schemes.
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.
 
@@ -458,11 +474,12 @@ flowchart LR
         T5["lint<br/>npm run lint (eslint)"]
         T3["build<br/>docker compose build web<br/>+ assert no MSW in the image<br/>+ scripts/scan-image.sh (Trivy)"]
         T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>then run --rm --no-deps chromatic (if token set)<br/>report uploaded on failure"]
+        T7["storybook<br/>build-storybook + tsc in the storybook service<br/>then chromatic --storybook-build-dir (if token set)"]
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
 
-**Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip`, because Chromatic's own "UI Tests" check is only posted when a build is published and would otherwise stay unreported.
+**Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip` for each Chromatic project that has a token, because Chromatic's own "UI Tests: <project>" checks are only posted when a build is published or skipped, and would otherwise stay unreported.
 
 **Image scan** (#114). Both production images are scanned as CI builds them: `web` in the build job, `api` in its own `image-scan` job. `scripts/scan-image.sh` runs Trivy from its official image, pinned by digest (Trivy's own release channels were compromised once, GHSA-69fq-xp46-6x23, so a tag alone isn't trusted). It fails on a **critical** vulnerability **that has a fix**; anything without a fix, or below critical, is reported only by Dependabot alerts and the monthly base-image PRs. An accepted finding goes in `.trivyignore.yaml` with a statement and an `expired_at` review date, after which Trivy stops honouring it and the scan fails again. The scan runs when its app's files change, so a vulnerability published later shows up on the next PR that touches that app, or the next base-image PR. Locally: `docker compose build api && scripts/scan-image.sh social-tennis-api`.
 
@@ -501,6 +518,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
 | chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
+| storybook / @storybook/nextjs-vite / vite | 10.6.7 / 10.6.7 / 8.3.8 | Exact pins (#46). `storybook` is a direct dependency and also in `overrides`; the two must stay equal, or npm refuses the install |
 | TypeScript (language server only) | 5.x | sbx `toolchain` kit; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | sbx `rtk` kit; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest"; it checks the release checksum |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |

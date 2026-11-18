@@ -136,6 +136,28 @@ services:
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
     command: ["npx", "playwright", "test"]
 
+  # Storybook (#46): stories for the visual components, light and dark.
+  #   docker compose --profile storybook up storybook          dev server, http://localhost:6006
+  #   docker compose --profile storybook run --rm storybook npm run build-storybook
+  # The build lands in web/storybook-static, which `chromatic` uploads to the
+  # Storybook project with that project's token:
+  #   CHROMATIC_PROJECT_TOKEN=<storybook project token> docker compose --profile storybook \
+  #     run --rm --no-deps chromatic npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
+  # Same image as e2e and chromatic (glibc), with its own node_modules volume.
+  storybook:
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
+    profiles: ["storybook"]
+    working_dir: /src
+    volumes:
+      - ./web:/src
+      # Its own install, so another service's `npm ci` can't replace it while
+      # the dev server runs.
+      - storybook_node_modules:/src/node_modules
+    ports:
+      - "6006:6006"
+    entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
+    command: ["npm", "run", "storybook"]
+
   # Visual review (ADR-0015): uploads the DOM archives the e2e run left in
   # web/test-results/chromatic-archives. Run it after `run --rm e2e`:
   #   CHROMATIC_PROJECT_TOKEN=... docker compose --profile e2e run --rm --no-deps chromatic
@@ -143,11 +165,13 @@ services:
   # build to its commit and find baselines. Same image as e2e (it has git).
   chromatic:
     image: mcr.microsoft.com/playwright:v1.65.1-noble
-    profiles: ["e2e"]
+    profiles: ["e2e", "storybook"]
     working_dir: /repo/web
     volumes:
       - .:/repo
-      - e2e_node_modules:/repo/web/node_modules
+      # Its own install: its `npm ci` must not replace e2e's or storybook's
+      # node_modules while either is running.
+      - chromatic_node_modules:/repo/web/node_modules
     environment:
       CHROMATIC_PROJECT_TOKEN: ${CHROMATIC_PROJECT_TOKEN:-}
       # Set by CI; empty locally, where the CLI reads them from git.
@@ -168,3 +192,5 @@ volumes:
   pgdata:
   nuget:
   e2e_node_modules:
+  storybook_node_modules:
+  chromatic_node_modules:
