@@ -12,11 +12,11 @@ test("the privacy notice opens from the login page without signing in", async ({
 
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByRole("heading", { name: "Privacy notice", level: 1 })).toBeVisible();
-  // From configuration: compose sets this address for the e2e builds.
-  await expect(page.getByRole("link", { name: "privacy@example.com" })).toHaveAttribute(
-    "href",
-    "mailto:privacy@example.com",
-  );
+  // From configuration: compose sets this address for the e2e builds. Shown
+  // under "Who we are" and under deleting your data.
+  const contact = page.getByRole("link", { name: "privacy@example.com" });
+  await expect(contact).toHaveCount(2);
+  await expect(contact.first()).toHaveAttribute("href", "mailto:privacy@example.com");
   await expectNoSeriousA11yViolations(page);
 });
 
