@@ -8,7 +8,13 @@ import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { addLeagueParticipant, approveLeagueJoinRequest, rejectLeagueJoinRequest, renameLeague } from "@/lib/actions";
+import {
+  addLeagueParticipant,
+  approveLeagueJoinRequest,
+  rejectLeagueJoinRequest,
+  removeLeagueParticipant,
+  renameLeague,
+} from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
@@ -53,6 +59,9 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   const pending = league.joinRequests.filter((request) => request.status === "Pending");
   const decided = league.joinRequests.filter((request) => request.status !== "Pending");
   const inLeague = new Set(league.participants.map((participant) => participant.playerId));
+  // Removal keeps a rejected request, and the API refuses a second ask (409), so
+  // a Player who was turned down can only be added back.
+  const turnedDown = new Set(decided.filter((request) => request.status === "Rejected").map((request) => request.playerId));
   const addable = members.members.filter((member) => member.approved && !inLeague.has(member.playerId));
 
   return (
@@ -182,7 +191,32 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                   <p className="font-medium">{participant.name}</p>
                   <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
                 </div>
-                <span className="font-mono text-sm">{participant.rating}</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-mono text-sm">{participant.rating}</span>
+                  {/* Behind a sheet: removing is one tap away from a name in a list. */}
+                  <Sheet
+                    title={`Remove ${participant.name}?`}
+                    trigger={
+                      <>
+                        Remove<span className="sr-only"> {participant.name}</span>
+                      </>
+                    }
+                  >
+                    <p className="text-fg-muted">
+                      {participant.name} will no longer be in {league.name}.{" "}
+                      {turnedDown.has(participant.playerId)
+                        ? "Their request to join was turned down, so they can't ask again, but you can add them back."
+                        : "They can ask to join again, or you can add them back."}
+                    </p>
+                    <form action={removeLeagueParticipant}>
+                      <input type="hidden" name="leagueId" value={league.id} />
+                      <input type="hidden" name="playerId" value={participant.playerId} />
+                      <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                        Remove from league
+                      </SubmitButton>
+                    </form>
+                  </Sheet>
+                </div>
               </li>
             ))}
           </ul>

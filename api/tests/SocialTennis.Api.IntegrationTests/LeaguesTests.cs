@@ -191,6 +191,7 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/approval", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/rejection", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PutAsJsonAsync($"/leagues/{leagueId}", new { name = "Mine" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await player.DeleteAsync($"/leagues/{leagueId}/participants/{playerId}")).StatusCode);
 
         // Nothing changed.
         var league = await LeagueAsync(manager, leagueId);
@@ -396,6 +397,7 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/clubs/{missing}/leagues")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/leagues/{missing}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await manager.PutAsJsonAsync($"/leagues/{missing}", new { name = "Spring" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.DeleteAsync($"/leagues/{missing}/participants/{Guid.NewGuid()}")).StatusCode);
     }
 
     [Fact]
@@ -452,5 +454,65 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
             await manager.PutAsJsonAsync($"/leagues/{leagueId}", new { name = new string('a', League.NameMaxLength + 1) }));
 
         Assert.Contains("200", Assert.Single(problem.Errors["name"]));
+    }
+
+    [Fact]
+    public async Task A_Manager_removes_a_participant_who_can_then_ask_again()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (player, playerId) = await MemberAsync(manager, clubId, "Robin");
+        var (other, otherId) = await MemberAsync(manager, clubId, "Sam");
+        (await AskAsync(player, leagueId, playerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/approval", null)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/leagues/{leagueId}/participants/{otherId}", null)).EnsureSuccessStatusCode();
+
+        var response = await manager.DeleteAsync($"/leagues/{leagueId}/participants/{playerId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var league = await LeagueAsync(manager, leagueId);
+        Assert.Equal([otherId], league.Participants.Select(p => p.PlayerId));
+        Assert.DoesNotContain(league.JoinRequests, r => r.PlayerId == playerId);
+        var seen = Assert.Single(await PlayerLeaguesAsync(player, playerId));
+        Assert.Equal((false, (PlayerLeagueJoinRequest?)null), (seen.Joined, seen.JoinRequest));
+
+        // Back where they were before asking: they may ask again, and a Manager decides.
+        Assert.Equal(HttpStatusCode.NoContent, (await AskAsync(player, leagueId, playerId)).StatusCode);
+        Assert.Equal(
+            LeagueJoinRequestStatus.Pending,
+            Assert.Single((await LeagueAsync(manager, leagueId)).JoinRequests, r => r.PlayerId == playerId).Status);
+    }
+
+    [Fact]
+    public async Task Removing_a_Player_who_is_not_in_the_League_changes_nothing()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (player, playerId) = await MemberAsync(manager, clubId);
+        (await AskAsync(player, leagueId, playerId)).EnsureSuccessStatusCode();
+
+        var response = await manager.DeleteAsync($"/leagues/{leagueId}/participants/{playerId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(LeagueJoinRequestStatus.Pending, Assert.Single((await LeagueAsync(manager, leagueId)).JoinRequests).Status);
+    }
+
+    [Fact]
+    public async Task A_Player_turned_down_then_added_then_removed_still_cannot_ask()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (player, playerId) = await MemberAsync(manager, clubId);
+        (await AskAsync(player, leagueId, playerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/leagues/{leagueId}/join-requests/{playerId}/rejection", null)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/leagues/{leagueId}/participants/{playerId}", null)).EnsureSuccessStatusCode();
+
+        (await manager.DeleteAsync($"/leagues/{leagueId}/participants/{playerId}")).EnsureSuccessStatusCode();
+
+        Assert.Equal(LeagueJoinRequestStatus.Rejected, Assert.Single(await PlayerLeaguesAsync(player, playerId)).JoinRequest!.Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await AskAsync(player, leagueId, playerId)).StatusCode);
     }
 }

@@ -106,6 +106,18 @@ test("a rejected Player sees the outcome; a Manager adds a club member straight 
   const players = manager.getByRole("list", { name: "Players in the league" });
   await expect(players).toContainText(ed);
   await expect(players).not.toContainText(dana);
+
+  // Dana, turned down, is added and then removed. Her rejection stays, so the
+  // sheet doesn't promise she can ask again (#168's review), and the end of
+  // this test shows she can't.
+  await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${dana} (${danaEmail})` });
+  await manager.getByRole("button", { name: "Add to league" }).click();
+  await expect(players).toContainText(dana);
+  await manager.getByRole("button", { name: `Remove ${dana}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Remove ${dana}?` });
+  await expect(sheet).toContainText("they can't ask again, but you can add them back");
+  await sheet.getByRole("button", { name: "Remove from league" }).click();
+  await expect(players).not.toContainText(dana);
   await expectNoSeriousA11yViolations(manager);
   await managerContext.close();
 
@@ -190,6 +202,38 @@ test("a Manager renames a League, and its Player sees the new name", async ({ pa
   const mine = page.getByRole("region", { name: `${kim}'s leagues` });
   await expect(mine.getByRole("region", { name: renamed })).toContainText("Joined");
   await expect(page.getByRole("region", { name: league, exact: true })).toHaveCount(0);
+});
+
+test("a Manager removes a Player from a League, and they can ask to join again", async ({ page, browser }, testInfo) => {
+  // Two sign-ins and several round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Removal Ladder");
+  const lee = uniqueName(testInfo, "Lee League");
+  const email = personaEmail(testInfo, "removed");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, lee, email);
+  await createLeague(manager, league);
+  await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${lee} (${email})` });
+  await manager.getByRole("button", { name: "Add to league" }).click();
+  const players = manager.getByRole("list", { name: "Players in the league" });
+  await expect(players).toContainText(lee);
+
+  await manager.getByRole("button", { name: `Remove ${lee}` }).click();
+  const sheet = manager.getByRole("dialog", { name: `Remove ${lee}?` });
+  await expect(sheet).toContainText("They can ask to join again");
+  await expectNoSeriousA11yViolations(manager);
+  await sheet.getByRole("button", { name: "Remove from league" }).click();
+  await expect(manager.getByText("No players yet")).toBeVisible();
+  await managerContext.close();
+
+  await logIn(page, testInfo, email);
+  await page.goto("/leagues");
+  const joinable = page.getByRole("region", { name: "You can join" });
+  await expect(joinable.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
+  await expect(page.getByRole("region", { name: `${lee}'s leagues` }).getByRole("region", { name: league })).toHaveCount(0);
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
