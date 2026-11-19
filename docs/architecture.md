@@ -448,7 +448,7 @@ flowchart LR
     ST --> C2["chromatic (profiles e2e, storybook)<br/>npx chromatic --storybook-build-dir"] --> CH2(["Chromatic Storybook project<br/>light + dark at 360px"])
 ```
 
-- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have none yet (#189). Manager pages get page snapshots in #187.
+- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have stories too (#189): `preview.tsx` registers `sb.mock("../src/lib/actions.ts")`, so stories import `src/lib/__mocks__/actions.ts` instead and the real module, which needs the request and the API, never loads. Its actions never settle, so a pressed button stays pending; `createLeague` returns a refusal, so the setup form shows its errors. Manager pages get page snapshots in #187.
 - **Setup.** `@storybook/nextjs-vite` with `nextjs.appDirectory` (mocks for `next/link`, `next/form`, `usePathname`). `preview.tsx` imports `globals.css` and sets the Geist variables the root layout would.
 - **Modes.** Each story is snapshotted twice, `light` and `dark`: Chromatic's `colorScheme` sets `prefers-color-scheme`, which swaps the tokens.
 - **A second Chromatic project.** Chromatic keeps Storybook and Playwright builds in separate projects linked to the same repo, so the upload uses `CHROMATIC_STORYBOOK_PROJECT_TOKEN`, and each project posts its own checks. Until that secret is set, CI builds the stories and skips the upload.
