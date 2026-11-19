@@ -20,6 +20,9 @@ fi
 dir="$repo/.claude/worktrees/$name"
 
 git -C "$repo" fetch --quiet origin main >&2 || echo "worktree-create: fetch failed; using the last origin/main" >&2
+# A worktree of this name deleted by hand is still registered, and git would
+# refuse to add it again.
+git -C "$repo" worktree prune >&2
 # A branch left by an earlier worktree of this name (the remove hook keeps it,
 # as Claude Code's own worktrees do) is checked out again rather than failing.
 if git -C "$repo" show-ref --verify --quiet "refs/heads/worktree-$name"; then
