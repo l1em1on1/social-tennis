@@ -229,6 +229,9 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         Assert.Equal("http://localhost:3000/auth/verify", link.GetLeftPart(UriPartial.Path));
         Assert.Contains(System.Net.WebUtility.HtmlEncode(link.OriginalString), sent.Html, StringComparison.Ordinal);
         Assert.Contains("expires in 15 minutes", sent.PlainText, StringComparison.Ordinal);
+        // The privacy notice, on the same site as the link (#51).
+        Assert.Contains("http://localhost:3000/privacy", sent.PlainText, StringComparison.Ordinal);
+        Assert.Contains("href=\"http://localhost:3000/privacy\"", sent.Html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -384,6 +384,15 @@ ask TF_VAR_admin_emails "Admin email address(es)"
 write_env TF_VAR_admin_emails "$TF_VAR_admin_emails"
 queue_deploy_secret ADMIN_EMAILS "$TF_VAR_admin_emails"
 
+# ── Where members send data requests ──────────────────────────────────────
+stage "Contact for privacy requests"
+say "The privacy notice (#51) tells members to email this address to see,"
+say "correct or delete their data, so it is shown publicly. Change it later with:"
+say "  gh variable set PRIVACY_CONTACT_EMAIL --body <address>"
+ask TF_VAR_privacy_contact_email "Email address for data requests"
+write_env TF_VAR_privacy_contact_email "$TF_VAR_privacy_contact_email"
+set_var PRIVACY_CONTACT_EMAIL "$TF_VAR_privacy_contact_email"
+
 # ── 7. Let GitHub Actions deploy, with no stored keys ─────────────────────
 stage "An Azure identity for GitHub Actions"
 say "The deploy workflow signs in to Azure with a short-lived token GitHub"

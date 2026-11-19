@@ -76,6 +76,16 @@ variable "admin_emails" {
   sensitive   = true
 }
 
+variable "privacy_contact_email" {
+  description = "Where members send data requests, shown on the privacy notice (#51). Required: the notice must give the controller's contact details."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+$", var.privacy_contact_email))
+    error_message = "Set the PRIVACY_CONTACT_EMAIL repository variable (or TF_VAR_privacy_contact_email in infra/.env) to the address for data requests."
+  }
+}
+
 variable "monthly_budget" {
   description = "Budget for the resource group, in the subscription's billing currency. The alert fires at 100% of it."
   type        = number

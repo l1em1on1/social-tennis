@@ -17,7 +17,9 @@ public interface IMagicLinkSender
 
 /// <summary>
 /// Writes the sign-in email and hands it to <see cref="IEmailSender"/>, which
-/// is the log in dev and a mail provider in production.
+/// is the log in dev and a mail provider in production. It links to the
+/// privacy notice on the same site (#51): a Manager may have added the person
+/// before they ever signed in.
 /// </summary>
 public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions> authOptions) : IMagicLinkSender
 {
@@ -25,6 +27,8 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
     {
         var minutes = authOptions.Value.MagicLinkLifetimeMinutes;
         var htmlLink = WebUtility.HtmlEncode(link);
+        var privacy = new Uri(new Uri(link), "/privacy").ToString();
+        var htmlPrivacy = WebUtility.HtmlEncode(privacy);
 
         // The link sits on a line of its own: mail clients turn it into a
         // link, and the dev log and the tests read it from there.
@@ -34,6 +38,8 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
             {link}
 
             It works once and expires in {minutes} minutes. If you didn't ask for it, you can ignore this email.
+
+            How we use your data: {privacy}
             """;
 
         var html = $"""
@@ -46,6 +52,7 @@ public class EmailMagicLinkSender(IEmailSender emailSender, IOptions<AuthOptions
                 </p>
                 <p>Or copy this address into your browser:<br><a href="{htmlLink}">{htmlLink}</a></p>
                 <p>It works once and expires in {minutes} minutes. If you didn't ask for it, you can ignore this email.</p>
+                <p style="font-size: 14px; color: #555555;"><a href="{htmlPrivacy}">How we use your data</a></p>
               </body>
             </html>
             """;

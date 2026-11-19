@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buttonClasses } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -112,6 +113,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           </SubmitButton>
         </form>
       )}
+      <Link href="/privacy" className="text-center text-sm text-fg-muted underline">
+        Privacy notice
+      </Link>
     </main>
   );
 }

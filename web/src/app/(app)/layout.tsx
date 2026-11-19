@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { BottomNav, type NavKey } from "@/components/shell/bottom-nav";
 import { PlayerSwitcher } from "@/components/shell/player-switcher";
@@ -28,7 +29,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
       {/* Bottom padding clears the fixed navigation bar. */}
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 pt-4 pb-24">{children}</main>
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 pt-4 pb-24">
+        {children}
+        <Link href="/privacy" className="mt-auto pt-4 text-center text-sm text-fg-muted underline">
+          Privacy notice
+        </Link>
+      </main>
       <BottomNav keys={nav} />
     </div>
   );
