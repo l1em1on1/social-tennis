@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -422,6 +423,55 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var players = await PlayersAsync(client);
         Assert.Empty(players.Single(p => p.Id == removed.Id).Clubs);
         Assert.True(Assert.Single(players.Single(p => p.Id == later.Id).Clubs).Approved);
+    }
+
+    /// <summary>
+    /// The UseUpJoinedInvites migration's SQL, run against rows made the way
+    /// the code before #164 left them: it deletes an invite only where the
+    /// User holds a Player in that invite's Club.
+    /// </summary>
+    [Fact]
+    public async Task The_migration_deletes_only_invites_that_let_someone_into_their_Club()
+    {
+        var clubId = await factory.AClubIdAsync();
+        var otherClubId = await NewClubIdAsync();
+        var tag = Guid.NewGuid().ToString("N");
+        string Email(string who) => $"{who}-{tag}@example.test";
+        var now = DateTimeOffset.UtcNow;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            Guid PlayerFor(string who, Guid? memberOf)
+            {
+                var user = new User { Id = Guid.NewGuid(), Email = Email(who), CreatedAt = now };
+                var player = new Player { Id = Guid.NewGuid(), Name = who, UserId = user.Id, CreatedAt = now };
+                db.Users.Add(user);
+                db.Players.Add(player);
+                if (memberOf is { } club)
+                {
+                    db.ClubMemberships.Add(new ClubMembership { ClubId = club, PlayerId = player.Id, Status = ClubMembershipStatus.Active, RequestedAt = now });
+                }
+                return player.Id;
+            }
+            PlayerFor("used", clubId);              // let in by this Club's invite
+            PlayerFor("added-elsewhere", otherClubId); // a Manager added them in another Club
+            PlayerFor("left", null);                // let in, then left
+            foreach (var who in new[] { "used", "added-elsewhere", "left", "no-user" })
+            {
+                db.ClubInvites.Add(new ClubInvite { Id = Guid.NewGuid(), ClubId = clubId, Email = Email(who), CreatedAt = now });
+            }
+            await db.SaveChangesAsync();
+
+            var sql = new SocialTennis.Api.Migrations.UseUpJoinedInvites().UpOperations
+                .OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>()
+                .Single().Sql;
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        using var manager = await factory.CreateManagerClientAsync();
+        var left = (await MembersAsync(manager, clubId)).Invites.Select(i => i.Email).Where(e => e.EndsWith($"-{tag}@example.test", StringComparison.Ordinal)).Order();
+        Assert.Equal(new[] { Email("added-elsewhere"), Email("left"), Email("no-user") }.Order(), left);
     }
 
     /// <summary>
