@@ -10,11 +10,12 @@ namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
 /// One of the signed-in User's Players asks to join a Club. The request waits
-/// for a Manager's approval, unless a Manager has invited the User's email, in
-/// which case the Player is a member at once and the invite is used up (#164).
-/// A sibling Player being a member doesn't let this one in: only Players the
-/// User adds later join on their own, so a Manager's removal sticks. A PUT, so
-/// asking twice is the same as asking once, and never undoes an approval.
+/// for a Manager's approval, unless the User is already in the Club (holds an
+/// approved member of it) or a Manager has invited their email: then the
+/// Player is a member at once, and the invite is used up (#164). The app is
+/// informal, so a User's Players aren't guarded against each other (owner,
+/// 2026-11-19). A PUT, so asking twice is the same as asking once, and never
+/// undoes an approval.
 /// </summary>
 public static class JoinClub
 {
@@ -40,10 +41,13 @@ public static class JoinClub
         if (!await db.ClubMemberships.AnyAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken))
         {
             var invited = await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId) > 0;
+            var userIsIn = await db.ClubMemberships.AnyAsync(
+                m => m.ClubId == clubId && m.Player.UserId == userId && m.Status == ClubMembershipStatus.Active,
+                cancellationToken);
             db.ClubMemberships.Add(ClubAdmission.Membership(
                 clubId,
                 playerId,
-                invited ? ClubMembershipStatus.Active : ClubMembershipStatus.Pending,
+                invited || userIsIn ? ClubMembershipStatus.Active : ClubMembershipStatus.Pending,
                 clock.GetUtcNow()));
             await db.SaveChangesAsync(cancellationToken);
         }

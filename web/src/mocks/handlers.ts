@@ -237,13 +237,18 @@ export const handlers = [
     return response(204).empty();
   }),
 
-  // Asking to join: waits for a Manager unless the email was invited, which uses the invite up.
+  // Asking to join: waits for a Manager, unless the email was invited (which uses the invite up) or the User
+  // (a session, in the mock) already holds an approved member.
   http.put("/clubs/{clubId}/members/{playerId}", ({ request, params, response }) => {
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
     if (!player || params.clubId !== MOCK_CLUB.id) {
       return response(404).empty();
     }
-    player.membership ??= { approved: invitedEmails.delete(player.email), requestedAt: new Date().toISOString() };
+    const userIsIn = playersOf(request).some((held) => held.membership?.approved);
+    player.membership ??= {
+      approved: invitedEmails.delete(player.email) || userIsIn,
+      requestedAt: new Date().toISOString(),
+    };
     return response(204).empty();
   }),
 

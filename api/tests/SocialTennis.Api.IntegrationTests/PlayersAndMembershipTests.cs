@@ -347,7 +347,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task A_sibling_being_a_member_does_not_let_in_a_Player_who_asks()
+    public async Task A_Player_who_asks_is_a_member_at_once_while_a_sibling_is_a_member()
     {
         using var manager = await factory.CreateManagerClientAsync();
         using var client = await factory.CreateSignedInClientAsync();
@@ -359,7 +359,23 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
         await client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null);
 
-        Assert.False(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == asking.Id).Clubs).Approved);
+        // The app is informal: a User in a Club brings all their Players (owner, 2026-11-19).
+        Assert.True(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == asking.Id).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task A_request_still_waiting_lets_no_other_Player_of_the_User_in()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+
+        var added = await CreatePlayerAsync(client, "Added");
+        Assert.Empty((await PlayersAsync(client)).Single(p => p.Id == added.Id).Clubs);
+        await client.PutAsync($"/clubs/{clubId}/members/{added.Id}", null);
+
+        Assert.All(await PlayersAsync(client), p => Assert.False(Assert.Single(p.Clubs).Approved, p.Name));
     }
 
     [Fact]

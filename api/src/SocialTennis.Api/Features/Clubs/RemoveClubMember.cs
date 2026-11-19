@@ -13,8 +13,8 @@ namespace SocialTennis.Api.Features.Clubs;
 /// <remarks>
 /// Any invite left for the holder's email is deleted too, so it can't let the
 /// Player straight back in. Invites are used up on joining (#164), so normally
-/// there is none. The User's other Players stay; a Player they add later joins
-/// while one of them is still a member.
+/// there is none. The User's other Players stay, and while one of them is a
+/// member, this Player can come back by asking (the app is informal).
 /// </remarks>
 public static class RemoveClubMember
 {

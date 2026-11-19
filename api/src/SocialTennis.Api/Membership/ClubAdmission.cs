@@ -8,8 +8,9 @@ namespace SocialTennis.Api.Membership;
 /// <summary>
 /// Who is in a Club without asking (#164). An invite lets in the Players its
 /// email's User holds, and is used up as it does, so invites exist only while
-/// that User holds no Player. After that, every Player the User adds is a
-/// member of each Club they are already in. Applied when
+/// that User holds no Player. A User is in a Club once they hold an approved
+/// member of it; from then on every Player of theirs, added or asking, is a
+/// member at once. A request still waiting doesn't count. Applied when
 /// inviting, adding a Player (the User or a Manager), asking to join and
 /// removing a member, across two features, so it lives here.
 /// </summary>
