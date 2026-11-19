@@ -86,8 +86,43 @@ allow GIT_PAGER=cat git log -1
 allow git -C "$dir" log -1
 allow gh run view 1 --log-failed 2>/dev/null | grep -n Error
 allow git branch --merged main | xargs -n 1 echo
+allow git branch --list "feat/*"
+allow git branch --contains HEAD
+allow git branch -vv
+allow find . -name x -print0 | xargs -0 grep -l Error
+allow gh api -X GET repos/o/r/pulls
+allow cmd >&2
+allow cmd 2>&-
 allow
 # git writes
+# from the second CI review of #194
+block git clone https://github.com/o/r.git
+block git push https://github.com/o/r.git
+block git remote set-url origin git@github.com:o/r.git
+block git submodule add https://github.com/o/r.git
+block git checkout -b legit
+block git commit -am wip --author=digit
+block gh issue edit 5 --add-label high
+block gh pr edit 1 --add-label priority-high
+block docker rm -f my-docker
+block docker volume rm -f vol_docker
+block find . -name x -print0 | xargs -0 rm
+block xargs -0 git branch -D < list
+block git branch --merged main | xargs -n1 git branch -d
+block ls | xargs -I{} rm {}
+block nice -n10 git push
+block timeout -k5 60 git push
+block gh api -X "DELETE" repos/o/r/git/refs/heads/x
+block gh api --method 'PUT' repos/o/r/pulls/1/merge
+block git branch --track tmp origin/main
+block git branch --no-track tmp origin/main
+block git branch -u origin/main
+block git branch -q tmp
+block bash -e -c 'git push'
+block bash -x -c 'git push'
+block sh -e -c 'rm -rf x'
+block bash --norc -c 'git push'
+block echo hi >&out.log
 # from the CI review of #194
 block GIT_EDITOR=true git commit -am x
 block COMPOSE_PROFILES=e2e docker compose run --rm e2e
