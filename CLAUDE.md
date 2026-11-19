@@ -19,7 +19,7 @@ Use the `LSP` tool for questions about a symbol:
 
 The language servers run in the Docker Sandbox (`./sandbox.sh`, `.sbx/README.md`); builds still run in compose. If C# lookups report every package type missing, run `/reload-plugins`. An LSP "command not found" means the session is on the host: say so, and use grep.
 
-Make and remove worktrees through Claude Code (`claude --worktree <name>`) or its hooks, so each gets its packages restored for LSP and its own compose project (`COMPOSE_PROJECT_NAME` in its `.env`): `echo '{"name":"<name>"}' | bash .claude/hooks/worktree-create.sh`, and `echo '{"worktree_path":"<path>"}' | bash .claude/hooks/worktree-remove.sh`. They live in `.claude/worktrees/` (gitignored). Claude Code keeps a subagent's or workflow agent's worktree (`isolation: "worktree"`) when the agent finishes: once its branch is merged or dropped, remove it with the remove hook (`git worktree list` lists them).
+Make and remove worktrees through Claude Code (`claude --worktree <name>`) or its hooks, so each gets its packages restored for LSP and its own compose project (`COMPOSE_PROJECT_NAME` in its `.env`): `echo '{"name":"<name>"}' | bash .claude/hooks/worktree-create.sh`, and `echo '{"worktree_path":"<path>"}' | bash .claude/hooks/worktree-remove.sh`. They live in `.claude/worktrees/` (gitignored). Claude Code keeps a subagent's or workflow agent's worktree (`isolation: "worktree"`) when the agent finishes: remove it with the remove hook once `git -C <path> status --porcelain` prints nothing and its branch is merged or dropped, since the hook deletes uncommitted changes (`git worktree list` lists them).
 
 ## `docs/architecture.md` moves with the code
 
