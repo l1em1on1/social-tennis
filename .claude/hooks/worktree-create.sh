@@ -27,7 +27,9 @@ fi
 # Its own compose project: by default compose names one after the directory,
 # so fix/api and feat/api, or a worktree named like the main checkout, would
 # share containers and volumes. Compose reads this from the worktree's .env.
-project="social-tennis-wt-$(tr 'A-Z' 'a-z' <<<"$name" | tr -c 'a-z0-9_\n-' '-')"
+# The readable part loses case and punctuation (fix/api and fix.api read the
+# same), so a checksum of the exact name keeps it unique.
+project="social-tennis-wt-$(tr 'A-Z' 'a-z' <<<"$name" | tr -c 'a-z0-9_\n-' '-')-$(printf %s "$name" | cksum | cut -d' ' -f1)"
 printf 'COMPOSE_PROJECT_NAME=%s\n' "$project" >>"$dir/.env"
 
 # Detached, so they outlive this hook. lsp-restore.sh logs to its own file.
