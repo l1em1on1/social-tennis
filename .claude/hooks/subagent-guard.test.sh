@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tests for subagent-guard.sh: bash .claude/hooks/subagent-guard.test.sh
+# Tests for subagent-guard.sh: docker compose run --rm guard-tests (needs bash, jq and
+# GNU grep and sed, as the sandbox has; CI runs it in .github/workflows/agents.yml).
 # Each command is passed to the guard as data, never run.
 set -u
 guard="$(dirname "$0")/subagent-guard.sh"
@@ -80,8 +81,33 @@ allow git status; git log --oneline -3
 allow git fetch origin main
 allow gh pr view 1; gh pr diff 1
 allow docker compose logs api; docker compose ps
+allow GH_PAGER=cat gh pr diff 1
+allow GIT_PAGER=cat git log -1
+allow git -C "$dir" log -1
+allow gh run view 1 --log-failed 2>/dev/null | grep -n Error
+allow git branch --merged main | xargs -n 1 echo
 allow
 # git writes
+# from the CI review of #194
+block GIT_EDITOR=true git commit -am x
+block COMPOSE_PROFILES=e2e docker compose run --rm e2e
+block GH_PAGER=cat gh pr merge 1
+block CI=1 npx playwright test
+block gh run view 1 --log-failed > "/tmp/run.log"
+block echo hi > "notes.md"
+block cat x >> "$CLAUDE_PROJECT_DIR/CLAUDE.md"
+block git diff > "$out"
+block git -C "$dir" push
+block git -C "web" stash
+block git -C "$wt" pull
+block git -C "$repo" gc
+block git branch --merged main | xargs -n 1 git branch -d
+block ls | xargs -I {} rm {}
+block ls | xargs -L 1 rm
+block ls | xargs -P 4 rm
+block timeout -k 5 60 git push
+block env -u X git push
+block sudo -u x git push
 # from the second CI review of #188
 block git fetch origin; git reset --hard origin/main
 block git status; git commit -am x

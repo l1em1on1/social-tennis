@@ -1,0 +1,26 @@
+# Agent tooling (ADR-0023): the subagent guard's test suite, so an edit to
+# its regexes that lets a blocked command through again fails a check. Runs
+# in its compose service like every other test (CLAUDE.md). It takes seconds,
+# so it runs on every PR and push to main, with no path filter.
+name: agents
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: subagent guard tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Run the guard's tests in their compose service
+        run: docker compose run --rm guard-tests

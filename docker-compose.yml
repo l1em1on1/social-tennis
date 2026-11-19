@@ -82,6 +82,21 @@ services:
         condition: service_healthy
     command: dotnet test
 
+  # The subagent guard's test suite (ADR-0023): docker compose run --rm guard-tests
+  # Debian, like the sandbox the guard runs in, so the same GNU grep and sed.
+  guard-tests:
+    image: debian:trixie-slim
+    profiles: ["test"]
+    working_dir: /repo
+    volumes:
+      - ./.claude:/repo/.claude:ro
+    command:
+      - sh
+      - -c
+      - >-
+        apt-get update -qq && apt-get install -y -qq --no-install-recommends jq >/dev/null
+        && bash .claude/hooks/subagent-guard.test.sh
+
   # ---- Frontend E2E (ADR-0014): docker compose --profile e2e run --rm e2e ----
   # Two production builds of web, both served under their compose hostnames:
   # web-e2e talks to the real api; web-mock has the MSW mocks baked in and no

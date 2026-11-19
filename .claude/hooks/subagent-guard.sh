@@ -4,7 +4,7 @@
 # git or GitHub. Exit 2 blocks the command and tells the subagent why.
 #
 # A guardrail against mistakes, not a sandbox: it matches command text.
-# Tests: bash .claude/hooks/subagent-guard.test.sh
+# Tests: docker compose run --rm guard-tests (CI: .github/workflows/agents.yml)
 set -u
 
 deny() {
@@ -16,18 +16,22 @@ deny() {
 command -v jq >/dev/null 2>&1 || deny "jq is missing, so the guard can't read the command"
 raw=$(jq -r '.tool_input.command // empty') || deny "the guard couldn't read the command"
 
-# Quoted strings are removed, so grep "git push" or jq 'select(.n > 1)' isn't
-# read as a command. One left-to-right pass: whichever quote opens first wins,
-# so the apostrophe in "Can't" doesn't pair with a later '. docker-compose is
-# read as docker compose.
-cmd=$(sed -E "s/'[^']*'|\"[^\"]*\"//g; s/docker-compose/docker compose/g" <<<"$raw")
+# Each quoted string becomes the word Q, so grep "git push" or jq
+# 'select(.n > 1)' isn't read as a command, while a quoted path still counts
+# as a word: `> "$out"` is a redirect to a file, `git -C "$dir" push` a push.
+# One left-to-right pass: whichever quote opens first wins, so the apostrophe
+# in "Can't" doesn't pair with a later '. docker-compose is read as docker
+# compose.
+cmd=$(sed -E "s/'[^']*'|\"[^\"]*\"/Q/g; s/docker-compose/docker compose/g" <<<"$raw")
 
 # A command word: at the start or after ; & | ( $( or a backtick, after any
-# shell keywords (if, then, do, ..., !, {) and wrappers (sudo, env, command,
-# exec, nice, timeout, xargs, and rtk with its proxy/test/err/bypass), with
-# any path.
+# shell keywords (if, then, do, ..., !, {), VAR=value assignments and wrappers
+# (sudo, env, command, exec, nice, timeout, xargs, and rtk with its
+# proxy/test/err/bypass), whose options may take a value, with any path.
 keys='((if|then|else|elif|do|while|until|time|!|\{)[[:space:]]+)*'
-wrap='((sudo|command|exec|env([[:space:]]+[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)*|nice([[:space:]]+-n)?([[:space:]]+-?[0-9]+)?|timeout([[:space:]]+-[^[:space:]]+)*[[:space:]]+[0-9.]+[smhd]?|xargs([[:space:]]+-[^[:space:]]+)*|rtk([[:space:]]+(proxy|test|err|bypass))?)[[:space:]]+)*'
+opt='([[:space:]]+(-[a-zA-Z]+([[:space:]]+[^-=[:space:]][^=[:space:]]*)?|--[a-z-]+(=[^[:space:]]*)?))'
+assign='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*'
+wrap='(('"$assign"'|sudo'"$opt"'*|command|exec|env('"$opt"'|[[:space:]]+'"$assign"')*|nice([[:space:]]+-n)?([[:space:]]+-?[0-9]+)?|timeout'"$opt"'*[[:space:]]+[0-9.]+[smhd]?|xargs'"$opt"'*|rtk([[:space:]]+(proxy|test|err|bypass))?)[[:space:]]+)*'
 at='(^|[;&|(`]|\$\()[[:space:]]*'"$keys$wrap"'([^[:space:];&|()]*/)?'
 # Each invocation of a tool, up to the next ; & | or ). Every separator ends
 # its own line first: grep -o consumes the separator after one call, and the

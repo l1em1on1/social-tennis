@@ -70,6 +70,12 @@ docker compose --profile storybook run --rm storybook npm run build-storybook
 CHROMATIC_PROJECT_TOKEN=<storybook project token> docker compose --profile storybook run --rm --no-deps chromatic npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
 ```
 
+The subagent guard's test suite (ADR-0023) runs in its own service:
+
+```sh
+docker compose run --rm guard-tests
+```
+
 ## Lint and format
 
 CI runs both. ESLint for the web app (`next build` doesn't lint):

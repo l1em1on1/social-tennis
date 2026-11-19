@@ -186,7 +186,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │       └── rtk/                the RTK binary, and its Claude Code hook registered at creation
 ├── .claude/                    Claude Code project config: settings.json (plugins, hooks), skills/
 │   ├── agents/                 subagents: log-reader (Haiku), pre-pr-reviewer (Opus) — ADR-0023
-│   └── hooks/                  lsp-restore.sh (SessionStart); subagent-guard.sh, the subagents' PreToolUse (tests: subagent-guard.test.sh)
+│   └── hooks/                  lsp-restore.sh (SessionStart); subagent-guard.sh, the subagents' PreToolUse (tests: `docker compose run --rm guard-tests`)
 ├── .vscode/extensions.json     extensions VS Code recommends for editing on the host (no C#: no SDK there)
 ├── api/
 │   ├── SocialTennis.slnx       .NET 10 solution (new XML format)
@@ -481,6 +481,8 @@ flowchart LR
     end
     PR[Pull request / push to main] --> apiwf & webwf
 ```
+
+A third workflow, `agents.yml`, runs the subagent guard's test suite (`docker compose run --rm guard-tests`, ADR-0023) on every PR and push to `main`; it takes seconds, so it has no `changed paths` job.
 
 **Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip` for each Chromatic project that has a token, because Chromatic's own "UI Tests: <project>" checks are only posted when a build is published or skipped, and would otherwise stay unreported.
 
