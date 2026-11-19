@@ -71,28 +71,20 @@ capabilities:
       content: |
         # GitHub
 
-        GitHub is reachable from this sandbox over HTTPS: `gh` (issues, PRs)
-        and `git fetch`/`git push` to github.com both work.
+        `gh` and `git fetch`/`git push` reach github.com over HTTPS. `GH_TOKEN` reads
+        as a sentinel: the sandbox proxy injects the real token, so leave it, and
+        `gh auth`, as they are. `git@github.com:` remotes are rewritten to HTTPS
+        (SSH is blocked).
 
-        `GH_TOKEN` reads as a proxy-managed sentinel. That is correct, not a
-        missing login: the sandbox proxy injects the real token. Do not run
-        `gh auth login` or set a token yourself. SSH to github.com is blocked
-        by design; `git@github.com:` remotes are rewritten to HTTPS in the
-        global git config.
+        Commits are authored as `l1em1on1-claude` through the `GIT_AUTHOR_*` and
+        `GIT_COMMITTER_*` variables, which beat the repo's `.git/config`. Push only
+        to feature branches.
 
-        Commits are authored as `l1em1on1-claude` through `GIT_AUTHOR_*` /
-        `GIT_COMMITTER_*` environment variables, which override the repo's
-        `.git/config` identity (the host user's). Leave both as they are.
-
-        Push only to feature branches, never to `main`.
-
-        The token must be `l1em1on1-claude`'s: `gh api user --jq .login`
-        prints it. If it prints the owner's account, or `git push` fails
-        with 401, stop and ask the owner to run `./sandbox.sh --set-secret
-        github` with a new `l1em1on1-claude` token. Never suggest
-        `sbx secret set github -t "$(gh auth token)"`: that stores the
-        owner's own login, and every PR would then be theirs, which they
-        can't approve.
+        `gh api user --jq .login` must print `l1em1on1-claude`. If it prints the
+        owner's account, or `git push` fails with 401, stop and ask the owner to run
+        `./sandbox.sh --set-secret github` with a new `l1em1on1-claude` token (never
+        `$(gh auth token)`: that is the owner's own login, and they can't approve
+        PRs they author).
 
   - type: com.docker.sandbox/agent-context@2
     optional: true
