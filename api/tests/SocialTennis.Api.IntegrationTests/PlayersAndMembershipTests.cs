@@ -381,6 +381,21 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
     }
 
+    [Fact]
+    public async Task A_Player_a_Manager_adds_in_a_Club_lets_in_the_Users_request_waiting_there()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"waiting-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var asking = await CreatePlayerAsync(client, "Asking");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null);
+
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Added", email });
+
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
     /// <summary>
     /// A request left waiting from before the User was in (a race, or data from
     /// before #164) is let in when the Player asks again.

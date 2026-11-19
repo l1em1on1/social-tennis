@@ -62,6 +62,12 @@ public static class JoinClub
             }
 
             await db.SaveChangesAsync(cancellationToken);
+
+            // Let in by an invite: the User is in now, so their other waiting requests here go too.
+            if (invited)
+            {
+                await ClubAdmission.ApproveWaitingAsync(db, userId, clubId, cancellationToken);
+            }
         }
 
         await transaction.CommitAsync(cancellationToken);

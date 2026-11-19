@@ -69,8 +69,25 @@ internal static class ClubAdmission
             db.ClubMemberships.Add(Membership(clubId, playerId, ClubMembershipStatus.Active, now));
         }
 
+        // An invite lets the User in, so their requests waiting in those Clubs go too.
+        foreach (var clubId in invited.Except(memberOf))
+        {
+            await ApproveWaitingAsync(db, userId, clubId, cancellationToken);
+        }
+
         await UseUpInvitesAsync(db, normalizedEmail, cancellationToken);
     }
+
+    /// <summary>
+    /// The User is in this Club now, so their requests still waiting there are
+    /// approved: every path that lets a User in calls this (#164). A conditional
+    /// update, so a request taken back at the same moment is skipped.
+    /// </summary>
+    public static Task<int> ApproveWaitingAsync(
+        TennisDbContext db, Guid userId, Guid clubId, CancellationToken cancellationToken) =>
+        db.ClubMemberships
+            .Where(m => m.ClubId == clubId && m.Status == ClubMembershipStatus.Pending && m.Player.UserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
 
     /// <summary>Deletes this email's invites: of one Club, or of every Club when <paramref name="clubId"/> is null.</summary>
     public static Task<int> UseUpInvitesAsync(

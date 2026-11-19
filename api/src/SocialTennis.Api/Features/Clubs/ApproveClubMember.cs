@@ -39,9 +39,7 @@ public static class ApproveClubMember
             .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
         if (approved > 0)
         {
-            await db.ClubMemberships
-                .Where(m => m.ClubId == clubId && m.Status == ClubMembershipStatus.Pending && m.Player.UserId == holder.UserId)
-                .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
+            await ClubAdmission.ApproveWaitingAsync(db, holder.UserId, clubId, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
