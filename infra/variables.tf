@@ -77,9 +77,13 @@ variable "admin_emails" {
 }
 
 variable "privacy_contact_email" {
-  description = "Where members send data requests, shown on the privacy notice (#51). Empty: the notice says to ask the club's Admin."
+  description = "Where members send data requests, shown on the privacy notice (#51). Required: the notice must give the controller's contact details."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+$", var.privacy_contact_email))
+    error_message = "Set the PRIVACY_CONTACT_EMAIL repository variable (or TF_VAR_privacy_contact_email in infra/.env) to the address for data requests."
+  }
 }
 
 variable "monthly_budget" {

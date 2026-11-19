@@ -87,10 +87,15 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Who else sees it">
+      <Section title="Who sees it">
+        <ul className="list-disc pl-5">
+          <li>Admins: everyone&apos;s email address and roles.</li>
+          <li>Managers: their club&apos;s members with their email addresses, requests to join, and pre-approved addresses.</li>
+          <li>Other members: players&apos; names in clubs and leagues, and their games and scores.</li>
+        </ul>
         <p>
-          Nobody: we don&apos;t sell or share it. The app runs on Microsoft Azure, which also sends the emails, with its
-          database at Neon.
+          Outside the club, nobody: we don&apos;t sell or share it. The app runs on Microsoft Azure, which also sends the
+          emails, with its database at Neon.
         </p>
       </Section>
 
