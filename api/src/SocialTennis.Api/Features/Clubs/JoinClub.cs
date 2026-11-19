@@ -15,7 +15,8 @@ namespace SocialTennis.Api.Features.Clubs;
 /// Player is a member at once, and the invite is used up (#164). The app is
 /// informal, so a User's Players aren't guarded against each other (owner,
 /// 2026-11-19). A PUT, so asking twice is the same as asking once, and never
-/// undoes an approval.
+/// undoes an approval; asking again after the User got in lets a waiting
+/// request in.
 /// </summary>
 public static class JoinClub
 {
@@ -38,17 +39,28 @@ public static class JoinClub
         var email = EmailAddress.Normalize(user.FindFirstValue(ClaimTypes.Email)!);
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
 
-        if (!await db.ClubMemberships.AnyAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken))
+        var membership = await db.ClubMemberships
+            .SingleOrDefaultAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken);
+        if (membership is null || membership.Status == ClubMembershipStatus.Pending)
         {
             var invited = await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId) > 0;
             var userIsIn = await db.ClubMemberships.AnyAsync(
                 m => m.ClubId == clubId && m.Player.UserId == userId && m.Status == ClubMembershipStatus.Active,
                 cancellationToken);
-            db.ClubMemberships.Add(ClubAdmission.Membership(
-                clubId,
-                playerId,
-                invited || userIsIn ? ClubMembershipStatus.Active : ClubMembershipStatus.Pending,
-                clock.GetUtcNow()));
+            if (membership is null)
+            {
+                db.ClubMemberships.Add(ClubAdmission.Membership(
+                    clubId,
+                    playerId,
+                    invited || userIsIn ? ClubMembershipStatus.Active : ClubMembershipStatus.Pending,
+                    clock.GetUtcNow()));
+            }
+            else if (invited || userIsIn)
+            {
+                // Asked before the User was in: asking again lets it in now.
+                membership.Status = ClubMembershipStatus.Active;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 

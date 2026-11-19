@@ -245,10 +245,10 @@ export const handlers = [
       return response(404).empty();
     }
     const userIsIn = playersOf(request).some((held) => held.membership?.approved);
-    player.membership ??= {
-      approved: invitedEmails.delete(player.email) || userIsIn,
-      requestedAt: new Date().toISOString(),
-    };
+    if (!player.membership?.approved) {
+      const admitted = invitedEmails.delete(player.email) || userIsIn;
+      player.membership = { approved: admitted, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
+    }
     return response(204).empty();
   }),
 
@@ -284,6 +284,11 @@ export const handlers = [
       return response(404).empty();
     }
     player.membership.approved = true;
+    // The User (a session, in the mock) is in now: their other waiting requests are approved too (#164).
+    const held = [...playersBySession.values()].find((players) => players.includes(player)) ?? [];
+    for (const sibling of held) {
+      if (sibling.membership) sibling.membership.approved = true;
+    }
     return response(204).empty();
   }),
 

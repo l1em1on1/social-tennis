@@ -293,10 +293,11 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
         await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
+        // Taken back while still waiting: approving a sibling would let it in (#164).
+        var takeBack = await client.DeleteAsync($"/players/{waiting.Id}/clubs/{clubId}");
         await manager.PutAsync($"/clubs/{clubId}/members/{member.Id}/approval", null);
 
         var leave = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
-        var takeBack = await client.DeleteAsync($"/players/{waiting.Id}/clubs/{clubId}");
         var again = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
 
         Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
@@ -361,6 +362,49 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
         // The app is informal: a User in a Club brings all their Players (owner, 2026-11-19).
         Assert.True(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == asking.Id).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task Approving_one_Player_lets_in_the_Users_other_waiting_requests()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var second = await CreatePlayerAsync(client, "Second");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+
+        var approve = await manager.PutAsync($"/clubs/{clubId}/members/{first.Id}/approval", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, approve.StatusCode);
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
+    /// <summary>
+    /// A request left waiting from before the User was in (a race, or data from
+    /// before #164) is let in when the Player asks again.
+    /// </summary>
+    [Fact]
+    public async Task A_waiting_request_is_let_in_on_asking_again_once_the_User_is_in()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var second = await CreatePlayerAsync(client, "Second");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            await db.ClubMemberships
+                .Where(m => m.ClubId == clubId && m.PlayerId == first.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active));
+        }
+
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+
+        Assert.True(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == second.Id).Clubs).Approved);
     }
 
     [Fact]
