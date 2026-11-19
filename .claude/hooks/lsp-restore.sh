@@ -26,7 +26,9 @@
 set -u
 
 part="${1:-}"
-repo="${2:-${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}}"
+# Absolute and resolved, so the lock key and dotnet's projectPath check match
+# whichever way the checkout was named (relative, trailing slash, symlink).
+repo=$(cd "${2:-${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}}" 2>/dev/null && pwd -P) || exit 0
 log="${TMPDIR:-/tmp}/social-tennis-lsp-restore.log"
 
 # One restore of each kind per checkout at a time, across sessions. flock

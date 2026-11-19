@@ -16,7 +16,19 @@ fi
 dir="$repo/.claude/worktrees/$name"
 
 git -C "$repo" fetch --quiet origin main >&2 || echo "worktree-create: fetch failed; using the last origin/main" >&2
-git -C "$repo" worktree add -b "worktree-$name" "$dir" origin/main >&2
+# A branch left by an earlier worktree of this name (the remove hook keeps it,
+# as Claude Code's own worktrees do) is checked out again rather than failing.
+if git -C "$repo" show-ref --verify --quiet "refs/heads/worktree-$name"; then
+  git -C "$repo" worktree add "$dir" "worktree-$name" >&2
+else
+  git -C "$repo" worktree add -b "worktree-$name" "$dir" origin/main >&2
+fi
+
+# Its own compose project: by default compose names one after the directory,
+# so fix/api and feat/api, or a worktree named like the main checkout, would
+# share containers and volumes. Compose reads this from the worktree's .env.
+project="social-tennis-wt-$(tr 'A-Z' 'a-z' <<<"$name" | tr -c 'a-z0-9_\n-' '-')"
+printf 'COMPOSE_PROJECT_NAME=%s\n' "$project" >>"$dir/.env"
 
 # Detached, so they outlive this hook. lsp-restore.sh logs to its own file.
 for part in dotnet npm; do
