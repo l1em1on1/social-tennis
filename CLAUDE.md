@@ -1,72 +1,45 @@
-# Project: Tennis League and Social Games
+# Hits & Giggles: tennis leagues and socials
 
-Tennis League and Social Games — an application for organizing and planning league and social tennis games.
+A mobile-first web app where club members join leagues, arrange games and record scores. A Next.js BFF (`web/`) proxies to an ASP.NET Core API (`api/`) over Postgres (ADR-0001). GPLv3.
 
-Easy to use mobile first web application to manage social leagues, gather match stats and to allow users join leagues, track scores, and find best suitable dates for the game. 
+## Docker for every build
 
-- **License**: GPLv3
-- **Repository**: `git@github.com:l1em1on1/social-tennis.git`
+Run every build, test, migration, package install and codegen as a compose service: `docker compose run --rm <service> <command>` (ADR-0005). The host has Docker and an editor, no toolchain. Write every new workflow, script, README command and CI step the same way.
 
-## Everything runs in Docker
+## Library docs first
 
-**Never run `dotnet`, `npm`, `node`, `npx`, or EF tooling directly on the host machine.** The host has Docker and an editor; it does not have the toolchain, and must not be assumed to.
+Before writing, changing or reviewing code that uses a library or framework (Next.js, React, EF Core, ASP.NET Core, Npgsql, openapi-fetch, openapi-typescript, Tailwind, xUnit, …), query Context7: `resolve-library-id`, then `query-docs`, one question per concept. The docs outrank memory; when they change a decision, cite them in the code comment or PR. For Next.js, also read the guide in `web/node_modules/next/dist/docs/`.
 
-Every build, test, migration, package install, and codegen run executes inside a container — `docker compose run --rm <service> <command>`, from a host terminal or from inside the Docker Sandbox. This applies to agents exactly as it does to humans.
+## Symbols through LSP
 
-When adding a workflow, document it as a container invocation. A bare `dotnet test` or `npm install` in a README, script, or CI step is a bug.
+Use the `LSP` tool for questions about a symbol:
 
-Stack is a Next.js BFF (`web/`) proxying to an ASP.NET Core Web API (`api/`) over Postgres. See `docs/adr/` — ADR-0001 for the split, ADR-0005 for the Docker requirement.
+- `findReferences` before renaming anything or changing a signature.
+- `goToDefinition` and `hover` to see what a type is; on `.cs`, instead of compiling.
 
-## Library docs via Context7 — required for code work
+The language servers run in the Docker Sandbox (`./sandbox.sh`, `.sbx/README.md`); builds still run in compose. If C# lookups report every package type missing, run `/reload-plugins`. An LSP "command not found" means the session is on the host: say so, and use grep.
 
-Before writing, changing, or reviewing code that touches a library or framework (Next.js, React, EF Core, ASP.NET Core, Npgsql, openapi-fetch/openapi-typescript, Tailwind, xUnit, …), query the **Context7 MCP** for that library's current documentation: `resolve-library-id` → `query-docs`, one focused question per concept. Training data goes stale; follow what Context7's docs say over memory, and when the two conflict, the docs win. Cite the doc-backed reason in the code comment or PR description when a Context7 finding changes a decision.
+## `docs/architecture.md` moves with the code
 
-Next.js additionally ships in-package agent docs at `web/node_modules/next/dist/docs/` — read the relevant guide before writing Next.js code; conventions may differ from training data.
+It documents the system as built: topology, request flow, contract pipeline, repo layout, runtime configuration, testing seam, version pins, and its mermaid diagrams. A change to any of these (a service or endpoint surface, how the client is generated, folders, compose or sandbox behaviour, a pinned version, how tests run) updates it in the same commit.
 
-## Code intelligence via LSP — symbols, not text
+## Reports
 
-The `csharp-lsp` and `typescript-lsp` plugins are installed. Use the `LSP` tool wherever the question is about a **symbol** rather than a string:
+Report in a few lines: what changed, what was checked (the command and its result), and what the owner needs to do. Leave out your own steps and workarounds. Reasons belong in an ADR: link it.
 
-- **Before renaming anything or changing a signature**, `findReferences`. Grep finds matches in comments and strings and misses call sites spelled differently — the contract renames in #29 are exactly the case where a missed reference reaches CI instead of the editor.
-- **`goToDefinition` / `hover`** to resolve what a type actually is, rather than tracing `using` and `import` chains by hand.
-- **`hover` for a type question on `.cs`**, where it pays most: checking it by compiling costs a `docker compose run`, and hover costs nothing.
+## Where to look
 
-This is **not** a loophole in the Docker rule, because the servers are not on the host. **Work from inside the Docker Sandbox** (`./sandbox.sh`, see `.sbx/README.md`): its `toolchain` kit installs `csharp-ls`, `typescript-language-server` and the plugins, so an agent gets symbol intelligence with nothing but Docker and `sbx` on the host. Builds, tests, migrations, and package installs still run as compose services, always. A `SessionStart` hook restores the packages the language servers read (`.claude/hooks/lsp-restore.sh`, #121); if C# lookups report every package type missing, run `/reload-plugins`.
+- Issues, PRs and their bodies: GitHub through `gh`, in `docs/agents/issue-tracker.md`.
+- Triage labels: `docs/agents/triage-labels.md`.
+- API endpoints, one static class each (ADR-0010): `docs/agents/api-endpoints.md`.
+- Domain language, `CONTEXT.md` and `docs/adr/`: `docs/agents/domain.md`.
 
-The sandbox runs its own Docker daemon, so `docker compose` works unchanged inside it: that daemon resolves the relative bind mounts (`./api:/src`) against the sandbox's filesystem. Running compose from a host terminal works too.
+## RTK
 
-An LSP call failing with "command not found" means the session is running on the host rather than in the sandbox: start it with `./sandbox.sh`. Do not install the servers to fix it: `dotnet tool install` and `npm install -g` on the host are exactly what the Docker rule forbids. Say which it is and fall back to grep.
-
-## Keep `docs/architecture.md` current
-
-`docs/architecture.md` is the technical documentation of the system as built — topology, request flow, contract pipeline, repo layout, runtime configurations, testing seam, version pins. **Any change that alters one of those must update the document (including its mermaid diagrams) in the same commit.** Concretely: adding/removing a service or endpoint surface, changing how the TS client is generated, moving folders, changing compose or sandbox behaviour, bumping a pinned version, or changing how tests run. A stale architecture doc is a bug, same as a stale README command.
-
-## Agent skills
-
-### Issue tracker
-
-Issues live as GitHub Issues in this repo (l1em1on1/social-tennis), using the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Default five canonical roles, label string equal to role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
-
-### API endpoints
-
-One static class per endpoint in a feature folder — never lambdas in `Program.cs` or in the feature extension. See `docs/agents/api-endpoints.md` (reasoning: ADR-0010).
-
-### Domain docs
-
-Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
-
-## Compact command output with RTK
-
-The Docker Sandbox installs RTK (`rtk`), which compresses command output so it costs less context. Its Claude Code hook rewrites Bash commands automatically (`git status` → `rtk git status`); call it explicitly for the wrappers below, and `rtk proxy <cmd>` when you need the raw output.
-
-RTK filters output and runs the command exactly where it stands, so the Docker rule above still decides *where* things run. Wrap the compose invocation itself:
+RTK compacts command output; its hook rewrites Bash commands (`git status` becomes `rtk git status`). Wrap a compose run to see only failures, and use `rtk proxy <cmd>` for the raw output:
 
 ```bash
-rtk test docker compose --profile e2e run --rm e2e       # Playwright, failures only
-rtk test docker compose run --rm api-tests                # xUnit, failures only
-rtk err docker compose build web                          # build errors only
+rtk test docker compose --profile e2e run --rm e2e       # Playwright
+rtk test docker compose run --rm api-tests                # xUnit
+rtk err docker compose build web                          # build errors
 ```

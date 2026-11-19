@@ -21,18 +21,10 @@ capabilities:
       content: |
         # NuGet
 
-        nuget.org is reachable from this sandbox, so `dotnet restore` works.
-
-        csharp-ls resolves packages and project references from each project's
-        `obj/project.assets.json`. Those files record absolute paths (the NuGet
-        package folder, the project path), and `obj/` sits on the bind-mounted
-        workspace shared with the host. A restore done elsewhere leaves paths
-        that do not exist here, and C# LSP then flags every NuGet type as
-        missing. Compose's .NET services restore into `obj/container/` instead,
-        so a Docker test run doesn't cause this.
-
-        If C# LSP reports NuGet types or sibling-project types as missing, run
-        `dotnet restore api/SocialTennis.slnx` once in this sandbox, then retry.
+        nuget.org is reachable, so `dotnet restore` works. If C# LSP reports NuGet
+        or sibling-project types missing, run `dotnet restore api/SocialTennis.slnx`
+        once in this sandbox: `obj/project.assets.json` holds absolute paths, and a
+        restore made outside the sandbox leaves ones that don't exist here.
 
   - type: com.docker.sandbox/agent-context@2
     optional: true

@@ -63,19 +63,9 @@ capabilities:
       content: |
         # Context7
 
-        Context7 is available as an MCP server (`resolve-library-id`,
-        `query-docs`).
-
-        Per CLAUDE.md, query it before writing, changing, or reviewing code that
-        touches a library or framework: Next.js, React, EF Core, ASP.NET Core,
-        Npgsql, openapi-fetch/openapi-typescript, Tailwind, xUnit. One focused
-        question per concept. Where Context7's docs and training data disagree,
-        the docs win; cite the doc-backed reason in the code comment or PR
-        description.
-
-        The API key is injected by the sandbox proxy. `CONTEXT7_API_KEY` reads
-        as a proxy-managed sentinel inside the sandbox. That is correct, not a
-        broken config, and there is nothing to fix by setting the real key.
+        The Context7 MCP server (`resolve-library-id`, `query-docs`) is available;
+        CLAUDE.md says when to use it. `CONTEXT7_API_KEY` reads as a sentinel: the
+        sandbox proxy injects the real key, so leave it as it is.
 
   - type: com.docker.sandbox/agent-context@2
     optional: true

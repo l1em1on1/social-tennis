@@ -51,14 +51,9 @@ capabilities:
       content: |
         # Toolchain
 
-        The .NET 10 SDK (`dotnet`), Node 24 (`node`, `npm`), `csharp-ls` and
-        `typescript-language-server` are on PATH, for the C# and TypeScript
-        LSP plugins. Use the `LSP` tool for symbol questions.
-
-        They are here for code intelligence only. Builds, tests, migrations
-        and package installs still run as Docker Compose services
-        (`docker compose run --rm <service> ...`), never directly in the
-        sandbox: see CLAUDE.md.
+        The .NET 10 SDK, Node 24, `csharp-ls` and `typescript-language-server` are on
+        PATH for the LSP plugins only. Builds, tests, migrations and installs run as
+        compose services (CLAUDE.md).
 
   - type: com.docker.sandbox/agent-context@2
     optional: true

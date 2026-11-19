@@ -1,39 +1,31 @@
-# API Endpoints
+# API endpoints
 
-How endpoints are structured in `api/src/SocialTennis.Api/`. The reasoning is ADR-0010; this is the recipe.
-
-**One endpoint is one static class in one file, holding only its handler.** Routes are declared in the feature's endpoints class, never inside the endpoint file, and never as lambdas.
+How endpoints are built in `api/src/SocialTennis.Api/` (ADR-0010). **One endpoint is one static class in one file, holding only `HandleAsync`.** Routes live in the feature's endpoints class, as method groups.
 
 ## Layout
 
 ```
 api/src/SocialTennis.Api/
 ├── Features/<Feature>/
-│   ├── <Feature>Endpoints.cs   routing table: MapGroup + every route, verb, filter, policy
-│   ├── <EndpointName>.cs       one file per endpoint — HandleAsync only
+│   ├── <Feature>Endpoints.cs   routing table: MapGroup, every route, verb, filter, policy
+│   ├── <EndpointName>.cs       one file per endpoint, HandleAsync only
 │   └── Contracts/
 │       └── <RecordName>.cs     one file per request/response record
-├── Contracts/                  contracts shared across features — PageInfo only
-├── Validation/                 ValidationFilter<TRequest, TValidator>, ValidatesBody<,>()
-├── OpenApi/                    document transformers (the 401 on every non-anonymous operation)
-├── Authentication/             scheme handler, AuthOptions, Tokens, EmailAddress, sender seam
-├── Membership/                 ClubAdmission: who is in a Club without asking (used by Clubs and Players)
-├── Roles/                      AdminRoleRules: when the Admin role may be removed
+├── Contracts/                  shared across features: PageInfo only
+├── Validation/  OpenApi/  Authentication/  Membership/  Roles/
 ├── Data/  Domain/  Migrations/
 ```
 
-`Features/<Feature>/` holds the vertical slice only. Anything cross-cutting — an authentication scheme, an options class, a crypto helper — is infrastructure and lives in its own top-level folder.
-
-The top-level `Contracts/` is the narrow exception to "contracts are feature-scoped", and it should stay narrow: a record earns a place there only when it is identical across features by construction, as `PageInfo` is. A contract that merely *happens* to look the same in two features belongs to each of them separately — that's the same payload-independence argument ADR-0012 makes for list elements.
-
-**Namespaces follow folders**, including `Contracts/`: a record in `Features/Auth/Contracts/` is in `SocialTennis.Api.Features.Auth.Contracts`, so endpoint files that name a contract carry `using SocialTennis.Api.Features.Auth.Contracts;`. The folder's top level stays exactly the HTTP surface — the routing table plus one file per endpoint — which is what makes "what does this feature expose?" answerable by listing a directory.
+- `Features/<Feature>/` is the vertical slice: its top level is exactly the HTTP surface. Cross-cutting code (an auth scheme, options, a helper) gets its own top-level folder.
+- The top-level `Contracts/` takes only records identical across features by construction, like `PageInfo` (ADR-0012).
+- Namespaces follow folders: `Features/Auth/Contracts/` is `SocialTennis.Api.Features.Auth.Contracts`.
 
 ## Adding an endpoint
 
-1. **New file** `Features/<Feature>/<EndpointName>.cs`, containing a static class with **one member: `HandleAsync`**. The class name is the endpoint name and matches the file name. No route information lives here — no verb, no path, no filters, no `WithName`.
-2. **Contracts** go one-per-file in that feature's `Contracts/` folder, never in the endpoint file. The record name is the file name. The folder is unconditional — a feature with a single contract still gets it, so the layout never depends on a headcount.
-3. **`HandleAsync`** holds the logic and declares its dependencies as parameters — `TennisDbContext`, options, `CancellationToken` — bound by ASP.NET. Do not add a service layer for a single caller; extract one only when a second caller appears.
-4. **Declare the route** in `<Feature>Endpoints.cs`, passing the handler as a method group:
+1. **`Features/<Feature>/<EndpointName>.cs`**: a static class named like the file, with one member, `HandleAsync`. No verb, path, filter or `WithName` here.
+2. **Contracts**: one record per file in the feature's `Contracts/` folder (always a folder, even for one record), named like the file.
+3. **`HandleAsync`** holds the logic and takes its dependencies as parameters (`TennisDbContext`, options, `TimeProvider`, `CancellationToken`). Extract a service only when a second caller appears.
+4. **The route**, in `<Feature>Endpoints.cs`, as a method group:
 
    ```csharp
    group.MapPost("/magic-link", RequestMagicLink.HandleAsync)
@@ -41,26 +33,18 @@ The top-level `Contracts/` is the narrow exception to "contracts are feature-sco
        .WithName(nameof(RequestMagicLink));
    ```
 
-   That file is the feature's routing table — the one place to read the whole HTTP surface. Registration is explicit; nothing is discovered by scanning.
-5. **Integration test** in `SocialTennis.Api.IntegrationTests`, over HTTP.
-6. **Regenerate the TS client** and commit the result. The command needs the dev overlay, because the base `web` image is the production runtime and has no dev dependencies:
+5. **An integration test** over HTTP.
+6. **Regenerate the TypeScript client** and commit it: README, "Regenerate the TypeScript API client".
 
-   ```sh
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api
-   docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm web sh -c "npm install && npm run api:generate"
-   ```
-
-   `npm install` is part of the command because `docker compose run` replaces the service's own command, which is what normally installs dependencies. On a fresh `web_node_modules` volume there would otherwise be no `openapi-typescript`.
-
-A new feature also needs a `<Feature>Endpoints.cs` with its `MapGroup` prefix, and one line in `Program.cs`. Registration order in `Program.cs` determines path order in the OpenAPI document and therefore in the generated client — append rather than reorder, so client diffs stay meaningful.
+A new feature adds `<Feature>Endpoints.cs` with its `MapGroup` prefix and one line in `Program.cs`, appended: registration order is path order in the OpenAPI document and the client.
 
 ## Return types
 
-Return `TypedResults` unions — `Task<Results<Ok<RedeemMagicLinkResponse>, UnauthorizedHttpResult>>` — not `IResult`. The union is what puts response codes and schemas into the OpenAPI document, and therefore into the generated client. A handler returning `IResult` produces an endpoint the TS client knows nothing about.
+Return `TypedResults` unions, e.g. `Task<Results<Ok<RedeemMagicLinkResponse>, UnauthorizedHttpResult>>`. The union is what puts each status and schema into the OpenAPI document and the client; `IResult` leaves the client blind.
 
 ## Validation
 
-Shape validation goes in the filter, not the handler, and uses **FluentValidation** (reasoning: ADR-0011). The validator is a `Validator` class nested in the request record, in that record's own file under `Contracts/`:
+FluentValidation, in the filter (ADR-0011). The validator is a `Validator` class nested in the request record, in that record's file:
 
 ```csharp
 public record MagicLinkRequest(string Email)
@@ -79,64 +63,49 @@ public record MagicLinkRequest(string Email)
 }
 ```
 
-Attach it in the routing table with `.ValidatesBody<MagicLinkRequest, MagicLinkRequest.Validator>()`. Both type parameters are required and the constraint is compiler-checked, so a contract marked for validation with no matching validator does not build. Never call `.AddEndpointFilter<ValidationFilter<,>>()` directly — `ValidatesBody` also declares the 400 on the OpenAPI document, and splitting them desyncs the generated client.
-
-Three rules that are not negotiable:
-
-- **`.OverridePropertyName("wireName")` on every rule.** FluentValidation names errors after the CLR property, so without it the client sees `"Email"` where it expects `"email"`. `HttpValidationProblemDetails.errors` is a free-form dictionary, so TypeScript cannot catch the mistake.
-- **Validators take no constructor parameters.** The `new()` constraint enforces it: anything needing a `DbContext`, configuration, or the current user is a business rule for `HandleAsync`.
-- **Validators must not mutate.** Normalisation — trimming, lower-casing — is not validation and belongs in `HandleAsync`. Trimming *to decide acceptability*, as above, is fine.
-
-What belongs here: length, format, required-ness, ranges — anything answerable from the request alone.
+- Attach it with `.ValidatesBody<TRequest, TRequest.Validator>()`, which also declares the 400 in the OpenAPI document. Use it rather than `AddEndpointFilter<ValidationFilter<,>>()`.
+- **`.OverridePropertyName("wireName")` on every rule**, so errors carry the JSON name.
+- **No constructor parameters** (the `new()` constraint): anything needing the database, configuration or the user is a rule for `HandleAsync`.
+- **Validators only check.** Normalising (trimming, lower-casing) happens in `HandleAsync`; trimming to decide acceptability is fine.
+- A validator checks what the request alone answers: length, format, required, ranges.
 
 ## Naming
 
-The class name is the file name is the `WithName` is the OpenAPI `operationId` is the key in `web/src/lib/api/schema.d.ts`. One identifier the whole way through, so a generated operation name leads straight to the C# file. Always write `.WithName(nameof(TheClass))` rather than a string literal.
-
-**Contracts follow the same principle: a contract is named for the endpoint it serves, plus `Request` or `Response`** — `GetCurrentUserResponse`, `RedeemMagicLinkRequest`. Record names *are* OpenAPI schema names, so this is what a web-side reader sees; a contract named for anything else forces them to guess which endpoint produced it.
-
-One carve-out: **don't stutter.** When the endpoint name already contains the direction word, drop the duplicate — `RequestMagicLink` takes `MagicLinkRequest`, not `RequestMagicLinkRequest`.
-
-Renaming a contract is a **wire-visible change**: the OpenAPI schema key moves, so `npm run api:generate` and the regenerated `schema.d.ts` belong in the same commit as the rename.
+- One identifier from file to client: class name = file name = `.WithName(nameof(TheClass))` = OpenAPI `operationId` = the key in `web/src/lib/api/schema.d.ts`.
+- A contract is named for its endpoint plus `Request` or `Response` (`GetCurrentUserResponse`), without stuttering: `RequestMagicLink` takes `MagicLinkRequest`.
+- Renaming a contract moves its OpenAPI schema key: regenerate the client in the same commit.
 
 ## List endpoints
 
-**A list endpoint returns an envelope, never a bare array** (reasoning: ADR-0012). The envelope is named for its endpoint like any other contract; its collection property and element type are named for the resource:
+An envelope, never a bare array (ADR-0012), named for its endpoint like any contract:
 
 ```csharp
 public record GetClubsResponse(IReadOnlyList<ClubSummary> Clubs, PageInfo Page);
 ```
 
-Three rules:
-
-- **The collection property is domain-named** — `Clubs`, not `Items`. Envelopes are hand-written per endpoint rather than shared from a generic base, so each list can carry its own list-level stats (an open-for-joining count, a last-updated timestamp) without every other list inheriting a nullable field it has no use for.
-- **`Page` is mandatory**, including on lists that can never grow. `PageInfo` is shared, from `SocialTennis.Api.Contracts` — the only contract that isn't feature-scoped. `Total` means *items matching the query, ignoring any paging window*; document it that way rather than as "how many I returned", so paging changes the value and not the meaning.
-- **The element is its own record, independent of any single-item response.** `GetClubs` returns `ClubSummary`; a later `GET /clubs/{id}` gets its own `ClubDetails` rather than reusing it. They answer different questions and are meant to diverge — a richer detail view must never silently widen every row of a long list.
-
-`OpenApiContractTests.No_endpoint_returns_a_bare_array` enforces this against the generated document. It is the only thing that does: a base record or marker interface can make envelopes uniform, but neither can stop a new handler returning `List<T>` directly.
-
-Note for anyone tempted to share shape via inheritance: **it doesn't reach the wire.** A derived record is emitted as a flat schema with every inherited property inlined, and the base type never appears in `components.schemas` — ASP.NET Core composes schemas only for `[JsonPolymorphic]`/`[JsonDerivedType]` hierarchies. Positional records don't inherit for free either, so the base ends up re-declaring every parameter.
+- The collection is named for the resource (`Clubs`), and each envelope is written by hand, so a list can carry its own list-level fields.
+- `Page` (`PageInfo`, shared) is on every list, even one that can't grow. `Total` counts the items matching the query, whatever the paging window.
+- The element is its own record (`ClubSummary`), separate from any single-item response, so the two can diverge.
+- `OpenApiContractTests.No_endpoint_returns_a_bare_array` enforces the envelope. Sharing shape through record inheritance doesn't reach the wire: the derived schema is emitted flat.
 
 ## Route groups
 
-The feature's endpoints class owns the prefix. Use the **empty** pattern for an endpoint at the group root — `MapGet("", …)` under `MapGroup("/clubs")` gives `/clubs`, whereas `MapGet("/", …)` gives `/clubs/`.
+The endpoints class owns the prefix. Map the group root with the empty pattern: `MapGet("", …)` under `MapGroup("/clubs")` is `/clubs` (`"/"` would be `/clubs/`).
 
 ## Authorization
 
-**The API denies by default** (ADR-0017). A fallback policy in `Program.cs` requires a signed-in User on every endpoint, so a new route needs no `RequireAuthorization()` and is never public by accident. The 401 is added to the OpenAPI document for you (`OpenApi/UnauthorizedResponseTransformer`), from the same metadata.
+The API denies by default (ADR-0017): every route needs a signed-in User, and its 401 is added to the OpenAPI document for you.
 
-- **A route that must be public** says `.AllowAnonymous()` in the routing table, and is added to `AnonymousOperations` in `OpenApiContractTests`. That test calls every published operation with no session and fails on any that answers, so the list is the reviewed record of what is public. Today it is the two magic-link routes.
-- **A route that needs a role** names a policy in the routing table. Don't check roles inside `HandleAsync`.
-- **A status a handler returns that its `Results<>` union doesn't describe** is declared by hand. `UnauthorizedHttpResult` is one: `RedeemMagicLink` answers 401 to a bad token, so its route carries `.Produces(StatusCodes.Status401Unauthorized)`.
+- **A public route** says `.AllowAnonymous()` in the routing table and is added to `AnonymousOperations` in `OpenApiContractTests`, the reviewed list of what is public.
+- **A route that needs a role** names a policy in the routing table.
+- **A status the `Results<>` union doesn't describe** is declared with `.Produces(...)`, as `RedeemMagicLink` does for 401.
 
 ## Time
 
-Never read `DateTimeOffset.UtcNow`. Take `TimeProvider` as a handler parameter and call `GetUtcNow()` (ADR-0016), so a test can put the clock either side of a deadline.
+Take `TimeProvider` as a parameter and call `GetUtcNow()` (ADR-0016), so a test can set the clock.
 
 ## Testing
 
-Integration tests over HTTP against real Postgres are the default seam, and the only seam for anything touching the database. No in-memory or fake EF provider belongs in this repo.
-
-`SocialTennis.Api.UnitTests` exists for pure logic only. The rule is exactly: **if it needs a `DbContext`, it does not go there.** Validators and helpers like `Tokens` qualify; a handler that queries qualifies for an integration test instead. The project deliberately has no test-host reference, so this can't be worked around by accident.
-
-Validator tests use FluentValidation's `TestHelper`, asserting on the **wire** field name rather than the property expression — `.OverridePropertyName` decouples the two, so `ShouldHaveValidationErrorFor("email")` matches while `ShouldHaveValidationErrorFor(r => r.Email)` does not.
+- Integration tests over HTTP against real Postgres: the seam for anything touching the database, with no in-memory or fake EF provider.
+- `SocialTennis.Api.UnitTests` is for pure logic only: **if it needs a `DbContext`, it doesn't go there.** Validators and helpers like `Tokens` do.
+- Validator tests use FluentValidation's `TestHelper` with the wire name: `ShouldHaveValidationErrorFor("email")`.

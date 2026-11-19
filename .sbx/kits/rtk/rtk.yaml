@@ -28,10 +28,7 @@ capabilities:
       content: |
         # RTK
 
-        RTK is installed and hooked into Claude Code: Bash commands such as
-        `git status` are rewritten to `rtk git status` automatically, so their
-        output arrives compacted. `rtk proxy <cmd>` runs a command with raw,
-        unfiltered output when the compact form hides something you need.
+        RTK is installed and hooked into Claude Code: see CLAUDE.md, "RTK".
 
   - type: com.docker.sandbox/agent-context@2
     optional: true
