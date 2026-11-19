@@ -325,6 +325,13 @@ Create the token signed in as `l1em1on1-claude`, at
 - **Expiration:** set one. When it lapses, `gh` and `git push` start failing
   with 401; run `../sandbox.sh --set-secret github` and paste a new token.
 
+**Never store your own token** (for example `sbx secret set github -t
+"$(gh auth token)"`, which a generic sandbox hint suggests for a failed
+push): `gh auth token` prints *your* login, so every PR the agent opens is
+then yours, and GitHub won't let you approve your own PR. That happened on
+2026-11-18 (#186 to #193). Check with `gh api user --jq .login` inside the
+sandbox: it must print `l1em1on1-claude`.
+
 A separate account rather than your own token: every push, PR, and comment
 the agent makes is attributed to `l1em1on1-claude`, and it can reach only
 what that account was invited to. Pair it with a ruleset on `main` that
