@@ -25,9 +25,9 @@ It documents the system as built: topology, request flow, contract pipeline, rep
 
 ## Reports
 
-Report in a few lines: what changed, what was checked (the command and its result), and what the owner needs to do. Leave out your own steps and workarounds. Reasons belong in an ADR: link it.
+Report in a few lines: what changed, what was checked (the command and its result), and what the owner needs to do. Leave out routine steps, but always say when a check was skipped or done differently from these rules (grep instead of LSP, say). Reasons belong in an ADR: link it.
 
-## Where to look
+## Agent skills
 
 - Issues, PRs and their bodies: GitHub through `gh`, in `docs/agents/issue-tracker.md`.
 - Triage labels: `docs/agents/triage-labels.md`.
