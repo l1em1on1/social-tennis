@@ -229,7 +229,7 @@ Statuses that come from middleware rather than a handler are put into the docume
         │   └── health/         route handler: 200 when web reaches the API (the deploy check)
         ├── components/
         │   ├── ui/             owned primitives (ADR-0014), each with a *.stories.tsx
-        │   ├── shell/          bottom nav (with stories), Player switcher
+        │   ├── shell/          bottom nav and Player switcher, with stories
         │   └── league-setup-form.tsx   the one client-state form: fields that depend on each other
         ├── mocks/              MSW handlers (openapi-msw) + Node server
         └── lib/
@@ -238,6 +238,7 @@ Statuses that come from middleware rather than a handler are put into the docume
             ├── actions.ts      server actions: every form's write, through the API
             ├── league.ts       League wording: Types, Score format and Stage length in words, calendar dates
             ├── mock-mode.ts    MOCK_API / dev-surface flags
+            ├── __mocks__/      Storybook's stand-ins: actions.ts replaces actions.ts in stories (#189)
             └── session.ts      cookie names, public-origin + Secure-cookie helpers
 ```
 
@@ -448,11 +449,11 @@ flowchart LR
     ST --> C2["chromatic (profiles e2e, storybook)<br/>npx chromatic --storybook-build-dir"] --> CH2(["Chromatic Storybook project<br/>light + dark at 360px"])
 ```
 
-- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have none yet (#189). Manager pages get page snapshots in #187.
+- **What has stories.** Every primitive in `components/ui`, the result-status badges and the bottom nav: `*.stories.tsx` beside each component. Components bound to a server action (`PlayerSwitcher`, the Club, Player and League forms) have stories too (#189): `preview.tsx` registers `sb.mock("../src/lib/actions.ts")`, so stories import `src/lib/__mocks__/actions.ts` instead and the real module, which needs the request and the API, never loads. Its actions never settle, so a pressed button stays pending; `createLeague` returns a refusal, so the setup form shows its errors. Manager pages get page snapshots in #187.
 - **Setup.** `@storybook/nextjs-vite` with `nextjs.appDirectory` (mocks for `next/link`, `next/form`, `usePathname`). `preview.tsx` imports `globals.css` and sets the Geist variables the root layout would.
 - **Modes.** Each story is snapshotted twice, `light` and `dark`: Chromatic's `colorScheme` sets `prefers-color-scheme`, which swaps the tokens.
 - **A second Chromatic project.** Chromatic keeps Storybook and Playwright builds in separate projects linked to the same repo, so the upload uses `CHROMATIC_STORYBOOK_PROJECT_TOKEN`, and each project posts its own checks. Until that secret is set, CI builds the stories and skips the upload.
-- **Not in the app.** `.dockerignore` keeps `.storybook/` and the stories out of the production image, so `next build` doesn't type-check them; the CI job runs `tsc` for that.
+- **Not in the app.** `.dockerignore` keeps `.storybook/`, the stories and `src/lib/__mocks__/` out of the production image, so `next build` doesn't type-check them; the CI job's `tsc` covers them.
 - **The `/dev/ui` showcase stays** (owner, 2026-11-18): its spec runs axe on every primitive in both colour schemes.
 
 The test host runs the real `Program.cs` — including startup migration — against a separate `tennis_test` database on the same Postgres service, so tests are isolated from dev data but identical in behaviour.

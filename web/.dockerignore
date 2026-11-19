@@ -9,4 +9,5 @@ playwright.config.ts
 # Storybook isn't part of the app (#46): not in the image, and not type-checked by next build.
 .storybook/
 **/*.stories.tsx
+**/__mocks__/
 storybook-static/
