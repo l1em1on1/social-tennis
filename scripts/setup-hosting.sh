@@ -306,8 +306,9 @@ say "Storage account: $TFSTATE_STORAGE_ACCOUNT"
 if confirm "Create them (skips anything that already exists)?"; then
   # A new subscription has no resource providers registered, and Azure
   # reports that, misleadingly, as "SubscriptionNotFound". Register the ones
-  # this setup and the Terraform need. Each can take a minute or two.
-  for namespace in Microsoft.Storage Microsoft.App Microsoft.OperationalInsights Microsoft.Consumption; do
+  # this setup and the Terraform need: ManagedIdentity for the backup job's
+  # identity (#137). Each can take a minute or two.
+  for namespace in Microsoft.Storage Microsoft.App Microsoft.OperationalInsights Microsoft.Consumption Microsoft.ManagedIdentity; do
     note "Registering $namespace…"
     az provider register --namespace "$namespace" --wait --output none
   done
