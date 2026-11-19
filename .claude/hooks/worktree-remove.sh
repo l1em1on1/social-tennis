@@ -14,7 +14,10 @@ if [[ $input =~ \"worktree_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]
   path=${path//\\\//\/}
   path=${path//\\\\/\\}
 fi
-[[ -n $path && -d $path ]] || exit 0
+# Claude Code counts the worktree removed when this exits 0, and kept when it
+# exits non-zero while the directory is still there.
+[[ -n $path ]] || { echo "worktree-remove: no worktree_path in the hook's input" >&2; exit 1; }
+[[ -e $path ]] || exit 0
 repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 # Only with the project name worktree-create.sh wrote: without it, compose
@@ -29,3 +32,4 @@ fi
 git -C "$repo" worktree remove --force "$path" >&2 \
   || echo "worktree-remove: $path is left behind (files a container wrote as root?)" >&2
 git -C "$repo" worktree prune >&2
+[[ ! -e $path ]]
