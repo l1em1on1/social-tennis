@@ -19,7 +19,7 @@ Use the `LSP` tool for questions about a symbol:
 
 The language servers run in the Docker Sandbox (`./sandbox.sh`, `.sbx/README.md`); builds still run in compose. If C# lookups report every package type missing, run `/reload-plugins`. An LSP "command not found" means the session is on the host: say so, and use grep.
 
-Worktrees go in `.claude/worktrees/` (gitignored). `.claude/hooks/worktree-create.sh` makes them for Claude Code, with packages restored for LSP and their own compose project (`COMPOSE_PROJECT_NAME` in the worktree's `.env`). For one made by hand, run `.claude/hooks/lsp-restore.sh dotnet <path>` and `… npm <path>`. Before `git worktree remove`, run `docker compose down -v` in it.
+Make and remove worktrees through Claude Code (`claude --worktree <name>`) or its hooks, so each gets its packages restored for LSP and its own compose project (`COMPOSE_PROJECT_NAME` in its `.env`): `echo '{"name":"<name>"}' | bash .claude/hooks/worktree-create.sh`, and `echo '{"worktree_path":"<path>"}' | bash .claude/hooks/worktree-remove.sh`. They live in `.claude/worktrees/` (gitignored).
 
 ## `docs/architecture.md` moves with the code
 

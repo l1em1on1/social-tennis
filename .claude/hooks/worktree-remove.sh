@@ -5,7 +5,15 @@
 # may hold commits.
 set -u
 
-path=$(jq -r '.worktree_path // empty')
+# Read with bash, not jq (missing in a Windows host's Git Bash); JSON escapes
+# a path's backslashes and may escape its slashes.
+input=$(cat)
+path=""
+if [[ $input =~ \"worktree_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
+  path=${BASH_REMATCH[1]}
+  path=${path//\\\//\/}
+  path=${path//\\\\/\\}
+fi
 [[ -n $path && -d $path ]] || exit 0
 repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 

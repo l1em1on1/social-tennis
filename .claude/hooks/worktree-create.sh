@@ -8,7 +8,11 @@
 set -euo pipefail
 
 repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
-name=$(jq -r '.name // empty')
+# The one field read with bash, not jq, which a Windows host's Git Bash lacks.
+# The allowed characters below exclude quotes and backslashes, so no JSON
+# escape can hide in a valid name.
+input=$(cat)
+[[ $input =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]] && name=${BASH_REMATCH[1]} || name=""
 if [[ ! $name =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ || $name == *..* ]]; then
   echo "worktree-create: unusable worktree name '$name'" >&2
   exit 1
@@ -32,9 +36,14 @@ fi
 project="social-tennis-wt-$(tr 'A-Z' 'a-z' <<<"$name" | tr -c 'a-z0-9_\n-' '-')-$(printf %s "$name" | cksum | cut -d' ' -f1)"
 printf 'COMPOSE_PROJECT_NAME=%s\n' "$project" >>"$dir/.env"
 
-# Detached, so they outlive this hook. lsp-restore.sh logs to its own file.
-for part in dotnet npm; do
-  setsid nohup bash "$repo/.claude/hooks/lsp-restore.sh" "$part" "$dir" </dev/null >/dev/null 2>&1 &
-done
+# dotnet first, before the path is returned, as the main checkout's
+# SessionStart hook does: seconds with the NuGet cache warm, and csharp-ls
+# then never loads against a worktree with no obj/project.assets.json.
+bash "$repo/.claude/hooks/lsp-restore.sh" dotnet "$dir" </dev/null >/dev/null 2>&1 || true
+# npm takes minutes, so it runs detached and outlives this hook. Both log to
+# lsp-restore.sh's own file; neither does anything where the tool is missing.
+detach=(nohup)
+command -v setsid >/dev/null 2>&1 && detach=(setsid nohup)
+"${detach[@]}" bash "$repo/.claude/hooks/lsp-restore.sh" npm "$dir" </dev/null >/dev/null 2>&1 &
 
 echo "$dir"
