@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # The API denies by default, and business-rule failures are ProblemDetails with a fixed status vocabulary
@@ -27,3 +27,5 @@ A 409 carries a stable machine-readable `type` (e.g. `stage-queue-not-empty`), s
 ## Consequences
 
 Integration tests sign in before calling anything but the anonymous routes. Rules validated against the database (Score format against the League, #38) answer 400 with the same `errors` dictionary shape as the validation filter, so a form handles both the same way.
+
+**Accepted (2026-11-19):** built in #102. The fallback policy and `OpenApiContractTests`' anonymous-call check enforce it.
