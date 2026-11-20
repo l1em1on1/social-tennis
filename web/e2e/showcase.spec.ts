@@ -1,6 +1,5 @@
-// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
-// nav off a long page's content (#182). Otherwise identical to @playwright/test.
+// Chromatic's test (e2e/support/chromatic.ts), with every snapshot turned off below:
+// Storybook reviews the primitives (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
 import { logIn, personaEmail } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
