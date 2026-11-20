@@ -27,24 +27,34 @@ git -C "$repo" worktree prune >&2
 # --resume` after keeping one): a linked worktree's .git is a file, and that
 # one is reopened as it is.
 if [[ ! -f $dir/.git ]]; then
-  # A branch left by an earlier worktree of this name (the remove hook keeps it,
-  # as Claude Code's own worktrees do) is checked out again rather than failing.
-  if git -C "$repo" show-ref --verify --quiet "refs/heads/worktree-$name"; then
-    git -C "$repo" worktree add "$dir" "worktree-$name" >&2
+  branch="worktree-$name"
   # `claude --worktree "#<n>"` arrives as pr-<n>: Claude Code's own creation
-  # starts that from the pull request's head, so this does too.
-  elif [[ $name =~ ^pr-([0-9]+)$ ]]; then
+  # starts that from the pull request's head, so this does too, and brings a
+  # branch kept from an earlier one up to it.
+  if [[ $name =~ ^pr-([0-9]+)$ ]]; then
     git -C "$repo" fetch --quiet origin "pull/${BASH_REMATCH[1]}/head" >&2
-    git -C "$repo" worktree add -b "worktree-$name" "$dir" FETCH_HEAD >&2
-  else
-    git -C "$repo" worktree add -b "worktree-$name" "$dir" origin/main >&2
+    if ! git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+      git -C "$repo" branch "$branch" FETCH_HEAD >&2
+    elif git -C "$repo" merge-base --is-ancestor "$branch" FETCH_HEAD; then
+      git -C "$repo" branch -f "$branch" FETCH_HEAD >&2
+    else
+      echo "worktree-create: $branch has commits the pull request doesn't, so it stays where it is, not at the PR's head" >&2
+    fi
+  elif ! git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$repo" branch "$branch" origin/main >&2
   fi
+  # A branch left by an earlier worktree of this name (the remove hook keeps
+  # it, as Claude Code's own worktrees do) is checked out again.
+  git -C "$repo" worktree add "$dir" "$branch" >&2
+fi
 
-  # Its own compose project: by default compose names one after the directory,
-  # so fix/api and feat/api, or a worktree named like the main checkout, would
-  # share containers and volumes. Compose reads this from the worktree's .env.
-  # The readable part loses case and punctuation (fix/api and fix.api read the
-  # same), so a checksum of the exact name keeps it unique.
+# Its own compose project: by default compose names one after the directory,
+# so fix/api and feat/api, or a worktree named like the main checkout, would
+# share containers and volumes. Compose reads this from the worktree's .env.
+# The readable part loses case and punctuation (fix/api and fix.api read the
+# same), so a checksum of the exact name keeps it unique. A reopened worktree
+# keeps the name it has, and one made before this hook gets one.
+if ! grep -q '^COMPOSE_PROJECT_NAME=' "$dir/.env" 2>/dev/null; then
   project="social-tennis-wt-$(tr 'A-Z' 'a-z' <<<"$name" | tr -c 'a-z0-9_\n-' '-')-$(printf %s "$name" | cksum | cut -d' ' -f1)"
   printf 'COMPOSE_PROJECT_NAME=%s\n' "$project" >>"$dir/.env"
 fi
