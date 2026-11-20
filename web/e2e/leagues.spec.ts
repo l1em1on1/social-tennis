@@ -462,6 +462,9 @@ test("a named partner sees the request wherever they are, and the Manager is tol
   await expect(ivysCard).toContainText("Not accepted");
   await expect.soft(ivysCard).toContainText(`${hal} asked to join with you`);
   await ivyContext.close();
+  // Taken back again, so the snapshot of this page carries no ask date.
+  await page.getByRole("button", { name: `Take back the request to join ${league}` }).click();
+  await expect(halsCard.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
 
   // A made-up error code shows nothing, rather than breaking the page.
   await page.goto("/leagues?error=toString");
