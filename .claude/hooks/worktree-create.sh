@@ -30,13 +30,18 @@ if [[ ! -f $dir/.git ]]; then
   branch="worktree-$name"
   # `claude --worktree "#<n>"` arrives as pr-<n>: Claude Code's own creation
   # starts that from the pull request's head, so this does too, and brings a
-  # branch kept from an earlier one up to it.
+  # branch kept from an earlier one up to it. The head is fetched into a ref of
+  # its own (outside refs/remotes, which a prune would clear), so its last value
+  # tells a force-pushed PR apart from local commits.
   if [[ $name =~ ^pr-([0-9]+)$ ]]; then
-    git -C "$repo" fetch --quiet origin "pull/${BASH_REMATCH[1]}/head" >&2
+    head="refs/pull/${BASH_REMATCH[1]}/head"
+    last=$(git -C "$repo" rev-parse -q --verify "$head" || true)
+    git -C "$repo" fetch --quiet origin "+$head:$head" >&2
     if ! git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
-      git -C "$repo" branch "$branch" FETCH_HEAD >&2
-    elif git -C "$repo" merge-base --is-ancestor "$branch" FETCH_HEAD; then
-      git -C "$repo" branch -f "$branch" FETCH_HEAD >&2
+      git -C "$repo" branch "$branch" "$head" >&2
+    elif [[ $(git -C "$repo" rev-parse "$branch") == "$last" ]] \
+      || git -C "$repo" merge-base --is-ancestor "$branch" "$head"; then
+      git -C "$repo" branch -f "$branch" "$head" >&2
     else
       echo "worktree-create: $branch has commits the pull request doesn't, so it stays where it is, not at the PR's head" >&2
     fi
