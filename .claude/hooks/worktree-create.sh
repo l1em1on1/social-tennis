@@ -7,7 +7,11 @@
 # path, which is how Claude Code finds it; everything else goes to stderr.
 set -euo pipefail
 
-repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+# The main checkout, also from a session already in a worktree (where
+# CLAUDE_PROJECT_DIR is that worktree), so worktrees sit side by side, never
+# one inside another.
+here="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir) && repo=$(cd "$common/.." && pwd) || repo=$here
 # The one field read with bash, not jq, which a Windows host's Git Bash lacks.
 # The allowed characters below exclude quotes and backslashes, so no JSON
 # escape can hide in a valid name.

@@ -17,7 +17,11 @@ fi
 # Claude Code counts the worktree removed when this exits 0, and kept when it
 # exits non-zero while the directory is still there.
 [[ -n $path ]] || { echo "worktree-remove: no worktree_path in the hook's input" >&2; exit 1; }
-repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+# The main checkout, also from a session already in a worktree (where
+# CLAUDE_PROJECT_DIR is that worktree), so worktrees sit side by side, never
+# one inside another.
+here="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir) && repo=$(cd "$common/.." && pwd) || repo=$here
 # Already gone (deleted by hand, say): only git's record of it is left.
 [[ -e $path ]] || { git -C "$repo" worktree prune >&2; exit 0; }
 
