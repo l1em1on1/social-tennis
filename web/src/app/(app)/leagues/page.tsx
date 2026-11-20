@@ -53,6 +53,28 @@ function TakeBack({ league, askerId, label }: { league: PlayerLeague; askerId: s
 }
 
 /**
+ * A waiting request in which someone named this Player as their partner (#6),
+ * with Take back. Shown wherever the Player's card is: they may already be in
+ * the League without a partner, or have been turned down themselves.
+ */
+function NamedAsPartner({ league }: { league: PlayerLeague }) {
+  const named = league.partnerRequest;
+  if (!named) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm">
+        <Badge tone="warning">Asked with you</Badge>{" "}
+        <span className="text-fg-muted">
+          {named.name} asked to join with you as partners {formatDate(named.requestedAt.slice(0, 10))}. A manager decides.
+          If you&apos;re not playing together, take it back.
+        </span>
+      </p>
+      <TakeBack league={league} askerId={named.playerId} label={`Take back ${named.name}'s request to join ${league.name} with you`} />
+    </div>
+  );
+}
+
+/**
  * What the Player can do about a League they aren't in, or what became of
  * asking. In a doubles League they may name a partner (#6), and someone may
  * have named them: either of the two can take that request back.
@@ -83,26 +105,17 @@ function JoinState({
   }
   if (request?.status === "Rejected") {
     return (
-      <p className="text-sm">
-        <Badge tone="danger">Not accepted</Badge>{" "}
-        <span className="text-fg-muted">A manager turned down this request. Ask them if you think it&apos;s a mistake.</span>
-      </p>
-    );
-  }
-  const named = league.partnerRequest;
-  if (named) {
-    return (
       <div className="flex flex-col gap-2">
         <p className="text-sm">
-          <Badge tone="warning">Asked with you</Badge>{" "}
-          <span className="text-fg-muted">
-            {named.name} asked to join with you as partners {formatDate(named.requestedAt.slice(0, 10))}. A manager decides.
-            If you&apos;re not playing together, take it back.
-          </span>
+          <Badge tone="danger">Not accepted</Badge>{" "}
+          <span className="text-fg-muted">A manager turned down this request. Ask them if you think it&apos;s a mistake.</span>
         </p>
-        <TakeBack league={league} askerId={named.playerId} label={`Take back ${named.name}'s request to join ${league.name} with you`} />
+        <NamedAsPartner league={league} />
       </div>
     );
+  }
+  if (league.partnerRequest) {
+    return <NamedAsPartner league={league} />;
   }
   return (
     <form action={askToJoinLeague} className="flex flex-col gap-3">
@@ -176,7 +189,8 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
     }),
   );
   const partnersOf = new Map(partnerLists);
-  const refusal = typeof error === "string" && error in REFUSALS ? REFUSALS[error as JoinRefusal] : undefined;
+  // Own keys only: `in` would also match "toString" and the like.
+  const refusal = typeof error === "string" && Object.hasOwn(REFUSALS, error) ? REFUSALS[error as JoinRefusal] : undefined;
   const inAClub = actingPlayer.clubs.some((club) => club.approved);
 
   return (
@@ -212,6 +226,11 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
               <p className="mt-2 text-sm text-fg-muted">
                 {league.participantCount} players. The ladder appears when the manager starts the league.
               </p>
+              {league.partnerRequest && (
+                <div className="mt-3">
+                  <NamedAsPartner league={league} />
+                </div>
+              )}
             </Card>
           ))
         )}

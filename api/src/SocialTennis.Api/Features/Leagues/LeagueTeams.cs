@@ -98,7 +98,7 @@ internal static class LeagueTeams
                 statusCode: StatusCodes.Status409Conflict,
                 type: "already-in-a-team",
                 title: "One of the pair already has a partner in this League.",
-                detail: "Unpair them first, or reject the request.");
+                detail: "Unpair them first. Or the Player who asked can take the request back and ask with someone else; rejecting it stops them asking again, though a Manager can still add them.");
         }
 
         var team = new Team { Id = Guid.NewGuid(), LeagueId = league.Id, CreatedAt = now };

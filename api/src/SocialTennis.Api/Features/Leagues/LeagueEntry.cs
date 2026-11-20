@@ -81,7 +81,7 @@ internal static class LeagueEntry
                     statusCode: StatusCodes.Status409Conflict,
                     type: "partner-not-a-club-member",
                     title: "The partner this Player named isn't a member of the League's Club.",
-                    detail: "They may have left the Club since. Reject the request, and the Player can ask again with someone else.");
+                    detail: "They may have left the Club since. The Player who asked can take the request back and ask with someone else. Rejecting it stops them asking again, though a Manager can still add them.");
             }
 
             if (await LeagueTeams.EnterAsPairAsync(

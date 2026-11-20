@@ -129,6 +129,18 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       {error === "pair" && (
         <ErrorState title="That pairing didn't work" description="Pick two different players without a partner." />
       )}
+      {error === "partner-paired" && (
+        <ErrorState
+          title="That pair can't be approved"
+          description="One of them already has a partner in this league. Unpair them first. Or the player who asked can take the request back and ask with someone else; rejecting it stops them asking again, though you can still add them."
+        />
+      )}
+      {error === "partner-gone" && (
+        <ErrorState
+          title="That pair can't be approved"
+          description="The partner they named is no longer a member of the club. The player who asked can take the request back and ask with someone else; rejecting it stops them asking again, though you can still add them."
+        />
+      )}
       {error === "conflict" && (
         <ErrorState
           title="That didn't go through"

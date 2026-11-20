@@ -488,14 +488,15 @@ export async function takeBackLeagueJoinRequest(formData: FormData) {
  * A Manager decides a Join Request, or adds a Club Player straight in. A 409
  * is a race (another Manager decided first, or the Player left the Club), and
  * goes back to the page as a message; a 404 means it's gone, which the
- * refreshed page shows.
+ * refreshed page shows. A pair that can't be approved because of the partner
+ * (#6) gets its own message, so the Manager knows pressing again won't help.
  */
 async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejection" | "add" | "remove") {
   const path = leagueAndPlayer(formData);
   if (!path) return;
 
   const api = await apiWithSession();
-  const { response } =
+  const { error, response } =
     kind === "add"
       ? await api.PUT("/leagues/{leagueId}/participants/{playerId}", { params: { path } })
       : kind === "remove"
@@ -504,7 +505,13 @@ async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejecti
           ? await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/approval", { params: { path } })
           : await api.PUT("/leagues/{leagueId}/join-requests/{playerId}/rejection", { params: { path } });
   if (response.status === 409) {
-    redirect(`/manage/leagues/${path.leagueId}?error=conflict`);
+    const reason =
+      error?.type === "already-in-a-team"
+        ? "partner-paired"
+        : error?.type === "partner-not-a-club-member"
+          ? "partner-gone"
+          : "conflict";
+    redirect(`/manage/leagues/${path.leagueId}?error=${reason}`);
   }
   if (!response.ok && response.status !== 404) {
     throw new Error(`League ${kind} failed with ${response.status}`);

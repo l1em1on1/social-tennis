@@ -372,6 +372,102 @@ test("a Player asks to join a doubles League with a partner, who can take it bac
   );
 });
 
+test("a named partner sees the request wherever they are, and the Manager is told when the partner is the problem", async ({
+  page,
+  browser,
+}, testInfo) => {
+  // Four sign-ins and many round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Partner Cases");
+  const hal = uniqueName(testInfo, "Hal Asks");
+  const gus = uniqueName(testInfo, "Gus Already In");
+  const kai = uniqueName(testInfo, "Kai Already In");
+  const ivy = uniqueName(testInfo, "Ivy Turned Down");
+  const halEmail = personaEmail(testInfo, "cases-hal");
+  const gusEmail = personaEmail(testInfo, "cases-gus");
+  const ivyEmail = personaEmail(testInfo, "cases-ivy");
+  const kaiEmail = personaEmail(testInfo, "cases-kai");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  for (const [name, email] of [
+    [hal, halEmail],
+    [gus, gusEmail],
+    [kai, kaiEmail],
+    [ivy, ivyEmail],
+  ])
+    await addClubPlayer(manager, name, email);
+  await createLeague(manager, league, "DoublesMix");
+  const leaguePage = manager.url();
+  for (const [name, email] of [
+    [gus, gusEmail],
+    [kai, kaiEmail],
+  ]) {
+    await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await manager.getByRole("button", { name: "Add to league" }).click();
+    await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+
+  // Ivy asks alone and is turned down.
+  const ivyContext = await browser.newContext();
+  const ivyPage = await ivyContext.newPage();
+  await logIn(ivyPage, testInfo, ivyEmail);
+  await ivyPage.goto("/leagues");
+  const ivysCard = ivyPage.getByRole("region", { name: "You can join" }).getByRole("region", { name: league });
+  await ivysCard.getByRole("button", { name: `Ask to join ${league}` }).click();
+  await expect(ivysCard).toContainText("Request sent");
+  await manager.goto(leaguePage);
+  await manager.getByRole("button", { name: `Reject ${ivy}` }).click();
+  await expect(manager.getByRole("list", { name: "Rejected requests" })).toContainText(ivy);
+
+  // Hal asks with Gus, who is already in the League without a partner.
+  await logIn(page, testInfo, halEmail);
+  await page.goto("/leagues");
+  const halsCard = page.getByRole("region", { name: "You can join" }).getByRole("region", { name: league });
+  const askWith = async (partner: string) => {
+    await halsCard.getByRole("combobox", { name: "Partner (optional)" }).pressSequentially(partner.slice(0, 9));
+    await halsCard.getByRole("option", { name: partner }).click();
+    await halsCard.getByRole("button", { name: `Ask to join ${league}` }).click();
+    await expect(halsCard).toContainText(`Asked with ${partner}`);
+  };
+  await askWith(gus);
+
+  // Gus sees it on his own League card, and can take it back.
+  const gusContext = await browser.newContext();
+  const gusPage = await gusContext.newPage();
+  await logIn(gusPage, testInfo, gusEmail);
+  await gusPage.goto("/leagues");
+  const gusCard = gusPage.getByRole("region", { name: `${gus}'s leagues` }).getByRole("region", { name: league });
+  await expect.soft(gusCard).toContainText(`${hal} asked to join with you`);
+  await expect
+    .soft(gusCard.getByRole("button", { name: `Take back ${hal}'s request to join ${league} with you` }))
+    .toBeVisible();
+  await gusContext.close();
+
+  // Gus is paired with Kai meanwhile: approving Hal's request says the partner is why.
+  await manager.goto(leaguePage);
+  await manager.getByLabel("First player").selectOption({ label: gus });
+  await manager.getByLabel("Second player").selectOption({ label: kai });
+  await manager.getByRole("button", { name: "Pair as a team" }).click();
+  await expect(manager.getByRole("list", { name: "Teams in the league" })).toContainText(gus);
+  await manager.getByRole("button", { name: `Approve ${hal} with ${gus}` }).click();
+  await expect.soft(manager.getByText("One of them already has a partner in this league.")).toBeVisible();
+  await managerContext.close();
+
+  // Hal takes it back and asks with Ivy, whose own request was turned down: she sees it too.
+  await page.getByRole("button", { name: `Take back the request to join ${league}` }).click();
+  await askWith(ivy);
+  await ivyPage.reload();
+  await expect(ivysCard).toContainText("Not accepted");
+  await expect.soft(ivysCard).toContainText(`${hal} asked to join with you`);
+  await ivyContext.close();
+
+  // A made-up error code shows nothing, rather than breaking the page.
+  await page.goto("/leagues?error=toString");
+  await expect.soft(page.getByRole("heading", { name: "Leagues", level: 1 })).toBeVisible();
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");
