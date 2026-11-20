@@ -153,6 +153,14 @@ resource "azurerm_container_app_environment" "this" {
   # workspace id, and rejects the id without it.
   logs_destination           = "log-analytics"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.this.id
+
+  # Azure gives the environment this profile, and puts every app and job on
+  # it, whether or not it is declared. Declared, so a plan with nothing to do
+  # reads "No changes" instead of removing it each time (#150).
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
 }
 
 resource "azurerm_container_app" "api" {
@@ -160,6 +168,7 @@ resource "azurerm_container_app" "api" {
   container_app_environment_id = azurerm_container_app_environment.this.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
   secret {
     name  = "database-connection-string"
@@ -278,6 +287,7 @@ resource "azurerm_container_app" "web" {
   container_app_environment_id = azurerm_container_app_environment.this.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
   ingress {
     external_enabled = true
@@ -349,6 +359,7 @@ resource "azurerm_container_app_job" "scheduled" {
   location                     = var.location
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.this.id
+  workload_profile_name        = "Consumption"
 
   # A job is short; one that hangs is stopped, and one that fails is retried
   # once. A failure is in the job's execution history and in Log Analytics.

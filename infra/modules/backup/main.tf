@@ -130,6 +130,8 @@ resource "azurerm_container_app_job" "backup" {
   location                     = var.location
   resource_group_name          = var.resource_group_name
   container_app_environment_id = var.container_app_environment_id
+  # The environment's Consumption profile, which Azure assigns anyway (#150).
+  workload_profile_name = "Consumption"
 
   # Pulling the Azure CLI image takes a while on a cold node; a dump of this
   # database takes seconds. A failed run is retried once.
