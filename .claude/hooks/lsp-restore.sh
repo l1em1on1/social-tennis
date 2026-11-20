@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SessionStart hook (.claude/settings.json): keep the packages the language
 # servers read up to date (#121). Run as `lsp-restore.sh dotnet` and
-# `lsp-restore.sh npm`, two hooks:
+# `lsp-restore.sh npm`, two hooks. An optional second argument names another
+# checkout, such as a worktree (worktree-create.sh, #185):
 #
 #   dotnet  synchronous. Seconds once the package cache is warm, and Claude's
 #           first reply waits for it, so the first C# lookup sees a current
@@ -25,13 +26,16 @@
 set -u
 
 part="${1:-}"
-repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+# Absolute and resolved, so the lock key and dotnet's projectPath check match
+# whichever way the checkout was named (relative, trailing slash, symlink).
+repo=$(cd "${2:-${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}}" 2>/dev/null && pwd -P) || exit 0
 log="${TMPDIR:-/tmp}/social-tennis-lsp-restore.log"
 
-# One restore of each kind at a time across sessions. flock releases if the
-# process dies; children get fd 9 closed so they can't keep it held.
+# One restore of each kind per checkout at a time, across sessions. flock
+# releases if the process dies; children get fd 9 closed so they can't keep
+# it held.
 if command -v flock >/dev/null 2>&1; then
-  exec 9>"${TMPDIR:-/tmp}/social-tennis-lsp-restore-${part}.lock"
+  exec 9>"${TMPDIR:-/tmp}/social-tennis-lsp-restore-${part}-$(printf %s "$repo" | cksum | cut -d' ' -f1).lock"
   flock -n 9 || exit 0
 fi
 

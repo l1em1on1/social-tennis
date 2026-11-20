@@ -16,3 +16,6 @@ node_modules/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Claude Code worktrees (#185): .claude/hooks/worktree-create.sh makes them here.
+/.claude/worktrees/
