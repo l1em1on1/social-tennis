@@ -105,6 +105,17 @@ export default async function LeaguesPage() {
           mine.map((league) => (
             <Card key={league.id} title={league.name} aria-label={league.name} aside={<Badge tone="accent">Joined</Badge>}>
               <LeagueFacts league={league} />
+              {["DoublesMen", "DoublesWomen", "DoublesMix"].includes(league.type) && (
+                <p className="mt-2 text-sm">
+                  {league.partnerName ? (
+                    <>
+                      Partner: <strong>{league.partnerName}</strong>
+                    </>
+                  ) : (
+                    "No partner yet. The manager pairs players into teams."
+                  )}
+                </p>
+              )}
               <p className="mt-2 text-sm text-fg-muted">
                 {league.participantCount} players. The ladder appears when the manager starts the league.
               </p>

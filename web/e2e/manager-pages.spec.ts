@@ -2,7 +2,7 @@
 // see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
-import { FIXTURE_ADMIN, FIXTURE_LEAGUE_ID, FIXTURE_MANAGER } from "../src/mocks/fixture";
+import { FIXTURE_ADMIN, FIXTURE_DOUBLES_LEAGUE_ID, FIXTURE_LEAGUE_ID, FIXTURE_MANAGER } from "../src/mocks/fixture";
 import { logIn } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -33,6 +33,17 @@ test("a League's Manager page, from fixed data", async ({ page }, testInfo) => {
 
   await expect(page.getByRole("heading", { name: "Winter Singles", level: 1 })).toBeVisible();
   await expect(page.getByRole("list", { name: "Players in the league" }).getByRole("listitem")).toHaveCount(2);
+  await expectNoSeriousA11yViolations(page);
+});
+
+test("a doubles League's Manager page, from fixed data", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+  await logIn(page, testInfo, FIXTURE_MANAGER);
+  await page.goto(`/manage/leagues/${FIXTURE_DOUBLES_LEAGUE_ID}`);
+
+  await expect(page.getByRole("heading", { name: "Spring Doubles", level: 1 })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Teams in the league" }).getByRole("listitem")).toHaveCount(1);
+  await expect(page.getByRole("list", { name: "Players without a partner" }).getByRole("listitem")).toHaveCount(2);
   await expectNoSeriousA11yViolations(page);
 });
 

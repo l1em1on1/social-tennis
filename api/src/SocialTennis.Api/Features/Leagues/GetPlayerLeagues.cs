@@ -52,7 +52,13 @@ public static class GetPlayerLeagues
                 l.JoinRequests
                     .Where(r => r.PlayerId == playerId)
                     .Select(r => new PlayerLeagueJoinRequest(r.Status, r.RequestedAt, r.DecidedAt))
-                    .SingleOrDefault()))
+                    .SingleOrDefault(),
+                l.Participants
+                    .Where(p => p.PlayerId == playerId && p.TeamId != null)
+                    .SelectMany(p => p.Team!.Members)
+                    .Where(m => m.PlayerId != playerId)
+                    .Select(m => m.Player.Name)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new GetPlayerLeaguesResponse(leagues, new PageInfo(leagues.Count)));

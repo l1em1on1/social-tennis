@@ -27,6 +27,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<LeagueJoinRequest> LeagueJoinRequests => Set<LeagueJoinRequest>();
 
+    public DbSet<Team> Teams => Set<Team>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Club>(club =>
@@ -98,6 +100,19 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             participant.HasKey(p => new { p.LeagueId, p.PlayerId });
             participant.HasOne(p => p.League).WithMany(l => l.Participants).OnDelete(DeleteBehavior.Cascade);
             participant.HasOne(p => p.Player).WithMany().OnDelete(DeleteBehavior.Cascade);
+            // Through the League's id too, so a participant's Team is always of
+            // their own League. A null TeamId makes the whole key null (EF Core
+            // docs, "composite foreign key"): an unpaired Player. No cascade:
+            // breaking a Team up clears its members' TeamId first (LeagueTeams).
+            participant.HasOne(p => p.Team).WithMany(t => t.Members)
+                .HasForeignKey(p => new { p.LeagueId, p.TeamId })
+                .HasPrincipalKey(t => new { t.LeagueId, t.Id })
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        modelBuilder.Entity<Team>(team =>
+        {
+            team.HasOne(t => t.League).WithMany(l => l.Teams).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<LeagueJoinRequest>(request =>

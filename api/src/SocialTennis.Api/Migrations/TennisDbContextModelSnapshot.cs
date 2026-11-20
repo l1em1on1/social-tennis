@@ -215,9 +215,14 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateTimeOffset>("JoinedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("LeagueId", "PlayerId");
 
                     b.HasIndex("PlayerId");
+
+                    b.HasIndex("LeagueId", "TeamId");
 
                     b.ToTable("LeagueParticipants");
                 });
@@ -330,6 +335,23 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("SessionTokens");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Teams");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -440,9 +462,17 @@ namespace SocialTennis.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SocialTennis.Api.Domain.Team", "Team")
+                        .WithMany("Members")
+                        .HasForeignKey("LeagueId", "TeamId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("League");
 
                     b.Navigation("Player");
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Player", b =>
@@ -467,16 +497,34 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.League", "League")
+                        .WithMany("Teams")
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("League");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.League", b =>
                 {
                     b.Navigation("JoinRequests");
 
                     b.Navigation("Participants");
+
+                    b.Navigation("Teams");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Player", b =>
                 {
                     b.Navigation("Memberships");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.User", b =>

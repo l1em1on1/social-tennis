@@ -7,7 +7,8 @@ namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
 /// A Manager puts a member of the League's Club straight into it, with no Join
-/// Request; the add time is their join time. A PUT: adding a participant again
+/// Request; the add time is their join time. In a singles League they get a
+/// Team of one; in a doubles League they are unpaired (<see cref="LeagueTeams"/>). A PUT: adding a participant again
 /// changes nothing.
 /// </summary>
 /// <remarks>
@@ -25,11 +26,8 @@ public static class AddLeagueParticipant
         CancellationToken cancellationToken)
     {
         await using var transaction = await LeagueEntry.LockLeagueAsync(db, leagueId, cancellationToken);
-        var clubId = await db.Leagues
-            .Where(l => l.Id == leagueId)
-            .Select(l => (Guid?)l.ClubId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (clubId is null || !await db.Players.AnyAsync(p => p.Id == playerId, cancellationToken))
+        var league = await db.Leagues.SingleOrDefaultAsync(l => l.Id == leagueId, cancellationToken);
+        if (league is null || !await db.Players.AnyAsync(p => p.Id == playerId, cancellationToken))
         {
             return TypedResults.NotFound();
         }
@@ -39,7 +37,7 @@ public static class AddLeagueParticipant
             return TypedResults.NoContent();
         }
 
-        if (!await LeagueEntry.IsClubMemberAsync(db, clubId.Value, playerId, cancellationToken))
+        if (!await LeagueEntry.IsClubMemberAsync(db, league.ClubId, playerId, cancellationToken))
         {
             return LeagueEntry.NotAClubMember();
         }
@@ -54,12 +52,7 @@ public static class AddLeagueParticipant
             pending.DecidedAt = now;
         }
 
-        db.LeagueParticipants.Add(new LeagueParticipant
-        {
-            LeagueId = leagueId,
-            PlayerId = playerId,
-            JoinedAt = pending?.RequestedAt ?? now,
-        });
+        LeagueTeams.AddParticipant(db, league, playerId, pending?.RequestedAt ?? now, now);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

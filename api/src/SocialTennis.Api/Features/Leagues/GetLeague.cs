@@ -6,7 +6,7 @@ using SocialTennis.Api.Features.Leagues.Contracts;
 
 namespace SocialTennis.Api.Features.Leagues;
 
-/// <summary>A League as a Manager runs it: format, participants, and Join Requests.</summary>
+/// <summary>A League as a Manager runs it: format, participants, Join Requests and Teams.</summary>
 public static class GetLeague
 {
     public static async Task<Results<Ok<GetLeagueResponse>, NotFound>> HandleAsync(
@@ -32,7 +32,7 @@ public static class GetLeague
                     .OrderBy(p => p.JoinedAt)
                     .ThenBy(p => p.Player.Name)
                     .Select(p => new LeagueParticipantSummary(
-                        p.PlayerId, p.Player.Name, p.Player.User.Email, p.Player.Rating, p.JoinedAt))
+                        p.PlayerId, p.Player.Name, p.Player.User.Email, p.Player.Rating, p.JoinedAt, p.Player.Gender, p.TeamId))
                     .ToList(),
                 l.JoinRequests
                     .OrderBy(r => r.Status != LeagueJoinRequestStatus.Pending)
@@ -40,6 +40,14 @@ public static class GetLeague
                     .ThenByDescending(r => r.DecidedAt)
                     .Select(r => new LeagueJoinRequestSummary(
                         r.PlayerId, r.Player.Name, r.Player.User.Email, r.Player.Rating, r.Status, r.RequestedAt, r.DecidedAt))
+                    .ToList(),
+                l.Teams
+                    .OrderBy(t => t.CreatedAt)
+                    .ThenBy(t => t.Id)
+                    .Select(t => new LeagueTeamSummary(
+                        t.Id,
+                        t.Members.OrderBy(m => m.JoinedAt).ThenBy(m => m.PlayerId).Select(m => m.PlayerId).ToList(),
+                        t.Members.Average(m => (double)m.Player.Rating)))
                     .ToList()))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);

@@ -161,8 +161,9 @@ interface MockLeague {
   stageLength: { count: number; unit: Schemas["StageLengthUnit"] };
   stageRoll: Schemas["StageRoll"];
   scoreFormat: { gamesPerSet: number; setsPerGame: number; matchTiebreakDecider: boolean };
-  participants: { playerId: string; joinedAt: string }[];
+  participants: { playerId: string; joinedAt: string; teamId: string | null }[];
   requests: { playerId: string; status: Schemas["LeagueJoinRequestStatus"]; requestedAt: string; decidedAt: string | null }[];
+  teams: { id: string; createdAt: string }[];
 }
 
 /** The page block of a list that isn't paged: every match, from the start (ADR-0012). */
@@ -172,6 +173,28 @@ const leagues: MockLeague[] = [];
 let leaguesMade = 0;
 
 const leagueById = (id: string) => leagues.find((league) => league.id === id);
+
+/** As the API's LeagueTeams (#6): a Team of one in singles; unpaired in doubles; none in Foursomes. */
+const teamSize = (type: Schemas["LeagueType"]) => (type.startsWith("Singles") ? 1 : type.startsWith("Doubles") ? 2 : 0);
+let teamsMade = 0;
+
+function newTeam(league: MockLeague) {
+  const id = `00000000-0000-4000-8000-6${String((teamsMade += 1)).padStart(11, "0")}`;
+  league.teams.push({ id, createdAt: new Date().toISOString() });
+  return id;
+}
+
+function addParticipant(league: MockLeague, playerId: string, joinedAt: string) {
+  league.participants.push({ playerId, joinedAt, teamId: teamSize(league.type) === 1 ? newTeam(league) : null });
+}
+
+/** Leaves the Team's members in the League, unpaired. */
+function breakUp(league: MockLeague, teamId: string) {
+  for (const participant of league.participants) {
+    if (participant.teamId === teamId) participant.teamId = null;
+  }
+  league.teams = league.teams.filter((team) => team.id !== teamId);
+}
 const isClubMember = (player: MockPlayer | undefined, clubId: string) =>
   clubId === MOCK_CLUB.id && player?.membership?.approved === true;
 
@@ -215,6 +238,14 @@ const leagueFacts = (league: MockLeague) => ({
 });
 
 const conflict = (type: string, title: string) => ({ type, title, status: 409 });
+
+/** The other Player of this Player's Team, in a doubles League. */
+function partnerName(league: MockLeague, playerId: string) {
+  const teamId = league.participants.find((participant) => participant.playerId === playerId)?.teamId;
+  if (!teamId || teamSize(league.type) !== 2) return null;
+  const partnerId = league.participants.find((participant) => participant.teamId === teamId && participant.playerId !== playerId)?.playerId;
+  return allPlayers().find((candidate) => candidate.id === partnerId)?.name ?? null;
+}
 
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
@@ -419,6 +450,7 @@ export const handlers = [
       },
       participants: [],
       requests: [],
+      teams: [],
     };
     leagues.push(league);
     return response(201).json({ id: league.id, name: league.name });
@@ -447,12 +479,14 @@ export const handlers = [
       ...leagueFacts(league),
       clubId: league.clubId,
       clubName,
-      participants: league.participants.map(({ playerId, joinedAt }) => ({
+      participants: league.participants.map(({ playerId, joinedAt, teamId }) => ({
         playerId,
         name: player(playerId).name,
         email: player(playerId).email,
         rating: player(playerId).rating,
         joinedAt,
+        gender: player(playerId).gender,
+        teamId,
       })),
       joinRequests: pendingFirst.map((joinRequest) => ({
         ...joinRequest,
@@ -460,6 +494,14 @@ export const handlers = [
         email: player(joinRequest.playerId).email,
         rating: player(joinRequest.playerId).rating,
       })),
+      teams: league.teams.map((team) => {
+        const members = league.participants.filter((participant) => participant.teamId === team.id);
+        return {
+          id: team.id,
+          playerIds: members.map((member) => member.playerId),
+          rating: members.reduce((sum, member) => sum + player(member.playerId).rating, 0) / members.length,
+        };
+      }),
     });
   }),
 
@@ -495,7 +537,7 @@ export const handlers = [
       pending.status = "Approved";
       pending.decidedAt = now;
     }
-    league.participants.push({ playerId: player.id, joinedAt: pending?.requestedAt ?? now });
+    addParticipant(league, player.id, pending?.requestedAt ?? now);
     return response(204).empty();
   }),
 
@@ -505,13 +547,50 @@ export const handlers = [
     if (!league) {
       return response(404).empty();
     }
-    const before = league.participants.length;
+    const leaving = league.participants.find((participant) => participant.playerId === params.playerId);
+    if (leaving?.teamId) breakUp(league, leaving.teamId);
     league.participants = league.participants.filter((participant) => participant.playerId !== params.playerId);
-    if (league.participants.length < before) {
+    if (leaving) {
       league.requests = league.requests.filter(
         (joinRequest) => !(joinRequest.playerId === params.playerId && joinRequest.status === "Approved"),
       );
     }
+    return response(204).empty();
+  }),
+
+  // Pairing (#6): two unpaired Players of a doubles League become a Team.
+  http.post("/leagues/{leagueId}/teams", async ({ params, request, response }) => {
+    const { firstPlayerId, secondPlayerId } = await request.json();
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    if (firstPlayerId === secondPlayerId) {
+      return response(400).json(invalid("secondPlayerId"), problemJson);
+    }
+    if (teamSize(league.type) !== 2) {
+      return response(409).json(conflict("not-a-doubles-league", "Only a doubles League's Players are paired by the Manager."), problemJson);
+    }
+    const pair = league.participants.filter(
+      (participant) => [firstPlayerId, secondPlayerId].includes(participant.playerId) && participant.teamId === null,
+    );
+    if (pair.length !== 2) {
+      return response(409).json(conflict("not-unpaired", "Both Players must be in the League without a partner."), problemJson);
+    }
+    const teamId = newTeam(league);
+    for (const participant of pair) participant.teamId = teamId;
+    return response(201).json({ id: teamId });
+  }),
+
+  http.delete("/leagues/{leagueId}/teams/{teamId}", ({ params, response }) => {
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    if (teamSize(league.type) !== 2) {
+      return response(409).json(conflict("not-a-doubles-league", "Only a doubles League's Players are paired by the Manager."), problemJson);
+    }
+    breakUp(league, params.teamId);
     return response(204).empty();
   }),
 
@@ -544,7 +623,7 @@ export const handlers = [
     if (joinRequest.status === "Pending") {
       joinRequest.status = "Approved";
       joinRequest.decidedAt = new Date().toISOString();
-      league.participants.push({ playerId: joinRequest.playerId, joinedAt: joinRequest.requestedAt });
+      addParticipant(league, joinRequest.playerId, joinRequest.requestedAt);
     }
     return response(204).empty();
   }),
@@ -587,6 +666,7 @@ export const handlers = [
           joinRequest: joinRequest
             ? { status: joinRequest.status, requestedAt: joinRequest.requestedAt, decidedAt: joinRequest.decidedAt }
             : null,
+          partnerName: partnerName(league, player.id),
         };
       });
     return response(200).json({ leagues: list, page: wholeList(list.length) });
