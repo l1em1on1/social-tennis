@@ -15,6 +15,7 @@ The app can't be left with no Admin:
 - Whoever can change the deployment's configuration can make themselves an Admin. That is already true of anyone with that access, who could change the database too.
 - Removing an address from the list demotes that person only if they were never also granted Admin in the app.
 - Roles are club-wide, as ADR-0003 has them for v1. Per-Club roles later are a new table beside `User.Roles` (a role, a User, a Club), which adds to this and replaces nothing.
+- **Manager is global: a Manager manages every Club.** So per-Club Manager (#110) must be built before a second Club is created. Until then, only one Club should exist.
 
 ## Considered
 

@@ -168,7 +168,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 /
 ├── CONTEXT.md                  domain glossary (ubiquitous language)
 ├── docs/
-│   ├── adr/                    architecture decision records (0016–0018 proposed)
+│   ├── adr/                    architecture decision records (0018 proposed)
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
@@ -176,7 +176,10 @@ Statuses that come from middleware rather than a handler are put into the docume
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e, storybook profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
-├── scripts/setup-hosting.sh    one-time hosting setup wizard (accounts, state storage, GitHub identity)
+├── scripts/
+│   ├── setup-hosting.sh        one-time hosting setup wizard (accounts, state storage, GitHub identity)
+│   ├── setup-domain.sh         the club's domain, between deploys: Azure verifies the email DNS, the web certificate is bound
+│   └── scan-image.sh           Trivy scan of a built image (CI's image scan)
 ├── sandbox.sh                  host entry point for the Docker Sandbox: sbx version, secrets, create, run
 ├── .sbx/                       Docker Sandbox (sbx) for agents — see .sbx/README.md
 │   └── kits/                   v3 mixin kits attached at sandbox creation (<kit>.yaml, + <kit>.dockerfile)
@@ -236,7 +239,7 @@ Statuses that come from middleware rather than a handler are put into the docume
         ├── mocks/              MSW handlers (openapi-msw) + Node server; fixture.ts, the fixed world for page snapshots
         └── lib/
             ├── api/            generated schema.d.ts, client.ts, server.ts (session-aware)
-            ├── viewer/         getViewer(): User, roles, Players, acting Player (stubbed parts: #4, #18)
+            ├── viewer/         getViewer(): User, roles, Players, acting Player
             ├── actions.ts      server actions: every form's write, through the API
             ├── league.ts       League wording: Types, Score format and Stage length in words, calendar dates
             ├── mock-mode.ts    MOCK_API / dev-surface flags
@@ -337,7 +340,7 @@ flowchart LR
     M -.->|"verified against"| C
 ```
 
-- **Scale to zero.** After about five idle minutes both apps stop and Neon suspends its compute. The next request starts `web`, then `api` (which checks migrations), then the database. The first page load after idle has not been measured yet; it is recorded here once the environment exists.
+- **Scale to zero.** After about five idle minutes both apps stop and Neon suspends its compute. The next request starts `web`, then `api` (which checks migrations), then the database. The first page load after idle has not been measured yet (#26).
 - **web to api over https** (#111). `API_URL` is the api app's internal address (`ingress[0].fqdn`, `api.internal.<environment domain>`) with `https://`, and the api ingress sets `allow_insecure_connections = false`, so a plain-http request is redirected rather than served. The short name `http://api` that Container Apps also resolves is plain http, so web doesn't use it. Traffic never leaves the environment either way; https keeps session tokens off the wire in clear inside it too.
 - **Probes.** Azure probes the API on `/health`, which runs no checks, so probing never wakes the database. The startup probe allows two minutes for a cold start. `web` is probed on `/login`, which calls nothing. Web's own `/health` (`src/app/health/route.ts`) asks the API's `/health` and answers 200 or 503; anonymous visitors may open it. The deploy check uses it, not the probe, since it wakes the API.
 - **Workload profile** (#150). The environment declares Azure's `Consumption` profile, and both apps and both jobs name it (`workload_profile_name`). Azure adds both whether or not Terraform declares them, so declaring them stops every plan from trying to remove them.
@@ -367,7 +370,7 @@ flowchart LR
 | `modules/email` | Communication Services, Email service and domain, Cloudflare DNS records | Only created when `email_domain` is set. The domain is linked, and sending switched on, only once `email_domain_verified` is true |
 | State | Azure Storage, `azurerm` backend | Account name passed by `infra/init.sh`; access by Azure AD role, no account key |
 | Providers | `infra/.terraform.lock.hcl` | Versions and checksums for `linux_amd64` and `linux_arm64`. Every `terraform init` (CI, deploy, `init.sh`) runs with `-lockfile=readonly`, so a provider that doesn't match its checksum stops the run |
-| Setup | `scripts/setup-hosting.sh` | The steps that need a person. Written without access to an Azure or Neon account, so untested end to end |
+| Setup | `scripts/setup-hosting.sh` | The steps that need a person. Run by the owner against the real accounts |
 
 `infra.yml` checks formatting and validates the configuration on every PR, with no cloud credentials. Planning and applying against the real environment belong to the deploy workflow below, which runs on `main` only, so a pull request never holds a credential that can change infrastructure.
 
@@ -465,7 +468,7 @@ The test host runs the real `Program.cs` — including startup migration — aga
 
 ## CI
 
-Two GitHub Actions workflows, one per half of the repo (ADR-0002), every step a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner. Both run on every PR and every push to `main`; a first `changed paths` job in each decides whether the others have anything to do:
+Six GitHub Actions workflows: `api.yml` and `web.yml`, one per half of the repo (ADR-0002); `infra.yml` for Terraform; `review.yml`, Claude's review on request; `pages.yml` for the wireframes; and `deploy.yml`, the release flow above. In the three check workflows (`api`, `web`, `infra`) every step is a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner. They run on every PR and every push to `main`; a first `changed paths` job in each decides whether the others have anything to do:
 
 ```mermaid
 flowchart LR
@@ -481,16 +484,25 @@ flowchart LR
         T4["e2e<br/>docker compose --profile e2e run --rm e2e<br/>then run --rm --no-deps chromatic (if token set)<br/>report uploaded on failure"]
         T7["storybook<br/>build-storybook + tsc in the storybook service<br/>then chromatic --storybook-build-dir (if token set)"]
     end
-    PR[Pull request / push to main] --> apiwf & webwf
+    subgraph infrawf ["infra.yml — infra/**"]
+        T8["validate<br/>terraform fmt -check, init, validate<br/>in the infra toolbox image"]
+    end
+    subgraph reviewwf ["review.yml — on request"]
+        R1["review<br/>Claude reads the PR and comments"]
+    end
+    PR[Pull request / push to main] --> apiwf & webwf & infrawf
+    LBL["claude-review label on a PR"] --> reviewwf
 ```
 
-**Every check reports on every PR.** The workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the job names above are safe to require in a ruleset on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip` for each Chromatic project that has a token, because Chromatic's own "UI Tests: <project>" checks are only posted when a build is published or skipped, and would otherwise stay unreported.
+**Every check reports on every PR.** The three check workflows have no `paths` filter: GitHub leaves the checks of a path-skipped workflow *pending*, which would block a docs-only PR as soon as those checks were required. Instead each job is skipped with `if`, which reports as skipped and satisfies a required check. So the `api`, `web` and `infra` job names above are safe to make required checks on `main`. Two details keep that honest. The jobs run unless `changed paths` explicitly says there is nothing to do, so a failed or cancelled detector runs everything and can't let a required check pass by being skipped. And when e2e is skipped, a `chromatic-skip` job runs `chromatic --skip` for each Chromatic project that has a token, because Chromatic's own "UI Tests: <project>" checks are only posted when a build is published or skipped, and would otherwise stay unreported.
+
+**Merging to `main`.** Branch protection requires eight checks of everyone but admins: `format and analyzers (dotnet format)`, `integration tests (HTTP vs real Postgres)`, `OpenAPI client drift`, `lint (eslint)`, `production image build (next build)`, `e2e (Playwright, mocked + real API)`, `UI Tests: social-tennis` and `UI Tests: social-tennis_storybook`. A ruleset on the default branch adds the rest: changes arrive by pull request with one approval and are squash-merged; the branch can't be deleted or force-pushed; and a CodeQL alert at error level, or a security alert of high severity or above, blocks the merge. CodeQL runs as GitHub's default setup (no workflow file), on Actions, C# and JavaScript/TypeScript.
 
 **Image scan** (#114). Both production images are scanned as CI builds them: `web` in the build job, `api` in its own `image-scan` job. `scripts/scan-image.sh` runs Trivy from its official image, pinned by digest (Trivy's own release channels were compromised once, GHSA-69fq-xp46-6x23, so a tag alone isn't trusted). It fails on a **critical** vulnerability **that has a fix**; anything without a fix, or below critical, is reported only by Dependabot alerts and the monthly base-image PRs. An accepted finding goes in `.trivyignore.yaml` with a statement and an `expired_at` review date, after which Trivy stops honouring it and the scan fails again. The scan runs when its app's files change, so a vulnerability published later shows up on the next PR that touches that app, or the next base-image PR. Locally: `docker compose build api && scripts/scan-image.sh social-tennis-api`.
 
 **Infrastructure.** `infra.yml` runs `terraform fmt -check` and `terraform validate` in the toolbox image when `infra/` changes, with the same always-reports structure as the other two.
 
-**Wireframes on GitHub Pages.** A third workflow, `pages.yml`, publishes `docs/ui/*.html` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder. It copies static files and builds nothing. It reports no check on pull requests.
+**Wireframes on GitHub Pages.** `pages.yml` publishes `docs/ui/*.html` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder. It copies static files and builds nothing. It reports no check on pull requests.
 
 **Code review.** `review.yml` has Claude (Opus at high effort, through `anthropics/claude-code-action`, pinned by commit SHA) review a pull request when the owner adds the `claude-review` label, and comment on it directly. A finding on a line the PR changed is a comment on that line, since GitHub takes line comments only within the diff. Every other finding is listed with its `path:line` in the single summary comment. The job removes the label as it starts, so adding it again asks for a re-review. A step before the review writes the PR's earlier line comments (the bot's and collaborators') to `pr-context/`, because `gh pr view --comments` doesn't show them, so a re-review doesn't repeat open findings. It is advice, not a gate: its check should not be required, a run that fails (a usage limit, or a rejected token) ends green with a comment giving Claude's error and what to do about it, and it builds and runs nothing from the repository.
 
@@ -507,27 +519,27 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | Component | Version | Note |
 |---|---|---|
 | .NET / ASP.NET Core / EF Core | 10.0 (LTS) | Solution uses the `.slnx` format (SDK 10 default) |
-| Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.x | EF Relational pinned explicitly to 10.0.10 to unify versions |
-| Microsoft.OpenApi | 2.11.0 | Template's 2.0.0 has GHSA-v5pm-xwqc-g5wc; 3.x breaks the .NET 10 OpenAPI source generator |
-| FluentValidation | 12.1.1 | Core package only — validators are constructed, not DI-resolved (ADR-0011) |
-| Next.js / React | 16.3 / 19.2 | `output: "standalone"` for the Docker runtime image |
+| Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.x | EF Relational pinned explicitly to 10.0.15 to unify versions |
+| Microsoft.OpenApi | 2.13.0 | Template's 2.0.0 has GHSA-v5pm-xwqc-g5wc; 3.x breaks the .NET 10 OpenAPI source generator |
+| FluentValidation | 12.2.0 | Core package only — validators are constructed, not DI-resolved (ADR-0011) |
+| Next.js / React | 16.4 / 19.3 | `output: "standalone"` for the Docker runtime image |
 | Node | 24 (LTS) | Container-only, never on the host |
 | API runtime image | `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra@sha256:…` | Ubuntu chiseled (#25): no shell or package manager, runs as `app` (UID 1654). `-extra` adds ICU and tzdata. With no shell, compose's healthcheck is the app probing itself (`dotnet SocialTennis.Api.dll healthcheck`, `HealthProbe.cs`); the dev overlay, on the SDK image, keeps a bash probe. Azure probes over HTTP |
 | Web runtime image | `node:24-alpine@sha256:…` | Runs as the image's `node` user (UID 1000); the app's files are root-owned, only `.next/cache` is writable |
 | Build images | `dotnet/sdk:10.0@sha256:…`, `node:24-alpine@sha256:…` | Pinned the same way, so a build is reproducible |
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
-| eslint / eslint-config-next | 9.x / 16.3.0 | `typescript-estree`'s `minimatch` is overridden to ^11.0.1 (no fixed 10.x, #133). Drop each override in `web/package.json` once its parent ships a fixed version |
+| eslint / eslint-config-next | 9.x / 16.4.6 | `typescript-estree`'s `minimatch` is overridden to ^11.0.1 (no fixed 10.x, #133). Drop each override in `web/package.json` once its parent ships a fixed version |
 | msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. msw 3 renamed `onUnhandledRequest` to `onUnhandledFrame` |
 | @playwright/test | 1.65.1 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.1-noble` image tag in `docker-compose.yml` (browsers ship in the image). Dependabot ignores the image (named `playwright` there), so both move together by hand on the npm PR |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
-| chromatic / @chromatic-com/playwright | 18.13.6 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
+| chromatic / @chromatic-com/playwright | 18.14.3 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
 | storybook / @storybook/nextjs-vite / vite | 10.6.7 / 10.6.7 / 8.3.8 | Exact pins (#46). `storybook` is a direct dependency and also in `overrides`; the two must stay equal, or npm refuses the install |
 | TypeScript (language server only) | 5.x | sbx `toolchain` kit; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | sbx `rtk` kit; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest"; it checks the release checksum |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |
-| Azure CLI | 2.92.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
+| Azure CLI | 2.93.0 | In the infra toolbox image, with the `communication` extension 1.14.0 for `scripts/setup-domain.sh`. Dependabot can't see a CLI extension: bump it by hand from `src/communication/setup.py` in Azure/azure-cli-extensions |
 | Trivy | `aquasec/trivy:0.76.2@sha256:…` | The CI image scan (`scripts/scan-image.sh`). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts. Bump to a release published after any advisory on Trivy itself |
 | Backup job images | `postgres:18-alpine@sha256:…`, `mcr.microsoft.com/azure-cli:2.92.0@sha256:…` | `infra/modules/backup` only. Pinned by digest in Terraform, by hand: Dependabot can't see images named there. `pg_dump`'s major version must be at least Neon's server version |
 | curl image | `curlimages/curl:8.11.1@sha256:…` | `scripts/setup-domain.sh` only (the host may have no curl). Pinned by digest in the script, by hand: Dependabot can't see images named in scripts |
@@ -539,6 +551,6 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 
 ## Where this goes next
 
-The skeleton, login (#3) and the UI foundation (#40) are built, so every following ticket adds domain, not plumbing. Next is #54 (deny-by-default authorization, health, an injected clock), then #18 (the Admin and Club bootstrap) and the Phase 1 chain #4 → #5 → #6 → #7 → #38 → #42, then #10 → #14. Go-live (#25–#27, #19, #51–#53) follows. The ticket graph is wired as native GitHub issue dependencies, and each ticket's "Blocked by" section must agree with them.
+Built: login (#3), the UI foundation (#40), deny-by-default authorization, health and the injected clock (#54), the Admin and Club bootstrap (#18), Player profiles and Club membership (#4), and creating and joining Leagues (#5). Hosting runs on Azure with approval-gated deploys, sign-in emails, hardened images, security headers and a privacy notice (#19, #25, #51, #53). Next is the Phase 1 chain #6 → #7 → #38 → #42, then #10 → #14. Still open for go-live: the cold-start measurement (#26), the rollback demo (#27), and the uptime alert and restore drill (#52). The ticket graph is wired as native GitHub issue dependencies, and each ticket's "Blocked by" section must agree with them.
 
-Three decisions those tickets depend on are proposed and not yet accepted: ADR-0016 (dates and the clock), ADR-0017 (error contract, deny-by-default authorization) and ADR-0018 (concurrent Score edits).
+One decision those tickets depend on is still proposed: ADR-0018 (concurrent Score edits), until #38.

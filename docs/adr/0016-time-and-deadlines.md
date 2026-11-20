@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Dates are calendar dates in the Club's time zone; instants are UTC; the clock is injected
@@ -8,7 +8,7 @@ A Stage has a StartDate and an EndDate, and "play by 30 November" means the end 
 
 **The deadline triggers a close attempt; it locks nothing.** When a Stage's deadline passes, an auto-rolling League tries to close it. The Stage stays open while its Resolution Queue is non-empty, and a manually rolled Stage stays open until the Manager closes it. Scores are editable until the Stage *actually* closes (`CONTEXT.md`: Stage, ADR-0008), which can be well after EndDate. So the Score edit lock follows the Stage's closed state, never the date.
 
-No code reads the system clock directly. Handlers and background services take `TimeProvider`, so a test can set the time to one second before and after a deadline. Whether a deadline has passed, and so when auto-roll attempts a close, is decided by the clock, and that is among the rules most worth testing (issue #1, Testing Decisions).
+No code reads the system clock directly. Handlers and scheduled jobs take `TimeProvider`, so a test can set the time to one second before and after a deadline. Whether a deadline has passed, and so when auto-roll attempts a close, is decided by the clock, and that is among the rules most worth testing (issue #1, Testing Decisions).
 
 ## Considered Options
 
@@ -19,3 +19,5 @@ No code reads the system clock directly. Handlers and background services take `
 ## Consequences
 
 The web app shows dates as the Club's calendar dates, never converted to the browser's zone. "Is this Stage past its deadline?" is one shared function of (EndDate, Club zone, now) and is not re-derived per handler. The auto-roll scheduler (#10) wakes on a timer and asks that function; it does not schedule a job for a stored instant.
+
+**Amended (2026-11-19): jobs run and exit on a schedule (ADR-0019).** Nothing runs in the background inside the API, and no in-process scheduler wakes on a timer. Time-driven work, such as purging tokens (#112) and later auto-roll (#10), is a job the API image runs and exits (`job <name>`), triggered on a cron schedule by Container Apps. The job takes `TimeProvider` like a handler, so tests set the clock the same way. Accepted: the injected clock was built in #57, and the first scheduled job in #131.
