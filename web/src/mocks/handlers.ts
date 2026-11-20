@@ -1,6 +1,16 @@
 import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
+import {
+  FIXTURE_ADMIN,
+  FIXTURE_MANAGER,
+  FIXTURE_USER_IDS,
+  fixtureClubs,
+  fixtureLeaguePages,
+  fixtureLeagues,
+  fixtureMembers,
+  fixtureUsers,
+} from "./fixture";
 
 /**
  * Mocked API (ADR-0009), typed against the committed OpenAPI schema: a path,
@@ -100,7 +110,7 @@ function userOf(email: string): MockUser {
   if (!user) {
     const local = email.split("@")[0].split("+")[0];
     user = {
-      id: `00000000-0000-4000-8000-2${String(usersByEmail.size + 1).padStart(11, "0")}`,
+      id: FIXTURE_USER_IDS[email] ?? `00000000-0000-4000-8000-2${String(usersByEmail.size + 1).padStart(11, "0")}`,
       manager: local.includes("manager"),
       admin: local.includes("admin"),
     };
@@ -108,6 +118,9 @@ function userOf(email: string): MockUser {
   }
   return user;
 }
+
+/** Signed in as a fixture persona (fixture.ts): the Admin and Manager pages read the fixed world. */
+const inFixture = (request: Request) => [FIXTURE_MANAGER, FIXTURE_ADMIN].includes(emailOf(request));
 
 const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
 
@@ -208,6 +221,9 @@ const invalid = (field: string) => ({ title: "Validation failed", status: 400, e
 
 export const handlers = [
   http.get("/clubs", ({ request, response }) => {
+    if (inFixture(request)) {
+      return response(200).json(fixtureClubs);
+    }
     const clubs = [MOCK_CLUB, ...clubsOf(request)];
     return response(200).json({ clubs, page: wholeList(clubs.length) });
   }),
@@ -254,6 +270,10 @@ export const handlers = [
 
   // The Manager's side. The mock doesn't check the role: the pages do.
   http.get("/clubs/{clubId}/members", ({ params, response }) => {
+    const fixed = fixtureMembers[params.clubId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
     if (params.clubId !== MOCK_CLUB.id) {
       return response(200).json({ members: [], invites: [], page: wholeList(0) });
     }
@@ -356,6 +376,10 @@ export const handlers = [
   }),
 
   http.get("/clubs/{clubId}/leagues", ({ request, params, response }) => {
+    const fixed = fixtureLeagues[params.clubId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
     const session = sessionOf(request) ?? "";
     const list = leagues
       .filter((league) => league.clubId === params.clubId && league.session === session)
@@ -401,6 +425,10 @@ export const handlers = [
   }),
 
   http.get("/leagues/{leagueId}", ({ request, params, response }) => {
+    const fixed = fixtureLeaguePages[params.leagueId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
     const league = leagueById(params.leagueId);
     if (!league) {
       return response(404).empty();
@@ -588,7 +616,10 @@ export const handlers = [
 
   // An Admin's side. The mock doesn't check the role: the pages do.
   // Paged and searchable like the API (#134): newest first, a whole-email match first.
-  http.get("/users", ({ query, response }) => {
+  http.get("/users", ({ request, query, response }) => {
+    if (inFixture(request)) {
+      return response(200).json(fixtureUsers);
+    }
     const search = (query.get("q") ?? "").trim().toLowerCase();
     const offset = Number(query.get("offset") ?? 0);
     const limit = Number(query.get("limit") ?? 50);
