@@ -2,7 +2,7 @@
 
 The app holds members' email addresses and their Players' names, gender, Level and Rating, including Players a parent holds for their children. We start with the common, minimal setup for a small club app, and change it later if the club needs more (#51, decided 2026-11-13: "start standard, don't overcomplicate").
 
-- **Controller:** Hits & Giggles. The name (`PRIVACY_CONTROLLER`, defaulting to it) and the address for data requests (`PRIVACY_CONTACT_EMAIL`) come from configuration. Production's address is a repository variable the owner sets, and Terraform requires it: the notice must give the controller's contact details.
+- **Controller:** Hits & Giggles. The name (`PRIVACY_CONTROLLER`, defaulting to it) and the address for data requests (`PRIVACY_CONTACT_EMAIL`) come from configuration. Production's address is a repository variable the owner sets (not a secret: the notice shows it publicly), and Terraform requires it: the notice must give the controller's contact details.
 - **Lawful basis:** legitimate interests, to run the leagues and socials members take part in. No consent banner, and no email but sign-in links.
 - **Cookies:** the session and acting-Player cookies only, both strictly necessary. No analytics or tracking.
 - **Children:** a child's Player is held by a parent's login, with no email or login of its own. Children don't sign in.
