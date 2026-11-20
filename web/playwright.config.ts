@@ -10,9 +10,11 @@ import { defineConfig } from "@playwright/test";
  *
  * Every spec runs in both projects unless it opts out with `test.skip`.
  *
- * Visual review (ADR-0015): specs import `test` from @chromatic-com/playwright,
- * which writes a DOM archive of each test's final page (plus any explicit
- * `takeSnapshot`) to test-results/chromatic-archives; `npx chromatic
+ * Visual review (ADR-0015): specs import `test`, `expect` and `takeSnapshot`
+ * from e2e/support/chromatic.ts, which wraps @chromatic-com/playwright's and
+ * keeps the bottom nav off a long page's content (#182). It writes a DOM
+ * archive of each test's final page (plus any explicit `takeSnapshot`) to
+ * test-results/chromatic-archives; `npx chromatic
  * --playwright` uploads them. Only the mock project archives: its data is
  * fixed, while the real project's Users and timestamps differ every run.
  * Phones first: a 360px-wide touch viewport, the narrowest the shell supports.

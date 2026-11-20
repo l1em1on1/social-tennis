@@ -1,6 +1,6 @@
 // Chromatic's test, with its end-of-test snapshot turned off below.
 // Its own file: the browser flag below can only be set for a whole file.
-import { expect, test } from "@chromatic-com/playwright";
+import { expect, test } from "./support/chromatic";
 import { cspViolations, recordCspViolations } from "./support/csp";
 
 /**
