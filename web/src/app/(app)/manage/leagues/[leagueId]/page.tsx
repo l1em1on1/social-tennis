@@ -28,10 +28,11 @@ export const metadata: Metadata = { title: "League" };
 const NAME_MAX_LENGTH = 200;
 
 /**
- * One League as a Manager runs it (wireframe M3, without Teams: #6): its name,
- * which the Manager can change (#153); Join Requests to approve or reject
- * first, since they hold up the start; then who is in, by join time; then
- * adding a Club member straight in.
+ * One League as a Manager runs it (wireframe M3): its name, which the Manager
+ * can change (#153); Join Requests to approve or reject first, since they hold
+ * up the start; then who is in, by join time; in a doubles League, its Teams
+ * and the Players without a partner, to pair (#6); then adding a Club member
+ * straight in.
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
   const [viewer, api, { leagueId }, { created, error }] = await Promise.all([
