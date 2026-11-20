@@ -267,6 +267,8 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             )}
             {unpaired.length >= 2 && (
               <TeamPairingForm
+                // A new list after a pairing remounts the form, so it doesn't keep the paired Players' ids.
+                key={unpaired.map((participant) => participant.playerId).join()}
                 leagueId={league.id}
                 mixed={league.type === "DoublesMix"}
                 players={unpaired.map(({ playerId, name, gender }) => ({ playerId, name, gender }))}

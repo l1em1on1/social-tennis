@@ -248,41 +248,51 @@ test("a Manager pairs two Players of a doubles League into a team, and each sees
   const league = uniqueName(testInfo, "Pairs Ladder");
   const ana = uniqueName(testInfo, "Ana Pair");
   const ben = uniqueName(testInfo, "Ben Pair");
+  const cal = uniqueName(testInfo, "Cal Pair");
+  const dee = uniqueName(testInfo, "Dee Pair");
   const anaEmail = personaEmail(testInfo, "pair-ana");
   const benEmail = personaEmail(testInfo, "pair-ben");
+  const calEmail = personaEmail(testInfo, "pair-cal");
+  const deeEmail = personaEmail(testInfo, "pair-dee");
 
   const managerContext = await browser.newContext();
   const manager = await managerContext.newPage();
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
-  await addClubPlayer(manager, ana, anaEmail);
-  await addClubPlayer(manager, ben, benEmail);
-  await createLeague(manager, league, "DoublesMix");
-  for (const [name, email] of [
+  const players = [
     [ana, anaEmail],
     [ben, benEmail],
-  ]) {
+    [cal, calEmail],
+    [dee, deeEmail],
+  ];
+  for (const [name, email] of players) await addClubPlayer(manager, name, email);
+  await createLeague(manager, league, "DoublesMix");
+  for (const [name, email] of players) {
     await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
     await manager.getByRole("button", { name: "Add to league" }).click();
     await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
   }
   const unpaired = manager.getByRole("list", { name: "Players without a partner" });
-  await expect(unpaired.getByRole("listitem")).toHaveCount(2);
+  await expect(unpaired.getByRole("listitem")).toHaveCount(4);
 
-  const pair = async () => {
-    await manager.getByLabel("First player").selectOption({ label: ana });
-    await manager.getByLabel("Second player").selectOption({ label: ben });
+  const pair = async (first: string, second: string) => {
+    await manager.getByLabel("First player").selectOption({ label: first });
+    await manager.getByLabel("Second player").selectOption({ label: second });
     await manager.getByRole("button", { name: "Pair as a team" }).click();
-    await expect(manager.getByRole("list", { name: "Teams in the league" })).toContainText(`${ana} & ${ben}`);
-    await expect(manager.getByText("Everyone in the league has a partner.")).toBeVisible();
+    await expect(manager.getByRole("list", { name: "Teams in the league" })).toContainText(`${first} & ${second}`);
   };
-  await pair();
+  await pair(ana, ben);
+  // Two are still without a partner, and the form starts again empty for them.
+  await expect(unpaired.getByRole("listitem")).toHaveCount(2);
+  await expect(manager.getByLabel("First player")).toHaveValue("");
+  await expect(manager.getByLabel("Second player")).toHaveValue("");
+  await pair(cal, dee);
+  await expect(manager.getByText("Everyone in the league has a partner.")).toBeVisible();
   await expectNoSeriousA11yViolations(manager);
 
   // Unpairing puts both back without a partner; then they are paired again.
   await manager.getByRole("button", { name: `Unpair ${ana} & ${ben}` }).click();
   await expect(unpaired.getByRole("listitem")).toHaveCount(2);
-  await expect(manager.getByText("No teams yet. Pair the players below.")).toBeVisible();
-  await pair();
+  await pair(ana, ben);
   await managerContext.close();
 
   await logIn(page, testInfo, anaEmail);
