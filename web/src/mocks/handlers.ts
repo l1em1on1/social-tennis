@@ -3,11 +3,10 @@ import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
 import {
   FIXTURE_ADMIN,
-  FIXTURE_LEAGUE_ID,
   FIXTURE_MANAGER,
   FIXTURE_USER_IDS,
   fixtureClubs,
-  fixtureLeague,
+  fixtureLeaguePages,
   fixtureLeagues,
   fixtureMembers,
   fixtureUsers,
@@ -426,8 +425,9 @@ export const handlers = [
   }),
 
   http.get("/leagues/{leagueId}", ({ request, params, response }) => {
-    if (params.leagueId === FIXTURE_LEAGUE_ID) {
-      return response(200).json(fixtureLeague);
+    const fixed = fixtureLeaguePages[params.leagueId];
+    if (fixed) {
+      return response(200).json(fixed);
     }
     const league = leagueById(params.leagueId);
     if (!league) {

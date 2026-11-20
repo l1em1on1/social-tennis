@@ -82,22 +82,22 @@ const winterSingles = {
   scoreFormat: { gamesPerSet: 6, setsPerGame: 3, matchTiebreakDecider: true },
 } as const;
 
+const springDoubles = {
+  id: id("e", 2),
+  name: "Spring Doubles",
+  type: "DoublesMix",
+  structure: "Knockout",
+  startDate: "2027-04-05",
+  endDate: "2027-06-27",
+  stageLength: { count: 2, unit: "Weeks" },
+  stageRoll: null,
+  scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
+} as const;
+
 export const fixtureLeagues: Record<string, Schemas["GetClubLeaguesResponse"]> = {
   [RIVERSIDE.id]: {
     leagues: [
-      {
-        id: id("e", 2),
-        name: "Spring Doubles",
-        type: "DoublesMix",
-        structure: "Knockout",
-        startDate: "2027-04-05",
-        endDate: "2027-06-27",
-        stageLength: { count: 2, unit: "Weeks" },
-        stageRoll: null,
-        scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
-        participantCount: 0,
-        pendingRequestCount: 0,
-      },
+      { ...springDoubles, participantCount: 0, pendingRequestCount: 0 },
       { ...winterSingles, participantCount: 2, pendingRequestCount: 1 },
     ],
     page: whole(2),
@@ -135,7 +135,7 @@ const asked = (
  * who hasn't signed in, has no request. Requests in the API's order: waiting
  * first, then the latest decided.
  */
-export const fixtureLeague: Schemas["GetLeagueResponse"] = {
+const winterSinglesPage: Schemas["GetLeagueResponse"] = {
   ...winterSingles,
   clubId: RIVERSIDE.id,
   clubName: RIVERSIDE.name,
@@ -146,6 +146,12 @@ export const fixtureLeague: Schemas["GetLeagueResponse"] = {
     asked(jo, "Rejected", "2026-11-04T09:00:00Z", "2026-11-05T08:00:00Z"),
     asked(alex, "Approved", "2026-11-02T20:10:00Z", "2026-11-03T10:00:00Z"),
   ],
+};
+
+/** Each League's own page, by id: Spring Doubles has no one yet. */
+export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = {
+  [winterSingles.id]: winterSinglesPage,
+  [springDoubles.id]: { ...springDoubles, clubId: RIVERSIDE.id, clubName: RIVERSIDE.name, participants: [], joinRequests: [] },
 };
 
 const user = (
