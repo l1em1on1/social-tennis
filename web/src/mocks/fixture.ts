@@ -27,7 +27,8 @@ export const FIXTURE_LEAGUE_ID = id("e", 1);
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
-export const fixtureClubs: Schemas["GetClubsResponse"] = { clubs: [RIVERSIDE, HILLSIDE], page: whole(2) };
+/** By name, as the API lists them. */
+export const fixtureClubs: Schemas["GetClubsResponse"] = { clubs: [HILLSIDE, RIVERSIDE], page: whole(2) };
 
 const member = (
   n: number,
@@ -57,17 +58,12 @@ const tom = member(6, "Tom Okafor", "tom.okafor@example.com", { approved: false,
 /** Riverside has someone in every state; Hillside has no one, so its empty states show. */
 export const fixtureMembers: Record<string, Schemas["GetClubMembersResponse"]> = {
   [RIVERSIDE.id]: {
-    members: [
-      alex,
-      sam,
-      jo,
-      chris,
-      priya,
-      tom,
-    ],
+    // The API's order: requests waiting, oldest first, then members by name.
+    members: [priya, tom, alex, chris, jo, sam],
     invites: [
-      { id: id("d", 1), email: "dana.price@example.com", joined: false, invitedAt: "2026-11-10T12:00:00Z" },
-      { id: id("d", 2), email: jo.email, joined: true, invitedAt: "2026-10-01T08:00:00Z" },
+      // Addresses with no Player yet: an invite is used up by the first one (#164).
+      { id: id("d", 1), email: "dana.price@example.com", invitedAt: "2026-11-10T12:00:00Z" },
+      { id: id("d", 2), email: "morgan.ellis@example.com", invitedAt: "2026-11-16T10:30:00Z" },
     ],
     page: whole(6),
   },
