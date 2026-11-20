@@ -6,7 +6,8 @@ host (ADR-0005). It is for agents: people edit on the host and run the stack
 with `docker compose` (see the main README).
 
 The sandbox is sbx's built-in `claude` agent with five **v3 mixin kits**
-(#175):
+(#175; why v3: ADR-0005's amendment of 2026-11-17). Why it is put together
+this way: ADR-0025.
 
 - `kits/toolchain/`: the .NET 10 SDK (with ICU), Node 24, `csharp-ls` and
   `typescript-language-server`, linked into `/usr/local/bin`, plus an install
@@ -26,12 +27,6 @@ capabilities include `network-policy@1` (egress), `credential@1` (a
 proxy-held secret), `lifecycle@1` (install hooks) and `agent-context@1`/`@2`
 (instructions for the agent).
 
-**Why v3.** sbx 0.51 made the built-in `claude` agent a published v3 kit
-(`docker.io/sbx/claude`), and a sandbox can't mix v3 kits with v1 or v2 ones.
-The v2 setup, a custom template image plus four v2 kits, could no longer
-create a sandbox. The template is gone: its tools are now the toolchain kit's
-image content, which sbx builds itself.
-
 **Checking a kit after editing it.** Build it with the kit frontend. It decodes
 the descriptor strictly, so an unknown field is an error, and it needs only
 Docker:
@@ -43,14 +38,12 @@ docker buildx build -f .sbx/kits/<kit>/<kit>.yaml -t sbx-kit-<kit>:dev .sbx/kits
 On the host, `sbx kit inspect ./.sbx/kits/<kit>` also checks the kit against
 what that sbx supports.
 
-**Hooks run after the claude kit's.** The claude kit's own install hook writes
-`~/.claude/settings.json` from scratch. Install hooks run in dependency order,
+**Hooks run after the claude kit's.** Install hooks run in dependency order,
 a provider's before its requirers'. So the kits that change Claude Code's
 configuration (toolchain, context7 and rtk, for plugins and RTK's hook)
-declare `requires: [claude]`. Otherwise what they write could be overwritten.
+declare `requires: [claude]` (ADR-0025).
 
-**Nothing relies on a kit's `ENV`.** Docker's docs don't say a mixin's image
-`ENV` reaches the sandbox. The tools are linked into `/usr/local/bin`, which is
+**Nothing relies on a kit's `ENV`** (ADR-0025). The tools are linked into `/usr/local/bin`, which is
 already on the claude kit's `PATH`. .NET finds its runtime through
 `/etc/dotnet/install_location`. The github kit's commit identity uses args
 with `env:`, the spec's way to set the container's environment.
@@ -109,8 +102,7 @@ works, `../sandbox.sh --name <another-name>` creates a second sandbox. Both
 work on the same checkout, so don't work in both at once.
 
 `../sandbox.sh` runs `claude update` inside the sandbox on every start, before
-attaching. Otherwise the sandbox would stay at the Claude Code version the
-claude kit's image had when the sandbox was created. A failed update (e.g.
+attaching (ADR-0025). A failed update (e.g.
 offline) prints a warning and attaches anyway.
 
 Each kit's `agent-context` text reaches Claude Code through
@@ -132,21 +124,15 @@ run, in four parts:
   With it off, `/remote-control` inside the sandbox registers a session that
   never connects. The setting is host-wide — it covers every sandbox on the
   machine — and takes effect on running sandboxes within seconds.
-- **`sbx run -d --name social-tennis`**, which starts the sandbox detached.
-  A sandbox started by `sbx create` "stops automatically when no sessions keep
-  it running". A detached one "keeps running until you stop it with
-  `sbx stop` or remove it with `sbx rm`"
-  ([usage](https://docs.docker.com/ai/sandboxes/usage/)). So closing the
+- **`sbx run -d --name social-tennis`**, which starts the sandbox detached
+  (ADR-0025). So closing the
   terminal, or logging out, doesn't stop it. `sbx run --name social-tennis`
   still attaches to it.
 - **A Remote Control server**: `claude remote-control`, Claude Code's server
   mode, which has no local session. claude.ai/code and the app list it as
   `social-tennis` and start sessions in the repo on demand (`--spawn
   same-dir`, `--permission-mode bypassPermissions`). It runs in a tmux session
-  in the sandbox, `remote-control`, started through `sbx exec`. That way the
-  sessions it starts have the sandbox's whole environment: the commit
-  identity, and the `GH_TOKEN` and `CONTEXT7_API_KEY` sentinels. A kit startup
-  hook sees only the variables it lists. The server's loop restarts it every
+  in the sandbox, `remote-control`, started through `sbx exec` (ADR-0025). The server's loop restarts it every
   30 seconds if it exits. To watch it:
   `sbx exec -it social-tennis tmux attach -t remote-control` (detach with
   Ctrl-b d).
@@ -170,13 +156,11 @@ systemd starts at boot without a login and keeps running after logout. The
 secrets are asked for in your terminal first, because the service has no one
 to ask. The unit retries every 30 seconds if the script fails.
 
-**Stopping the unit stops this sandbox only.** That daemon runs every sandbox
-on the host, so the unit sets `KillMode=process`. Stopping it runs
+**Stopping the unit stops this sandbox only.** The unit sets
+`KillMode=process` (ADR-0025). Stopping it runs
 `sbx stop <name>`, and the daemon and every other sandbox keep running. So
 does a failed start before its retry. A start that times out kills only the
-script, and an `sbx` command it was running finishes beside the retry. With
-systemd's default,
-`control-group`, a stop would kill the daemon too. Because the daemon is left
+script, and an `sbx` command it was running finishes beside the retry. Because the daemon is left
 in the unit's cgroup, the journal says "remains running after unit stopped" on
 a stop and "Found left-over process" on the next start. Both are expected.
 
@@ -190,9 +174,7 @@ A unit written before `KillMode=process` (#180) kills the daemon on a stop.
 After `git pull`, run `--install-service` again to rewrite it. That takes
 effect at once and doesn't restart the sandbox.
 
-There is no kit for it and no extra egress. Remote Control only makes outbound
-requests to `api.anthropic.com`, which the `claude` agent is allowed already;
-`claude.ai` is opened on the phone or browser, not from the sandbox.
+There is no kit for it and no extra egress (ADR-0025).
 
 **It needs a claude.ai sign-in inside the sandbox**: run `/login` once, in an
 attached session, and choose the subscription account. Until then the server
@@ -203,9 +185,7 @@ Control, and neither can a `claude setup-token` token.
 **The server's first start asks "Enable Remote Control? (y/n)", and the loop
 answers `y` itself.** Until that question is answered, the server isn't on
 your phone's list. Then the only entry is the session you attached to, which
-goes away when you exit it. Nobody would see the question in a detached pane,
-or at boot, and running `../sandbox.sh` with Remote Control on is the consent.
-For the first 2 minutes of each start, the loop types `y` and then Enter, but
+goes away when you exit it (ADR-0025). For the first 2 minutes of each start, the loop types `y` and then Enter, but
 only when the pane's last line is exactly that question. Claude Code stores
 the answer in the sandbox's `~/.claude.json`, so it is asked again only after
 `sbx rm`. If a Claude Code update changes the wording, nothing is typed and
@@ -226,15 +206,8 @@ which is the sandbox's own limits: the allow-listed egress and the
 
 ## Context7 API key
 
-CLAUDE.md requires querying Context7 before touching library or framework code,
-so the sandbox needs the key.
-
-**The Docker MCP Toolkit's copy cannot be reused.** Adding Context7 to the MCP
-Toolkit stores the key at `docker/mcp/context7.api_key` in the OS keychain, but
-that entry is write-only from our side: `docker mcp secret` offers only
-`ls`/`rm`/`set`, and reading it through the credential helper returns
-`credentials not found in native keychain`. The toolkit's key reaches the
-toolkit's own gateway and nothing else. `sbx` needs its own copy.
+`sbx` keeps its own copy of the key; the Docker MCP Toolkit's can't be reused
+(ADR-0025).
 
 The kit's `credential@1` entry takes its value from sbx's secret store,
 matched by `service:`. Here that is `context7`. It cannot read host environment variables or
@@ -247,9 +220,6 @@ context7`, piped on stdin. Later runs reuse the stored secret without asking.
 To rotate it, `../sandbox.sh --set-secret context7` asks for the new key,
 replaces the stored one, and exits. Store the raw `ctx7sk-...` key — the kit's `format: Bearer
 %s` adds the prefix.
-
-`sbx secret import` will not help here: it only recognises its built-in services
-(anthropic, github, openai, …), and `context7` is not one of them.
 
 ### How the key reaches Context7
 
@@ -265,31 +235,9 @@ sandbox egress denies by default. Without it, tool calls would fail at the
 proxy rather than at Context7. It also allows `github.com` while install hooks
 run, because the plugin's marketplace is a git repository.
 
-### Why a kit credential rather than `sbx secret set-custom`
+### A leftover `set-custom` secret
 
-`set-custom` uses the same placeholder swap, but it is declared imperatively on
-each machine, and the stored value must carry the `Bearer ` prefix itself. The
-kit keeps the wiring (env var, target domain, header, format) in the repo, so
-the only per-machine step is the key itself. Follow the same pattern for future
-integrations: declare the credential in a kit, store the value under its
-`service:` name.
-
-For the record, the `set-custom` equivalent — not used here — needs no kit
-credential, but the value carries the prefix and every flag is
-repeated by hand on each machine:
-
-```bash
-sbx secret set-custom \
-  --host mcp.context7.com \
-  --env CONTEXT7_API_KEY \
-  --value "Bearer ctx7sk-..."
-```
-
-`--host` is the domain whose outbound requests get the placeholder swapped
-(repeatable; wildcards like `*.example.com` allowed), and `--env` is the sandbox
-variable set to the placeholder. The value is passed as an argument, so it
-lands in shell history and the process list — `set-custom` has no stdin option.
-
+The key is a kit credential, not an `sbx secret set-custom` one (ADR-0025).
 Don't combine the two: both set `CONTEXT7_API_KEY` in the sandbox and would
 fight over it. A custom secret left over from an earlier setup can be found
 with `sbx secret ls` and removed with `sbx secret rm --placeholder <value>`.
@@ -301,8 +249,8 @@ branches with `git`. Its `credential@1` entry uses sbx's built-in `github`
 service secret, which the proxy sets as `Authorization: Bearer <token>` on
 requests to `github.com` and `api.github.com`
 ([credentials](https://docs.docker.com/ai/sandboxes/configuration/credentials/)).
-The token never enters the container. Bearer on `github.com` too, for `git`:
-Docker's docs say sbx doesn't use the spec's Basic `scheme` in v3 kits.
+The token never enters the container. Bearer on `github.com` too, for `git`
+(ADR-0025).
 
 The agent works as its own GitHub account, **`l1em1on1-claude`**, a
 collaborator with write access to this repo and nothing else. Its token is
@@ -317,39 +265,28 @@ Create the token signed in as `l1em1on1-claude`, at
 - **Fine-grained**, if its Resource owner list offers `l1em1on1`: only
   `l1em1on1/social-tennis`; Contents, Issues, Pull requests and Workflows —
   read and write. Metadata — read is added automatically.
-- **Classic** otherwise — fine-grained tokens reach only repos owned by the
-  token's own account or an organisation, not ones it collaborates on: scopes
+- **Classic** otherwise (ADR-0025): scopes
   `repo` and `workflow` (`workflow` is needed to push changes under
-  `.github/workflows/`). The account can reach only this repo, so `repo`
-  reaches only this repo.
+  `.github/workflows/`).
 - **Expiration:** set one. When it lapses, `gh` and `git push` start failing
   with 401; run `../sandbox.sh --set-secret github` and paste a new token.
 
 **Never store your own token** (for example `sbx secret set github -t
 "$(gh auth token)"`, which a generic sandbox hint suggests for a failed
 push): `gh auth token` prints *your* login, so every PR the agent opens is
-then yours, and GitHub won't let you approve your own PR. That happened on
-2026-11-18 (#186 to #193). Check with `gh api user --jq .login` inside the
+then yours, and GitHub won't let you approve your own PR (ADR-0025). Check with `gh api user --jq .login` inside the
 sandbox: it must print `l1em1on1-claude`.
 
-A separate account rather than your own token: every push, PR, and comment
-the agent makes is attributed to `l1em1on1-claude`, and it can reach only
-what that account was invited to. Pair it with a ruleset on `main` that
+Pair the account with a ruleset on `main` that
 requires a PR with one approval (Repository admin in the bypass list), so the
-agent can open PRs but only you merge them — the kit's "never push to `main`"
-line is an instruction to the agent, not an enforcement.
+agent can open PRs but only you merge them (ADR-0025).
 
 Commits are authored and committed as `l1em1on1-claude`
 (`356328941+l1em1on1-claude@users.noreply.github.com`) through the kit's
 `GIT_AUTHOR_*` / `GIT_COMMITTER_*` environment variables, set by four args
-with `env:`. `git config
---global` would not do it: the bind-mounted repo's `.git/config` sets
-`user.name`/`user.email` for the host, and repo config beats global config,
-while the variables beat both and change nothing the host reads. The spec's
-`git-identity@1` capability doesn't fit: it supplies the host user's identity,
-and repository config still wins over it.
+with `env:` (ADR-0025).
 
-Two gaps the kit closes, both found by probing a sandbox:
+Two gaps the kit closes (ADR-0025):
 
 - **`gh` refuses to run without a token in its environment**, even though the
   proxy rewrites the `Authorization` header anyway. The credential names
@@ -379,15 +316,12 @@ keeps them current:
   `api/Directory.Build.props`, or written for another checkout path.
 - `npm` (async, about two minutes on the bind mount): runs
   `npm ci --ignore-scripts --no-bin-links` in `web/` when `node_modules` is
-  missing or older than `package-lock.json`. `--no-bin-links` because the
-  bind mount from a Windows host refuses symlinks.
+  missing or older than `package-lock.json` (`--no-bin-links`: ADR-0025).
 
 Both are no-ops where `dotnet`/`npm` isn't installed, and log to
 `/tmp/social-tennis-lsp-restore.log`.
 
-**Container builds don't touch it.** `project.assets.json` holds absolute
-paths (the package folder and the project path), and `obj/` is on the bind
-mount. Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which
+**Container builds don't touch it** (ADR-0025). Compose's .NET services set `SOCIAL_TENNIS_CONTAINER_BUILD=true`, which
 `api/Directory.Build.props` turns into `obj/container/` and `bin/container/`,
 so a test run in Docker no longer overwrites the language server's restore.
 

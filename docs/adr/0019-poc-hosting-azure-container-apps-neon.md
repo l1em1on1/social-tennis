@@ -2,7 +2,7 @@
 
 The app is a proof of concept, and it should cost as close to nothing as possible to run until the club depends on it. So it runs on **Azure Container Apps** (Consumption plan, UK South) with **Neon** for Postgres, both scaled to zero when idle, images in **GitHub Container Registry**, all created by Terraform in `infra/`. Inside the free grants this is about £0 a month. The original go-live plan (issue #26: AWS EC2 + RDS) would cost roughly $35–45 a month once sign-up credits ran out.
 
-The topology doesn't change (ADR-0001): `web` has public ingress, `api` has internal ingress only and is reached as `http://api` inside the Container Apps environment, and the database is external. The address is the `*.azurecontainerapps.io` hostname Azure assigns; there is no custom domain yet. (**Superseded 2026-11-14:** the app is served at its own domain, ADR-0021.)
+The topology doesn't change (ADR-0001): `web` has public ingress, `api` has internal ingress only and is reached as `http://api` inside the Container Apps environment (**Corrected 2026-11-20:** `web` uses the api app's internal https address; see the amendment below), and the database is external. The address is the `*.azurecontainerapps.io` hostname Azure assigns; there is no custom domain yet. (**Superseded 2026-11-14:** the app is served at its own domain, ADR-0021.)
 
 Free allowances, as found on 2026-11-13 (re-check at sign-up): Container Apps gives 180,000 vCPU-seconds, 360,000 GiB-seconds and 2 million requests a month per subscription; Neon's free plan gives 1 GB of storage and 100 compute-hours a month per project.
 
@@ -30,3 +30,11 @@ Free allowances, as found on 2026-11-13 (re-check at sign-up): Container Apps gi
 - Neon's pooled connection string can't be used for the startup migration, which holds a session advisory lock. The API uses the direct connection.
 - Terraform's Neon provider is community-maintained. The database is its own module, so creating the Neon project by hand and passing in a connection string is a local swap.
 - A subscription budget alert at £5 is part of the infrastructure, so leaving the free grant shows up as an email.
+
+**Amended (2026-11-20): what running it taught.**
+
+- **`web` reaches `api` over https** (#111), at the api app's internal address, and the api ingress refuses plain http. Traffic never leaves the environment either way, but https keeps session tokens off the wire in clear inside it too. The short name `http://api`, which the paragraph above describes, is plain http, so `web` no longer uses it.
+- **Each app runs at most one replica**, because the API migrates when it starts. EF Core's guidance fits migrating at startup to development, tests and a single instance. Before the API scales past one instance, migrations become a scripted step (`dotnet ef migrations script`).
+- **The migration lock is taken on the app's own database**, not on `postgres`, which a Neon role may not be allowed into.
+- **The environment declares the Consumption workload profile** (#150). Azure adds the profile, and assigns every app and job to it, whether or not Terraform declares them. Declared, a plan with nothing to do reads "No changes" instead of removing them each time.
+- **A nightly dump, kept outside Neon** (#137). Neon's free plan keeps 6 hours of point-in-time history, so a job dumps the database to its own storage account, kept 14 days. Terraform manages that account through Azure Resource Manager only, so the deploy identity needs no data-plane role. The deploy identity can't grant roles either, so the owner gives the job's identity its role on the container, once.
