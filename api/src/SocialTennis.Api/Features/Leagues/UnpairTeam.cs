@@ -33,7 +33,7 @@ public static class UnpairTeam
         }
         if (type.Value.TeamSize() != 2)
         {
-            return PairTeam.NotDoubles();
+            return LeagueTeams.NotDoubles();
         }
         await LeagueTeams.BreakUpAsync(db, leagueId, teamId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

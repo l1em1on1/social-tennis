@@ -36,7 +36,7 @@ public static class PairTeam
         }
         if (type.Value.TeamSize() != 2)
         {
-            return NotDoubles();
+            return LeagueTeams.NotDoubles();
         }
         var playerIds = new[] { request.FirstPlayerId, request.SecondPlayerId };
         var unpaired = await db.LeagueParticipants
@@ -58,11 +58,4 @@ public static class PairTeam
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.Created((string?)null, new PairTeamResponse(team.Id));
     }
-
-    internal static ProblemHttpResult NotDoubles() =>
-        TypedResults.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            type: "not-a-doubles-league",
-            title: "Only a doubles League's Players are paired by the Manager.",
-            detail: "In a singles League each Player is a Team of one; a Foursomes League has no Teams.");
 }

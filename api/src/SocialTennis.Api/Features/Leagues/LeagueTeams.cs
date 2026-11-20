@@ -71,4 +71,12 @@ internal static class LeagueTeams
             .Where(t => t.LeagueId == leagueId && t.Id == teamId)
             .ExecuteDeleteAsync(cancellationToken) > 0;
     }
+
+    /// <summary>The 409 for pairing or unpairing in a League that isn't doubles.</summary>
+    public static Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult NotDoubles() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "not-a-doubles-league",
+            title: "Only a doubles League's Players are paired by the Manager.",
+            detail: "In a singles League each Player is a Team of one; a Foursomes League has no Teams.");
 }
