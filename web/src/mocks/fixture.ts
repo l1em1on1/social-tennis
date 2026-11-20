@@ -129,9 +129,11 @@ const asked = (
 });
 
 /**
- * Winter Singles: one request waiting, one turned down, two in, and two
- * members still to add. Requests in the API's order: waiting first, then the
- * latest decided.
+ * Winter Singles: one request waiting, two in, and two members still to add.
+ * Jo's request was turned down and the Manager then added him, which the page
+ * allows: it keeps him under Rejected. Only signed-in Players ask, so Chris,
+ * who hasn't signed in, has no request. Requests in the API's order: waiting
+ * first, then the latest decided.
  */
 export const fixtureLeague: Schemas["GetLeagueResponse"] = {
   ...winterSingles,
@@ -140,7 +142,7 @@ export const fixtureLeague: Schemas["GetLeagueResponse"] = {
   participants: [inLeague(alex, "2026-11-03T10:00:00Z"), inLeague(jo, "2026-11-05T19:20:00Z")],
   joinRequests: [
     asked(sam, "Pending", "2026-11-14T17:45:00Z", null),
-    asked(chris, "Rejected", "2026-11-06T09:00:00Z", "2026-11-08T12:00:00Z"),
+    asked(jo, "Rejected", "2026-11-04T09:00:00Z", "2026-11-05T08:00:00Z"),
     asked(alex, "Approved", "2026-11-02T20:10:00Z", "2026-11-03T10:00:00Z"),
   ],
 };
