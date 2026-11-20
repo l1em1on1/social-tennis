@@ -28,4 +28,4 @@ A 409 carries a stable machine-readable `type` (e.g. `stage-queue-not-empty`), s
 
 Integration tests sign in before calling anything but the anonymous routes. Rules validated against the database (Score format against the League, #38) answer 400 with the same `errors` dictionary shape as the validation filter, so a form handles both the same way.
 
-**Accepted (2026-11-19):** built in #102. The fallback policy and `OpenApiContractTests`' anonymous-call check enforce it.
+**Accepted (2026-11-19):** built in #57 (fallback policy, ProblemDetails, the anonymous-call check in `OpenApiContractTests`), with the first stable 409 `type`s in #102. The fallback policy and that check enforce it.
