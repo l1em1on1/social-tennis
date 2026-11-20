@@ -1,6 +1,7 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts). Otherwise identical to @playwright/test.
-import { expect, takeSnapshot, test } from "@chromatic-com/playwright";
+// see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
+// nav off a long page's content (#182). Otherwise identical to @playwright/test.
+import { expect, test } from "./support/chromatic";
 import { logIn, personaEmail } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -11,11 +12,8 @@ import { expectNoSeriousA11yViolations } from "./support/axe";
  */
 for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`${colorScheme} mode`, () => {
-    // Explicit snapshots only, light mode only. Chromatic documents
-    // colour-scheme modes for Storybook alone; a Playwright archive replays
-    // without our emulateMedia, so a "dark" snapshot would be a light
-    // duplicate. Dark stays covered by axe here (and by Storybook modes,
-    // later). A describe-level option also overrides the real project's
+    // No snapshots: Storybook reviews every primitive, in light and dark
+    // (#182). A describe-level option also overrides the real project's
     // opt-out, so the auto snapshot stays off for both projects.
     test.use({ disableAutoSnapshot: true });
 
@@ -27,12 +25,10 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto("/dev/ui");
       await expect(page.getByRole("heading", { name: "UI showcase" })).toBeVisible();
       await expectNoSeriousA11yViolations(page);
-      if (colorScheme === "light") await takeSnapshot(page, "UI showcase", testInfo);
 
       await page.getByRole("button", { name: "Open sheet" }).click();
       await expect(page.getByRole("dialog", { name: "Example sheet" })).toBeVisible();
       await expectNoSeriousA11yViolations(page);
-      if (colorScheme === "light") await takeSnapshot(page, "UI showcase, sheet open", testInfo);
     });
   });
 }

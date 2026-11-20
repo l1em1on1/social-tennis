@@ -29,3 +29,15 @@ ADR-0014 made Playwright the frontend test seam. It checks behaviour and accessi
 
 - **Considered: Storybook stories of the pages.** Not chosen. Async server components render only behind Storybook's experimental RSC flag, the API client and the viewer would need mocks, and the shell would be missing. The issue also scoped this to the mock project.
 - **Consequences.** A change to these pages shows in review only if the fixed world has the state it changes, so a new state goes into `fixture.ts`. The rest of the mock still stamps the real time; no other snapshot shows one of its dates yet.
+
+**Amended (2026-11-20): the bottom nav on long snapshots (#182).** Chromatic captures the whole page, but draws a fixed element once, where it sits when the page loads. So on a page taller than the 780px screen, the bottom nav covered the content at the screen's bottom edge. Just before each capture, a page taller than the screen now gets the nav in normal flow, drawn once at its end. A page that fits keeps the nav pinned, as a phone shows it. `e2e/support/chromatic.ts` does this, and the specs import `test`, `expect` and `takeSnapshot` from it:
+
+- an auto fixture that depends on the plugin's `chromaticSnapshot` fixture, so Playwright tears it down first, just before the automatic snapshot;
+- a `takeSnapshot` wrapper, which puts the nav back after an explicit capture.
+
+The override is a `<style>` with the page's CSP nonce (ADR-0027). The showcase no longer snapshots, because Storybook reviews every primitive in light and dark; its spec keeps the axe checks.
+
+- **Considered:**
+  - `cropToViewport`: everything below the fold would drop out of review.
+  - Changing the shell: a sticky nav is frozen the same way, and a scrolling `main` makes Chromatic cut the snapshot at the screen's height.
+- **Consequence:** this relies on `@chromatic-com/playwright` 1.0.0 taking the automatic snapshot as that fixture is torn down. If an upgrade changes that, the nav shows mid-page again, as a diff in Chromatic.

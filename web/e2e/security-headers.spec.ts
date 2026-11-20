@@ -1,6 +1,7 @@
 // Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts). Otherwise identical to @playwright/test.
-import { expect, test } from "@chromatic-com/playwright";
+// see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
+// nav off a long page's content (#182). Otherwise identical to @playwright/test.
+import { expect, test } from "./support/chromatic";
 import type { Response } from "@playwright/test";
 import { logIn, personaEmail } from "./support/auth";
 import { cspViolations, recordCspViolations } from "./support/csp";
