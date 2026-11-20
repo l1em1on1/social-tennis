@@ -110,10 +110,10 @@ Drift check (CI runs this): regenerate, then `git diff --exit-code web/src/lib/a
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm api \
-  sh -c "dotnet tool restore && dotnet dotnet-ef migrations add <Name> --project src/SocialTennis.Api"
+  sh -c "dotnet tool restore && dotnet restore src/SocialTennis.Api && dotnet dotnet-ef migrations add <Name> --project src/SocialTennis.Api"
 ```
 
-Migrations apply on API startup — there is no separate `database update` step.
+The restore comes first: `dotnet-ef` reads the project before building it, and the container's `obj/container` may not be restored yet. Migrations apply on API startup — there is no separate `database update` step.
 
 ## Reset the database
 

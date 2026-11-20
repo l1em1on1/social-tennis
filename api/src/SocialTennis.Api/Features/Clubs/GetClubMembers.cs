@@ -9,7 +9,8 @@ namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
 /// A Manager's view of a Club: requests waiting for approval first (oldest
-/// first), then members by name, and the emails invited ahead of time.
+/// first), then members by name, and the emails invited ahead of time that
+/// haven't let anyone in yet.
 /// </summary>
 public static class GetClubMembers
 {
@@ -40,14 +41,11 @@ public static class GetClubMembers
                 m.RequestedAt))
             .ToListAsync(cancellationToken);
 
-        var joinedEmails = members.Where(m => m.Approved).Select(m => m.Email).ToHashSet();
-        var invites = (await db.ClubInvites
-                .Where(i => i.ClubId == clubId)
-                .OrderBy(i => i.Email)
-                .Select(i => new { i.Id, i.Email, i.CreatedAt })
-                .ToListAsync(cancellationToken))
-            .Select(i => new ClubInviteSummary(i.Id, i.Email, joinedEmails.Contains(i.Email), i.CreatedAt))
-            .ToList();
+        var invites = await db.ClubInvites
+            .Where(i => i.ClubId == clubId)
+            .OrderBy(i => i.Email)
+            .Select(i => new ClubInviteSummary(i.Id, i.Email, i.CreatedAt))
+            .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new GetClubMembersResponse(members, invites, new PageInfo(members.Count)));
     }

@@ -12,9 +12,8 @@ namespace SocialTennis.Api.Features.Players;
 /// isn't in is fine.
 /// </summary>
 /// <remarks>
-/// An invite for the User's email is left alone, unlike when a Manager removes
-/// them: the Manager's wish to have them hasn't changed, so they can come back
-/// without asking.
+/// Coming back means asking again: an invite was used up when it let the
+/// Player in (#164). An unused invite for another Club is left alone.
 /// </remarks>
 public static class LeaveClub
 {

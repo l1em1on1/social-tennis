@@ -11,9 +11,10 @@ namespace SocialTennis.Api.Features.Clubs;
 /// already gone is fine.
 /// </summary>
 /// <remarks>
-/// An invite for the holder's email is withdrawn too. Otherwise it would let
-/// the Player straight back in on their next request, and admit every Player
-/// that User adds later, which is not what removing someone means.
+/// Any invite left for the holder's email is deleted too, so it can't let the
+/// Player straight back in. Invites are used up on joining (#164), so normally
+/// there is none. The User's other Players stay, and while one of them is a
+/// member, this Player can come back by asking (the app is informal).
 /// </remarks>
 public static class RemoveClubMember
 {

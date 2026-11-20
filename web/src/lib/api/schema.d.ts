@@ -425,7 +425,6 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
-            joined: boolean;
             /** Format: date-time */
             invitedAt: string;
         };

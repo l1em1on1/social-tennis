@@ -1,5 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SocialTennis.Api.Data;
+using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
@@ -26,6 +30,30 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
     private static async Task<GetClubMembersResponse> MembersAsync(HttpClient manager, Guid clubId) =>
         (await manager.GetFromJsonAsync<GetClubMembersResponse>($"/clubs/{clubId}/members"))!;
+
+    private static async Task<IReadOnlyList<ClubInviteSummary>> InvitesForAsync(HttpClient manager, Guid clubId, string email) =>
+        (await MembersAsync(manager, clubId)).Invites.Where(i => i.Email == email).ToList();
+
+    /// <summary>
+    /// An invite left from before #164, which the API no longer keeps once the
+    /// User holds a Player, so it is written straight to the database.
+    /// </summary>
+    private async Task PlantLeftOverInviteAsync(Guid clubId, string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        db.ClubInvites.Add(new ClubInvite { Id = Guid.NewGuid(), ClubId = clubId, Email = email, CreatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>A second Club, for the rules that reach across Clubs.</summary>
+    private async Task<Guid> NewClubIdAsync()
+    {
+        var admin = await factory.AdminClientAsync();
+        var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Other Club {Guid.NewGuid():N}" });
+        created.EnsureSuccessStatusCode();
+        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+    }
 
     [Fact]
     public async Task A_new_User_holds_no_Player()
@@ -173,7 +201,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task An_invited_email_is_in_the_Club_as_soon_as_its_User_adds_a_Player()
+    public async Task An_invite_lets_in_its_Users_first_Player_and_is_used_up_and_later_Players_follow()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var typed = $"Invited-{Guid.NewGuid():N}@Example.test";
@@ -185,15 +213,14 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
-        var pending = Assert.Single((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
-        Assert.False(pending.Joined);
+        Assert.Single(await InvitesForAsync(manager, clubId, email));
 
         using var invited = await factory.CreateSignedInClientAsync(email);
         await CreatePlayerAsync(invited, "Pat");
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
         await CreatePlayerAsync(invited, "Pat Junior");
 
         Assert.All(await PlayersAsync(invited), p => Assert.True(Assert.Single(p.Clubs).Approved));
-        Assert.True((await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email).Joined);
     }
 
     [Fact]
@@ -211,10 +238,11 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.NoContent, invite.StatusCode);
         Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved));
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
     }
 
     [Fact]
-    public async Task Removing_an_invited_member_withdraws_the_invite_so_asking_again_waits_for_a_Manager()
+    public async Task A_removed_member_asks_again_and_waits_and_later_Players_do_not_follow()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"removed-{Guid.NewGuid():N}@example.test";
@@ -234,26 +262,23 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task Withdrawing_an_invite_keeps_members_it_let_in_but_admits_nobody_new()
+    public async Task Withdrawing_an_unused_invite_admits_nobody()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"withdrawn-{Guid.NewGuid():N}@example.test";
         var clubId = await factory.AClubIdAsync();
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
-        using var client = await factory.CreateSignedInClientAsync(email);
-        var early = await CreatePlayerAsync(client, "Early");
-        var invite = (await MembersAsync(manager, clubId)).Invites.Single(i => i.Email == email);
+        var invite = Assert.Single(await InvitesForAsync(manager, clubId, email));
 
         var withdraw = await manager.DeleteAsync($"/clubs/{clubId}/invites/{invite.Id}");
         var again = await manager.DeleteAsync($"/clubs/{clubId}/invites/{invite.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, withdraw.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
-        Assert.DoesNotContain((await MembersAsync(manager, clubId)).Invites, i => i.Email == email);
-        var late = await CreatePlayerAsync(client, "Late");
-        var players = await PlayersAsync(client);
-        Assert.True(Assert.Single(players.Single(p => p.Id == early.Id).Clubs).Approved);
-        Assert.Empty(players.Single(p => p.Id == late.Id).Clubs);
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
+        using var client = await factory.CreateSignedInClientAsync(email);
+        await CreatePlayerAsync(client, "Late");
+        Assert.Empty(Assert.Single(await PlayersAsync(client)).Clubs);
     }
 
     [Fact]
@@ -280,10 +305,11 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var clubId = await factory.AClubIdAsync();
         await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
         await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
+        // Taken back while still waiting: approving a sibling would let it in (#164).
+        var takeBack = await client.DeleteAsync($"/players/{waiting.Id}/clubs/{clubId}");
         await manager.PutAsync($"/clubs/{clubId}/members/{member.Id}/approval", null);
 
         var leave = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
-        var takeBack = await client.DeleteAsync($"/players/{waiting.Id}/clubs/{clubId}");
         var again = await client.DeleteAsync($"/players/{member.Id}/clubs/{clubId}");
 
         Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
@@ -299,7 +325,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task An_invited_Player_who_leaves_can_come_back_without_asking()
+    public async Task An_invited_Player_who_leaves_asks_again_to_come_back()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"returning-{Guid.NewGuid():N}@example.test";
@@ -312,7 +338,280 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         Assert.Empty(Assert.Single(await PlayersAsync(client)).Clubs);
         await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
 
+        // The invite was used up when it let Pat in (#164).
+        Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task A_Player_a_member_User_adds_later_is_a_member_at_once()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+        await manager.PutAsync($"/clubs/{clubId}/members/{first.Id}/approval", null);
+
+        var later = await CreatePlayerAsync(client, "Later");
+
+        var club = Assert.Single((await PlayersAsync(client)).Single(p => p.Id == later.Id).Clubs);
+        Assert.Equal(clubId, club.Id);
+        Assert.True(club.Approved);
+    }
+
+    [Fact]
+    public async Task A_Player_who_asks_is_a_member_at_once_while_a_sibling_is_a_member()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var member = await CreatePlayerAsync(client, "Member");
+        var asking = await CreatePlayerAsync(client, "Asking");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{member.Id}", null);
+        await manager.PutAsync($"/clubs/{clubId}/members/{member.Id}/approval", null);
+
+        await client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null);
+
+        // The app is informal: a User in a Club brings all their Players (owner, 2026-11-19).
+        Assert.True(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == asking.Id).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task Approving_one_Player_lets_in_the_Users_other_waiting_requests()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var second = await CreatePlayerAsync(client, "Second");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+
+        var approve = await manager.PutAsync($"/clubs/{clubId}/members/{first.Id}/approval", null);
+
+        Assert.Equal(HttpStatusCode.NoContent, approve.StatusCode);
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
+    [Fact]
+    public async Task A_Player_a_Manager_adds_in_a_Club_lets_in_the_Users_request_waiting_there()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"waiting-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var asking = await CreatePlayerAsync(client, "Asking");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null);
+
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Added", email });
+
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
+    /// <summary>
+    /// A request left waiting from before the User was in (a race, or data from
+    /// before #164) is let in when the Player asks again.
+    /// </summary>
+    [Fact]
+    public async Task A_waiting_request_is_let_in_on_asking_again_once_the_User_is_in()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var second = await CreatePlayerAsync(client, "Second");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            await db.ClubMemberships
+                .Where(m => m.ClubId == clubId && m.PlayerId == first.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active));
+        }
+
+        await client.PutAsync($"/clubs/{clubId}/members/{second.Id}", null);
+
+        Assert.True(Assert.Single((await PlayersAsync(client)).Single(p => p.Id == second.Id).Clubs).Approved);
+    }
+
+    [Fact]
+    public async Task A_request_still_waiting_lets_no_other_Player_of_the_User_in()
+    {
+        using var client = await factory.CreateSignedInClientAsync();
+        var first = await CreatePlayerAsync(client, "First");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{first.Id}", null);
+
+        var added = await CreatePlayerAsync(client, "Added");
+        Assert.Empty((await PlayersAsync(client)).Single(p => p.Id == added.Id).Clubs);
+        await client.PutAsync($"/clubs/{clubId}/members/{added.Id}", null);
+
+        Assert.All(await PlayersAsync(client), p => Assert.False(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
+    [Fact]
+    public async Task A_Player_a_Manager_adds_uses_the_emails_invites_up_and_joins_the_Users_Clubs()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"added-{Guid.NewGuid():N}@example.test";
+        var clubId = await factory.AClubIdAsync();
+        var otherClubId = await NewClubIdAsync();
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        var added = await manager.PostAsJsonAsync($"/clubs/{otherClubId}/players", new { name = "Robin", email });
+
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var robin = Assert.Single(await PlayersAsync(client));
+        Assert.Equal(new[] { clubId, otherClubId }.Order(), robin.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
+
+        // Added again, now that Robin is in both: the new Player joins both too.
+        await manager.PostAsJsonAsync($"/clubs/{otherClubId}/players", new { name = "Robin Junior", email });
+        var junior = (await PlayersAsync(client)).Single(p => p.Name == "Robin Junior");
+        Assert.Equal(new[] { clubId, otherClubId }.Order(), junior.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
+    }
+
+    [Fact]
+    public async Task A_Player_a_Manager_adds_in_the_inviting_Club_is_a_member_once_and_uses_the_invite_up()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"same-club-{Guid.NewGuid():N}@example.test";
+        var clubId = await factory.AClubIdAsync();
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+
+        var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Sam", email });
+
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var club = Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs);
+        Assert.Equal(clubId, club.Id);
+        Assert.True(club.Approved);
+    }
+
+    [Fact]
+    public async Task After_one_Player_is_removed_a_new_Player_joins_while_a_sibling_is_still_a_member()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var client = await factory.CreateSignedInClientAsync();
+        var stays = await CreatePlayerAsync(client, "Stays");
+        var removed = await CreatePlayerAsync(client, "Removed");
+        var clubId = await factory.AClubIdAsync();
+        foreach (var player in new[] { stays, removed })
+        {
+            await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+            await manager.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null);
+        }
+
+        await manager.DeleteAsync($"/clubs/{clubId}/members/{removed.Id}");
+        var later = await CreatePlayerAsync(client, "Later");
+
+        var players = await PlayersAsync(client);
+        Assert.Empty(players.Single(p => p.Id == removed.Id).Clubs);
+        Assert.True(Assert.Single(players.Single(p => p.Id == later.Id).Clubs).Approved);
+    }
+
+    /// <summary>
+    /// The UseUpJoinedInvites migration's SQL, run against rows made the way
+    /// the code before #164 left them: it deletes an invite only where the
+    /// User holds a Player in that invite's Club.
+    /// </summary>
+    [Fact]
+    public async Task The_migration_deletes_only_invites_that_let_someone_into_their_Club()
+    {
+        var clubId = await factory.AClubIdAsync();
+        var otherClubId = await NewClubIdAsync();
+        var tag = Guid.NewGuid().ToString("N");
+        string Email(string who) => $"{who}-{tag}@example.test";
+        var now = DateTimeOffset.UtcNow;
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            Guid PlayerFor(string who, Guid? memberOf)
+            {
+                var user = new User { Id = Guid.NewGuid(), Email = Email(who), CreatedAt = now };
+                var player = new Player { Id = Guid.NewGuid(), Name = who, UserId = user.Id, CreatedAt = now };
+                db.Users.Add(user);
+                db.Players.Add(player);
+                if (memberOf is { } club)
+                {
+                    db.ClubMemberships.Add(new ClubMembership { ClubId = club, PlayerId = player.Id, Status = ClubMembershipStatus.Active, RequestedAt = now });
+                }
+                return player.Id;
+            }
+            PlayerFor("used", clubId);              // let in by this Club's invite
+            PlayerFor("added-elsewhere", otherClubId); // a Manager added them in another Club
+            PlayerFor("left", null);                // let in, then left
+            foreach (var who in new[] { "used", "added-elsewhere", "left", "no-user" })
+            {
+                db.ClubInvites.Add(new ClubInvite { Id = Guid.NewGuid(), ClubId = clubId, Email = Email(who), CreatedAt = now });
+            }
+            await db.SaveChangesAsync();
+
+            var sql = new SocialTennis.Api.Migrations.UseUpJoinedInvites().UpOperations
+                .OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>()
+                .Single().Sql;
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        using var manager = await factory.CreateManagerClientAsync();
+        var left = (await MembersAsync(manager, clubId)).Invites.Select(i => i.Email).Where(e => e.EndsWith($"-{tag}@example.test", StringComparison.Ordinal)).Order();
+        Assert.Equal(new[] { Email("added-elsewhere"), Email("left"), Email("no-user") }.Order(), left);
+    }
+
+    /// <summary>
+    /// Before #164 an invite outlived the Players it let in, so a Player who
+    /// had left could find one still there. Asking to join uses it up.
+    /// </summary>
+    [Fact]
+    public async Task Asking_to_join_with_an_invite_left_from_before_lets_the_Player_in_and_uses_it_up()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"left-over-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var player = await CreatePlayerAsync(client, "Returning");
+        var clubId = await factory.AClubIdAsync();
+        await PlantLeftOverInviteAsync(clubId, email);
+
+        await client.PutAsync($"/clubs/{clubId}/members/{player.Id}", null);
+
         Assert.True(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+        Assert.Empty(await InvitesForAsync(manager, clubId, email));
+    }
+
+    [Fact]
+    public async Task Asking_with_an_invite_left_from_before_lets_in_the_Users_request_waiting_there()
+    {
+        var email = $"left-over-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var waiting = await CreatePlayerAsync(client, "Waiting");
+        var asking = await CreatePlayerAsync(client, "Asking");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
+        await PlantLeftOverInviteAsync(clubId, email);
+
+        await client.PutAsync($"/clubs/{clubId}/members/{asking.Id}", null);
+
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
+    [Fact]
+    public async Task Adding_a_Player_with_an_invite_left_from_before_lets_in_the_Users_request_waiting_there()
+    {
+        var email = $"left-over-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var waiting = await CreatePlayerAsync(client, "Waiting");
+        var clubId = await factory.AClubIdAsync();
+        await client.PutAsync($"/clubs/{clubId}/members/{waiting.Id}", null);
+        await PlantLeftOverInviteAsync(clubId, email);
+
+        await CreatePlayerAsync(client, "Added");
+
+        var players = await PlayersAsync(client);
+        Assert.Equal(2, players.Count);
+        Assert.All(players, p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
     }
 
     [Fact]

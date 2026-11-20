@@ -36,9 +36,9 @@ public static class CreatePlayer
             CreatedAt = clock.GetUtcNow(),
         };
 
-        // A Manager may have invited this email already: then the new Player
-        // is in those Clubs from the start, with nothing to ask for. Locked, so
-        // an invite made at this moment can't miss the new Player.
+        // The new Player is in a Club from the start if a Manager invited this
+        // email (the invite is used up), or if the User already holds a member
+        // of it (#164). Locked, so an invite made at this moment can't miss it.
         var email = EmailAddress.Normalize(user.FindFirstValue(ClaimTypes.Email)!);
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
 
@@ -54,11 +54,7 @@ public static class CreatePlayer
         }
 
         db.Players.Add(player);
-        foreach (var clubId in await ClubAdmission.InvitingClubIdsAsync(db, email, cancellationToken))
-        {
-            db.ClubMemberships.Add(
-                ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, player.CreatedAt));
-        }
+        await ClubAdmission.AdmitNewPlayerAsync(db, player.UserId, email, player.Id, player.CreatedAt, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

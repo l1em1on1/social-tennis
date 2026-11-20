@@ -112,20 +112,18 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await manager.getByLabel("Email address", { exact: true }).first().fill(email);
   await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
-  const invites = manager.getByRole("list", { name: "Pre-approved addresses" });
-  const invite = invites.getByRole("listitem").filter({ hasText: email });
+  const invite = manager.getByRole("list", { name: "Pre-approved addresses" }).getByRole("listitem").filter({ hasText: email });
   await expect(invite).toBeVisible();
-  // The mock keeps its invites until its server restarts, so a second local
-  // run finds this address already joined. The real API gets a new address.
-  if (testInfo.project.name === "real") {
-    await expect(invite).toContainText("Not joined yet");
-  }
-  await managerContext.close();
 
   await logIn(page, testInfo, email);
   await addFirstPlayer(page, ivy);
   await expect(page.getByRole("listitem").filter({ hasText: clubName })).toContainText("Member");
   await expect(page.getByRole("button", { name: `Ask to join ${clubName}` })).toHaveCount(0);
+
+  // Letting Ivy in used the invite up (#164).
+  await manager.reload();
+  await expect(invite).toHaveCount(0);
+  await managerContext.close();
 });
 
 test("a Manager removes a member, and withdraws an invite", async ({ page, browser }, testInfo) => {
