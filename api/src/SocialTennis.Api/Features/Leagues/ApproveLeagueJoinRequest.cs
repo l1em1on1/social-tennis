@@ -7,8 +7,9 @@ namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
 /// A Manager approves a Player's request to join a League. The Player becomes
-/// a participant, with the request time as their join time. Approving again
-/// changes nothing; approving a rejected request is a 409.
+/// a participant, with the request time as their join time, and with a Team of
+/// one in a singles League (<see cref="LeagueTeams"/>). Approving again changes
+/// nothing; approving a rejected request is a 409.
 /// </summary>
 public static class ApproveLeagueJoinRequest
 {
@@ -46,16 +47,12 @@ public static class ApproveLeagueJoinRequest
             return LeagueEntry.NotAClubMember();
         }
 
+        var now = clock.GetUtcNow();
         joinRequest.Status = LeagueJoinRequestStatus.Approved;
-        joinRequest.DecidedAt = clock.GetUtcNow();
+        joinRequest.DecidedAt = now;
         if (!await LeagueEntry.IsParticipantAsync(db, leagueId, playerId, cancellationToken))
         {
-            db.LeagueParticipants.Add(new LeagueParticipant
-            {
-                LeagueId = leagueId,
-                PlayerId = playerId,
-                JoinedAt = joinRequest.RequestedAt,
-            });
+            LeagueTeams.AddParticipant(db, joinRequest.League, playerId, joinRequest.RequestedAt, now);
         }
 
         await db.SaveChangesAsync(cancellationToken);

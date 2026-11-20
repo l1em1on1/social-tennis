@@ -15,8 +15,8 @@ async function addClubPlayer(manager: Page, name: string, email: string) {
   await expect(manager.getByRole("status")).toContainText(`${name} is added`);
 }
 
-/** From Manage: creates a League in the first Club with the setup form's defaults, and lands on its page. */
-async function createLeague(manager: Page, name: string) {
+/** From Manage: creates a League in the first Club with the setup form's defaults (or another Type), and lands on its page. */
+async function createLeague(manager: Page, name: string, type?: string) {
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   await manager.getByRole("link", { name: "New league" }).first().click();
@@ -24,6 +24,7 @@ async function createLeague(manager: Page, name: string) {
   await manager.getByLabel("Name", { exact: true }).fill(name);
   await manager.getByLabel("Starts").fill("2026-12-01");
   await manager.getByLabel("Ends").fill("2027-03-31");
+  if (type) await manager.getByLabel("Type").selectOption(type);
   await manager.getByRole("button", { name: "Create League" }).click();
   await expect(manager.getByRole("heading", { name, level: 1 })).toBeVisible();
 }
@@ -239,6 +240,55 @@ test("a Manager removes a Player from a League, and they can ask to join again",
   const joinable = page.getByRole("region", { name: "You can join" });
   await expect(joinable.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
   await expect(page.getByRole("region", { name: `${lee}'s leagues` }).getByRole("region", { name: league })).toHaveCount(0);
+});
+
+test("a Manager pairs two Players of a doubles League into a team, and each sees their partner", async ({ page, browser }, testInfo) => {
+  // Two sign-ins and several round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Pairs Ladder");
+  const ana = uniqueName(testInfo, "Ana Pair");
+  const ben = uniqueName(testInfo, "Ben Pair");
+  const anaEmail = personaEmail(testInfo, "pair-ana");
+  const benEmail = personaEmail(testInfo, "pair-ben");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, ana, anaEmail);
+  await addClubPlayer(manager, ben, benEmail);
+  await createLeague(manager, league, "DoublesMix");
+  for (const [name, email] of [
+    [ana, anaEmail],
+    [ben, benEmail],
+  ]) {
+    await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await manager.getByRole("button", { name: "Add to league" }).click();
+    await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  const unpaired = manager.getByRole("list", { name: "Players without a partner" });
+  await expect(unpaired.getByRole("listitem")).toHaveCount(2);
+
+  const pair = async () => {
+    await manager.getByLabel("First player").selectOption({ label: ana });
+    await manager.getByLabel("Second player").selectOption({ label: ben });
+    await manager.getByRole("button", { name: "Pair as a team" }).click();
+    await expect(manager.getByRole("list", { name: "Teams in the league" })).toContainText(`${ana} & ${ben}`);
+    await expect(manager.getByText("Everyone in the league has a partner.")).toBeVisible();
+  };
+  await pair();
+  await expectNoSeriousA11yViolations(manager);
+
+  // Unpairing puts both back without a partner; then they are paired again.
+  await manager.getByRole("button", { name: `Unpair ${ana} & ${ben}` }).click();
+  await expect(unpaired.getByRole("listitem")).toHaveCount(2);
+  await expect(manager.getByText("No teams yet. Pair the players below.")).toBeVisible();
+  await pair();
+  await managerContext.close();
+
+  await logIn(page, testInfo, anaEmail);
+  await page.goto("/leagues");
+  const mine = page.getByRole("region", { name: `${ana}'s leagues` });
+  await expect(mine.getByRole("region", { name: league })).toContainText(`Partner: ${ben}`);
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {

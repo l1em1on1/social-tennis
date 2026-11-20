@@ -356,6 +356,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PairTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/teams/{teamId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["UnpairTeam"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/join-requests": {
         parameters: {
             query?: never;
@@ -539,6 +571,7 @@ export interface components {
             scoreFormat: components["schemas"]["ScoreFormat"];
             participants: components["schemas"]["LeagueParticipantSummary"][];
             joinRequests: components["schemas"]["LeagueJoinRequestSummary"][];
+            teams: components["schemas"]["LeagueTeamSummary"][];
         };
         GetPlayerLeaguesResponse: {
             leagues: components["schemas"]["PlayerLeague"][];
@@ -590,9 +623,19 @@ export interface components {
             rating: number | string;
             /** Format: date-time */
             joinedAt: string;
+            gender: null | components["schemas"]["PlayerGender"];
+            /** Format: uuid */
+            teamId: null | string;
         };
         /** @enum {unknown} */
         LeagueStructure: "Divisional" | "Knockout";
+        LeagueTeamSummary: {
+            /** Format: uuid */
+            id: string;
+            playerIds: string[];
+            /** Format: double */
+            rating: number | string;
+        };
         /** @enum {unknown} */
         LeagueType: "SinglesMen" | "SinglesWomen" | "SinglesMixed" | "DoublesMen" | "DoublesWomen" | "DoublesMix" | "Foursomes";
         MagicLinkRequest: {
@@ -608,6 +651,16 @@ export interface components {
             offset: number | string;
             /** Format: int32 */
             limit?: null | number | string;
+        };
+        PairTeamRequest: {
+            /** Format: uuid */
+            firstPlayerId: string;
+            /** Format: uuid */
+            secondPlayerId: string;
+        };
+        PairTeamResponse: {
+            /** Format: uuid */
+            id: string;
         };
         PlayerClub: {
             /** Format: uuid */
@@ -637,6 +690,7 @@ export interface components {
             participantCount: number | string;
             joined: boolean;
             joinRequest: null | components["schemas"]["PlayerLeagueJoinRequest"];
+            partnerName: null | string;
         };
         PlayerLeagueJoinRequest: {
             status: components["schemas"]["LeagueJoinRequestStatus"];
@@ -1890,6 +1944,112 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    PairTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PairTeamRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairTeamResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UnpairTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

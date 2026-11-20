@@ -68,7 +68,7 @@ A Manager resolution of an unplayed Game awarding the result to one side without
 A Manager resolution cancelling an unplayed Game entirely — it counts for nothing in standings.
 
 **Team**:
-A League-scoped pairing of 1 or 2 Players (depending on League Type) who compete together for the life of the League — changing partner means a Withdrawal plus a fresh join, never an in-place re-pair. Predetermined by the manager, not re-formed per Game. Not used by Socials (a Social's Games are assembled directly from RSVP'd Players each time, no persistent Team) or by `Foursomes` Leagues (see League Type) — a Team requires a fixed partner, which `Foursomes` doesn't have. A Team has no Rating of its own — it's always derived from its Players' Ratings (average, for now), never independently tracked.
+A League-scoped pairing of 1 or 2 Players (depending on League Type) who compete together for the life of the League — changing partner means a Withdrawal plus a fresh join, never an in-place re-pair. In a singles League each Player is a Team of one. In a doubles League a Player starts without a partner, and the Manager pairs two of them into a Team, or breaks a Team up, before the League starts (#6); joining as a pair is #6's second part. A Team is not re-formed per Game. Not used by Socials (a Social's Games are assembled directly from RSVP'd Players each time, no persistent Team) or by `Foursomes` Leagues (see League Type) — a Team requires a fixed partner, which `Foursomes` doesn't have. A Team has no Rating of its own — it's always derived from its Players' Ratings (average, for now), never independently tracked.
 _Avoid_: Pair (use Team even for singles, to keep one term across League Types)
 
 **Competitor**:

@@ -4,7 +4,8 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 
 /// <summary>
 /// One League as a Manager runs it: its format, who is in it (by join time),
-/// and its Join Requests (pending first, oldest first; then decided, newest first).
+/// its Join Requests (pending first, oldest first; then decided, newest first),
+/// and its Teams, oldest first (#6).
 /// </summary>
 public record GetLeagueResponse(
     Guid Id,
@@ -19,4 +20,5 @@ public record GetLeagueResponse(
     StageRoll? StageRoll,
     ScoreFormat ScoreFormat,
     IReadOnlyList<LeagueParticipantSummary> Participants,
-    IReadOnlyList<LeagueJoinRequestSummary> JoinRequests);
+    IReadOnlyList<LeagueJoinRequestSummary> JoinRequests,
+    IReadOnlyList<LeagueTeamSummary> Teams);

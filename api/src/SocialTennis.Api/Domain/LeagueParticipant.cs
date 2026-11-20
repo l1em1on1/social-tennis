@@ -16,4 +16,14 @@ public class LeagueParticipant
     /// add. Breaks ties in the proposed starting ladder (#7, ADR-0013).
     /// </summary>
     public DateTimeOffset JoinedAt { get; set; }
+
+    /// <summary>
+    /// The participant's Team (<see cref="LeagueTypeTeams.TeamSize"/>): always
+    /// one in a singles League; in a doubles one, none until they are paired;
+    /// never in <see cref="LeagueType.Foursomes"/>. With <see cref="LeagueId"/>
+    /// it references the Team, so the Team is always of this League.
+    /// </summary>
+    public Guid? TeamId { get; set; }
+
+    public Team? Team { get; set; }
 }

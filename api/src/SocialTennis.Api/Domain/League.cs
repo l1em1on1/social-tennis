@@ -42,6 +42,8 @@ public class League
 
     public List<LeagueJoinRequest> JoinRequests { get; set; } = [];
 
+    public List<Team> Teams { get; set; } = [];
+
     /// <summary>
     /// The one Type×Structure combination that is invalid: Foursomes is a
     /// Division-of-4 partner rotation, meaningless in a Bracket.

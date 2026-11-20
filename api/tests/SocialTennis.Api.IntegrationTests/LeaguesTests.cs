@@ -417,9 +417,12 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var after = await LeagueAsync(manager, leagueId);
         Assert.Equal("Spring Singles", after.Name);
-        Assert.Equal(before with { Name = after.Name, Participants = after.Participants, JoinRequests = after.JoinRequests }, after);
+        Assert.Equal(before with { Name = after.Name, Participants = after.Participants, JoinRequests = after.JoinRequests, Teams = after.Teams }, after);
         Assert.Equal(before.Participants, after.Participants);
         Assert.Equal(before.JoinRequests, after.JoinRequests);
+        Assert.Equal(
+            before.Teams.Select(t => (t.Id, string.Join(",", t.PlayerIds), t.Rating)),
+            after.Teams.Select(t => (t.Id, string.Join(",", t.PlayerIds), t.Rating)));
 
         // Players and the Club's list see the new name.
         Assert.Equal("Spring Singles", Assert.Single(await PlayerLeaguesAsync(player, playerId)).Name);

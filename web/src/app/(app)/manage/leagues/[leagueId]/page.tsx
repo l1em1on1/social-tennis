@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { TeamPairingForm } from "@/components/team-pairing-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
   rejectLeagueJoinRequest,
   removeLeagueParticipant,
   renameLeague,
+  unpairTeam,
 } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
@@ -63,6 +65,11 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   // a Player who was turned down can only be added back.
   const turnedDown = new Set(decided.filter((request) => request.status === "Rejected").map((request) => request.playerId));
   const addable = members.members.filter((member) => member.approved && !inLeague.has(member.playerId));
+  // Doubles: the Manager pairs Players into Teams (#6). Singles Teams of one,
+  // and Foursomes' lack of Teams, need nothing on this page.
+  const doubles = ["DoublesMen", "DoublesWomen", "DoublesMix"].includes(league.type);
+  const nameOf = (playerId: string) => league.participants.find((p) => p.playerId === playerId)?.name ?? "";
+  const unpaired = league.participants.filter((participant) => participant.teamId === null);
 
   return (
     <>
@@ -111,6 +118,9 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
           <strong>{league.name}</strong> is created. Players at the club can ask to join it now, or add them below.
         </p>
+      )}
+      {error === "pair" && (
+        <ErrorState title="That pairing didn't work" description="Pick two different players without a partner." />
       )}
       {error === "conflict" && (
         <ErrorState
@@ -220,6 +230,50 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         )}
       </Card>
 
+      {doubles && (
+        <Card title={`Teams (${league.teams.length})`}>
+          {league.teams.length === 0 ? (
+            <p className="text-sm text-fg-muted">No teams yet. Pair the players below.</p>
+          ) : (
+            <ul aria-label="Teams in the league" className="divide-y divide-border">
+              {league.teams.map((team) => {
+                const names = team.playerIds.map(nameOf).join(" & ");
+                return (
+                  <li key={team.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
+                    <p className="font-medium">{names}</p>
+                    <form action={unpairTeam}>
+                      <input type="hidden" name="leagueId" value={league.id} />
+                      <input type="hidden" name="teamId" value={team.id} />
+                      <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
+                        Unpair
+                      </SubmitButton>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="mt-4 flex flex-col gap-3">
+            <h3 className="font-semibold">Without a partner ({unpaired.length})</h3>
+            {unpaired.length === 0 ? (
+              <p className="text-sm text-fg-muted">Everyone in the league has a partner.</p>
+            ) : (
+              <ul aria-label="Players without a partner" className="text-sm">
+                {unpaired.map((participant) => (
+                  <li key={participant.playerId}>{participant.name}</li>
+                ))}
+              </ul>
+            )}
+            {unpaired.length >= 2 && (
+              <TeamPairingForm
+                leagueId={league.id}
+                mixed={league.type === "DoublesMix"}
+                players={unpaired.map(({ playerId, name, gender }) => ({ playerId, name, gender }))}
+              />
+            )}
+          </div>
+        </Card>
+      )}
       <Card title="Add a club member">
         {addable.length === 0 ? (
           <p className="text-sm text-fg-muted">

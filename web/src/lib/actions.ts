@@ -490,6 +490,56 @@ export async function removeLeagueParticipant(formData: FormData) {
   await manageLeagueEntry(formData, "remove");
 }
 
+/**
+ * A Manager makes a Team of two unpaired Players in a doubles League (#6). A
+ * Player already paired, or no longer in the League, comes back as a conflict;
+ * the same Player twice, as a bad pairing.
+ */
+export async function pairTeam(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const firstPlayerId = formData.get("firstPlayerId");
+  const secondPlayerId = formData.get("secondPlayerId");
+  if (!isId(leagueId)) return;
+  if (!isId(firstPlayerId) || !isId(secondPlayerId) || firstPlayerId === secondPlayerId) {
+    redirect(`/manage/leagues/${leagueId}?error=pair`);
+  }
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/leagues/{leagueId}/teams", {
+    params: { path: { leagueId } },
+    body: { firstPlayerId, secondPlayerId },
+  });
+  if (response.status === 409) {
+    redirect(`/manage/leagues/${leagueId}?error=conflict`);
+  }
+  if (response.status === 400) {
+    redirect(`/manage/leagues/${leagueId}?error=pair`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`POST /leagues/${leagueId}/teams failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A Manager breaks up a doubles Team (#6): both Players stay in the League, unpaired. */
+export async function unpairTeam(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const teamId = formData.get("teamId");
+  if (!isId(leagueId) || !isId(teamId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/leagues/{leagueId}/teams/{teamId}", {
+    params: { path: { leagueId, teamId } },
+  });
+  if (response.status === 409) {
+    redirect(`/manage/leagues/${leagueId}?error=conflict`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`DELETE /leagues/${leagueId}/teams/${teamId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
 /** A Manager renames a League (#153). Nothing else about it changes. */
 export async function renameLeague(formData: FormData) {
   const leagueId = formData.get("leagueId");

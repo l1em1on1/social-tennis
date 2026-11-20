@@ -46,6 +46,17 @@ public static class LeaguesEndpoints
             .RequireAuthorization(Policies.Manager)
             .WithName(nameof(RemoveLeagueParticipant));
 
+        league.MapPost("/teams", PairTeam.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<PairTeamRequest, PairTeamRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(PairTeam));
+
+        league.MapDelete("/teams/{teamId:guid}", UnpairTeam.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(UnpairTeam));
+
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
             .ProducesProblem(StatusCodes.Status409Conflict)

@@ -19,6 +19,10 @@ namespace SocialTennis.Api.Features.Leagues;
 /// they aren't in, and block a new request. A rejected request stays: a Player
 /// a Manager turned down, then added, then removed, still can't ask.
 /// </para>
+/// <para>
+/// Their Team goes with them: a Team of one is deleted, and a doubles partner
+/// goes back to the unpaired Players (#6).
+/// </para>
 /// </remarks>
 public static class RemoveLeagueParticipant
 {
@@ -34,10 +38,7 @@ public static class RemoveLeagueParticipant
             return TypedResults.NotFound();
         }
 
-        var removed = await db.LeagueParticipants
-            .Where(p => p.LeagueId == leagueId && p.PlayerId == playerId)
-            .ExecuteDeleteAsync(cancellationToken);
-        if (removed > 0)
+        if (await LeagueTeams.RemoveParticipantAsync(db, leagueId, playerId, cancellationToken))
         {
             await db.LeagueJoinRequests
                 .Where(r => r.LeagueId == leagueId && r.PlayerId == playerId && r.Status == LeagueJoinRequestStatus.Approved)

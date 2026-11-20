@@ -24,6 +24,7 @@ export const FIXTURE_USER_IDS: Record<string, string> = {
 const RIVERSIDE = { id: id("c", 1), name: "Riverside Tennis Club" };
 const HILLSIDE = { id: id("c", 2), name: "Hillside Social Tennis" };
 export const FIXTURE_LEAGUE_ID = id("e", 1);
+export const FIXTURE_DOUBLES_LEAGUE_ID = id("e", 2);
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
@@ -83,7 +84,7 @@ const winterSingles = {
 } as const;
 
 const springDoubles = {
-  id: id("e", 2),
+  id: FIXTURE_DOUBLES_LEAGUE_ID,
   name: "Spring Doubles",
   type: "DoublesMix",
   structure: "Knockout",
@@ -97,7 +98,7 @@ const springDoubles = {
 export const fixtureLeagues: Record<string, Schemas["GetClubLeaguesResponse"]> = {
   [RIVERSIDE.id]: {
     leagues: [
-      { ...springDoubles, participantCount: 0, pendingRequestCount: 0 },
+      { ...springDoubles, participantCount: 4, pendingRequestCount: 0 },
       { ...winterSingles, participantCount: 2, pendingRequestCount: 1 },
     ],
     page: whole(2),
@@ -105,12 +106,25 @@ export const fixtureLeagues: Record<string, Schemas["GetClubLeaguesResponse"]> =
   [HILLSIDE.id]: { leagues: [], page: whole(0) },
 };
 
-const inLeague = (who: Schemas["ClubMember"], joinedAt: string): Schemas["LeagueParticipantSummary"] => ({
+const inLeague = (
+  who: Schemas["ClubMember"],
+  joinedAt: string,
+  teamId: string | null,
+): Schemas["LeagueParticipantSummary"] => ({
   playerId: who.playerId,
   name: who.name,
   email: who.email,
   rating: who.rating,
   joinedAt,
+  gender: who.gender,
+  teamId,
+});
+
+/** A Team, with its Rating the average of its Players', as the API works it out. */
+const team = (n: number, members: Schemas["ClubMember"][]): Schemas["LeagueTeamSummary"] => ({
+  id: id("f", n),
+  playerIds: members.map((member) => member.playerId),
+  rating: members.reduce((sum, member) => sum + Number(member.rating), 0) / members.length,
 });
 
 const asked = (
@@ -140,18 +154,38 @@ const winterSinglesPage: Schemas["GetLeagueResponse"] = {
   clubId: RIVERSIDE.id,
   clubName: RIVERSIDE.name,
   // An approved request joins at the time it was asked; a Player the Manager adds, at the add.
-  participants: [inLeague(alex, "2026-11-02T20:10:00Z"), inLeague(jo, "2026-11-05T19:20:00Z")],
+  // In singles, each is a Team of one (#6).
+  participants: [inLeague(alex, "2026-11-02T20:10:00Z", id("f", 1)), inLeague(jo, "2026-11-05T19:20:00Z", id("f", 2))],
   joinRequests: [
     asked(sam, "Pending", "2026-11-14T17:45:00Z", null),
     asked(jo, "Rejected", "2026-11-04T09:00:00Z", "2026-11-05T08:00:00Z"),
     asked(alex, "Approved", "2026-11-02T20:10:00Z", "2026-11-03T10:00:00Z"),
   ],
+  teams: [team(1, [alex]), team(2, [jo])],
 };
 
-/** Each League's own page, by id: Spring Doubles has no one yet. */
+/**
+ * Spring Doubles (mixed): Alex and Jo are a Team, and Sam and Chris, added by
+ * the Manager, are still without a partner (#6).
+ */
+const springDoublesPage: Schemas["GetLeagueResponse"] = {
+  ...springDoubles,
+  clubId: RIVERSIDE.id,
+  clubName: RIVERSIDE.name,
+  participants: [
+    inLeague(alex, "2026-11-06T10:00:00Z", id("f", 3)),
+    inLeague(jo, "2026-11-06T10:05:00Z", id("f", 3)),
+    inLeague(sam, "2026-11-07T18:00:00Z", null),
+    inLeague(chris, "2026-11-08T09:30:00Z", null),
+  ],
+  joinRequests: [],
+  teams: [team(3, [alex, jo])],
+};
+
+/** Each League's own page, by id. */
 export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = {
   [winterSingles.id]: winterSinglesPage,
-  [springDoubles.id]: { ...springDoubles, clubId: RIVERSIDE.id, clubName: RIVERSIDE.name, participants: [], joinRequests: [] },
+  [springDoubles.id]: springDoublesPage,
 };
 
 const user = (
