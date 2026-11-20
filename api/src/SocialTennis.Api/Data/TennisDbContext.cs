@@ -120,7 +120,9 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             // One per Player and League, decided or not: a second ask is refused.
             request.HasKey(r => new { r.LeagueId, r.PlayerId });
             request.HasOne(r => r.League).WithMany(l => l.JoinRequests).OnDelete(DeleteBehavior.Cascade);
-            request.HasOne(r => r.Player).WithMany().OnDelete(DeleteBehavior.Cascade);
+            request.HasOne(r => r.Player).WithMany().HasForeignKey(r => r.PlayerId).OnDelete(DeleteBehavior.Cascade);
+            // The partner a doubles request names (#6): it goes with them, as with the asker.
+            request.HasOne(r => r.Partner).WithMany().HasForeignKey(r => r.PartnerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SessionToken>(token =>

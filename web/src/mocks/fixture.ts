@@ -55,18 +55,21 @@ const jo = member(3, "Jo Bennett", "jo.bennett@example.com", { gender: "Male", l
 const chris = member(4, "Chris Lee", "chris.lee@example.com", { signedIn: false, level: 2 });
 const priya = member(5, "Priya Shah", "priya.shah@example.com", { approved: false, requestedAt: "2026-11-12T18:30:00Z" });
 const tom = member(6, "Tom Okafor", "tom.okafor@example.com", { approved: false, requestedAt: "2026-11-14T08:05:00Z" });
+// Asking to join Spring Doubles together (#6).
+const nia = member(7, "Nia Brooks", "nia.brooks@example.com", { gender: "Female", level: 3 });
+const ella = member(8, "Ella Grant", "ella.grant@example.com", { gender: "Female", level: 2 });
 
 /** Riverside has someone in every state; Hillside has no one, so its empty states show. */
 export const fixtureMembers: Record<string, Schemas["GetClubMembersResponse"]> = {
   [RIVERSIDE.id]: {
     // The API's order: requests waiting, oldest first, then members by name.
-    members: [priya, tom, alex, chris, jo, sam],
+    members: [priya, tom, alex, chris, ella, jo, nia, sam],
     invites: [
       // Addresses with no Player yet: an invite is used up by the first one (#164).
       { id: id("d", 1), email: "dana.price@example.com", invitedAt: "2026-11-10T12:00:00Z" },
       { id: id("d", 2), email: "morgan.ellis@example.com", invitedAt: "2026-11-16T10:30:00Z" },
     ],
-    page: whole(6),
+    page: whole(8),
   },
   [HILLSIDE.id]: { members: [], invites: [], page: whole(0) },
 };
@@ -98,7 +101,7 @@ const springDoubles = {
 export const fixtureLeagues: Record<string, Schemas["GetClubLeaguesResponse"]> = {
   [RIVERSIDE.id]: {
     leagues: [
-      { ...springDoubles, participantCount: 4, pendingRequestCount: 0 },
+      { ...springDoubles, participantCount: 4, pendingRequestCount: 1 },
       { ...winterSingles, participantCount: 2, pendingRequestCount: 1 },
     ],
     page: whole(2),
@@ -132,11 +135,16 @@ const asked = (
   status: Schemas["LeagueJoinRequestStatus"],
   requestedAt: string,
   decidedAt: string | null,
+  partner?: Schemas["ClubMember"],
 ): Schemas["LeagueJoinRequestSummary"] => ({
   playerId: who.playerId,
   name: who.name,
   email: who.email,
   rating: who.rating,
+  gender: who.gender,
+  partner: partner
+    ? { playerId: partner.playerId, name: partner.name, email: partner.email, rating: partner.rating, gender: partner.gender }
+    : null,
   status,
   requestedAt,
   decidedAt,
@@ -166,7 +174,8 @@ const winterSinglesPage: Schemas["GetLeagueResponse"] = {
 
 /**
  * Spring Doubles (mixed): Alex and Jo are a Team, and Sam and Chris, added by
- * the Manager, are still without a partner (#6).
+ * the Manager, are still without a partner (#6). Nia asked to join with Ella:
+ * both are women, so the page warns but lets the Manager approve.
  */
 const springDoublesPage: Schemas["GetLeagueResponse"] = {
   ...springDoubles,
@@ -178,7 +187,7 @@ const springDoublesPage: Schemas["GetLeagueResponse"] = {
     inLeague(sam, "2026-11-07T18:00:00Z", null),
     inLeague(chris, "2026-11-08T09:30:00Z", null),
   ],
-  joinRequests: [],
+  joinRequests: [asked(nia, "Pending", "2026-11-15T19:00:00Z", null, ella)],
   teams: [team(3, [alex, jo])],
 };
 
@@ -210,6 +219,8 @@ const user = (
  */
 export const fixtureUsers: Schemas["GetUsersResponse"] = {
   users: [
+    user(8, ella.email, [ella]),
+    user(9, nia.email, [nia]),
     user(3, tom.email, [tom]),
     user(4, priya.email, [priya]),
     user(5, chris.email, [chris]),
@@ -218,5 +229,5 @@ export const fixtureUsers: Schemas["GetUsersResponse"] = {
     user(0, FIXTURE_MANAGER, [], { manager: true }),
     user(0, FIXTURE_ADMIN, [], { admin: true, adminBySetting: true }),
   ],
-  page: { total: 7, offset: 0, limit: 50 },
+  page: { total: 9, offset: 0, limit: 50 },
 };

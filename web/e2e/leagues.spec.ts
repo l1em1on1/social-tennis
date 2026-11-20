@@ -301,6 +301,77 @@ test("a Manager pairs two Players of a doubles League into a team, and each sees
   await expect(mine.getByRole("region", { name: league })).toContainText(`Partner: ${ben}`);
 });
 
+test("a Player asks to join a doubles League with a partner, who can take it back; approved, they're a team", async ({
+  page,
+  browser,
+}, testInfo) => {
+  // Three sign-ins and several round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Partners Ladder");
+  const eve = uniqueName(testInfo, "Eve Asks");
+  const fin = uniqueName(testInfo, "Fin Named");
+  const eveEmail = personaEmail(testInfo, "asks-eve");
+  const finEmail = personaEmail(testInfo, "named-fin");
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, eve, eveEmail);
+  await addClubPlayer(manager, fin, finEmail);
+  await createLeague(manager, league, "DoublesMix");
+  const leaguePage = manager.url();
+
+  // Eve picks Fin by name: typing part of it, then choosing from the list.
+  await logIn(page, testInfo, eveEmail);
+  await page.goto("/leagues");
+  const evesCard = page.getByRole("region", { name: "You can join" }).getByRole("region", { name: league });
+  const partner = evesCard.getByRole("combobox", { name: "Partner (optional)" });
+  const askWithFin = async () => {
+    await partner.pressSequentially(fin.slice(0, 9));
+    await expect(partner).toHaveAttribute("aria-expanded", "true");
+    await evesCard.getByRole("option", { name: fin }).click();
+    await expect(partner).toHaveValue(fin);
+    await evesCard.getByRole("button", { name: `Ask to join ${league}` }).click();
+    await expect(evesCard).toContainText(`Asked with ${fin}`);
+  };
+  await partner.pressSequentially(fin.slice(0, 9));
+  await expectNoSeriousA11yViolations(page);
+  await partner.clear();
+  await askWithFin();
+
+  // Fin sees it, and takes it back: they hadn't agreed after all.
+  const finContext = await browser.newContext();
+  const finPage = await finContext.newPage();
+  await logIn(finPage, testInfo, finEmail);
+  await finPage.goto("/leagues");
+  const finsCard = finPage.getByRole("region", { name: "You can join" }).getByRole("region", { name: league });
+  await expect(finsCard).toContainText(`${eve} asked to join with you`);
+  await expectNoSeriousA11yViolations(finPage);
+  await finsCard.getByRole("button", { name: `Take back ${eve}'s request to join ${league} with you` }).click();
+  await expect(finsCard.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
+
+  // Eve may ask again; this time they have agreed, and the Manager approves the pair.
+  await page.reload();
+  await askWithFin();
+  await manager.goto(leaguePage);
+  await manager.getByRole("button", { name: `Approve ${eve} with ${fin}` }).click();
+  // Both joined at the request time, so either may be listed first.
+  await expect(manager.getByRole("list", { name: "Teams in the league" })).toContainText(
+    new RegExp(`${eve} & ${fin}|${fin} & ${eve}`),
+  );
+  await managerContext.close();
+
+  await finPage.reload();
+  await expect(finPage.getByRole("region", { name: `${fin}'s leagues` }).getByRole("region", { name: league })).toContainText(
+    `Partner: ${eve}`,
+  );
+  await finContext.close();
+  await page.reload();
+  await expect(page.getByRole("region", { name: `${eve}'s leagues` }).getByRole("region", { name: league })).toContainText(
+    `Partner: ${fin}`,
+  );
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");

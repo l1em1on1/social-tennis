@@ -4,6 +4,7 @@ import { ResultStatusBadge, resultStatuses } from "@/components/result-status-ba
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Combobox } from "@/components/ui/combobox";
 import { Field, Input } from "@/components/ui/field";
 import { Pager, pageRange } from "@/components/ui/pager";
 import { SearchForm } from "@/components/ui/search-form";
@@ -58,6 +59,21 @@ export default function UiShowcasePage() {
                 <option value="one">One set</option>
                 <option value="bo3">Best of three</option>
               </Select>
+            )}
+          </Field>
+          <Field id="demo-partner" label="Partner" hint="Type a name and pick from the list.">
+            {(control) => (
+              <Combobox
+                {...control}
+                name="partnerId"
+                listLabel="Players"
+                placeholder="Type a name…"
+                options={[
+                  { value: "a1", label: "Alex Morgan" },
+                  { value: "a2", label: "Jo Bennett" },
+                  { value: "a3", label: "Priya Shah" },
+                ]}
+              />
             )}
           </Field>
         </div>

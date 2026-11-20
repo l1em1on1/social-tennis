@@ -13,8 +13,11 @@ namespace SocialTennis.Api.Features.Leagues;
 /// </summary>
 /// <remarks>
 /// If the Player has a request still pending, the add approves it, and they
-/// keep the earlier request time as their join time: they asked first. A
-/// rejected request stays rejected; the add overrides it.
+/// keep the earlier request time as their join time: they asked first. If it
+/// names a partner, the partner comes in with them as a Team, as approving
+/// would (#6). A rejected request stays rejected; the add overrides it. A
+/// Player named as someone's partner is added alone, unpaired: approving that
+/// request later pairs them.
 /// </remarks>
 public static class AddLeagueParticipant
 {
@@ -46,13 +49,15 @@ public static class AddLeagueParticipant
         var pending = await db.LeagueJoinRequests.SingleOrDefaultAsync(
             r => r.LeagueId == leagueId && r.PlayerId == playerId && r.Status == LeagueJoinRequestStatus.Pending,
             cancellationToken);
-        if (pending is not null)
+        if (pending is null)
         {
-            pending.Status = LeagueJoinRequestStatus.Approved;
-            pending.DecidedAt = now;
+            LeagueTeams.AddParticipant(db, league, playerId, now, now);
+        }
+        else if (await LeagueEntry.ApproveAsync(db, league, pending, now, cancellationToken) is { } problem)
+        {
+            return problem;
         }
 
-        LeagueTeams.AddParticipant(db, league, playerId, pending?.RequestedAt ?? now, now);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

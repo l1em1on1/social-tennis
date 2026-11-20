@@ -71,6 +71,12 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   const doubles = ["DoublesMen", "DoublesWomen", "DoublesMix"].includes(league.type);
   const nameOf = (playerId: string) => league.participants.find((p) => p.playerId === playerId)?.name ?? "";
   const unpaired = league.participants.filter((participant) => participant.teamId === null);
+  // A pair asking together (#6): who with, and in mixed doubles a warning, not
+  // a refusal, when both are the same gender (owner, 2026-11-20).
+  const withPartner = (request: (typeof league.joinRequests)[number]) =>
+    request.partner ? `${request.name} with ${request.partner.name}` : request.name;
+  const sameGender = (request: (typeof league.joinRequests)[number]) =>
+    league.type === "DoublesMix" && request.gender !== null && request.gender === request.partner?.gender;
 
   return (
     <>
@@ -149,21 +155,28 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             {pending.map((request) => (
               <li key={request.playerId} className="flex flex-col gap-2 py-3">
                 <div>
-                  <p className="font-medium">{request.name}</p>
-                  <p className="text-sm text-fg-muted">Asked {formatDate(request.requestedAt.slice(0, 10))}</p>
+                  <p className="font-medium">{withPartner(request)}</p>
+                  <p className="text-sm text-fg-muted">
+                    {request.partner ? "Asked together" : "Asked"} {formatDate(request.requestedAt.slice(0, 10))}
+                  </p>
+                  {sameGender(request) && (
+                    <p className="text-sm text-fg-muted">
+                      Both are the same gender. A mixed doubles team is usually a man and a woman, but you can still approve them.
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <form action={approveLeagueJoinRequest}>
                     <input type="hidden" name="leagueId" value={league.id} />
                     <input type="hidden" name="playerId" value={request.playerId} />
-                    <SubmitButton pendingLabel="Approving…" aria-label={`Approve ${request.name}`}>
+                    <SubmitButton pendingLabel="Approving…" aria-label={`Approve ${withPartner(request)}`}>
                       Approve
                     </SubmitButton>
                   </form>
                   <form action={rejectLeagueJoinRequest}>
                     <input type="hidden" name="leagueId" value={league.id} />
                     <input type="hidden" name="playerId" value={request.playerId} />
-                    <SubmitButton variant="secondary" pendingLabel="Rejecting…" aria-label={`Reject ${request.name}`}>
+                    <SubmitButton variant="secondary" pendingLabel="Rejecting…" aria-label={`Reject ${withPartner(request)}`}>
                       Reject
                     </SubmitButton>
                   </form>
@@ -179,7 +192,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               {decided
                 .filter((request) => request.status === "Rejected")
                 .map((request) => (
-                  <li key={request.playerId}>{request.name}</li>
+                  <li key={request.playerId}>{withPartner(request)}</li>
                 ))}
             </ul>
           </div>

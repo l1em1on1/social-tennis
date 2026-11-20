@@ -423,9 +423,18 @@ function leagueAndPlayer(formData: FormData): { leagueId: string; playerId: stri
 }
 
 /**
- * A Player asks to join a League. The Player comes from the form and is
- * checked against this login's, as for `joinClub`. A 409 means they asked
- * already (another tab): the refreshed page shows that.
+ * The refusals of asking to join that the Leagues page explains (#6): each
+ * concerns the partner named, or the Player being named by someone else.
+ * Anything else (asked already, already in) the refreshed page shows.
+ */
+const JOIN_REFUSALS = ["partner-in-a-team", "partner-in-a-request", "named-as-partner"] as const;
+export type JoinRefusal = (typeof JOIN_REFUSALS)[number] | "partner-gone";
+
+/**
+ * A Player asks to join a League, alone or, in a doubles League, with the
+ * partner picked by name (#6). The Player comes from the form and is checked
+ * against this login's, as for `joinClub`; the partner is checked by the API.
+ * A refusal about the partner goes back to the page as `?error=`.
  */
 export async function askToJoinLeague(formData: FormData) {
   const path = leagueAndPlayer(formData);
@@ -433,14 +442,44 @@ export async function askToJoinLeague(formData: FormData) {
   if (!path || !viewer.players.some((player) => player.id === path.playerId)) {
     return;
   }
+  const partner = formData.get("partnerId");
+  const partnerId = isId(partner) ? partner : undefined;
+  if (partner !== null && partner !== "" && !partnerId) {
+    return;
+  }
 
   const api = await apiWithSession();
-  const { response } = await api.POST("/leagues/{leagueId}/join-requests", {
+  const { error, response } = await api.POST("/leagues/{leagueId}/join-requests", {
     params: { path: { leagueId: path.leagueId } },
-    body: { playerId: path.playerId },
+    body: { playerId: path.playerId, partnerId },
   });
+  const refusal = (JOIN_REFUSALS as readonly string[]).find((type) => type === error?.type);
+  if (refusal) {
+    redirect(`/leagues?error=${refusal}`);
+  }
+  // A partner who has left the Club since the page loaded.
+  if (response.status === 404 && partnerId) {
+    redirect("/leagues?error=partner-gone");
+  }
   if (!response.ok && response.status !== 409) {
     throw new Error(`Asking to join league ${path.leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
+ * The Player who asked to join a League, or the partner they named, takes the
+ * request back while it waits (#6). The API checks that this login holds one
+ * of them. A 404 or 409 means it's gone or decided: the refreshed page shows that.
+ */
+export async function takeBackLeagueJoinRequest(formData: FormData) {
+  const path = leagueAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/leagues/{leagueId}/join-requests/{playerId}", { params: { path } });
+  if (!response.ok && response.status !== 404 && response.status !== 409) {
+    throw new Error(`Taking back the request to join league ${path.leagueId} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
 }

@@ -15,7 +15,8 @@ internal static class LeagueTeams
 {
     /// <summary>
     /// Adds a participant, with a Team of one in a singles League. In a doubles
-    /// League they start unpaired, for the Manager to pair.
+    /// League they start unpaired, for the Manager to pair; a pair joining
+    /// together comes in through <see cref="EnterAsPairAsync"/>.
     /// </summary>
     public static void AddParticipant(
         TennisDbContext db, League league, Guid playerId, DateTimeOffset joinedAt, DateTimeOffset now)
@@ -72,11 +73,61 @@ internal static class LeagueTeams
             .ExecuteDeleteAsync(cancellationToken) > 0;
     }
 
-    /// <summary>The 409 for pairing or unpairing in a League that isn't doubles.</summary>
+    /// <summary>
+    /// Puts two Players in a doubles League as a Team, from a request naming a
+    /// partner. One already in the League without a partner (the Manager added
+    /// them) keeps their join time; the other joins at <paramref name="joinedAt"/>.
+    /// Null when done; a 409 if either already has a partner, with nothing changed.
+    /// </summary>
+    public static async Task<Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult?> EnterAsPairAsync(
+        TennisDbContext db,
+        League league,
+        Guid playerId,
+        Guid partnerId,
+        DateTimeOffset joinedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var playerIds = new[] { playerId, partnerId };
+        var already = await db.LeagueParticipants
+            .Where(p => p.LeagueId == league.Id && playerIds.Contains(p.PlayerId))
+            .ToListAsync(cancellationToken);
+        if (already.Any(p => p.TeamId is not null))
+        {
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                type: "already-in-a-team",
+                title: "One of the pair already has a partner in this League.",
+                detail: "Unpair them first, or reject the request.");
+        }
+
+        var team = new Team { Id = Guid.NewGuid(), LeagueId = league.Id, CreatedAt = now };
+        db.Teams.Add(team);
+        foreach (var id in playerIds)
+        {
+            if (already.SingleOrDefault(p => p.PlayerId == id) is { } participant)
+            {
+                participant.TeamId = team.Id;
+            }
+            else
+            {
+                db.LeagueParticipants.Add(new LeagueParticipant
+                {
+                    LeagueId = league.Id,
+                    PlayerId = id,
+                    JoinedAt = joinedAt,
+                    TeamId = team.Id,
+                });
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The 409 for pairing, unpairing or naming a partner in a League that isn't doubles.</summary>
     public static Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult NotDoubles() =>
         TypedResults.Problem(
             statusCode: StatusCodes.Status409Conflict,
             type: "not-a-doubles-league",
-            title: "Only a doubles League's Players are paired by the Manager.",
+            title: "Only a doubles League's Players have partners.",
             detail: "In a singles League each Player is a Team of one; a Foursomes League has no Teams.");
 }
