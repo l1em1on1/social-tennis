@@ -215,6 +215,8 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
         var pair = await PairAsync(manager, leagueId, playerId, playerId);
 
         Assert.Equal(HttpStatusCode.BadRequest, pair.StatusCode);
+        var problem = (await pair.Content.ReadFromJsonAsync<ValidationProblemDetails>())!;
+        Assert.Equal("secondPlayerId", Assert.Single(problem.Errors).Key);
         Assert.Empty((await LeagueAsync(manager, leagueId)).Teams);
     }
 

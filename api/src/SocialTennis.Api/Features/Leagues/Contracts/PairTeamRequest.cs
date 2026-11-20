@@ -10,6 +10,7 @@ public record PairTeamRequest(Guid FirstPlayerId, Guid SecondPlayerId)
         public Validator() =>
             RuleFor(request => request.SecondPlayerId)
                 .NotEqual(request => request.FirstPlayerId)
-                .WithMessage("A Team is two different Players.");
+                .WithMessage("A Team is two different Players.")
+                .OverridePropertyName("secondPlayerId");
     }
 }
