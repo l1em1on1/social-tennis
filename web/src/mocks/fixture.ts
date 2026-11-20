@@ -139,7 +139,8 @@ export const fixtureLeague: Schemas["GetLeagueResponse"] = {
   ...winterSingles,
   clubId: RIVERSIDE.id,
   clubName: RIVERSIDE.name,
-  participants: [inLeague(alex, "2026-11-03T10:00:00Z"), inLeague(jo, "2026-11-05T19:20:00Z")],
+  // An approved request joins at the time it was asked; a Player the Manager adds, at the add.
+  participants: [inLeague(alex, "2026-11-02T20:10:00Z"), inLeague(jo, "2026-11-05T19:20:00Z")],
   joinRequests: [
     asked(sam, "Pending", "2026-11-14T17:45:00Z", null),
     asked(jo, "Rejected", "2026-11-04T09:00:00Z", "2026-11-05T08:00:00Z"),
