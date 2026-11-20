@@ -19,7 +19,7 @@ The CI workflows are described in `docs/architecture.md`, "CI". This records why
 
 ## Claude's review
 
-- **Only on request**, when the owner adds the `claude-review` label. It bills the owner's Claude subscription, never API credits.
+- **Only on request**, when someone with write access adds the `claude-review` label: the owner, or the agent when the owner asks it to. It bills the owner's Claude subscription, never API credits. The workflow checks the label, not who added it.
 - **Advice, not a gate.** Its check isn't required. A run that fails (a usage limit, a rejected token) ends green, with a comment giving the error.
 - **Line comments only on changed lines.** GitHub accepts line comments only within the diff, so every other finding goes in the summary comment.
 - **Earlier line comments are written to `pr-context/` first.** `gh pr view --comments` doesn't show them, and without them a re-review would repeat open findings.
