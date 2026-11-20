@@ -22,8 +22,9 @@ fi
 # one inside another.
 here="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir) && repo=$(cd "$common/.." && pwd) || repo=$here
-# Already gone (deleted by hand, say): only git's record of it is left.
-[[ -e $path ]] || { git -C "$repo" worktree prune >&2; exit 0; }
+# Already gone (deleted by hand, say): only git's record of it is left, and
+# only that goes (no prune: see worktree-create.sh).
+[[ -e $path ]] || { git -C "$repo" worktree remove --force "$path" >/dev/null 2>&1; exit 0; }
 
 # Only with the project name worktree-create.sh wrote: without it, compose
 # would fall back to the directory's name, which another checkout may share.
@@ -36,5 +37,4 @@ else
 fi
 git -C "$repo" worktree remove --force "$path" >&2 \
   || echo "worktree-remove: $path is left behind (files a container wrote as root?)" >&2
-git -C "$repo" worktree prune >&2
 [[ ! -e $path ]]

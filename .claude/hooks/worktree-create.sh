@@ -25,8 +25,10 @@ dir="$repo/.claude/worktrees/$name"
 
 git -C "$repo" fetch --quiet origin main >&2 || echo "worktree-create: fetch failed; using the last origin/main" >&2
 # A worktree of this name deleted by hand is still registered, and git would
-# refuse to add it again.
-git -C "$repo" worktree prune >&2
+# refuse to add it again. Only its record goes: the host and the sandbox share
+# .git, and a prune would drop every worktree the other side made, whose
+# paths don't exist here.
+[[ -e $dir ]] || git -C "$repo" worktree remove --force "$dir" >/dev/null 2>&1 || true
 # Claude Code calls this for a name that exists too (`claude --worktree <name>
 # --resume` after keeping one): a linked worktree's .git is a file, and that
 # one is reopened as it is.
