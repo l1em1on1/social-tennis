@@ -46,6 +46,15 @@ export const Reordered: Story = {
   },
 };
 
+/** A move is announced with the place on the ladder that would be started, not counting anyone left out. */
+export const AnnouncesLadderPlace: Story = {
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Leave out Tom Reid" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Move Josh Lee up" }));
+    await expect(canvas.getByRole("status")).toHaveTextContent("Josh Lee moved up to place 1 on the ladder, Division 1.");
+  },
+};
+
 /** Doubles: the Players without a partner are named, since starting removes them, and waiting requests are flagged. */
 export const DoublesWithUnpaired: Story = {
   args: {

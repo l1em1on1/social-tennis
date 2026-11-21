@@ -6,7 +6,7 @@ using SocialTennis.Api.Domain;
 namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
-/// A Manager takes a Player out of a League before it starts (#159): someone
+/// A Manager takes a Player out of a League before they play (#159): someone
 /// added by mistake, or who dropped out. A DELETE: removing someone who isn't
 /// in it changes nothing.
 /// </summary>
