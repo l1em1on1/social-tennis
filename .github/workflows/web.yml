@@ -28,11 +28,12 @@ on:
 permissions:
   contents: read
 
-# A newer push to a PR cancels its older run. On main every run finishes:
-# each squash commit needs its own accepted Chromatic build, or a PR based on
-# it would be compared against the build before it (ADR-0015).
+# A newer push to a PR cancels its older run. On main each push is its own
+# group, so no run is cancelled or replaced while pending (a group keeps one
+# pending run): each squash commit needs its own accepted Chromatic build, or
+# a PR based on it would be compared against the build before it (ADR-0015).
 concurrency:
-  group: web-${{ github.ref }}
+  group: web-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
