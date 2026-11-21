@@ -137,6 +137,12 @@ jobs:
             web/test-results/
           retention-days: 7
 
+  # On main, both Chromatic uploads accept their changes automatically
+  # (`--auto-accept-changes main`, here and in the compose service): a squash
+  # merge's commit isn't a descendant of the PR's, so the baselines accepted
+  # on the PR don't carry to main otherwise (Chromatic docs, "GitHub
+  # squash/rebase merge and the main branch"; ADR-0015).
+  #
   # Component stories, light and dark at 360px (#46). Built and type-checked
   # on every web change, so a broken story fails here. Published to Chromatic's
   # Storybook project, a second project beside the Playwright one (Chromatic
@@ -170,7 +176,7 @@ jobs:
           CHROMATIC_SLUG: ${{ github.repository }}
         run: >-
           docker compose --profile storybook run --rm --no-deps chromatic
-          npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
+          npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes --auto-accept-changes main
 
   # Chromatic posts its "UI Tests: <project>" checks only when a build is
   # published (or skipped), so a

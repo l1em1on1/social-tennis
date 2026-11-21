@@ -190,8 +190,10 @@ services:
       GIT_CONFIG_VALUE_0: "*"
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
     # Changes don't fail the job: they're reviewed and accepted in Chromatic,
-    # whose own "UI Tests" status check gates the PR.
-    command: ["npx", "chromatic", "--playwright", "--exit-zero-on-changes"]
+    # whose own "UI Tests" status check gates the PR. On main they are accepted
+    # automatically: a squash merge's commit isn't a descendant of the PR's, so
+    # what was accepted there doesn't reach main's baselines otherwise (ADR-0015).
+    command: ["npx", "chromatic", "--playwright", "--exit-zero-on-changes", "--auto-accept-changes", "main"]
 
 volumes:
   pgdata:
