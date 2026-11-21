@@ -64,6 +64,8 @@ test("starting a League, from fixed data", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Start Winter Singles", level: 1 })).toBeVisible();
   await expect(page.getByRole("list", { name: "Division 1" }).getByRole("listitem")).toHaveCount(2);
   await expect(page.getByText("1 join request is still waiting.", { exact: false })).toBeVisible();
+  // Every Rating is 1, so the proposal is the order they joined, and the screen says so.
+  await expect(page.getByText("Proposed in the order players joined", { exact: false })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 

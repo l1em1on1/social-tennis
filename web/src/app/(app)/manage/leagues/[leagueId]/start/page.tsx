@@ -58,6 +58,9 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
   }
 
   const { competitors, divisions, divisionSize, unpaired, waitingRequestCount, firstStage } = start.data;
+  // The proposal is by Rating, then join time (ADR-0013). Rating isn't shown anywhere (ADR-0007,
+  // owner 2026-11-21) and stays 1, so the order is join order; the screen only says so when it is.
+  const byJoinTime = new Set(competitors.map((competitor) => Number(competitor.rating))).size <= 1;
   return (
     <>
       <div className="flex flex-col gap-1">
@@ -67,8 +70,8 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
         </p>
       </div>
       <p className="text-sm">
-        Proposed in the order players joined, in Divisions of about {String(divisionSize)}. Move anyone up or down, leave them out,
-        or change where the Divisions split, then confirm.
+        {byJoinTime ? "Proposed in the order players joined" : "Proposed order"}, in Divisions of about {String(divisionSize)}. Move
+        anyone up or down, leave them out, or change where the Divisions split, then confirm.
       </p>
       {error === "changed" && (
         <ErrorState
