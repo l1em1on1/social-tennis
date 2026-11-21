@@ -6,6 +6,10 @@ Issues, specs and PRs live on GitHub (`l1em1on1/social-tennis`). Use `gh` from i
 - **Create**, **comment**, **label**, **close**: `gh issue create|comment|edit --add-label|close`, with a heredoc for multi-line text.
 - **Edit a body:** fetch it from the repo directory to a file, check the file isn't empty, then `gh issue edit <n> --body-file <file>`. For a PR body, `gh api -X PATCH repos/l1em1on1/social-tennis/pulls/<n> -F body=@<file>`: `gh pr edit` needs a `read:org` scope the agent's token lacks.
 
+## Pushing to a PR
+
+- **Rebase onto the latest `main` before every push:** `git fetch origin main && git rebase origin/main`, then push (force with lease if the rebase rewrote commits). A PR's Chromatic builds then compare against `main` as it is. An older base can hide a Dependabot merge's visual changes until merging accepts them unseen (ADR-0015).
+
 ## For the skills
 
 - **PRs as a request surface: no.** (`/triage` reads this flag.)
