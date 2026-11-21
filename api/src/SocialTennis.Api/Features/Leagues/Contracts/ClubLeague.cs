@@ -4,6 +4,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 
 /// <summary>One of a Club's Leagues, as a Manager sees it in a list.</summary>
 /// <param name="PendingRequestCount">Join Requests waiting for a Manager's decision.</param>
+/// <param name="Stage">The current Stage; null until the League starts (#7).</param>
 public record ClubLeague(
     Guid Id,
     string Name,
@@ -15,4 +16,5 @@ public record ClubLeague(
     StageRoll? StageRoll,
     ScoreFormat ScoreFormat,
     int ParticipantCount,
-    int PendingRequestCount);
+    int PendingRequestCount,
+    LeagueStageSummary? Stage);

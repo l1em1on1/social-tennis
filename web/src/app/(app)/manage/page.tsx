@@ -110,9 +110,12 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                         <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
                           {league.name}
                         </Link>
-                        {Number(league.pendingRequestCount) > 0 && (
-                          <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
-                        )}
+                        <div className="flex gap-1">
+                          {league.stage && <Badge tone="success">Started</Badge>}
+                          {Number(league.pendingRequestCount) > 0 && (
+                            <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
+                          )}
+                        </div>
                       </div>
                       <p className="text-sm text-fg-muted">
                         {typeLabel(league.type)} · {describeStructure(league)}

@@ -74,3 +74,13 @@ export function formatDate(date: string): string {
 }
 
 export const formatDates = (startDate: string, endDate: string) => `${formatDate(startDate)} – ${formatDate(endDate)}`;
+
+/**
+ * The Division of the Competitor in `position` (1 at the top) on a ladder of
+ * `count` with Divisions of `size`, or null for the Bye: the one left over at
+ * the bottom. As the API's `Ladder.DivisionOf` (#7, ADR-0013).
+ */
+export function divisionOf(position: number, count: number, size = 2): number | null {
+  const division = Math.ceil(position / size);
+  return division <= Math.floor(count / size) ? division : null;
+}
