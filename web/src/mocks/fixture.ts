@@ -236,6 +236,28 @@ const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
   stage: autumnStage,
 };
 
+/** Autumn Singles' ladder (#7), as its Players and Managers see it. */
+export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> = {
+  [autumnSingles.id]: {
+    id: autumnSingles.id,
+    name: autumnSingles.name,
+    clubName: RIVERSIDE.name,
+    type: autumnSingles.type,
+    stage: autumnStage,
+    divisions: [
+      {
+        number: 1,
+        competitors: [
+          { teamId: id("f", 4), position: 1, players: [{ playerId: jo.playerId, name: jo.name }] },
+          { teamId: id("f", 5), position: 2, players: [{ playerId: alex.playerId, name: alex.name }] },
+        ],
+        gameId: id("9", 1),
+      },
+    ],
+    bye: { teamId: id("f", 6), position: 3, players: [{ playerId: chris.playerId, name: chris.name }] },
+  },
+};
+
 /** Starting Winter Singles (#7): Alex and Jo, by join time, as every Rating is 1; Sam's request is still waiting. */
 export const fixtureLeagueStarts: Record<string, Schemas["GetLeagueStartResponse"]> = {
   [winterSingles.id]: {

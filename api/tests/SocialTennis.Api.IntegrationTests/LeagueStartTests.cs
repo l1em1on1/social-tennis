@@ -12,9 +12,9 @@ using SocialTennis.Api.Features.Players.Contracts;
 namespace SocialTennis.Api.IntegrationTests;
 
 /// <summary>
-/// Issue #7, part 1: a Manager starts a Divisional League from a proposed
-/// ladder they may reorder and cut, which opens Stage 1 with a Game per
-/// Division and a Bye at the bottom; and what the ladder fixes afterwards.
+/// Issue #7: a Manager starts a Divisional League from a proposed ladder they
+/// may reorder and cut, which opens Stage 1 with a Game per Division and a Bye
+/// at the bottom; what the ladder fixes afterwards; and who sees the ladder.
 /// </summary>
 public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
 {
@@ -429,5 +429,103 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         Assert.Equal(((int?)null, 0), (thirdSees.Place!.Division, thirdSees.Place.Opponents.Count));
         var listed = (await manager.GetFromJsonAsync<GetClubLeaguesResponse>($"/clubs/{clubId}/leagues"))!.Leagues.Single();
         Assert.Equal(1, listed.Stage!.Number);
+    }
+
+    private static Task<HttpResponseMessage> LadderAsync(HttpClient client, Guid leagueId) =>
+        client.GetAsync($"/leagues/{leagueId}/ladder");
+
+    [Fact]
+    public async Task The_ladder_shows_each_Division_with_its_Game_from_the_top_and_the_Bye()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (first, firstId) = await ParticipantAsync(manager, clubId, leagueId, "First");
+        var (_, secondId) = await ParticipantAsync(manager, clubId, leagueId, "Second");
+        var (_, thirdId) = await ParticipantAsync(manager, clubId, leagueId, "Third");
+        var ladder = (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId).ToList();
+        (await StartAsync(manager, leagueId, ladder)).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(first, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        Assert.Equal(new LeagueStageSummary(1, new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31)), seen.Stage);
+        var division = Assert.Single(seen.Divisions);
+        Assert.Equal(1, division.Number);
+        Assert.Equal([firstId, secondId], division.Competitors.Select(c => Assert.Single(c.Players).PlayerId));
+        Assert.Equal([1, 2], division.Competitors.Select(c => c.Position));
+        Assert.Equal(Assert.Single(await GamesAsync(leagueId)) is var game ? (game.First, game.Second) : default,
+            (division.Competitors[0].TeamId, division.Competitors[1].TeamId));
+        Assert.Equal((3, thirdId), (seen.Bye!.Position, Assert.Single(seen.Bye.Players).PlayerId));
+        Assert.Equal("Third", seen.Bye.Players[0].Name);
+    }
+
+    [Fact]
+    public async Task A_doubles_ladder_names_both_Players_of_each_Team()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "A", "B", "C", "D" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        (await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = players[0].PlayerId, secondPlayerId = players[1].PlayerId })).EnsureSuccessStatusCode();
+        (await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = players[2].PlayerId, secondPlayerId = players[3].PlayerId })).EnsureSuccessStatusCode();
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(players[3].Client, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        Assert.Equal(["A B", "C D"], Assert.Single(seen.Divisions).Competitors.Select(c => string.Join(" ", c.Players.Select(p => p.Name))));
+        Assert.Null(seen.Bye);
+    }
+
+    [Fact]
+    public async Task Everyone_in_the_League_sees_the_ladder_even_off_it_and_Managers_do_too()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var otherManager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        await ParticipantAsync(manager, clubId, leagueId, "One");
+        await ParticipantAsync(manager, clubId, leagueId, "Two");
+        var (outClient, outId) = await ParticipantAsync(manager, clubId, leagueId, "Left out");
+        var before = await LeagueAsync(manager, leagueId);
+        var leftOut = TeamOf(before, outId);
+        (await StartAsync(manager, leagueId, before.Teams.Select(t => t.Id).Where(id => id != leftOut), [leftOut])).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.OK, (await LadderAsync(outClient, leagueId)).StatusCode);
+        var managerSees = (await (await LadderAsync(otherManager, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal(2, Assert.Single(managerSees.Divisions).Competitors.Count);
+        Assert.DoesNotContain(managerSees.Divisions.SelectMany(d => d.Competitors), c => c.TeamId == leftOut);
+    }
+
+    [Fact]
+    public async Task Before_the_start_the_ladder_is_empty()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (player, _) = await ParticipantAsync(manager, clubId, leagueId, "Waiting");
+
+        var seen = (await (await LadderAsync(player, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        Assert.Equal(((LeagueStageSummary?)null, 0, (LadderCompetitor?)null), (seen.Stage, seen.Divisions.Count, seen.Bye));
+        Assert.Equal("SinglesMixed Divisional League", seen.Name);
+    }
+
+    [Fact]
+    public async Task A_Player_not_in_the_League_cant_see_its_ladder()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        await ParticipantAsync(manager, clubId, leagueId, "One");
+        await ParticipantAsync(manager, clubId, leagueId, "Two");
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+        var (member, _) = await MemberAsync(manager, clubId, "Club member only");
+
+        Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, leagueId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, Guid.NewGuid())).StatusCode);
     }
 }

@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/ladder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetLeagueLadder"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/join-requests": {
         parameters: {
             query?: never;
@@ -604,6 +620,16 @@ export interface components {
             email: string;
             roles: string[];
         };
+        GetLeagueLadderResponse: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            clubName: string;
+            type: components["schemas"]["LeagueType"];
+            stage: null | components["schemas"]["LeagueStageSummary"];
+            divisions: components["schemas"]["LadderDivision"][];
+            bye: null | components["schemas"]["LadderCompetitor"];
+        };
         GetLeaguePartnersResponse: {
             partners: components["schemas"]["LeaguePartner"][];
             page: components["schemas"]["PageInfo"];
@@ -661,6 +687,25 @@ export interface components {
         };
         InviteToClubRequest: {
             email: string;
+        };
+        LadderCompetitor: {
+            /** Format: uuid */
+            teamId: string;
+            /** Format: int32 */
+            position: number | string;
+            players: components["schemas"]["LadderPlayer"][];
+        };
+        LadderDivision: {
+            /** Format: int32 */
+            number: number | string;
+            competitors: components["schemas"]["LadderCompetitor"][];
+            /** Format: uuid */
+            gameId: string;
+        };
+        LadderPlayer: {
+            /** Format: uuid */
+            playerId: string;
+            name: string;
         };
         LeagueJoinRequestPartner: {
             /** Format: uuid */
@@ -2290,6 +2335,44 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
+            };
+        };
+    };
+    GetLeagueLadder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetLeagueLadderResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

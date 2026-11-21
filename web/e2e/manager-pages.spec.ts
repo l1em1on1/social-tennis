@@ -83,6 +83,17 @@ test("a started League's Manager page, from fixed data", async ({ page }, testIn
   await expectNoSeriousA11yViolations(page);
 });
 
+test("a started League's ladder, from fixed data", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+  await logIn(page, testInfo, FIXTURE_MANAGER);
+  await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+
+  await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Division 1" })).toContainText("Jo Bennett v Alex Morgan");
+  await expect(page.getByRole("region", { name: "Bye" })).toContainText("Chris Lee");
+  await expectNoSeriousA11yViolations(page);
+});
+
 test("Admin, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_ADMIN);

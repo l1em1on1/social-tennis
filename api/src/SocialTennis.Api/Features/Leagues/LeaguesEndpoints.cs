@@ -71,6 +71,10 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(StartLeague));
 
+        // The ladder (#7): the League's Players and Managers; anyone else, a 404.
+        league.MapGet("/ladder", GetLeagueLadder.HandleAsync)
+            .WithName(nameof(GetLeagueLadder));
+
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
             .ValidatesBody<AskToJoinLeagueRequest, AskToJoinLeagueRequest.Validator>()

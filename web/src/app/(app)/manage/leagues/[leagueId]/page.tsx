@@ -131,12 +131,19 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       </div>
 
       {stage ? (
-        <p className="text-sm">
-          <Badge tone="success">Started</Badge>{" "}
-          <span className="text-fg-muted">
-            Stage {stage.number} runs {formatDates(stage.startDate, stage.endDate)}.
-          </span>
-        </p>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm">
+            <Badge tone="success">Started</Badge>{" "}
+            <span className="text-fg-muted">
+              Stage {stage.number} runs {formatDates(stage.startDate, stage.endDate)}.
+            </span>
+          </p>
+          <div>
+            <ButtonLink href={`/leagues/${league.id}`} variant="secondary">
+              See the ladder
+            </ButtonLink>
+          </div>
+        </div>
       ) : (
         canStart && (
           <div>

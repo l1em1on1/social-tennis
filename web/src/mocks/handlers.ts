@@ -7,6 +7,7 @@ import {
   FIXTURE_USER_IDS,
   fixtureClubs,
   fixtureLeaguePages,
+  fixtureLadders,
   fixtureLeagueStarts,
   fixtureLeagues,
   fixtureMembers,
@@ -783,6 +784,46 @@ export const handlers = [
     league.stage = firstStage(league);
     league.ladder = [...ladder];
     return response(204).empty();
+  }),
+
+  // The ladder (#7): for the League's Players and Managers; a 404 for anyone else, as with the API.
+  http.get("/leagues/{leagueId}/ladder", ({ request, params, response }) => {
+    const fixed = fixtureLadders[params.leagueId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
+    const league = leagueById(params.leagueId);
+    const user = userOf(emailOf(request));
+    const inIt = playersOf(request).some((player) => league?.participants.some((participant) => participant.playerId === player.id));
+    if (!league || !(inIt || user.manager || user.admin)) {
+      return response(404).empty();
+    }
+    const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type };
+    if (!league.stage) {
+      return response(200).json({ ...facts, stage: null, divisions: [], bye: null });
+    }
+    const competitors = league.ladder.map((teamId, index) => ({
+      teamId,
+      position: index + 1,
+      players: league.participants
+        .filter((participant) => participant.teamId === teamId)
+        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+        .map((participant) => ({
+          playerId: participant.playerId,
+          name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
+        })),
+    }));
+    const divisions = Array.from({ length: Math.floor(competitors.length / 2) }, (_, index) => ({
+      number: index + 1,
+      competitors: competitors.slice(index * 2, index * 2 + 2),
+      gameId: `${league.id.slice(0, -4)}${String(index + 1).padStart(4, "0")}`,
+    }));
+    return response(200).json({
+      ...facts,
+      stage: league.stage,
+      divisions,
+      bye: competitors.length % 2 === 1 ? competitors[competitors.length - 1] : null,
+    });
   }),
 
   http.post("/leagues/{leagueId}/join-requests", async ({ request, params, response }) => {

@@ -522,6 +522,17 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
     `Division 1 You play ${vic.name}.`,
   );
 
+  // The ladder: Una's Division marked, with her opponent; Xan's Bye at the bottom; Wes, left out, nowhere.
+  await page.getByRole("link", { name: `Open the ladder of ${league}` }).click();
+  await expect(page.getByRole("heading", { name: league, level: 1 })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(`You're in Division 1. You play ${vic.name}`);
+  const divisionOne = page.getByRole("region", { name: "Division 1" });
+  await expect(divisionOne).toContainText(`${una.name} v ${vic.name}`);
+  await expect(divisionOne).toContainText("You");
+  await expect(page.getByRole("region", { name: "Bye" })).toContainText(xan.name);
+  await expect(page.getByRole("list", { name: "Ladder" })).not.toContainText(wes.name);
+  await expectNoSeriousA11yViolations(page);
+
   const xanContext = await browser.newContext();
   const xanPage = await xanContext.newPage();
   await logIn(xanPage, testInfo, xan.email);
