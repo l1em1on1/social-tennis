@@ -64,7 +64,7 @@ export function LeagueStartForm({
     refocus.current = null;
     const control = document.getElementById(id) as HTMLButtonElement | null;
     (control && !control.disabled ? control : document.getElementById(fallback))?.focus();
-  }, [ladder, sizes]);
+  }, [ladder, sizes, leftOut]);
 
   function move(index: number, direction: "up" | "down") {
     const target = direction === "up" ? index - 1 : index + 1;
@@ -96,6 +96,8 @@ export function LeagueStartForm({
   // Taking a Team off the ladder or putting one back re-splits it into the same number of Divisions.
   function leaveOut(teamId: string) {
     const next = ladder.filter((id) => id !== teamId);
+    // Its row leaves the ladder: focus follows it to its Put back button.
+    refocus.current = { id: `put-back-${teamId}`, fallback: `put-back-${teamId}` };
     setLadder(next);
     setLeftOut([...leftOut, teamId]);
     setSizes(split(next.length, sizes.length || 1));
@@ -104,6 +106,8 @@ export function LeagueStartForm({
 
   function putBack(teamId: string) {
     const next = [...ladder, teamId];
+    // Back at the bottom of the ladder: focus follows it there.
+    refocus.current = { id: `move-up-${teamId}`, fallback: `move-down-${teamId}` };
     setLadder(next);
     setLeftOut(leftOut.filter((id) => id !== teamId));
     setSizes(split(next.length, sizes.length || 1));
@@ -194,7 +198,12 @@ export function LeagueStartForm({
                       >
                         ▼
                       </Button>
-                      <Button variant="ghost" aria-label={`Leave out ${name}`} onClick={() => leaveOut(teamId)}>
+                      <Button
+                        id={`leave-out-${teamId}`}
+                        variant="ghost"
+                        aria-label={`Leave out ${name}`}
+                        onClick={() => leaveOut(teamId)}
+                      >
                         Leave out
                       </Button>
                     </div>
@@ -235,7 +244,12 @@ export function LeagueStartForm({
               {leftOut.map((teamId) => (
                 <li key={teamId} className="flex items-center justify-between gap-2 py-2 text-fg-muted">
                   <p className="min-w-0 flex-1 break-words">{nameOf(teamId)}</p>
-                  <Button variant="ghost" aria-label={`Put back ${nameOf(teamId)}`} onClick={() => putBack(teamId)}>
+                  <Button
+                    id={`put-back-${teamId}`}
+                    variant="ghost"
+                    aria-label={`Put back ${nameOf(teamId)}`}
+                    onClick={() => putBack(teamId)}
+                  >
                     Put back
                   </Button>
                 </li>

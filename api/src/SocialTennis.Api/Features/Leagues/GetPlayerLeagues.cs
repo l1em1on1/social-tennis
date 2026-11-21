@@ -99,6 +99,7 @@ public static class GetPlayerLeagues
                             other.Team.Members.OrderBy(m => m.JoinedAt).ThenBy(m => m.PlayerId).Select(m => m.Player.Name).ToList()))
                         .ToList(),
                 })
+                .AsSplitQuery()
                 .ToListAsync(cancellationToken);
             var places = mine.ToDictionary(p => p.LeagueId);
             leagues =

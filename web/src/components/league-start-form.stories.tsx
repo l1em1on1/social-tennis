@@ -63,6 +63,10 @@ export const LeftOut: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Leave out Tom Reid" }));
     await expect([1, 2].map((n) => division(canvas, n).length)).toEqual([2, 3]);
     await expect(within(canvas.getByRole("list", { name: "Left out" })).getByRole("listitem")).toHaveTextContent("Tom Reid");
+    // Its row left the ladder; focus follows it to Put back, and back again.
+    await expect(canvas.getByRole("button", { name: "Put back Tom Reid" })).toHaveFocus();
+    await userEvent.click(canvas.getByRole("button", { name: "Put back Tom Reid" }));
+    await expect(canvas.getByRole("button", { name: "Move Tom Reid up" })).toHaveFocus();
   },
 };
 
