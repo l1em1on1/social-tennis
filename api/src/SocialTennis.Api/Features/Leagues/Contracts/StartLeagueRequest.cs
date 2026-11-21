@@ -38,7 +38,8 @@ public record StartLeagueRequest(
                 .WithMessage($"A Division needs at least {League.MinDivisionSize} Teams.")
                 .OverridePropertyName("divisions");
             RuleFor(request => request)
-                .Must(request => request.Divisions.Sum() == request.Ladder.Count)
+                // Summed as long: an int Sum is checked and would throw on sizes near int.MaxValue.
+                .Must(request => request.Divisions.Sum(size => (long)size) == request.Ladder.Count)
                 .When(request => request.Ladder is not null && request.Divisions is not null)
                 .WithMessage("The Divisions hold the whole ladder, each Team once.")
                 .OverridePropertyName("divisions");

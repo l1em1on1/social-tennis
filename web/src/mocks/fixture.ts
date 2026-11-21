@@ -25,7 +25,7 @@ const RIVERSIDE = { id: id("c", 1), name: "Riverside Tennis Club" };
 const HILLSIDE = { id: id("c", 2), name: "Hillside Social Tennis" };
 export const FIXTURE_LEAGUE_ID = id("e", 1);
 export const FIXTURE_DOUBLES_LEAGUE_ID = id("e", 2);
-/** Autumn Singles: started (#7), with a Division, a Bye and someone left out. */
+/** Autumn Singles: started (#7), with a Division of 3 and someone left out. */
 export const FIXTURE_STARTED_LEAGUE_ID = id("e", 3);
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });

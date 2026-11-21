@@ -254,7 +254,8 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         }
         var ladder = (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId).ToList();
 
-        foreach (var divisions in new[] { new[] { 1, 3 }, new[] { 2, 3 }, new[] { 2 }, Array.Empty<int>() })
+        // The last two overflow an int sum: still a 400, not a 500.
+        foreach (var divisions in new[] { new[] { 1, 3 }, new[] { 2, 3 }, new[] { 2 }, Array.Empty<int>(), new[] { int.MaxValue, int.MaxValue } })
         {
             var bad = await StartAsync(manager, leagueId, ladder, divisions: divisions);
             Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);

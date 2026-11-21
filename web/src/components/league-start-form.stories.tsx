@@ -93,5 +93,8 @@ export const TooFew: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Leave out Tom Reid" }));
     await userEvent.click(canvas.getByRole("button", { name: "Leave out Omar Ali" }));
     await expect(canvas.getByRole("button", { name: "Confirm and start" })).toBeDisabled();
+    // Too few for a Division, the one left on the ladder is still there to act on.
+    await expect(within(canvas.getByRole("list", { name: "On the ladder" })).getByRole("listitem")).toHaveTextContent("Josh Lee");
+    await expect(canvas.getByRole("button", { name: "Leave out Josh Lee" })).toBeVisible();
   },
 };

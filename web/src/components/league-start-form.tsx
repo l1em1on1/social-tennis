@@ -235,6 +235,30 @@ export function LeagueStartForm({
           </section>
         ))}
 
+        {sizes.length === 0 && ladder.length > 0 && (
+          // Too few for a Division: the Teams still on the ladder stay in view, to leave out or add to.
+          <section aria-labelledby="too-few" className="flex flex-col gap-1">
+            <h3 id="too-few" className="text-sm font-semibold">
+              On the ladder <span className="font-normal text-fg-muted">· a Division needs at least two</span>
+            </h3>
+            <ol aria-label="On the ladder" className="divide-y divide-border">
+              {ladder.map((teamId) => (
+                <li key={teamId} className="flex items-center justify-between gap-2 py-2">
+                  <p className="min-w-0 flex-1 font-medium break-words">{nameOf(teamId)}</p>
+                  <Button
+                    id={`leave-out-${teamId}`}
+                    variant="ghost"
+                    aria-label={`Leave out ${nameOf(teamId)}`}
+                    onClick={() => leaveOut(teamId)}
+                  >
+                    Leave out
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
         {leftOut.length > 0 && (
           <section aria-labelledby="left-out" className="flex flex-col gap-1">
             <h3 id="left-out" className="text-sm font-semibold">
