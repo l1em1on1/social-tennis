@@ -44,6 +44,9 @@ public class League
 
     public List<Team> Teams { get; set; } = [];
 
+    /// <summary>Its Stages, Stage 1 first. Starting the League opens Stage 1 (#7); none before that.</summary>
+    public List<Stage> Stages { get; set; } = [];
+
     /// <summary>
     /// The one Type×Structure combination that is invalid: Foursomes is a
     /// Division-of-4 partner rotation, meaningless in a Bracket.

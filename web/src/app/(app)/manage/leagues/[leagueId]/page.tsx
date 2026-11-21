@@ -29,13 +29,13 @@ const NAME_MAX_LENGTH = 200;
 
 /**
  * One League as a Manager runs it (wireframe M3): its name, which the Manager
- * can change (#153); Join Requests to approve or reject first, since they hold
- * up the start; then who is in, by join time; in a doubles League, its Teams
- * and the Players without a partner, to pair (#6); then adding a Club member
- * straight in.
+ * can change (#153); starting it, or its current Stage once started (#7);
+ * Join Requests to approve or reject; then who is in, by join time, with each
+ * one's Division once started; in a doubles League, its Teams and the Players
+ * without a partner, to pair (#6); then adding a Club member straight in.
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
-  const [viewer, api, { leagueId }, { created, error }] = await Promise.all([
+  const [viewer, api, { leagueId }, { created, error, started: justStarted }] = await Promise.all([
     getViewer(),
     apiWithSession(),
     params,
@@ -77,6 +77,19 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     request.partner ? `${request.name} with ${request.partner.name}` : request.name;
   const sameGender = (request: (typeof league.joinRequests)[number]) =>
     league.type === "DoublesMix" && request.gender !== null && request.gender === request.partner?.gender;
+  // Starting (#7): only a Divisional League of the Team-based Types, once.
+  // Afterwards a Team on the ladder is fixed: no Unpair, and no Remove for its
+  // Players (a Withdrawal, #21). Anyone not on it can still come and go.
+  const stage = league.stage;
+  const canStart = !stage && league.structure === "Divisional" && league.type !== "Foursomes";
+  const teamOf = (teamId: string | null) => league.teams.find((team) => team.id === teamId);
+  const onLadder = (teamId: string | null) => teamOf(teamId)?.position != null;
+  const placeBadge = (teamId: string | null) => {
+    if (!stage) return null;
+    const team = teamOf(teamId);
+    if (team?.position == null) return <Badge>Not on the ladder</Badge>;
+    return team.division != null ? <Badge tone="accent">{`Division ${team.division}`}</Badge> : <Badge tone="info">Bye</Badge>;
+  };
 
   return (
     <>
@@ -117,6 +130,27 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         </Sheet>
       </div>
 
+      {stage ? (
+        <p className="text-sm">
+          <Badge tone="success">Started</Badge>{" "}
+          <span className="text-fg-muted">
+            Stage {stage.number} runs {formatDates(stage.startDate, stage.endDate)}.
+          </span>
+        </p>
+      ) : (
+        canStart && (
+          <div>
+            <ButtonLink href={`/manage/leagues/${league.id}/start`}>Start the league</ButtonLink>
+          </div>
+        )
+      )}
+      {justStarted === "1" && stage && (
+        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+          <strong>{league.name}</strong> has started. Each Division&apos;s Game is waiting to be played by{" "}
+          {formatDate(stage.endDate)}.
+        </p>
+      )}
+
       {error === "name" && (
         <ErrorState title="That league name didn't work" description="Enter a name of up to 200 characters." />
       )}
@@ -139,6 +173,12 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         <ErrorState
           title="That pair can't be approved"
           description="The partner they named is no longer a member of the club. The player who asked can take the request back and ask with someone else; rejecting it stops them asking again, though you can still add them."
+        />
+      )}
+      {error === "on-the-ladder" && (
+        <ErrorState
+          title="They're on the ladder"
+          description="Once the league has started, a team on its ladder stays together and in the league. Leaving it is a withdrawal, which isn't built yet."
         />
       )}
       {error === "conflict" && (
@@ -223,10 +263,13 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               <li key={participant.playerId} className="flex min-h-12 items-center justify-between gap-3 py-2">
                 <div>
                   <p className="font-medium">{participant.name}</p>
-                  <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
+                  <p className="text-sm text-fg-muted">
+                    Joined {formatDate(participant.joinedAt.slice(0, 10))} {placeBadge(participant.teamId)}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  {/* Behind a sheet: removing is one tap away from a name in a list. */}
+                  {/* Behind a sheet: removing is one tap away from a name in a list. On the ladder, leaving is a Withdrawal (#21). */}
+                  {!onLadder(participant.teamId) && (
                   <Sheet
                     title={`Remove ${participant.name}?`}
                     trigger={
@@ -249,6 +292,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                       </SubmitButton>
                     </form>
                   </Sheet>
+                  )}
                 </div>
               </li>
             ))}
@@ -266,14 +310,18 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                 const names = team.playerIds.map(nameOf).join(" & ");
                 return (
                   <li key={team.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                    <p className="font-medium">{names}</p>
-                    <form action={unpairTeam}>
-                      <input type="hidden" name="leagueId" value={league.id} />
-                      <input type="hidden" name="teamId" value={team.id} />
-                      <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
-                        Unpair
-                      </SubmitButton>
-                    </form>
+                    <p className="font-medium">
+                      {names} {placeBadge(team.id)}
+                    </p>
+                    {team.position == null && (
+                      <form action={unpairTeam}>
+                        <input type="hidden" name="leagueId" value={league.id} />
+                        <input type="hidden" name="teamId" value={team.id} />
+                        <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
+                          Unpair
+                        </SubmitButton>
+                      </form>
+                    )}
                   </li>
                 );
               })}

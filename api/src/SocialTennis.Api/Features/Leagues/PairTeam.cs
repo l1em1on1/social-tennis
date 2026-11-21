@@ -13,8 +13,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <remarks>
 /// A League that isn't doubles is a 409: a singles participant already has a
 /// Team of one, and a Foursomes League has no Teams. So is a Player who isn't
-/// in the League or already has a partner. Leagues can't start yet (#7); once
-/// they can, pairing is refused after the start.
+/// in the League or already has a partner. After the start (#7) pairing still
+/// works: every Player without a partner then came in after it, and their new
+/// Team isn't on the ladder until a Manager moves it there (#10).
 /// </remarks>
 public static class PairTeam
 {

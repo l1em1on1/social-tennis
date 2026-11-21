@@ -116,6 +116,79 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("ExternalLogins");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Division")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeagueId", "StageId");
+
+                    b.HasIndex("StageId", "Division");
+
+                    b.ToTable("Games");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.GameSide", b =>
+                {
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Side")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("GameId", "Side");
+
+                    b.HasIndex("LeagueId", "GameId");
+
+                    b.HasIndex("LeagueId", "TeamId");
+
+                    b.ToTable("GameSides");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.LadderPlace", b =>
+                {
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("StageId", "Position");
+
+                    b.HasIndex("LeagueId", "StageId");
+
+                    b.HasIndex("LeagueId", "TeamId");
+
+                    b.HasIndex("StageId", "TeamId")
+                        .IsUnique();
+
+                    b.ToTable("LadderPlaces");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.League", b =>
                 {
                     b.Property<Guid>("Id")
@@ -340,6 +413,35 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("SessionTokens");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Stage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeagueId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("Stages");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>
                 {
                     b.Property<Guid>("Id")
@@ -421,6 +523,60 @@ namespace SocialTennis.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Stage", "Stage")
+                        .WithMany("Games")
+                        .HasForeignKey("LeagueId", "StageId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Stage");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.GameSide", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Game", "Game")
+                        .WithMany("Sides")
+                        .HasForeignKey("LeagueId", "GameId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("LeagueId", "TeamId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.LadderPlace", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Stage", "Stage")
+                        .WithMany("Places")
+                        .HasForeignKey("LeagueId", "StageId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("LeagueId", "TeamId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Stage");
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.League", b =>
@@ -509,6 +665,17 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Stage", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.League", "League")
+                        .WithMany("Stages")
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("League");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>
                 {
                     b.HasOne("SocialTennis.Api.Domain.League", "League")
@@ -520,11 +687,18 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("League");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
+                {
+                    b.Navigation("Sides");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.League", b =>
                 {
                     b.Navigation("JoinRequests");
 
                     b.Navigation("Participants");
+
+                    b.Navigation("Stages");
 
                     b.Navigation("Teams");
                 });
@@ -532,6 +706,13 @@ namespace SocialTennis.Api.Migrations
             modelBuilder.Entity("SocialTennis.Api.Domain.Player", b =>
                 {
                     b.Navigation("Memberships");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.Stage", b =>
+                {
+                    b.Navigation("Games");
+
+                    b.Navigation("Places");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Team", b =>

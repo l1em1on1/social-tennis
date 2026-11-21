@@ -29,6 +29,14 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<Team> Teams => Set<Team>();
 
+    public DbSet<Stage> Stages => Set<Stage>();
+
+    public DbSet<LadderPlace> LadderPlaces => Set<LadderPlace>();
+
+    public DbSet<Game> Games => Set<Game>();
+
+    public DbSet<GameSide> GameSides => Set<GameSide>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Club>(club =>
@@ -113,6 +121,52 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
         modelBuilder.Entity<Team>(team =>
         {
             team.HasOne(t => t.League).WithMany(l => l.Teams).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // The ladder (#7, ADR-0030). Every row below carries its League's id, so
+        // composite keys keep a Stage's places, Games and Sides, and the Teams
+        // they name, in one League. A Team on a ladder or in a Game can't be
+        // deleted (NoAction): the handlers refuse first (LeagueLadder).
+        modelBuilder.Entity<Stage>(stage =>
+        {
+            stage.HasOne(s => s.League).WithMany(l => l.Stages).OnDelete(DeleteBehavior.Cascade);
+            stage.HasAlternateKey(s => new { s.LeagueId, s.Id });
+            // One Stage of each number: a second start can't open another Stage 1.
+            stage.HasIndex(s => new { s.LeagueId, s.Number }).IsUnique();
+        });
+        modelBuilder.Entity<LadderPlace>(place =>
+        {
+            place.HasKey(p => new { p.StageId, p.Position });
+            place.HasIndex(p => new { p.StageId, p.TeamId }).IsUnique();
+            place.HasOne(p => p.Stage).WithMany(s => s.Places)
+                .HasForeignKey(p => new { p.LeagueId, p.StageId })
+                .HasPrincipalKey(s => new { s.LeagueId, s.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            place.HasOne(p => p.Team).WithMany()
+                .HasForeignKey(p => new { p.LeagueId, p.TeamId })
+                .HasPrincipalKey(t => new { t.LeagueId, t.Id })
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+        modelBuilder.Entity<Game>(game =>
+        {
+            game.HasAlternateKey(g => new { g.LeagueId, g.Id });
+            game.HasOne(g => g.Stage).WithMany(s => s.Games)
+                .HasForeignKey(g => new { g.LeagueId, g.StageId })
+                .HasPrincipalKey(s => new { s.LeagueId, s.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            game.HasIndex(g => new { g.StageId, g.Division });
+        });
+        modelBuilder.Entity<GameSide>(side =>
+        {
+            side.HasKey(s => new { s.GameId, s.Side });
+            side.HasOne(s => s.Game).WithMany(g => g.Sides)
+                .HasForeignKey(s => new { s.LeagueId, s.GameId })
+                .HasPrincipalKey(g => new { g.LeagueId, g.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            side.HasOne(s => s.Team).WithMany()
+                .HasForeignKey(s => new { s.LeagueId, s.TeamId })
+                .HasPrincipalKey(t => new { t.LeagueId, t.Id })
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<LeagueJoinRequest>(request =>

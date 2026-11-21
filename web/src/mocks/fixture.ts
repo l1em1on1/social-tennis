@@ -25,6 +25,8 @@ const RIVERSIDE = { id: id("c", 1), name: "Riverside Tennis Club" };
 const HILLSIDE = { id: id("c", 2), name: "Hillside Social Tennis" };
 export const FIXTURE_LEAGUE_ID = id("e", 1);
 export const FIXTURE_DOUBLES_LEAGUE_ID = id("e", 2);
+/** Autumn Singles: started (#7), with a Division, a Bye and someone left out. */
+export const FIXTURE_STARTED_LEAGUE_ID = id("e", 3);
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
@@ -98,13 +100,28 @@ const springDoubles = {
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
 } as const;
 
+const autumnSingles = {
+  id: FIXTURE_STARTED_LEAGUE_ID,
+  name: "Autumn Singles",
+  type: "SinglesMixed",
+  structure: "Divisional",
+  startDate: "2026-10-01",
+  endDate: "2026-12-31",
+  stageLength: { count: 1, unit: "Months" },
+  stageRoll: "Manual",
+  scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
+} as const;
+
+const autumnStage = { number: 1, startDate: "2026-10-01", endDate: "2026-10-31" };
+
 export const fixtureLeagues: Record<string, Schemas["GetClubLeaguesResponse"]> = {
   [RIVERSIDE.id]: {
     leagues: [
-      { ...springDoubles, participantCount: 4, pendingRequestCount: 1 },
-      { ...winterSingles, participantCount: 2, pendingRequestCount: 1 },
+      { ...springDoubles, participantCount: 4, pendingRequestCount: 1, stage: null },
+      { ...winterSingles, participantCount: 2, pendingRequestCount: 1, stage: null },
+      { ...autumnSingles, participantCount: 4, pendingRequestCount: 0, stage: autumnStage },
     ],
-    page: whole(2),
+    page: whole(3),
   },
   [HILLSIDE.id]: { leagues: [], page: whole(0) },
 };
@@ -123,11 +140,18 @@ const inLeague = (
   teamId,
 });
 
-/** A Team, with its Rating the average of its Players', as the API works it out. */
-const team = (n: number, members: Schemas["ClubMember"][]): Schemas["LeagueTeamSummary"] => ({
+/** A Team, with its Rating the average of its Players', as the API works it out, and its place once started (#7). */
+const team = (
+  n: number,
+  members: Schemas["ClubMember"][],
+  position: number | null = null,
+  division: number | null = null,
+): Schemas["LeagueTeamSummary"] => ({
   id: id("f", n),
   playerIds: members.map((member) => member.playerId),
   rating: members.reduce((sum, member) => sum + Number(member.rating), 0) / members.length,
+  position,
+  division,
 });
 
 const asked = (
@@ -170,6 +194,7 @@ const winterSinglesPage: Schemas["GetLeagueResponse"] = {
     asked(alex, "Approved", "2026-11-02T20:10:00Z", "2026-11-03T10:00:00Z"),
   ],
   teams: [team(1, [alex]), team(2, [jo])],
+  stage: null,
 };
 
 /**
@@ -189,12 +214,46 @@ const springDoublesPage: Schemas["GetLeagueResponse"] = {
   ],
   joinRequests: [asked(nia, "Pending", "2026-11-15T19:00:00Z", null, ella)],
   teams: [team(3, [alex, jo])],
+  stage: null,
+};
+
+/**
+ * Autumn Singles, started (#7): Jo and Alex play Division 1, Chris has the
+ * Bye, and the Manager left Sam out, so he is in the League without a place.
+ */
+const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
+  ...autumnSingles,
+  clubId: RIVERSIDE.id,
+  clubName: RIVERSIDE.name,
+  participants: [
+    inLeague(alex, "2026-09-10T18:00:00Z", id("f", 5)),
+    inLeague(jo, "2026-09-11T09:30:00Z", id("f", 4)),
+    inLeague(chris, "2026-09-12T12:00:00Z", id("f", 6)),
+    inLeague(sam, "2026-09-20T20:15:00Z", id("f", 7)),
+  ],
+  joinRequests: [],
+  teams: [team(5, [alex], 2, 1), team(4, [jo], 1, 1), team(6, [chris], 3, null), team(7, [sam])],
+  stage: autumnStage,
+};
+
+/** Starting Winter Singles (#7): Alex and Jo, by join time, as every Rating is 1; Sam's request is still waiting. */
+export const fixtureLeagueStarts: Record<string, Schemas["GetLeagueStartResponse"]> = {
+  [winterSingles.id]: {
+    competitors: [
+      { teamId: id("f", 1), players: [{ playerId: alex.playerId, name: alex.name }], rating: 1, joinedAt: "2026-11-02T20:10:00Z" },
+      { teamId: id("f", 2), players: [{ playerId: jo.playerId, name: jo.name }], rating: 1, joinedAt: "2026-11-05T19:20:00Z" },
+    ],
+    unpaired: [],
+    waitingRequestCount: 1,
+    firstStage: { number: 1, startDate: "2027-01-04", endDate: "2027-02-03" },
+  },
 };
 
 /** Each League's own page, by id. */
 export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = {
   [winterSingles.id]: winterSinglesPage,
   [springDoubles.id]: springDoublesPage,
+  [autumnSingles.id]: autumnSinglesPage,
 };
 
 const user = (
