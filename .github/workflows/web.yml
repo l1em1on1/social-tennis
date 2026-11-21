@@ -132,7 +132,7 @@ jobs:
           CHROMATIC_SLUG: ${{ github.repository }}
           # On main, accepted automatically (ADR-0015), unless Dependabot's
           # merge: its PR had no visual review (#158), so its build waits in
-          # Chromatic to be reviewed there.
+          # Chromatic to be reviewed there, before anything else is merged.
           AUTO_ACCEPT: ${{ github.event_name == 'push' && github.event.head_commit.author.name != 'dependabot[bot]' }}
         run: |
           accept=()
@@ -193,7 +193,7 @@ jobs:
           CHROMATIC_SLUG: ${{ github.repository }}
           # On main, accepted automatically (ADR-0015), unless Dependabot's
           # merge: its PR had no visual review (#158), so its build waits in
-          # Chromatic to be reviewed there.
+          # Chromatic to be reviewed there, before anything else is merged.
           AUTO_ACCEPT: ${{ github.event_name == 'push' && github.event.head_commit.author.name != 'dependabot[bot]' }}
         run: |
           accept=()
