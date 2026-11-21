@@ -7,6 +7,7 @@ import {
   FIXTURE_USER_IDS,
   fixtureClubs,
   fixtureLeaguePages,
+  fixtureLeagueStarts,
   fixtureLeagues,
   fixtureMembers,
   fixtureUsers,
@@ -171,6 +172,9 @@ interface MockLeague {
     decidedAt: string | null;
   }[];
   teams: { id: string; createdAt: string }[];
+  /** Stage 1 once started (#7), and its ladder: Team ids, top first. */
+  stage: { number: number; startDate: string; endDate: string } | null;
+  ladder: string[];
 }
 
 /** The page block of a list that isn't paged: every match, from the start (ADR-0012). */
@@ -202,6 +206,38 @@ function breakUp(league: MockLeague, teamId: string) {
   }
   league.teams = league.teams.filter((team) => team.id !== teamId);
 }
+/** As the API's StageDates.First (#7): from the League's start, one Stage length, no later than its end. */
+function firstStage(league: MockLeague) {
+  const [year, month, day] = league.startDate.split("-").map(Number);
+  let next: Date;
+  if (league.stageLength.unit === "Weeks") {
+    next = new Date(Date.UTC(year, month - 1, day + 7 * league.stageLength.count));
+  } else {
+    // AddMonths clamps to the last day of a shorter month.
+    const target = new Date(Date.UTC(year, month - 1 + league.stageLength.count, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    next = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(day, lastDay)));
+  }
+  next.setUTCDate(next.getUTCDate() - 1);
+  const end = next.toISOString().slice(0, 10);
+  return { number: 1, startDate: league.startDate, endDate: end > league.endDate ? league.endDate : end };
+}
+
+/** As the API's LeagueLadder.CannotStartAsync (#7). */
+function cannotStart(league: MockLeague) {
+  if (league.stage) return conflict("already-started", "This League has already started.");
+  if (league.structure !== "Divisional") return conflict("knockout-not-yet", "A Knockout League can't start yet.");
+  if (teamSize(league.type) === 0) return conflict("foursomes-not-yet", "A Foursomes League can't start yet.");
+  return null;
+}
+
+/** A Team on the ladder is fixed once the League has started (#7). */
+const onLadder = (league: MockLeague, teamId: string | null | undefined) => !!teamId && league.ladder.includes(teamId);
+
+/** As the API's Ladder.DivisionOf: null for the Bye. */
+const divisionOf = (position: number, count: number) =>
+  Math.ceil(position / 2) <= Math.floor(count / 2) ? Math.ceil(position / 2) : null;
+
 const isClubMember = (player: MockPlayer | undefined, clubId: string) =>
   clubId === MOCK_CLUB.id && player?.membership?.approved === true;
 
@@ -284,6 +320,19 @@ const leagueFacts = (league: MockLeague) => ({
 });
 
 const conflict = (type: string, title: string) => ({ type, title, status: 409 });
+
+/** As the API's PlayerLeaguePlace (#7): the Player's Division and who they play, or the Bye; null off the ladder. */
+function placeOf(league: MockLeague, playerId: string) {
+  const teamId = league.participants.find((participant) => participant.playerId === playerId)?.teamId;
+  const position = teamId ? league.ladder.indexOf(teamId) + 1 : 0;
+  if (!league.stage || position === 0) return null;
+  const division = divisionOf(position, league.ladder.length);
+  const opponentTeam = division ? league.ladder[position % 2 === 1 ? position : position - 2] : null;
+  const opponents = league.participants
+    .filter((participant) => opponentTeam && participant.teamId === opponentTeam)
+    .map((participant) => allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "");
+  return { division, opponents };
+}
 
 /** The other Player of this Player's Team, in a doubles League. */
 function partnerName(league: MockLeague, playerId: string) {
@@ -465,6 +514,7 @@ export const handlers = [
         ...leagueFacts(league),
         participantCount: league.participants.length,
         pendingRequestCount: league.requests.filter((joinRequest) => joinRequest.status === "Pending").length,
+        stage: league.stage,
       }));
     return response(200).json({ leagues: list, page: wholeList(list.length) });
   }),
@@ -497,6 +547,8 @@ export const handlers = [
       participants: [],
       requests: [],
       teams: [],
+      stage: null,
+      ladder: [],
     };
     leagues.push(league);
     return response(201).json({ id: league.id, name: league.name });
@@ -552,12 +604,16 @@ export const handlers = [
       })),
       teams: league.teams.map((team) => {
         const members = league.participants.filter((participant) => participant.teamId === team.id);
+        const position = league.ladder.indexOf(team.id) + 1 || null;
         return {
           id: team.id,
           playerIds: members.map((member) => member.playerId),
           rating: members.reduce((sum, member) => sum + player(member.playerId).rating, 0) / members.length,
+          position,
+          division: position ? divisionOf(position, league.ladder.length) : null,
         };
       }),
+      stage: league.stage,
     });
   }),
 
@@ -604,6 +660,9 @@ export const handlers = [
       return response(404).empty();
     }
     const leaving = league.participants.find((participant) => participant.playerId === params.playerId);
+    if (onLadder(league, leaving?.teamId)) {
+      return response(409).json(conflict("on-the-ladder", "This Team is on the League's ladder."), problemJson);
+    }
     if (leaving?.teamId) breakUp(league, leaving.teamId);
     league.participants = league.participants.filter((participant) => participant.playerId !== params.playerId);
     if (leaving) {
@@ -646,7 +705,83 @@ export const handlers = [
     if (teamSize(league.type) !== 2) {
       return response(409).json(conflict("not-a-doubles-league", "Only a doubles League's Players have partners."), problemJson);
     }
+    if (onLadder(league, params.teamId)) {
+      return response(409).json(conflict("on-the-ladder", "This Team is on the League's ladder."), problemJson);
+    }
     breakUp(league, params.teamId);
+    return response(204).empty();
+  }),
+
+  // Starting (#7): the proposal, then the Manager's confirmed ladder.
+  http.get("/leagues/{leagueId}/start", ({ params, response }) => {
+    const fixed = fixtureLeagueStarts[params.leagueId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    const refused = cannotStart(league);
+    if (refused) {
+      return response(409).json(refused, problemJson);
+    }
+    const player = (id: string) => allPlayers().find((candidate) => candidate.id === id)!;
+    const competitors = league.teams
+      .map((team) => {
+        const members = league.participants
+          .filter((participant) => participant.teamId === team.id)
+          .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt));
+        return {
+          teamId: team.id,
+          players: members.map((member) => ({ playerId: member.playerId, name: player(member.playerId).name })),
+          rating: members.reduce((sum, member) => sum + Number(player(member.playerId).rating), 0) / members.length,
+          joinedAt: members[0]?.joinedAt ?? team.createdAt,
+        };
+      })
+      .filter((competitor) => competitor.players.length > 0)
+      .sort((a, b) => b.rating - a.rating || a.joinedAt.localeCompare(b.joinedAt) || a.teamId.localeCompare(b.teamId));
+    const unpaired =
+      teamSize(league.type) === 2
+        ? league.participants
+            .filter((participant) => participant.teamId === null)
+            .map((participant) => ({ playerId: participant.playerId, name: player(participant.playerId).name }))
+        : [];
+    return response(200).json({
+      competitors,
+      unpaired,
+      waitingRequestCount: league.requests.filter((joinRequest) => joinRequest.status === "Pending").length,
+      firstStage: firstStage(league),
+    });
+  }),
+
+  http.post("/leagues/{leagueId}/start", async ({ request, params, response }) => {
+    const { ladder, leftOut, removed } = await request.json();
+    const league = leagueById(params.leagueId);
+    if (!league) {
+      return response(404).empty();
+    }
+    if (ladder.length < 2 || new Set([...ladder, ...leftOut]).size !== ladder.length + leftOut.length) {
+      return response(400).json(invalid("ladder"), problemJson);
+    }
+    const refused = cannotStart(league);
+    if (refused) {
+      return response(409).json(refused, problemJson);
+    }
+    const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+    const unpaired =
+      teamSize(league.type) === 2
+        ? league.participants.filter((participant) => participant.teamId === null).map((participant) => participant.playerId)
+        : [];
+    if (!sameSet(league.teams.map((team) => team.id), [...ladder, ...leftOut]) || !sameSet(unpaired, removed)) {
+      return response(409).json(conflict("league-changed", "The League has changed since the start was proposed."), problemJson);
+    }
+    league.participants = league.participants.filter((participant) => !removed.includes(participant.playerId));
+    league.requests = league.requests.filter(
+      (joinRequest) => !(removed.includes(joinRequest.playerId) && joinRequest.status === "Approved"),
+    );
+    league.stage = firstStage(league);
+    league.ladder = [...ladder];
     return response(204).empty();
   }),
 
@@ -797,6 +932,8 @@ export const handlers = [
               }
             : null,
           partnerName: partnerName(league, player.id),
+          stage: league.stage,
+          place: placeOf(league, player.id),
           partnerRequest: namedIn
             ? {
                 playerId: namedIn.playerId,

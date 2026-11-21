@@ -510,7 +510,9 @@ async function manageLeagueEntry(formData: FormData, kind: "approval" | "rejecti
         ? "partner-paired"
         : error?.type === "partner-not-a-club-member"
           ? "partner-gone"
-          : "conflict";
+          : error?.type === "on-the-ladder"
+            ? "on-the-ladder"
+            : "conflict";
     redirect(`/manage/leagues/${path.leagueId}?error=${reason}`);
   }
   if (!response.ok && response.status !== 404) {
@@ -574,16 +576,46 @@ export async function unpairTeam(formData: FormData) {
   if (!isId(leagueId) || !isId(teamId)) return;
 
   const api = await apiWithSession();
-  const { response } = await api.DELETE("/leagues/{leagueId}/teams/{teamId}", {
+  const { error, response } = await api.DELETE("/leagues/{leagueId}/teams/{teamId}", {
     params: { path: { leagueId, teamId } },
   });
   if (response.status === 409) {
-    redirect(`/manage/leagues/${leagueId}?error=conflict`);
+    redirect(`/manage/leagues/${leagueId}?error=${error?.type === "on-the-ladder" ? "on-the-ladder" : "conflict"}`);
   }
   if (!response.ok && response.status !== 404) {
     throw new Error(`DELETE /leagues/${leagueId}/teams/${teamId} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
+}
+
+/**
+ * A Manager starts a Divisional League with the ladder they confirmed (#7):
+ * `ladder` in order, top first, then who they left out and who the start
+ * removes, as the Start screen showed them. If the League changed since, the
+ * API refuses (`league-changed`) and the screen reloads with the new proposal.
+ */
+export async function startLeague(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  if (!isId(leagueId)) return;
+  const ids = (field: string) => formData.getAll(field).filter(isId);
+
+  const api = await apiWithSession();
+  const { error, response } = await api.POST("/leagues/{leagueId}/start", {
+    params: { path: { leagueId } },
+    body: { ladder: ids("ladder"), leftOut: ids("leftOut"), removed: ids("removed") },
+  });
+  if (error?.type === "league-changed") {
+    redirect(`/manage/leagues/${leagueId}/start?error=changed`);
+  }
+  if (response.status === 400) {
+    redirect(`/manage/leagues/${leagueId}/start?error=ladder`);
+  }
+  // Already started (another Manager, another tab): the League's page shows it.
+  if (!response.ok && response.status !== 409 && response.status !== 404) {
+    throw new Error(`POST /leagues/${leagueId}/start failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage/leagues/${leagueId}${response.ok ? "?started=1" : ""}`);
 }
 
 /** A Manager renames a League (#153). Nothing else about it changes. */

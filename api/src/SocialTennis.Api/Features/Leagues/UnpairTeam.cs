@@ -11,8 +11,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// changes nothing.
 /// </summary>
 /// <remarks>
-/// Leagues can't start yet (#7); once they can, this is refused after the
-/// start: a partner change is then a Withdrawal and a fresh join (#21).
+/// A Team on the started League's ladder, or in a Game, is a 409 (#7): a
+/// partner change is then a Withdrawal and a fresh join (#21). A Team the
+/// Manager left out, or that came in after the start, can still be broken up.
 /// </remarks>
 public static class UnpairTeam
 {
@@ -34,6 +35,10 @@ public static class UnpairTeam
         if (type.Value.TeamSize() != 2)
         {
             return LeagueTeams.NotDoubles();
+        }
+        if (await LeagueLadder.IsInPlayAsync(db, leagueId, teamId, cancellationToken))
+        {
+            return LeagueLadder.InPlay();
         }
         await LeagueTeams.BreakUpAsync(db, leagueId, teamId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

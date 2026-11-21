@@ -35,7 +35,11 @@ public static class GetClubLeagues
                 l.StageRoll,
                 l.ScoreFormat,
                 l.Participants.Count,
-                l.JoinRequests.Count(r => r.Status == LeagueJoinRequestStatus.Pending)))
+                l.JoinRequests.Count(r => r.Status == LeagueJoinRequestStatus.Pending),
+                l.Stages
+                    .OrderByDescending(s => s.Number)
+                    .Select(s => new LeagueStageSummary(s.Number, s.StartDate, s.EndDate))
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new GetClubLeaguesResponse(leagues, new PageInfo(leagues.Count)));

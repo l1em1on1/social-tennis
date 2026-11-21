@@ -45,6 +45,7 @@ public static class LeaguesEndpoints
 
         league.MapDelete("/participants/{playerId:guid}", RemoveLeagueParticipant.HandleAsync)
             .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(RemoveLeagueParticipant));
 
         league.MapPost("/teams", PairTeam.HandleAsync)
@@ -57,6 +58,18 @@ public static class LeaguesEndpoints
             .RequireAuthorization(Policies.Manager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(UnpairTeam));
+
+        // Starting a Divisional League (#7): the proposal, then the Manager's confirmed ladder.
+        league.MapGet("/start", GetLeagueStart.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(GetLeagueStart));
+
+        league.MapPost("/start", StartLeague.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<StartLeagueRequest, StartLeagueRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(StartLeague));
 
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)

@@ -36,6 +36,7 @@ export const rejectLeagueJoinRequest = pending;
 export const addLeagueParticipant = pending;
 export const removeLeagueParticipant = pending;
 export const renameLeague = pending;
+export const startLeague = pending;
 
 export async function createLeague(): Promise<CreateLeagueState> {
   return {

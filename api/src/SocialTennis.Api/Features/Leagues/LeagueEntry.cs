@@ -100,6 +100,26 @@ internal static class LeagueEntry
         return null;
     }
 
+    /// <summary>
+    /// Takes a participant out of a League before they play (#159): their Team
+    /// goes with them (<see cref="LeagueTeams.RemoveParticipantAsync"/>), and so
+    /// does their approved Join Request, so they may ask again. A rejected one
+    /// stays. False if they weren't in the League.
+    /// </summary>
+    public static async Task<bool> RemoveAsync(
+        TennisDbContext db, Guid leagueId, Guid playerId, CancellationToken cancellationToken)
+    {
+        if (!await LeagueTeams.RemoveParticipantAsync(db, leagueId, playerId, cancellationToken))
+        {
+            return false;
+        }
+
+        await db.LeagueJoinRequests
+            .Where(r => r.LeagueId == leagueId && r.PlayerId == playerId && r.Status == LeagueJoinRequestStatus.Approved)
+            .ExecuteDeleteAsync(cancellationToken);
+        return true;
+    }
+
     public static Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult NotAClubMember() =>
         TypedResults.Problem(
             statusCode: StatusCodes.Status409Conflict,

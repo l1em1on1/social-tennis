@@ -11,8 +11,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// in it changes nothing.
 /// </summary>
 /// <remarks>
-/// Leagues can't start yet (#7). Once they can, this refuses a started League:
-/// leaving mid-season is a Withdrawal (#21).
+/// Once the League has started (#7), a Player whose Team is on the ladder, or
+/// in a Game, can't be removed: leaving mid-season is a Withdrawal (#21). One
+/// the Manager left out, or who came in after the start, can.
 /// <para>
 /// The Player's approved Join Request goes too, so they are back where they
 /// were before asking and may ask again. Kept, it would say "approved" while
@@ -26,7 +27,7 @@ namespace SocialTennis.Api.Features.Leagues;
 /// </remarks>
 public static class RemoveLeagueParticipant
 {
-    public static async Task<Results<NoContent, NotFound>> HandleAsync(
+    public static async Task<Results<NoContent, NotFound, ProblemHttpResult>> HandleAsync(
         Guid leagueId,
         Guid playerId,
         TennisDbContext db,
@@ -38,12 +39,16 @@ public static class RemoveLeagueParticipant
             return TypedResults.NotFound();
         }
 
-        if (await LeagueTeams.RemoveParticipantAsync(db, leagueId, playerId, cancellationToken))
+        var teamId = await db.LeagueParticipants
+            .Where(p => p.LeagueId == leagueId && p.PlayerId == playerId)
+            .Select(p => p.TeamId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (teamId is { } placed && await LeagueLadder.IsInPlayAsync(db, leagueId, placed, cancellationToken))
         {
-            await db.LeagueJoinRequests
-                .Where(r => r.LeagueId == leagueId && r.PlayerId == playerId && r.Status == LeagueJoinRequestStatus.Approved)
-                .ExecuteDeleteAsync(cancellationToken);
+            return LeagueLadder.InPlay();
         }
+
+        await LeagueEntry.RemoveAsync(db, leagueId, playerId, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

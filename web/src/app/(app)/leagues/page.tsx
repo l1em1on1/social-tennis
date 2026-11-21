@@ -53,6 +53,45 @@ function TakeBack({ league, askerId, label }: { league: PlayerLeague; askerId: s
 }
 
 /**
+ * Where the Player stands in a League they're in (#7): before the start, that
+ * the ladder comes then; after it, their Division and who they play by the
+ * deadline, the Bye, or that they aren't on the ladder.
+ */
+function LadderState({ league }: { league: PlayerLeague }) {
+  const { stage, place } = league;
+  if (!stage) {
+    return (
+      <p className="mt-2 text-sm text-fg-muted">
+        {league.participantCount} players. The ladder appears when the manager starts the league.
+      </p>
+    );
+  }
+  const deadline = `Stage ${stage.number} runs to ${formatDate(stage.endDate)}.`;
+  if (!place) {
+    return (
+      <p className="mt-2 text-sm">
+        <Badge>Not on the ladder</Badge>{" "}
+        <span className="text-fg-muted">The league has started without you on its ladder. Ask the manager if that&apos;s a mistake.</span>
+      </p>
+    );
+  }
+  if (place.division == null) {
+    return (
+      <p className="mt-2 text-sm">
+        <Badge tone="info">Bye</Badge>{" "}
+        <span className="text-fg-muted">You sit out this Stage and don&apos;t move: with an odd number, the last on the ladder does. {deadline}</span>
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 text-sm">
+      <Badge tone="accent">{`Division ${place.division}`}</Badge> You play <strong>{place.opponents.join(" & ")}</strong>.{" "}
+      <span className="text-fg-muted">{deadline} Arrange the game between you.</span>
+    </p>
+  );
+}
+
+/**
  * A waiting request in which someone named this Player as their partner (#6),
  * with Take back. Shown wherever the Player's card is: they may already be in
  * the League without a partner, or have been turned down themselves.
@@ -223,9 +262,7 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
                   )}
                 </p>
               )}
-              <p className="mt-2 text-sm text-fg-muted">
-                {league.participantCount} players. The ladder appears when the manager starts the league.
-              </p>
+              <LadderState league={league} />
               {league.partnerRequest && (
                 <div className="mt-3">
                   <NamedAsPartner league={league} />
@@ -255,6 +292,11 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
               <div className="flex flex-col gap-3">
                 <div>
                   <LeagueFacts league={league} />
+                  {league.stage && (
+                    <p className="text-sm text-fg-muted">
+                      Started. Anyone joining now waits for a place on the ladder.
+                    </p>
+                  )}
                 </div>
                 <JoinState league={league} playerId={actingPlayer.id} partners={partnersOf.get(league.id)} />
               </div>

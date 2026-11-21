@@ -471,6 +471,67 @@ test("a named partner sees the request wherever they are, and the Manager is tol
   await expect.soft(page.getByRole("heading", { name: "Leagues", level: 1 })).toBeVisible();
 });
 
+test("a Manager starts a League, reordering and leaving one out; each Player sees their Division and opponent, or the Bye", async ({
+  page,
+  browser,
+}, testInfo) => {
+  // Three sign-ins and many round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Starting Ladder");
+  const players = ["Una Starts", "Vic Starts", "Wes Starts", "Xan Starts"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `starts-${name.slice(0, 3).toLowerCase()}`),
+  }));
+  const [una, vic, wes, xan] = players;
+
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(manager, name, email);
+  await createLeague(manager, league);
+  for (const { name, email } of players) {
+    await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await manager.getByRole("button", { name: "Add to league" }).click();
+    await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+
+  // Proposed in the order they joined; Xan moves above Wes, and Wes is left out.
+  await manager.getByRole("link", { name: "Start the league" }).click();
+  await expect(manager.getByRole("heading", { name: `Start ${league}`, level: 1 })).toBeVisible();
+  const ladder = manager.getByRole("list", { name: "Starting ladder" });
+  await expect(ladder.getByRole("listitem")).toHaveText(players.map(({ name }) => new RegExp(name)));
+  await manager.getByRole("button", { name: `Move ${xan.name} up` }).click();
+  await expect(manager.getByRole("button", { name: `Move ${xan.name} up` })).toBeFocused();
+  await manager.getByRole("button", { name: `Leave out ${wes.name}` }).click();
+  await expect(ladder.getByRole("listitem").filter({ hasText: xan.name })).toContainText("Bye");
+  await expect(manager.getByText(`${xan.name} has the Bye`)).toBeVisible();
+  await expectNoSeriousA11yViolations(manager);
+  await manager.getByRole("button", { name: "Confirm and start" }).click();
+
+  await expect(manager.getByRole("status").filter({ hasText: "has started" })).toContainText(`${league} has started`);
+  await expect(manager.getByText("Stage 1 runs 1 Dec 2026 – 31 Dec 2026.")).toBeVisible();
+  const inLeague = manager.getByRole("list", { name: "Players in the league" });
+  await expect(inLeague.getByRole("listitem").filter({ hasText: una.name })).toContainText("Division 1");
+  await expect(inLeague.getByRole("listitem").filter({ hasText: wes.name })).toContainText("Not on the ladder");
+  await expect(inLeague.getByRole("button", { name: /^Remove/ })).toHaveCount(1);
+  await managerContext.close();
+
+  await logIn(page, testInfo, una.email);
+  await page.goto("/leagues");
+  await expect(page.getByRole("region", { name: `${una.name}'s leagues` }).getByRole("region", { name: league })).toContainText(
+    `Division 1 You play ${vic.name}.`,
+  );
+
+  const xanContext = await browser.newContext();
+  const xanPage = await xanContext.newPage();
+  await logIn(xanPage, testInfo, xan.email);
+  await xanPage.goto("/leagues");
+  await expect(xanPage.getByRole("region", { name: `${xan.name}'s leagues` }).getByRole("region", { name: league })).toContainText(
+    "You sit out this Stage",
+  );
+  await xanContext.close();
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");

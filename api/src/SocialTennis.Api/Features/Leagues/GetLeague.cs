@@ -58,11 +58,39 @@ public static class GetLeague
                     .Select(t => new LeagueTeamSummary(
                         t.Id,
                         t.Members.OrderBy(m => m.JoinedAt).ThenBy(m => m.PlayerId).Select(m => m.PlayerId).ToList(),
-                        t.Members.Average(m => (double)m.Player.Rating)))
-                    .ToList()))
+                        t.Members.Average(m => (double)m.Player.Rating),
+                        null,
+                        null))
+                    .ToList(),
+                l.Stages
+                    .OrderByDescending(s => s.Number)
+                    .Select(s => new LeagueStageSummary(s.Number, s.StartDate, s.EndDate))
+                    .FirstOrDefault()))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
+        if (league is null)
+        {
+            return TypedResults.NotFound();
+        }
 
-        return league is null ? TypedResults.NotFound() : TypedResults.Ok(league);
+        if (league.Stage is null)
+        {
+            return TypedResults.Ok(league);
+        }
+
+        // Each Team's place on the current Stage's ladder (#7).
+        var places = await db.LadderPlaces
+            .Where(p => p.LeagueId == leagueId && p.Stage.Number == league.Stage.Number)
+            .ToDictionaryAsync(p => p.TeamId, p => p.Position, cancellationToken);
+        var size = league.Type.DivisionSize();
+        return TypedResults.Ok(league with
+        {
+            Teams =
+            [
+                .. league.Teams.Select(team => places.TryGetValue(team.Id, out var position)
+                    ? team with { Position = position, Division = Ladder.DivisionOf(position, places.Count, size) }
+                    : team),
+            ],
+        });
     }
 }
