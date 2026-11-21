@@ -106,8 +106,9 @@ export function LeagueStartForm({
 
   function putBack(teamId: string) {
     const next = [...ladder, teamId];
-    // Back at the bottom of the ladder: focus follows it there.
-    refocus.current = { id: `move-up-${teamId}`, fallback: `move-down-${teamId}` };
+    // Back at the bottom of the ladder: focus follows it there, to Move up, or to
+    // Leave out when the ladder is still too short for a Division (no move buttons).
+    refocus.current = { id: `move-up-${teamId}`, fallback: `leave-out-${teamId}` };
     setLadder(next);
     setLeftOut(leftOut.filter((id) => id !== teamId));
     setSizes(split(next.length, sizes.length || 1));

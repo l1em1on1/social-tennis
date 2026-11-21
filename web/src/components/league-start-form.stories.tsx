@@ -96,5 +96,9 @@ export const TooFew: Story = {
     // Too few for a Division, the one left on the ladder is still there to act on.
     await expect(within(canvas.getByRole("list", { name: "On the ladder" })).getByRole("listitem")).toHaveTextContent("Josh Lee");
     await expect(canvas.getByRole("button", { name: "Leave out Josh Lee" })).toBeVisible();
+    // Put back onto a ladder still too short for a Division, focus stays on that Team.
+    await userEvent.click(canvas.getByRole("button", { name: "Leave out Josh Lee" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Put back Josh Lee" }));
+    await expect(canvas.getByRole("button", { name: "Leave out Josh Lee" })).toHaveFocus();
   },
 };
