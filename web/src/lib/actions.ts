@@ -533,7 +533,7 @@ export async function addLeagueParticipant(formData: FormData) {
   await manageLeagueEntry(formData, "add");
 }
 
-/** A Manager takes a Player out of a League before it starts (#159). They may ask to join again. */
+/** A Manager takes a Player out of a League before they play (#159): before the start, or off its ladder after it (#7). They may ask to join again. */
 export async function removeLeagueParticipant(formData: FormData) {
   await manageLeagueEntry(formData, "remove");
 }

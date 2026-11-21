@@ -64,12 +64,17 @@ export function LeagueStartForm({
     const teamId = order[index];
     moved.current = { teamId, direction };
     setOrder(next);
-    const ladderNext = next.filter((id) => !out.has(id));
-    const division = out.has(teamId) ? null : divisionOf(ladderNext.indexOf(teamId) + 1, ladderNext.length);
-    setAnnouncement(
-      `${nameOf(teamId)} moved ${direction} to place ${next.indexOf(teamId) + 1}` +
-        (out.has(teamId) ? ", left out." : division ? `, Division ${division}.` : ", the Bye."),
-    );
+    // The place on the ladder that would be submitted: left-out rows don't count.
+    if (out.has(teamId)) {
+      setAnnouncement(`${nameOf(teamId)} moved ${direction}, still left out.`);
+    } else {
+      const ladderNext = next.filter((id) => !out.has(id));
+      const place = ladderNext.indexOf(teamId) + 1;
+      const division = divisionOf(place, ladderNext.length);
+      setAnnouncement(
+        `${nameOf(teamId)} moved ${direction} to place ${place} on the ladder, ${division ? `Division ${division}` : "the Bye"}.`,
+      );
+    }
   }
 
   function toggle(teamId: string) {
