@@ -20,8 +20,8 @@ const CANT_START: Record<string, string> = {
 /**
  * Start a Divisional League (#7, wireframe M4): the proposed starting ladder,
  * by Rating, then whoever joined first (ADR-0013), for the Manager to reorder,
- * cut and confirm. Every Rating is 1 while Rating is hidden (#161), so in
- * practice the proposal is the order Players joined.
+ * cut and confirm. Every Rating stays 1 and isn't shown (ADR-0007, owner
+ * 2026-11-21), so the proposal is the order Players joined.
  */
 export default async function StartLeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]/start">) {
   const [viewer, api, { leagueId }, { error }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);

@@ -183,8 +183,9 @@ export function LeagueStartForm({
         )}
         {waitingRequestCount > 0 && (
           <li>
-            {waitingRequestCount === 1 ? "1 join request is" : `${waitingRequestCount} join requests are`} still waiting. Anyone
-            you approve after the start joins without a place on the ladder.
+            {waitingRequestCount === 1 ? "1 join request is" : `${waitingRequestCount} join requests are`} still waiting. They
+            don&apos;t hold up the start: they stay as reserves, and anyone you approve later joins without a place on the
+            ladder.
           </li>
         )}
       </ul>
