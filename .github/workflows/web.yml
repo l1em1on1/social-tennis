@@ -28,9 +28,16 @@ on:
 permissions:
   contents: read
 
+# A newer push to a PR cancels its older run. On main each push is its own
+# group, so no run is cancelled or replaced while pending (a group keeps one
+# pending run): each squash commit needs its own accepted Chromatic build, or
+# a PR based on it would be compared against the build before it (ADR-0015).
+# A run on main that fails publishes nothing (a partial set of snapshots
+# mustn't be auto-accepted): re-run it until it publishes. The next merge's
+# build accepts everything since the last accepted one anyway.
 concurrency:
-  group: web-${{ github.ref }}
-  cancel-in-progress: true
+  group: web-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Decides whether this workflow's jobs have anything to do. The workflow
@@ -123,7 +130,15 @@ jobs:
           CHROMATIC_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
           CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CHROMATIC_SLUG: ${{ github.repository }}
-        run: docker compose --profile e2e run --rm --no-deps chromatic
+          # On main, accepted automatically (ADR-0015), unless Dependabot's
+          # merge: its PR had no visual review (#158), so its build waits in
+          # Chromatic to be reviewed there, before anything else is merged.
+          AUTO_ACCEPT: ${{ github.event_name == 'push' && github.event.head_commit.author.name != 'dependabot[bot]' }}
+        run: |
+          accept=()
+          if [ "$AUTO_ACCEPT" = true ]; then accept=(--auto-accept-changes main); fi
+          docker compose --profile e2e run --rm --no-deps chromatic \
+            npx chromatic --playwright --exit-zero-on-changes "${accept[@]}"
       - name: Service logs
         if: failure()
         run: docker compose --profile e2e logs web-e2e web-mock api
@@ -137,6 +152,14 @@ jobs:
             web/test-results/
           retention-days: 7
 
+  # On main, both Chromatic uploads accept their changes automatically
+  # (`--auto-accept-changes main` when AUTO_ACCEPT, here and in the e2e
+  # job), in CI only, so a local publish from main is never accepted
+  # unreviewed; nor is a Dependabot merge, whose PR had no visual review: a squash
+  # merge's commit isn't a descendant of the PR's, so the baselines accepted
+  # on the PR don't carry to main otherwise (Chromatic docs, "GitHub
+  # squash/rebase merge and the main branch"; ADR-0015).
+  #
   # Component stories, light and dark at 360px (#46). Built and type-checked
   # on every web change, so a broken story fails here. Published to Chromatic's
   # Storybook project, a second project beside the Playwright one (Chromatic
@@ -168,9 +191,15 @@ jobs:
           CHROMATIC_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
           CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CHROMATIC_SLUG: ${{ github.repository }}
-        run: >-
-          docker compose --profile storybook run --rm --no-deps chromatic
-          npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
+          # On main, accepted automatically (ADR-0015), unless Dependabot's
+          # merge: its PR had no visual review (#158), so its build waits in
+          # Chromatic to be reviewed there, before anything else is merged.
+          AUTO_ACCEPT: ${{ github.event_name == 'push' && github.event.head_commit.author.name != 'dependabot[bot]' }}
+        run: |
+          accept=()
+          if [ "$AUTO_ACCEPT" = true ]; then accept=(--auto-accept-changes main); fi
+          docker compose --profile storybook run --rm --no-deps chromatic \
+            npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes "${accept[@]}"
 
   # Chromatic posts its "UI Tests: <project>" checks only when a build is
   # published (or skipped), so a

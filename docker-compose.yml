@@ -190,7 +190,8 @@ services:
       GIT_CONFIG_VALUE_0: "*"
     entrypoint: ["sh", "-c", "npm ci --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
     # Changes don't fail the job: they're reviewed and accepted in Chromatic,
-    # whose own "UI Tests" status check gates the PR.
+    # whose own "UI Tests" status check gates the PR. CI adds
+    # `--auto-accept-changes main` (web.yml); a local publish never accepts.
     command: ["npx", "chromatic", "--playwright", "--exit-zero-on-changes"]
 
 volumes:
