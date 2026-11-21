@@ -28,9 +28,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to a PR cancels its older run. On main every run finishes:
+# each squash commit needs its own accepted Chromatic build, or a PR based on
+# it would be compared against the build before it (ADR-0015).
 concurrency:
   group: web-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Decides whether this workflow's jobs have anything to do. The workflow
@@ -123,7 +126,9 @@ jobs:
           CHROMATIC_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
           CHROMATIC_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CHROMATIC_SLUG: ${{ github.repository }}
-        run: docker compose --profile e2e run --rm --no-deps chromatic
+        run: >-
+          docker compose --profile e2e run --rm --no-deps chromatic
+          npx chromatic --playwright --exit-zero-on-changes --auto-accept-changes main
       - name: Service logs
         if: failure()
         run: docker compose --profile e2e logs web-e2e web-mock api
@@ -138,7 +143,8 @@ jobs:
           retention-days: 7
 
   # On main, both Chromatic uploads accept their changes automatically
-  # (`--auto-accept-changes main`, here and in the compose service): a squash
+  # (`--auto-accept-changes main`, here and in the e2e job), in CI only, so a
+  # local publish from main is never accepted unreviewed: a squash
   # merge's commit isn't a descendant of the PR's, so the baselines accepted
   # on the PR don't carry to main otherwise (Chromatic docs, "GitHub
   # squash/rebase merge and the main branch"; ADR-0015).
