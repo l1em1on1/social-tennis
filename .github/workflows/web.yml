@@ -32,6 +32,9 @@ permissions:
 # group, so no run is cancelled or replaced while pending (a group keeps one
 # pending run): each squash commit needs its own accepted Chromatic build, or
 # a PR based on it would be compared against the build before it (ADR-0015).
+# A run on main that fails publishes nothing (a partial set of snapshots
+# mustn't be auto-accepted): re-run it until it publishes. The next merge's
+# build accepts everything since the last accepted one anyway.
 concurrency:
   group: web-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
