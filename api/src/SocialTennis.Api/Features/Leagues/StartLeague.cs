@@ -9,9 +9,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <summary>
 /// A Manager starts a Divisional League (#7) with the ladder they confirmed:
 /// Stage 1 opens (<see cref="StageDates.First"/>), each Team takes its place
-/// in that order, and each Division of 2 gets its Game. With an odd number,
-/// the last Team has the Bye: no Game this Stage (ADR-0013). Teams left out
-/// stay in the League without a place. Doubles Players still without a
+/// in that order, in the Divisions the Manager sized, and every pair in a
+/// Division gets a Game (ADR-0031). There is no Bye. Teams left out stay in
+/// the League without a place. Doubles Players still without a
 /// partner are removed, with their approved Join Requests, so they may ask
 /// again (owner, 2026-11-20).
 /// </summary>
@@ -81,19 +81,24 @@ public static class StartLeague
             OpenedAt = clock.GetUtcNow(),
         };
         db.Stages.Add(stage);
-        for (var index = 0; index < request.Ladder.Count; index++)
+        // Each Division in turn down the ladder, at the sizes the Manager
+        // confirmed, and every pair in it plays once, the higher place as Side 1.
+        var position = 0;
+        for (var division = 1; division <= request.Divisions.Count; division++)
         {
-            stage.Places.Add(new LadderPlace { LeagueId = leagueId, Position = index + 1, TeamId = request.Ladder[index] });
-        }
+            var members = request.Ladder.Skip(position).Take(request.Divisions[division - 1]).ToList();
+            foreach (var teamId in members)
+            {
+                stage.Places.Add(new LadderPlace { LeagueId = leagueId, Position = ++position, Division = division, TeamId = teamId });
+            }
 
-        // Divisions of 2, one Game each, the higher place as Side 1. A last
-        // Team on its own has the Bye. (Foursomes' Divisions of 4 are #14.)
-        for (var division = 1; division <= request.Ladder.Count / 2; division++)
-        {
-            var game = new Game { Id = Guid.NewGuid(), LeagueId = leagueId, Division = division };
-            game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 1, TeamId = request.Ladder[(2 * division) - 2] });
-            game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 2, TeamId = request.Ladder[(2 * division) - 1] });
-            stage.Games.Add(game);
+            foreach (var (first, second) in Ladder.RoundRobin(members.Count))
+            {
+                var game = new Game { Id = Guid.NewGuid(), LeagueId = leagueId, Division = division };
+                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 1, TeamId = members[first] });
+                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 2, TeamId = members[second] });
+                stage.Games.Add(game);
+            }
         }
 
         await db.SaveChangesAsync(cancellationToken);

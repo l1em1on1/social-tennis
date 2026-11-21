@@ -353,6 +353,9 @@ function leagueFromForm(formData: FormData) {
   const count = Number(text("stageCount"));
   const gamesPerSet = Number(text("gamesPerSet"));
   const setsPerGame = Number(text("setsPerGame"));
+  // Only a Divisional League of Teams has a Division size (ADR-0031); the API refuses one otherwise.
+  const divisionSize =
+    structure === "Divisional" && type !== "Foursomes" && text("divisionSize") ? Number(text("divisionSize")) : null;
   if (
     name === null ||
     startDate === null ||
@@ -360,7 +363,8 @@ function leagueFromForm(formData: FormData) {
     !LEAGUE_TYPES.some((option) => option.value === type) ||
     (structure !== "Divisional" && structure !== "Knockout") ||
     (unit !== "Weeks" && unit !== "Months") ||
-    !Number.isInteger(count)
+    !Number.isInteger(count) ||
+    (divisionSize !== null && !Number.isInteger(divisionSize))
   ) {
     return null;
   }
@@ -379,6 +383,7 @@ function leagueFromForm(formData: FormData) {
       // The switch only exists for best of three; a stale value from a hidden one is dropped.
       matchTiebreakDecider: setsPerGame === 3 && formData.get("matchTiebreakDecider") === "on",
     },
+    divisionSize,
   } as const;
 }
 
@@ -590,8 +595,8 @@ export async function unpairTeam(formData: FormData) {
 
 /**
  * A Manager starts a Divisional League with the ladder they confirmed (#7):
- * `ladder` in order, top first, then who they left out and who the start
- * removes, as the Start screen showed them. If the League changed since, the
+ * `ladder` in order, top first, its Division sizes (ADR-0031), then who they
+ * left out and who the start removes, as the Start screen showed them. If the League changed since, the
  * API refuses (`league-changed`) and the screen reloads with the new proposal.
  */
 export async function startLeague(formData: FormData) {
@@ -602,7 +607,12 @@ export async function startLeague(formData: FormData) {
   const api = await apiWithSession();
   const { error, response } = await api.POST("/leagues/{leagueId}/start", {
     params: { path: { leagueId } },
-    body: { ladder: ids("ladder"), leftOut: ids("leftOut"), removed: ids("removed") },
+    body: {
+      ladder: ids("ladder"),
+      divisions: formData.getAll("divisions").map(Number).filter(Number.isInteger),
+      leftOut: ids("leftOut"),
+      removed: ids("removed"),
+    },
   });
   if (error?.type === "league-changed") {
     redirect(`/manage/leagues/${leagueId}/start?error=changed`);

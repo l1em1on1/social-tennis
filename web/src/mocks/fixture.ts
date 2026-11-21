@@ -86,6 +86,7 @@ const winterSingles = {
   stageLength: { count: 1, unit: "Months" },
   stageRoll: "Automatic",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 3, matchTiebreakDecider: true },
+  divisionSize: 4,
 } as const;
 
 const springDoubles = {
@@ -98,6 +99,7 @@ const springDoubles = {
   stageLength: { count: 2, unit: "Weeks" },
   stageRoll: null,
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
+  divisionSize: null,
 } as const;
 
 const autumnSingles = {
@@ -110,6 +112,7 @@ const autumnSingles = {
   stageLength: { count: 1, unit: "Months" },
   stageRoll: "Manual",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
+  divisionSize: 4,
 } as const;
 
 const autumnStage = { number: 1, startDate: "2026-10-01", endDate: "2026-10-31" };
@@ -218,8 +221,9 @@ const springDoublesPage: Schemas["GetLeagueResponse"] = {
 };
 
 /**
- * Autumn Singles, started (#7): Jo and Alex play Division 1, Chris has the
- * Bye, and the Manager left Sam out, so he is in the League without a place.
+ * Autumn Singles, started (#7): Jo, Alex and Chris are Division 1, each
+ * playing the other two (ADR-0031), and the Manager left Sam out, so he is in
+ * the League without a place.
  */
 const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
   ...autumnSingles,
@@ -232,7 +236,7 @@ const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
     inLeague(sam, "2026-09-20T20:15:00Z", id("f", 7)),
   ],
   joinRequests: [],
-  teams: [team(5, [alex], 2, 1), team(4, [jo], 1, 1), team(6, [chris], 3, null), team(7, [sam])],
+  teams: [team(5, [alex], 2, 1), team(4, [jo], 1, 1), team(6, [chris], 3, 1), team(7, [sam])],
   stage: autumnStage,
 };
 
@@ -243,6 +247,8 @@ export const fixtureLeagueStarts: Record<string, Schemas["GetLeagueStartResponse
       { teamId: id("f", 1), players: [{ playerId: alex.playerId, name: alex.name }], rating: 1, joinedAt: "2026-11-02T20:10:00Z" },
       { teamId: id("f", 2), players: [{ playerId: jo.playerId, name: jo.name }], rating: 1, joinedAt: "2026-11-05T19:20:00Z" },
     ],
+    divisionSize: 4,
+    divisions: [2],
     unpaired: [],
     waitingRequestCount: 1,
     firstStage: { number: 1, startDate: "2027-01-04", endDate: "2027-02-03" },

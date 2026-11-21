@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { createLeague, type CreateLeagueState } from "@/lib/actions";
 import { cx } from "@/lib/cx";
 import {
+  DIVISION_SIZE,
   LEAGUE_TYPES,
   describeScoreFormat,
   isValidCombination,
@@ -113,6 +114,7 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
   const [endDate, setEndDate] = useState("");
   const [stageCount, setStageCount] = useState("1");
   const [stageUnit, setStageUnit] = useState<"Months" | "Weeks">("Months");
+  const [divisionSize, setDivisionSize] = useState(String(DIVISION_SIZE.default));
 
   const error = (field: string) => state.errors[field]?.join(" ");
   const fieldErrors = Object.entries(state.errors).filter(([, messages]) => messages.length > 0);
@@ -244,6 +246,31 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
           <p className="text-sm font-medium text-danger">{error("stageLength.count")}</p>
         )}
       </fieldset>
+
+      {structure === "Divisional" && type !== "Foursomes" && (
+        <Field
+          id="league-division-size"
+          label="Teams per Division"
+          hint="Everyone in a Division plays everyone else once a Stage. At the start you can make a Division a Team bigger or smaller."
+          error={error("divisionSize")}
+        >
+          {(control) => (
+            <Input
+              {...control}
+              name="divisionSize"
+              type="number"
+              inputMode="numeric"
+              min={DIVISION_SIZE.min}
+              max={DIVISION_SIZE.max}
+              step={1}
+              required
+              value={divisionSize}
+              onChange={(event) => setDivisionSize(event.target.value)}
+              className="w-24"
+            />
+          )}
+        </Field>
+      )}
 
       {structure === "Divisional" && (
         <ChoiceGroup

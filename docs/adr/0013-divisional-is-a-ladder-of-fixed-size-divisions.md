@@ -1,5 +1,7 @@
 # Divisional Leagues are a ladder of fixed-size Divisions
 
+> **Superseded in part (2026-11-21) by ADR-0031.** For Singles and Doubles, Divisions hold a League-set number of Teams (4 by default), everyone in a Division plays everyone else, and there is no Bye. Divisions of 2 with a Bye, below, are no longer the model. Relegation (top up, bottom down), the starting ladder's proposal, and Foursomes' Divisions of 4 with no Bye still stand.
+
 A `Divisional` League is a ladder of numbered Divisions of a fixed size: 2 Competitors for Singles and Doubles Types (one Game per Stage), 4 individual Players for `Foursomes` (the three-Game partner rotation). Each Stage the top Competitor of every Division moves up one rung and the bottom one moves down; the ends of the ladder stay put. One Competitor left over when the numbers don't fit takes a Bye at the bottom of the ladder — no Game, no movement — rather than blocking the Stage or being promoted for not playing.
 
 Chosen because this is how the club actually runs its leagues. The original model — Divisions of about 4 Competitors playing round-robin — was an assumption from early feature notes, corrected during the 2026-10-26 re-prioritisation grilling.

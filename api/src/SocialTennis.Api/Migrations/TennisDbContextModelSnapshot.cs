@@ -171,6 +171,9 @@ namespace SocialTennis.Api.Migrations
                     b.Property<int>("Position")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Division")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("LeagueId")
                         .HasColumnType("uuid");
 
@@ -200,6 +203,9 @@ namespace SocialTennis.Api.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DivisionSize")
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");

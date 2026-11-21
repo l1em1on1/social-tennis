@@ -49,6 +49,7 @@ public static class GetPlayerLeagues
                 l.StageLength,
                 l.StageRoll,
                 l.ScoreFormat,
+                l.DivisionSize,
                 l.Participants.Count,
                 l.Participants.Any(p => p.PlayerId == playerId),
                 l.JoinRequests
@@ -77,38 +78,33 @@ public static class GetPlayerLeagues
             .ToListAsync(cancellationToken);
 
         // Where the Player is on each started League's ladder (#7): their
-        // Division and who they play, or the Bye. Nothing if they aren't placed.
+        // Division, and the other Teams in it, whom they play once each this
+        // Stage (ADR-0031). Nothing if they aren't placed.
         var started = leagues.Where(l => l.Joined && l.Stage is not null).Select(l => l.Id).ToList();
         if (started.Count > 0)
         {
-            var current = await db.Stages
-                .Where(s => started.Contains(s.LeagueId) && !db.Stages.Any(n => n.LeagueId == s.LeagueId && n.Number > s.Number))
-                .Select(s => new
+            var mine = await db.LadderPlaces
+                .Where(p => started.Contains(p.LeagueId)
+                    && !db.Stages.Any(n => n.LeagueId == p.LeagueId && n.Number > p.Stage.Number)
+                    && p.Team.Members.Any(m => m.PlayerId == playerId))
+                .Select(p => new
                 {
-                    s.LeagueId,
-                    Count = s.Places.Count,
-                    Position = s.Places
-                        .Where(p => p.Team.Members.Any(m => m.PlayerId == playerId))
-                        .Select(p => (int?)p.Position)
-                        .FirstOrDefault(),
-                    Opponents = s.Games
-                        .Where(g => g.Sides.Any(side => side.Team.Members.Any(m => m.PlayerId == playerId)))
-                        .SelectMany(g => g.Sides.Where(side => !side.Team.Members.Any(m => m.PlayerId == playerId)))
-                        .SelectMany(side => side.Team.Members.OrderBy(m => m.JoinedAt).Select(m => m.Player.Name))
+                    p.LeagueId,
+                    p.Division,
+                    Opponents = p.Stage.Places
+                        .Where(other => other.Division == p.Division && other.TeamId != p.TeamId)
+                        .OrderBy(other => other.Position)
+                        .Select(other => new PlayerLeagueOpponent(
+                            other.TeamId,
+                            other.Team.Members.OrderBy(m => m.JoinedAt).ThenBy(m => m.PlayerId).Select(m => m.Player.Name).ToList()))
                         .ToList(),
                 })
                 .ToListAsync(cancellationToken);
-            var places = current
-                .Where(s => s.Position is not null)
-                .ToDictionary(s => s.LeagueId, s => (Position: s.Position!.Value, s.Count, s.Opponents));
+            var places = mine.ToDictionary(p => p.LeagueId);
             leagues =
             [
                 .. leagues.Select(league => places.TryGetValue(league.Id, out var place)
-                    ? league with
-                    {
-                        Place = new PlayerLeaguePlace(
-                            Ladder.DivisionOf(place.Position, place.Count, league.Type.DivisionSize()), place.Opponents),
-                    }
+                    ? league with { Place = new PlayerLeaguePlace(place.Division, place.Opponents) }
                     : league),
             ];
         }

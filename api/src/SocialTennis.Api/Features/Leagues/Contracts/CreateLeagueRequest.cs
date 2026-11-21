@@ -10,6 +10,11 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// Required for a Divisional League, and refused for a Knockout one, which has
 /// no Relegation to roll into.
 /// </param>
+/// <param name="DivisionSize">
+/// Teams per Division for a Divisional League of the Team-based Types, from
+/// 2 to 8; 4 when left out (ADR-0031). Refused for Knockout, which has no
+/// Divisions, and Foursomes, whose Divisions are always 4 Players.
+/// </param>
 /// <remarks>
 /// A start date in the past is allowed: a club already part-way through a
 /// League's month can put it in the app and carry on (phase 1, docs/phase-1-score-collection.md).
@@ -22,7 +27,8 @@ public record CreateLeagueRequest(
     DateOnly EndDate,
     StageLength StageLength,
     StageRoll? StageRoll,
-    ScoreFormat ScoreFormat)
+    ScoreFormat ScoreFormat,
+    int? DivisionSize = null)
 {
     public sealed class Validator : AbstractValidator<CreateLeagueRequest>
     {
@@ -75,6 +81,22 @@ public record CreateLeagueRequest(
                 .When(request => request.Structure == LeagueStructure.Knockout)
                 .WithMessage("A Knockout League has no Relegation, so its Stages don't roll: leave this out.")
                 .OverridePropertyName("stageRoll");
+
+            RuleFor(request => request.DivisionSize)
+                .InclusiveBetween(League.MinDivisionSize, League.MaxDivisionSize)
+                .When(request => request.DivisionSize is not null)
+                .WithMessage($"A Division holds from {League.MinDivisionSize} to {League.MaxDivisionSize} Teams.")
+                .OverridePropertyName("divisionSize");
+            RuleFor(request => request.DivisionSize)
+                .Null()
+                .When(request => request.Structure == LeagueStructure.Knockout)
+                .WithMessage("A Knockout League has no Divisions: leave this out.")
+                .OverridePropertyName("divisionSize");
+            RuleFor(request => request.DivisionSize)
+                .Null()
+                .When(request => request.Type == LeagueType.Foursomes)
+                .WithMessage("A Foursomes Division is always 4 Players: leave this out.")
+                .OverridePropertyName("divisionSize");
 
             RuleFor(request => request.ScoreFormat).NotNull()
                 .WithMessage("A Score format is required.")

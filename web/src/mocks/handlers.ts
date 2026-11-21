@@ -1,6 +1,7 @@
 import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
+import { DIVISION_SIZE, proposeDivisions } from "@/lib/league";
 import {
   FIXTURE_ADMIN,
   FIXTURE_MANAGER,
@@ -172,9 +173,12 @@ interface MockLeague {
     decidedAt: string | null;
   }[];
   teams: { id: string; createdAt: string }[];
-  /** Stage 1 once started (#7), and its ladder: Team ids, top first. */
+  /** Teams per Division, for a Divisional League of Teams (ADR-0031). */
+  divisionSize: number | null;
+  /** Stage 1 once started (#7), its ladder (Team ids, top first) and its Division sizes. */
   stage: { number: number; startDate: string; endDate: string } | null;
   ladder: string[];
+  divisions: number[];
 }
 
 /** The page block of a list that isn't paged: every match, from the start (ADR-0012). */
@@ -234,9 +238,15 @@ function cannotStart(league: MockLeague) {
 /** A Team on the ladder is fixed once the League has started (#7). */
 const onLadder = (league: MockLeague, teamId: string | null | undefined) => !!teamId && league.ladder.includes(teamId);
 
-/** As the API's Ladder.DivisionOf: null for the Bye. */
-const divisionOf = (position: number, count: number) =>
-  Math.ceil(position / 2) <= Math.floor(count / 2) ? Math.ceil(position / 2) : null;
+/** The Division of the Team at `position` (1 at the top), from the League's Division sizes (ADR-0031). */
+const divisionOf = (league: MockLeague, position: number) => {
+  let end = 0;
+  for (const [index, size] of league.divisions.entries()) {
+    end += size;
+    if (position <= end) return index + 1;
+  }
+  return null;
+};
 
 const isClubMember = (player: MockPlayer | undefined, clubId: string) =>
   clubId === MOCK_CLUB.id && player?.membership?.approved === true;
@@ -298,6 +308,13 @@ function leagueErrors(body: Schemas["CreateLeagueRequest"]): Record<string, stri
     add("stageRoll", "A Knockout League has no Relegation, so its Stages don't roll: leave this out.");
   if (![6, 9].includes(Number(body.scoreFormat.gamesPerSet))) add("scoreFormat.gamesPerSet", "A Set is played to 6 or 9 games.");
   if (![1, 3].includes(sets)) add("scoreFormat.setsPerGame", "A Game is one Set, or best of three.");
+  if (body.divisionSize !== null && body.divisionSize !== undefined) {
+    const size = Number(body.divisionSize);
+    if (!Number.isInteger(size) || size < DIVISION_SIZE.min || size > DIVISION_SIZE.max)
+      add("divisionSize", `A Division holds from ${DIVISION_SIZE.min} to ${DIVISION_SIZE.max} Teams.`);
+    if (body.structure === "Knockout") add("divisionSize", "A Knockout League has no Divisions: leave this out.");
+    if (body.type === "Foursomes") add("divisionSize", "A Foursomes Division is always 4 Players: leave this out.");
+  }
   if (body.scoreFormat.matchTiebreakDecider && sets !== 3)
     add(
       "scoreFormat.matchTiebreakDecider",
@@ -317,20 +334,26 @@ const leagueFacts = (league: MockLeague) => ({
   stageLength: league.stageLength,
   stageRoll: league.stageRoll,
   scoreFormat: league.scoreFormat,
+  divisionSize: league.divisionSize,
 });
 
 const conflict = (type: string, title: string) => ({ type, title, status: 409 });
 
-/** As the API's PlayerLeaguePlace (#7): the Player's Division and who they play, or the Bye; null off the ladder. */
+/** As the API's PlayerLeaguePlace (#7): the Player's Division and the other Teams in it; null off the ladder. */
 function placeOf(league: MockLeague, playerId: string) {
   const teamId = league.participants.find((participant) => participant.playerId === playerId)?.teamId;
   const position = teamId ? league.ladder.indexOf(teamId) + 1 : 0;
   if (!league.stage || position === 0) return null;
-  const division = divisionOf(position, league.ladder.length);
-  const opponentTeam = division ? league.ladder[position % 2 === 1 ? position : position - 2] : null;
-  const opponents = league.participants
-    .filter((participant) => opponentTeam && participant.teamId === opponentTeam)
-    .map((participant) => allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "");
+  const division = divisionOf(league, position)!;
+  const opponents = league.ladder
+    .filter((other, index) => other !== teamId && divisionOf(league, index + 1) === division)
+    .map((other) => ({
+      teamId: other,
+      names: league.participants
+        .filter((participant) => participant.teamId === other)
+        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+        .map((participant) => allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? ""),
+    }));
   return { division, opponents };
 }
 
@@ -539,6 +562,8 @@ export const handlers = [
       endDate: body.endDate,
       stageLength: { count: Number(body.stageLength.count), unit: body.stageLength.unit },
       stageRoll: body.stageRoll,
+      divisionSize:
+        body.structure === "Divisional" && body.type !== "Foursomes" ? Number(body.divisionSize ?? DIVISION_SIZE.default) : null,
       scoreFormat: {
         gamesPerSet: Number(body.scoreFormat.gamesPerSet),
         setsPerGame: Number(body.scoreFormat.setsPerGame),
@@ -549,6 +574,7 @@ export const handlers = [
       teams: [],
       stage: null,
       ladder: [],
+      divisions: [],
     };
     leagues.push(league);
     return response(201).json({ id: league.id, name: league.name });
@@ -610,7 +636,7 @@ export const handlers = [
           playerIds: members.map((member) => member.playerId),
           rating: members.reduce((sum, member) => sum + player(member.playerId).rating, 0) / members.length,
           position,
-          division: position ? divisionOf(position, league.ladder.length) : null,
+          division: position ? divisionOf(league, position) : null,
         };
       }),
       stage: league.stage,
@@ -751,18 +777,24 @@ export const handlers = [
       competitors,
       unpaired,
       waitingRequestCount: league.requests.filter((joinRequest) => joinRequest.status === "Pending").length,
+      divisionSize: league.divisionSize ?? DIVISION_SIZE.default,
+      divisions: proposeDivisions(competitors.length, league.divisionSize ?? DIVISION_SIZE.default),
       firstStage: firstStage(league),
     });
   }),
 
   http.post("/leagues/{leagueId}/start", async ({ request, params, response }) => {
-    const { ladder, leftOut, removed } = await request.json();
+    const { ladder, divisions, leftOut, removed } = await request.json();
     const league = leagueById(params.leagueId);
     if (!league) {
       return response(404).empty();
     }
     if (ladder.length < 2 || new Set([...ladder, ...leftOut]).size !== ladder.length + leftOut.length) {
       return response(400).json(invalid("ladder"), problemJson);
+    }
+    const sizes = divisions.map(Number);
+    if (sizes.length === 0 || sizes.some((size) => size < 2) || sizes.reduce((sum, size) => sum + size, 0) !== ladder.length) {
+      return response(400).json(invalid("divisions"), problemJson);
     }
     const refused = cannotStart(league);
     if (refused) {
@@ -782,6 +814,7 @@ export const handlers = [
     );
     league.stage = firstStage(league);
     league.ladder = [...ladder];
+    league.divisions = sizes;
     return response(204).empty();
   }),
 

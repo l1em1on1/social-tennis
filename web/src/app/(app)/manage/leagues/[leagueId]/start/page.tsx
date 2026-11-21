@@ -57,7 +57,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
     );
   }
 
-  const { competitors, unpaired, waitingRequestCount, firstStage } = start.data;
+  const { competitors, divisions, divisionSize, unpaired, waitingRequestCount, firstStage } = start.data;
   return (
     <>
       <div className="flex flex-col gap-1">
@@ -67,8 +67,8 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
         </p>
       </div>
       <p className="text-sm">
-        Proposed in the order players joined. Move anyone up or down, or leave them out, then confirm. Divisions are counted from
-        the top, two to a Division.
+        Proposed in the order players joined, in Divisions of about {String(divisionSize)}. Move anyone up or down, leave them out,
+        or change where the Divisions split, then confirm.
       </p>
       {error === "changed" && (
         <ErrorState
@@ -97,6 +97,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
             teamId: competitor.teamId,
             names: competitor.players.map((player) => player.name),
           }))}
+          divisions={divisions.map(Number)}
           unpaired={unpaired}
           waitingRequestCount={Number(waitingRequestCount)}
           firstStage={firstStage}
