@@ -8,8 +8,9 @@ public static class LeaguesEndpoints
 {
     /// <summary>
     /// Leagues (issue #5). Creating, adding Players and deciding Join Requests
-    /// are a Manager's, club-wide in v1 (ADR-0003). Asking to join and listing
-    /// a Player's Leagues are the Player holder's.
+    /// are a Manager's, club-wide in v1 (ADR-0003). Asking to join, taking a
+    /// request back, listing partners and listing a Player's Leagues are the
+    /// Player holder's.
     /// </summary>
     public static IEndpointRouteBuilder MapLeaguesEndpoints(this IEndpointRouteBuilder app)
     {
@@ -59,8 +60,19 @@ public static class LeaguesEndpoints
 
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
+            .ValidatesBody<AskToJoinLeagueRequest, AskToJoinLeagueRequest.Validator>()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(AskToJoinLeague));
+
+        // Taken back by the Player who asked or the partner named (#6).
+        league.MapDelete("/join-requests/{playerId:guid}", TakeBackLeagueJoinRequest.HandleAsync)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(TakeBackLeagueJoinRequest));
+
+        // Who a Player could ask to join a doubles League with (#6): ?playerId= names the Player.
+        league.MapGet("/partners", GetLeaguePartners.HandleAsync)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(GetLeaguePartners));
 
         league.MapPut("/join-requests/{playerId:guid}/approval", ApproveLeagueJoinRequest.HandleAsync)
             .RequireAuthorization(Policies.Manager)

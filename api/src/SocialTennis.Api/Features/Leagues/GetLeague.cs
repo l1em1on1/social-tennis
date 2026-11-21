@@ -39,7 +39,18 @@ public static class GetLeague
                     .ThenBy(r => r.Status == LeagueJoinRequestStatus.Pending ? r.RequestedAt : DateTimeOffset.MinValue)
                     .ThenByDescending(r => r.DecidedAt)
                     .Select(r => new LeagueJoinRequestSummary(
-                        r.PlayerId, r.Player.Name, r.Player.User.Email, r.Player.Rating, r.Status, r.RequestedAt, r.DecidedAt))
+                        r.PlayerId,
+                        r.Player.Name,
+                        r.Player.User.Email,
+                        r.Player.Rating,
+                        r.Player.Gender,
+                        r.Partner == null
+                            ? null
+                            : new LeagueJoinRequestPartner(
+                                r.Partner.Id, r.Partner.Name, r.Partner.User.Email, r.Partner.Rating, r.Partner.Gender),
+                        r.Status,
+                        r.RequestedAt,
+                        r.DecidedAt))
                     .ToList(),
                 l.Teams
                     .OrderBy(t => t.CreatedAt)

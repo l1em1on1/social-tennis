@@ -8,8 +8,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <summary>
 /// A Manager approves a Player's request to join a League. The Player becomes
 /// a participant, with the request time as their join time, and with a Team of
-/// one in a singles League (<see cref="LeagueTeams"/>). Approving again changes
-/// nothing; approving a rejected request is a 409.
+/// one in a singles League (<see cref="LeagueTeams"/>). A request naming a
+/// partner puts both in as a Team (#6; <see cref="LeagueEntry.ApproveAsync"/>).
+/// Approving again changes nothing; approving a rejected request is a 409.
 /// </summary>
 public static class ApproveLeagueJoinRequest
 {
@@ -41,18 +42,10 @@ public static class ApproveLeagueJoinRequest
                     detail: "To let the Player in after all, add them to the League directly.");
         }
 
-        // They may have left the Club, or been removed, since asking.
-        if (!await LeagueEntry.IsClubMemberAsync(db, joinRequest.League.ClubId, playerId, cancellationToken))
+        // Either of a pair may have left the Club, or been removed, since asking.
+        if (await LeagueEntry.ApproveAsync(db, joinRequest.League, joinRequest, clock.GetUtcNow(), cancellationToken) is { } problem)
         {
-            return LeagueEntry.NotAClubMember();
-        }
-
-        var now = clock.GetUtcNow();
-        joinRequest.Status = LeagueJoinRequestStatus.Approved;
-        joinRequest.DecidedAt = now;
-        if (!await LeagueEntry.IsParticipantAsync(db, leagueId, playerId, cancellationToken))
-        {
-            LeagueTeams.AddParticipant(db, joinRequest.League, playerId, joinRequest.RequestedAt, now);
+            return problem;
         }
 
         await db.SaveChangesAsync(cancellationToken);

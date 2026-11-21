@@ -191,6 +191,9 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateTimeOffset?>("DecidedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("PartnerId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("RequestedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -198,6 +201,8 @@ namespace SocialTennis.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("LeagueId", "PlayerId");
+
+                    b.HasIndex("PartnerId");
 
                     b.HasIndex("PlayerId");
 
@@ -437,6 +442,11 @@ namespace SocialTennis.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SocialTennis.Api.Domain.Player", "Partner")
+                        .WithMany()
+                        .HasForeignKey("PartnerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("SocialTennis.Api.Domain.Player", "Player")
                         .WithMany()
                         .HasForeignKey("PlayerId")
@@ -444,6 +454,8 @@ namespace SocialTennis.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("League");
+
+                    b.Navigation("Partner");
 
                     b.Navigation("Player");
                 });

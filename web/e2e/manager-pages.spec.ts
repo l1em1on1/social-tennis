@@ -44,6 +44,9 @@ test("a doubles League's Manager page, from fixed data", async ({ page }, testIn
   await expect(page.getByRole("heading", { name: "Spring Doubles", level: 1 })).toBeVisible();
   await expect(page.getByRole("list", { name: "Teams in the league" }).getByRole("listitem")).toHaveCount(1);
   await expect(page.getByRole("list", { name: "Players without a partner" }).getByRole("listitem")).toHaveCount(2);
+  // A pair asking together (#6), both women in mixed doubles: a warning, not a refusal.
+  await expect(page.getByRole("button", { name: "Approve Nia Brooks with Ella Grant" })).toBeVisible();
+  await expect(page.getByText(/Both are the same gender/)).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -53,6 +56,6 @@ test("Admin, from fixed data", async ({ page }, testInfo) => {
   await page.goto("/admin");
 
   await expect(page.getByRole("heading", { name: "Admin", level: 1 })).toBeVisible();
-  await expect(page.getByText("Users (7)")).toBeVisible();
+  await expect(page.getByText("Users (9)")).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
