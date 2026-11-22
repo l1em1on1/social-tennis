@@ -138,7 +138,9 @@ test("a Game's Match screen, from fixed data", async ({ page }, testInfo) => {
   await page.getByRole("link", { name: "Override score (manager)" }).click();
   await expect(page.getByRole("heading", { name: "Override the score", level: 1 })).toBeVisible();
   await expect(page.getByLabel("Score so far")).toHaveText("6–5(4)");
-  await expect(page.getByRole("button", { name: "Save override" })).toBeEnabled();
+  // Nothing to save until something changes.
+  await expect(page.getByRole("status")).toHaveText("Change something to save an override.");
+  await expect(page.getByRole("button", { name: "Save override" })).toBeDisabled();
 });
 
 test("Admin, from fixed data", async ({ page }, testInfo) => {

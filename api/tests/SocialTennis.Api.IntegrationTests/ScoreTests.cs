@@ -575,4 +575,25 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
 
         Assert.Equal(unasUser, await db.ScoreChanges.Where(c => c.GameId == game.GameId).Select(c => c.ByUserId).SingleAsync());
     }
+
+    [Fact]
+    public async Task Rolling_the_migration_back_drops_the_overrides_which_name_no_Player_and_keeps_the_rest()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+        factory.Clock.Now = start.AddHours(1);
+        (await OverrideAsync(game.Manager, game.GameId, version, [Set(4, 6)])).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+
+        // Down's own SQL, which runs before it makes ByPlayerId required again.
+        foreach (var sql in new SocialTennis.Api.Migrations.ScoreCorrections().DownOperations.OfType<SqlOperation>().Select(o => o.Sql))
+        {
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        var left = await db.ScoreChanges.Where(c => c.GameId == game.GameId).Select(c => new { c.Kind, c.ByPlayerId }).ToListAsync();
+        Assert.Equal([(ScoreChangeKind.Entered, (Guid?)game.Una.PlayerId)], left.Select(c => (c.Kind, c.ByPlayerId)));
+    }
 }

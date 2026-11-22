@@ -132,7 +132,7 @@ export const Impossible: Story = {
   },
 };
 
-/** Correcting a Score: it opens as recorded, a 6–5 on a tiebreak included, and saves as a correction. */
+/** Correcting a Score: it opens as recorded, a 6–5 on a tiebreak included, and saves a correction only once something changes. */
 export const Correcting: Story = {
   args: {
     mode: "correct",
@@ -140,15 +140,22 @@ export const Correcting: Story = {
     format: bestOf3MatchTiebreak,
     initial: { sets: [entryOf({ first: 6, second: 5, firstTiebreak: 7, secondTiebreak: 4 }), set(3, 6), set(10, 7)], playedOn: "2026-11-12" },
   },
-  play: async ({ canvas }) => {
+  play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByLabelText("Score so far")).toHaveTextContent("6–5(4) 3–6 [10–7]");
     await expect(canvas.getByLabelText("Date played")).toHaveValue("2026-11-12");
+    await expect(verdict(canvas)).toHaveTextContent("Change something to save a correction.");
+    await expect(canvas.getByRole("button", { name: "Save correction" })).toBeDisabled();
+    await userEvent.click(more(canvas, "Match tiebreak, Ben Carter"));
+    await expect(canvas.getByLabelText("Score so far")).toHaveTextContent("6–5(4) 3–6 [11–7]");
+    await expect(verdict(canvas)).toHaveTextContent("Past 10, a match tiebreak ends as soon as someone is 2 points clear.");
+    await userEvent.click(more(canvas, "Match tiebreak, Dev Shah"));
+    await userEvent.click(more(canvas, "Match tiebreak, Dev Shah"));
     await expect(verdict(canvas)).toHaveTextContent("Ben Carter wins");
     await expect(canvas.getByRole("button", { name: "Save correction" })).toBeEnabled();
   },
 };
 
-/** A Manager overriding a Retirement: it opens with its winner picked. */
+/** A Manager overriding a Retirement: it opens with its winner picked, and saves once the winner changes. */
 export const Overriding: Story = {
   args: {
     mode: "override",
@@ -157,10 +164,12 @@ export const Overriding: Story = {
     format: bestOf3,
     initial: { sets: [set(6, 4), set(2, 1)], retirementWinner: 2 },
   },
-  play: async ({ canvas }) => {
+  play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByRole("switch", { name: /Stopped early/ })).toBeChecked();
     await expect(canvas.getByRole("radio", { name: "Dev Shah" })).toBeChecked();
-    await expect(verdict(canvas)).toHaveTextContent("Dev Shah wins (retirement)");
+    await expect(canvas.getByRole("button", { name: "Save override" })).toBeDisabled();
+    await userEvent.click(canvas.getByRole("radio", { name: "Ben Carter" }));
+    await expect(verdict(canvas)).toHaveTextContent("Ben Carter wins (retirement)");
     await expect(canvas.getByRole("button", { name: "Save override" })).toBeEnabled();
   },
 };

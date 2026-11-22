@@ -65,6 +65,14 @@ namespace SocialTennis.Api.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Lossy (#213 review): before this migration a change was always a
+            // Player's, so a Manager's overrides, which name no Player, can't be
+            // kept. Their history entries go; the Scores keep the values.
+            migrationBuilder.Sql(
+                """
+                DELETE FROM "ScoreChanges" WHERE "ByPlayerId" IS NULL;
+                """);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_ScoreChanges_Users_ByUserId",
                 table: "ScoreChanges");

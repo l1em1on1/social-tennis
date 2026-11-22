@@ -15,8 +15,8 @@ export const metadata: Metadata = { title: "Match" };
 /** What saving said, for the Match screen it lands on. */
 const SAVED: Record<string, string> = {
   enter: "Score saved. Everyone in the league can see it now.",
-  correct: "Correction saved. The score's history shows what it was.",
-  override: "Override saved. The score's history shows what it was.",
+  correct: "Correction saved: the score is as shown, and its history keeps every change.",
+  override: "Override saved: the score is as shown, and its history keeps every change.",
 };
 
 /**

@@ -654,8 +654,9 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await logIn(vicPage, testInfo, vic.email);
   await vicPage.goto(ladderUrl);
   await vicPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
-  const matchUrl = vicPage.url();
   await expect(vicPage.getByRole("region", { name: "Score" })).toContainText(`entered by ${una.name}`);
+  // Read once the Match screen is showing: straight after the click it can still be the ladder's.
+  const matchUrl = vicPage.url();
   await expect(vicPage.getByRole("link", { name: "Enter score" })).toHaveCount(0);
   await vicPage.getByRole("link", { name: "Correct the score" }).click();
   await expect(vicPage.getByRole("heading", { name: "Correct the score", level: 1 })).toBeVisible();
