@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -81,7 +82,13 @@ public static class SubmitScore
         var today = ClubCalendar.Today(game.TimeZone, clock);
         if (request.PlayedOn < game.StartDate)
         {
-            errors["playedOn"] = [$"Stage {game.Number} started on {game.StartDate:d MMM yyyy}: the game can't have been played before that."];
+            // Month names in English whatever the server's culture: the app's language.
+            errors["playedOn"] =
+            [
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"Stage {game.Number} started on {game.StartDate:d MMM yyyy}: the game can't have been played before that."),
+            ];
         }
         else if (request.PlayedOn > today)
         {

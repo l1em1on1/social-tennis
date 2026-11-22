@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -17,12 +18,14 @@ namespace SocialTennis.Api.IntegrationTests;
 /// Issue #38, part 1: a Player who played a League Game enters its Score, set
 /// by set or as a Retirement, checked against the League's format; the League
 /// sees it on the Game and the ladder; and who may enter one. The clock is
-/// 00:30 on 11 July 2026 in London (<see cref="ClockedTestFactory"/>), in a
-/// Stage that started on 1 July.
+/// 00:30 on 11 July next year in London (<see cref="ClockedTestFactory"/>), in
+/// a Stage that started on 1 July.
 /// </summary>
 public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestFactory>
 {
-    private const string Today = "2026-07-11";
+    private static readonly int Year = ClockedTestFactory.Start.Year;
+
+    private static readonly string Today = $"{Year}-07-11";
 
     private static readonly object OneSetOf6 = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false };
 
@@ -43,8 +46,8 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             name = $"Summer {type}",
             type,
             structure = "Divisional",
-            startDate = "2026-07-01",
-            endDate = "2026-09-30",
+            startDate = $"{Year}-07-01",
+            endDate = $"{Year}-09-30",
             stageLength = new { count = 1, unit = "Months" },
             stageRoll = "Manual",
             scoreFormat,
@@ -111,8 +114,8 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         new { first, second, firstTiebreak, secondTiebreak };
 
     private static Task<HttpResponseMessage> SubmitAsync(
-        HttpClient client, Guid gameId, Guid playerId, object[] sets, string playedOn = Today, int? retirementWinner = null) =>
-        client.PostAsJsonAsync($"/games/{gameId}/score", new { playerId, playedOn, sets, retirementWinner });
+        HttpClient client, Guid gameId, Guid playerId, object[] sets, string? playedOn = null, int? retirementWinner = null) =>
+        client.PostAsJsonAsync($"/games/{gameId}/score", new { playerId, playedOn = playedOn ?? Today, sets, retirementWinner });
 
     private static async Task<GetGameResponse> GameAsync(HttpClient client, Guid gameId) =>
         (await client.GetFromJsonAsync<GetGameResponse>($"/games/{gameId}"))!;
@@ -141,7 +144,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         foreach (var client in new[] { game.Vic.Client, game.Wes.Client })
         {
             var score = (await GameAsync(client, game.GameId)).Score!;
-            Assert.Equal(new DateOnly(2026, 7, 11), score.PlayedOn);
+            Assert.Equal(new DateOnly(Year, 7, 11), score.PlayedOn);
             Assert.Equal(
                 [new SetScore(6, 4, null, null, false), new SetScore(5, 6, 4, 7, false), new SetScore(10, 7, null, null, true)],
                 score.Sets);
@@ -170,7 +173,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Equal(game.Vic.PlayerId, change.ByPlayerId);
         Assert.Equal(ClockedTestFactory.Start, change.At);
         Assert.Null(change.Before);
-        Assert.Equal((new DateOnly(2026, 7, 11), 2, false), (change.After.PlayedOn, change.After.Winner, change.After.Retired));
+        Assert.Equal((new DateOnly(Year, 7, 11), 2, false), (change.After.PlayedOn, change.After.Winner, change.After.Retired));
         Assert.Equal([new ScoreSet(3, 6, null, null)], change.After.Sets);
     }
 
@@ -251,14 +254,22 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Null((await GameAsync(oneSet.Una.Client, oneSet.GameId)).Score);
     }
 
+    /// <summary>Days from the Stage's first day, 1 July; today is the 11th.</summary>
     [Theory]
-    [InlineData("2026-07-01", null)]
-    [InlineData(Today, null)]
-    [InlineData("2026-06-30", "Stage 1 started on 1 Jul 2026: the game can't have been played before that.")]
-    [InlineData("2026-07-12", "The date played can't be in the future.")]
-    public async Task The_date_played_is_from_the_Stages_start_to_today_where_the_Club_is(string playedOn, string? problem)
+    [InlineData(0, null)]
+    [InlineData(10, null)]
+    [InlineData(-1, "before")]
+    [InlineData(11, "future")]
+    public async Task The_date_played_is_from_the_Stages_start_to_today_where_the_Club_is(int day, string? refused)
     {
         var game = await SinglesAsync(OneSetOf6);
+        var playedOn = new DateOnly(Year, 7, 1).AddDays(day).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var problem = refused switch
+        {
+            "before" => $"Stage 1 started on 1 Jul {Year}: the game can't have been played before that.",
+            "future" => "The date played can't be in the future.",
+            _ => null,
+        };
 
         var entered = await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 1)], playedOn);
 
@@ -278,7 +289,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         var game = await SinglesAsync(OneSetOf6);
 
         // 23:30 UTC on 10 July is already 11 July in London.
-        Assert.Equal(new DateOnly(2026, 7, 11), (await GameAsync(game.Una.Client, game.GameId)).Today);
+        Assert.Equal(new DateOnly(Year, 7, 11), (await GameAsync(game.Una.Client, game.GameId)).Today);
     }
 
     [Fact]
