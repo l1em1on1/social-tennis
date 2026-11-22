@@ -56,6 +56,10 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
   const [state, action] = useActionState<CloseStageState, FormData>(closeStage, { errors: {} });
   const [orders, setOrders] = useState(() => divisions.map((division) => division.teams.map((team) => team.teamId)));
   const [joining, setJoining] = useState<string[]>([]);
+  // Controlled, so a refusal keeps what the Manager typed: React resets a form's uncontrolled fields when its
+  // action finishes, and the next close would otherwise use the proposal unseen (#217 review).
+  const [startDate, setStartDate] = useState(nextStage?.startDate ?? "");
+  const [endDate, setEndDate] = useState(nextStage?.endDate ?? "");
   const ends = nextStage === null;
   const next = ends ? null : relegate(orders, joining);
   const divisionOf = (teamId: string) => (next ? next.findIndex((division) => division.includes(teamId)) + 1 : 0);
@@ -177,10 +181,22 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
             hint={`From the day after Stage ${stageNumber} ends (${formatDate(stageEnd)}) or later.`}
             error={state.errors.nextStartDate?.join(" ")}
           >
-            {(control) => <Input {...control} type="date" name="nextStartDate" defaultValue={nextStage.startDate} required />}
+            {(control) => (
+              <Input {...control} type="date" name="nextStartDate" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
+            )}
           </Field>
           <Field id="nextEndDate" label="Ends" hint={`The League ends on ${formatDate(leagueEnd)}.`} error={state.errors.nextEndDate?.join(" ")}>
-            {(control) => <Input {...control} type="date" name="nextEndDate" defaultValue={nextStage.endDate} max={leagueEnd} required />}
+            {(control) => (
+              <Input
+                {...control}
+                type="date"
+                name="nextEndDate"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                max={leagueEnd}
+                required
+              />
+            )}
           </Field>
         </div>
       )}

@@ -875,9 +875,18 @@ test("a Manager closes a Stage: the top goes up, the bottom down, a tie they ord
   await expect(divisionOne).toHaveText([new RegExp(`${bo.name}.*stays`), new RegExp(`${abe.name}.*▼ to Division 2`)]);
   await expect(page.getByRole("checkbox", { name: ed.name })).not.toBeChecked();
   await orderAndTick();
+  // The Manager moves Stage 2's end a week on, and its start back into Stage 1 by mistake: the API refuses the
+  // start, and both dates keep what they typed (#217 review).
+  await page.getByLabel("Starts").fill("2027-10-31");
+  await page.getByLabel("Ends").fill("2028-11-07");
+  await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(page.getByText(/The next Stage starts after this one ends/)).toBeVisible();
+  await expect(page.getByLabel("Starts")).toHaveValue("2027-10-31");
+  await expect(page.getByLabel("Ends")).toHaveValue("2028-11-07");
+  await page.getByLabel("Starts").fill("2027-11-08");
   await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toContainText(
-    "Stage 1 is closed, and Stage 2 runs 1 Nov 2027 – 31 Oct 2028.",
+    "Stage 1 is closed, and Stage 2 runs 8 Nov 2027 – 7 Nov 2028.",
   );
 
   // Stage 2's ladder: Bo and Di; then Abe, Cat and Ed, each pair with a Game to play.
