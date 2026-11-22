@@ -20,6 +20,8 @@ public record CloseStageRequest(
             RuleFor(request => request.Divisions)
                 .NotEmpty()
                 .WithMessage("Every Division, in its final order.")
+                .Must(divisions => divisions is null || divisions.All(division => division is not null))
+                .WithMessage("Every Division, in its final order.")
                 .OverridePropertyName("divisions");
             RuleFor(request => request.Joining)
                 .NotNull()

@@ -81,6 +81,9 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
         </Card>
       ) : (
         <StageCloseForm
+          // Rebuilt from what it shows: after a "things changed" refusal the URL changes only its query, so
+          // Next keeps the form mounted, and its order and ticks must start again from the new data (#217 review).
+          key={JSON.stringify([close.divisions.map((division) => division.standings), close.waiting])}
           leagueId={leagueId}
           stageNumber={Number(stage.number)}
           stageEnd={stage.endDate}

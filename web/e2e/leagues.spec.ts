@@ -796,7 +796,7 @@ test("a Manager settles Games nobody scored from the to-do list: records one, ma
   await expect(toDo.getByRole("listitem")).toHaveText([new RegExp(`${ben.name} v ${cy.name}`)]);
 });
 
-test("a Manager closes a Stage: the top goes up, the bottom down, a tie they order, a Team waiting joins, and Stage 2 opens", async ({
+test("a Manager closes a Stage: the top goes up, the bottom down, a tie they order, a Team waiting joins, and Stage 2 opens; a score changed meanwhile is caught", async ({
   page,
 }, testInfo) => {
   test.slow();
@@ -840,29 +840,52 @@ test("a Manager closes a Stage: the top goes up, the bottom down, a tie they ord
   await page.goto(leaguePage);
   await expect(toDo.getByRole("list", { name: "Ties that decide who moves" })).toContainText(`Division 2: ${cat.name}, ${di.name}`);
 
-  // The close: Bo goes down, the Manager puts Di above Cat so Di goes up, and Ed joins.
+  // The close screen: Abe stays, Bo goes down; the Manager puts Di above Cat, and ticks Ed.
   await toDo.getByRole("link", { name: "Close Stage 1" }).click();
   await expect(page.getByRole("heading", { name: "Close Stage 1", level: 1 })).toBeVisible();
   const divisionOne = page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem");
+  const divisionTwo = page.getByRole("list", { name: "Division 2 order" }).getByRole("listitem");
   await expect(divisionOne).toHaveText([new RegExp(`${abe.name}.*stays`), new RegExp(`${bo.name}.*▼ to Division 2`)]);
-  await page.getByRole("button", { name: `Move ${di.name} up` }).click();
-  await expect(page.getByRole("list", { name: "Division 2 order" }).getByRole("listitem")).toHaveText([
-    new RegExp(`${di.name}.*▲ to Division 1`),
-    new RegExp(`${cat.name}.*stays`),
-  ]);
-  await page.getByRole("checkbox", { name: ed.name }).check();
+  const orderAndTick = async () => {
+    await page.getByRole("button", { name: `Move ${di.name} up` }).click();
+    await expect(divisionTwo).toHaveText([new RegExp(`${di.name}.*▲ to Division 1`), new RegExp(`${cat.name}.*stays`)]);
+    await page.getByRole("checkbox", { name: ed.name }).check();
+  };
+  await orderAndTick();
   await expectNoSeriousA11yViolations(page);
+
+  // Meanwhile Abe v Bo is overridden, in another tab: Bo won it after all.
+  const otherTab = await page.context().newPage();
+  await otherTab.goto(leaguePage);
+  await otherTab.getByRole("link", { name: "See the ladder" }).click();
+  await otherTab.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
+  await otherTab.getByRole("link", { name: "Override score (manager)" }).click();
+  const abeLess = otherTab.getByRole("group", { name: `Set, ${abe.name}` }).getByRole("button", { name: "One less" });
+  const boMore = otherTab.getByRole("group", { name: `Set, ${bo.name}` }).getByRole("button", { name: "One more" });
+  for (let i = 0; i < 6; i++) await abeLess.click();
+  for (let i = 0; i < 6; i++) await boMore.click();
+  await expect(otherTab.getByLabel("Score so far")).toHaveText("0–6");
+  await otherTab.getByRole("button", { name: "Save override" }).click();
+  await expect(otherTab.getByRole("status").filter({ hasText: "Override saved" })).toBeVisible();
+  await otherTab.close();
+
+  // Closing on what the screen showed is refused; it reloads as things now stand, the order and ticks afresh.
+  await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Things changed while you were looking" })).toBeVisible();
+  await expect(divisionOne).toHaveText([new RegExp(`${bo.name}.*stays`), new RegExp(`${abe.name}.*▼ to Division 2`)]);
+  await expect(page.getByRole("checkbox", { name: ed.name })).not.toBeChecked();
+  await orderAndTick();
   await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toContainText(
     "Stage 1 is closed, and Stage 2 runs 1 Nov 2027 – 31 Oct 2028.",
   );
 
-  // Stage 2's ladder: Abe and Di; then Bo, Cat and Ed, each pair with a Game to play.
+  // Stage 2's ladder: Bo and Di; then Abe, Cat and Ed, each pair with a Game to play.
   await page.getByRole("link", { name: "See the ladder" }).click();
   const standings = (n: number) =>
     page.getByRole("table", { name: `Division ${n} standings` }).getByRole("row").filter({ has: page.getByRole("rowheader") });
-  await expect(standings(1)).toHaveText([new RegExp(abe.name), new RegExp(di.name)]);
-  await expect(standings(2)).toHaveText([new RegExp(bo.name), new RegExp(cat.name), new RegExp(ed.name)]);
+  await expect(standings(1)).toHaveText([new RegExp(bo.name), new RegExp(di.name)]);
+  await expect(standings(2)).toHaveText([new RegExp(abe.name), new RegExp(cat.name), new RegExp(ed.name)]);
   await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveCount(3);
 });
 

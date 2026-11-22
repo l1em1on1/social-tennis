@@ -919,6 +919,9 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         string start = $"{Year}-08-01", end = $"{Year}-08-31";
 
         Assert.Equal(HttpStatusCode.Forbidden, (await CloseAsync(players[0].Client, leagueId, order, start: start, end: end)).StatusCode);
+        // A Division that isn't there at all is a malformed request, not a server error (#217 review).
+        var holed = await manager.PostAsJsonAsync($"/leagues/{leagueId}/close", new { divisions = new Guid[]?[] { null, order[1] }, joining = Array.Empty<Guid>() });
+        Assert.Equal(["Every Division, in its final order."], (await ErrorsAsync(holed))["divisions"]);
         Assert.Equal("stage-queue-not-empty", await ProblemTypeAsync(await CloseAsync(manager, leagueId, order, start: start, end: end), HttpStatusCode.Conflict));
         (await SubmitAsync(players[0].Client, top, players[0].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
         (await SubmitAsync(players[2].Client, bottom, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
