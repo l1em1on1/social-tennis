@@ -927,28 +927,42 @@ test("a Manager moves a Team to another Division mid-Stage, and can't leave a Di
   await expect(page.getByRole("list", { name: "Division 1" }).getByRole("listitem")).toHaveCount(2);
   await page.getByRole("button", { name: "Confirm and start" }).click();
   await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
 
-  // Cy moves up: the bottom of Division 1, playing Al and Bea.
+  // Di v Em isn't going to be played.
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  await page.getByRole("list", { name: "Division 2 Games" }).getByRole("link", { name: new RegExp(`${di.name} v ${em.name}`) }).click();
+  await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+  await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+
+  // Em moves up: the bottom of Division 1, playing Al and Bea.
+  await page.goto(leaguePage);
   const move = page.getByRole("region", { name: "Move a Team" });
-  await move.getByLabel("Team").selectOption({ label: `${cy.name} · Division 2` });
-  await move.getByLabel("To Division").selectOption({ label: "Division 1" });
-  await move.getByRole("button", { name: "Move" }).click();
-  await expect(move.getByRole("status")).toContainText(`${cy.name} is in Division 1 now`);
+  const moveTo = async (team: string, from: number, to: number) => {
+    await move.getByLabel("Team").selectOption({ label: `${team} · Division ${from}` });
+    await move.getByLabel("To Division").selectOption({ label: `Division ${to}` });
+    await move.getByRole("button", { name: "Move" }).click();
+  };
+  await moveTo(em.name, 2, 1);
+  await expect(move.getByRole("status")).toContainText(`${em.name} is in Division 1 now`);
   await expectNoSeriousA11yViolations(page);
 
   // Division 2 has two left: Di can't leave it.
-  await move.getByLabel("Team").selectOption({ label: `${di.name} · Division 2` });
-  await move.getByLabel("To Division").selectOption({ label: "Division 1" });
-  await move.getByRole("button", { name: "Move" }).click();
+  await moveTo(di.name, 2, 1);
   await expect(move.getByRole("alert")).toContainText("That would leave its Division with one Team.");
 
+  // Em goes back: a new Game against Di, waiting for a score, not the one marked not played (#219 review).
+  await moveTo(em.name, 1, 2);
+  await expect(move.getByRole("status")).toContainText(`${em.name} is in Division 2 now`);
   await page.getByRole("link", { name: "See the ladder" }).click();
   await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
     new RegExp(`${al.name} v ${bea.name}`),
-    new RegExp(`${al.name} v ${cy.name}`),
-    new RegExp(`${bea.name} v ${cy.name}`),
   ]);
-  await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveText([new RegExp(`${di.name} v ${em.name}`)]);
+  await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${cy.name} v ${di.name}.*Score needed`),
+    new RegExp(`${cy.name} v ${em.name}.*Score needed`),
+    new RegExp(`${di.name} v ${em.name}.*Score needed`),
+  ]);
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {

@@ -1086,6 +1086,12 @@ export const handlers = [
     if (from.competitors.length <= 2) {
       return response(409).json(conflict("division-too-small", `Division ${from.number} would be left with one Team.`), problemJson);
     }
+    // As the API deletes them: the Team's Games where it was, their not-played marks with them, so if it
+    // comes back it gets new Games, not its old ones (#219 review).
+    for (const game of from.games.filter((game) => game.firstTeamId === teamId || game.secondTeamId === teamId)) {
+      voided.delete(game.id);
+      for (const [key, id] of gameIds) if (id === game.id) gameIds.delete(key);
+    }
     const order = divisions.map((division) => division.competitors.map((competitor) => competitor.teamId).filter((team) => team !== teamId));
     order[to - 1].push(teamId);
     league.ladder = order.flat();

@@ -1146,6 +1146,19 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Equal("team-has-results", await ProblemTypeAsync(await MoveAsync(manager, leagueId, teams[3], 1), HttpStatusCode.Conflict));
         Assert.Equal(2, (await LadderOfAsync(manager, leagueId)).Divisions[0].Competitors.Count);
 
+        // Once the League has ended, nobody moves (#219 review).
+        var ended = await TwoDivisionsAsync(endDate: $"{Year}-07-31");
+        var endedLadder = await LadderOfAsync(ended.Manager, ended.LeagueId);
+        foreach (var game in endedLadder.Divisions.SelectMany(d => d.Games))
+        {
+            (await VoidAsync(ended.Manager, game.Id)).EnsureSuccessStatusCode();
+        }
+        (await CloseAsync(ended.Manager, ended.LeagueId, Order([ended.Teams[0], ended.Teams[1]], [ended.Teams[2], ended.Teams[3]]))).EnsureSuccessStatusCode();
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await MoveAsync(ended.Manager, ended.LeagueId, ended.Teams[2], 1), HttpStatusCode.Conflict));
+        Assert.Equal(
+            [[ended.Teams[0], ended.Teams[1]], [ended.Teams[2], ended.Teams[3]]],
+            (await LadderOfAsync(ended.Manager, ended.LeagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+
         // A Team off the ladder isn't moved: it's added at the close.
         var waiting = await SinglesAsync(OneSetOf6);
         var wes = TeamOf(await ManagedAsync(waiting.Manager, waiting.LeagueId), waiting.Wes.PlayerId);
