@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using SocialTennis.Api.Authentication;
+using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Leagues.Contracts;
@@ -10,7 +11,8 @@ namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
 /// A League's ladder in its current Stage (#7): the Divisions from the top,
-/// each with its Teams and every Game between them (ADR-0031). The Players in
+/// each with its Teams and every Game between them (ADR-0031), with its Score
+/// once entered (#38). The Players in
 /// the League see it, whether or not they are on the ladder, and so do Managers.
 /// </summary>
 /// <remarks>
@@ -34,6 +36,7 @@ public static class GetLeagueLadder
                 l.Name,
                 ClubName = l.Club.Name,
                 l.Type,
+                l.ScoreFormat,
                 Yours = l.Participants.Where(p => p.Player.UserId == userId).Select(p => p.PlayerId).ToList(),
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate }).FirstOrDefault(),
             })
@@ -73,6 +76,7 @@ public static class GetLeagueLadder
                 g.Division,
                 First = g.Sides.Where(s => s.Side == 1).Select(s => s.TeamId).Single(),
                 Second = g.Sides.Where(s => s.Side == 2).Select(s => s.TeamId).Single(),
+                Score = g.Score == null ? null : new { g.Score.Winner, g.Score.Retired, g.Score.Sets },
             })
             .ToListAsync(cancellationToken);
 
@@ -89,7 +93,13 @@ public static class GetLeagueLadder
                         .Where(g => g.Division == group.Key)
                         .OrderBy(g => positionOf[g.First])
                         .ThenBy(g => positionOf[g.Second])
-                        .Select(g => new LadderGame(g.Id, g.First, g.Second)),
+                        .Select(g => new LadderGame(
+                            g.Id,
+                            g.First,
+                            g.Second,
+                            g.Score is { } score
+                                ? new LadderGameScore(score.Winner, score.Retired, SetScore.Of(league.ScoreFormat, score.Sets))
+                                : null)),
                 ]))
             .ToList();
 

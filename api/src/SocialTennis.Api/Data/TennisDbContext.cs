@@ -37,12 +37,18 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<GameSide> GameSides => Set<GameSide>();
 
+    public DbSet<Score> Scores => Set<Score>();
+
+    public DbSet<ScoreChange> ScoreChanges => Set<ScoreChange>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Club>(club =>
         {
             // No seeded Club: an Admin creates it (issue #18).
             club.Property(c => c.Name).HasMaxLength(Club.NameMaxLength);
+            // Existing Clubs are the first Club's, in its zone (ADR-0016).
+            club.Property(c => c.TimeZone).HasMaxLength(64).HasDefaultValue(Club.DefaultTimeZone);
         });
 
         modelBuilder.Entity<User>(user =>
@@ -167,6 +173,39 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
                 .HasForeignKey(s => new { s.LeagueId, s.TeamId })
                 .HasPrincipalKey(t => new { t.LeagueId, t.Id })
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Scores (#38): one per Game, keyed by it and kept in its League like
+        // the Sides. Sets are a JSON column (EF Core docs, "Complex types",
+        // collections need ToJson). Who entered or changed a Score is kept
+        // (Restrict): removing a Player must deal with their Scores (#116).
+        modelBuilder.Entity<Score>(score =>
+        {
+            score.HasKey(s => s.GameId);
+            score.HasOne(s => s.Game).WithOne(g => g.Score)
+                .HasForeignKey<Score>(s => new { s.LeagueId, s.GameId })
+                .HasPrincipalKey<Game>(g => new { g.LeagueId, g.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            score.ComplexCollection(s => s.Sets, sets => sets.ToJson());
+            score.HasOne(s => s.SubmittedBy).WithMany().HasForeignKey(s => s.SubmittedById).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ScoreChange>(change =>
+        {
+            change.HasOne(c => c.Game).WithMany()
+                .HasForeignKey(c => new { c.LeagueId, c.GameId })
+                .HasPrincipalKey(g => new { g.LeagueId, g.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+            change.HasOne(c => c.ByPlayer).WithMany().HasForeignKey(c => c.ByPlayerId).OnDelete(DeleteBehavior.Restrict);
+            change.ComplexProperty(c => c.Before, before =>
+            {
+                before.ToJson();
+                before.ComplexCollection(v => v.Sets);
+            });
+            change.ComplexProperty(c => c.After, after =>
+            {
+                after.ToJson();
+                after.ComplexCollection(v => v.Sets);
+            });
         });
 
         modelBuilder.Entity<LeagueJoinRequest>(request =>

@@ -34,6 +34,13 @@ namespace SocialTennis.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("Europe/London");
+
                     b.HasKey("Id");
 
                     b.ToTable("Clubs");
@@ -386,6 +393,140 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("Players");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Score", b =>
+                {
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("PlayedOn")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("Retired")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubmittedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Winner")
+                        .HasColumnType("integer");
+
+                    b.ComplexCollection(typeof(List<Dictionary<string, object>>), "Sets", "SocialTennis.Api.Domain.Score.Sets#ScoreSet", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<int>("First");
+
+                            b1.Property<int?>("FirstTiebreak");
+
+                            b1.Property<int>("Second");
+
+                            b1.Property<int?>("SecondTiebreak");
+
+                            b1
+                                .ToJson("Sets")
+                                .HasColumnType("jsonb");
+                        });
+
+                    b.HasKey("GameId");
+
+                    b.HasIndex("SubmittedById");
+
+                    b.HasIndex("LeagueId", "GameId")
+                        .IsUnique();
+
+                    b.ToTable("Scores");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.ScoreChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ByPlayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GameId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "After", "SocialTennis.Api.Domain.ScoreChange.After#ScoreValue", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<DateOnly>("PlayedOn");
+
+                            b1.Property<bool>("Retired");
+
+                            b1.Property<int>("Winner");
+
+                            b1.ComplexCollection(typeof(List<Dictionary<string, object>>), "Sets", "SocialTennis.Api.Domain.ScoreChange.After#ScoreValue.Sets#ScoreSet", b2 =>
+                                {
+                                    b2.IsRequired();
+
+                                    b2.Property<int>("First");
+
+                                    b2.Property<int?>("FirstTiebreak");
+
+                                    b2.Property<int>("Second");
+
+                                    b2.Property<int?>("SecondTiebreak");
+                                });
+
+                            b1
+                                .ToJson("After")
+                                .HasColumnType("jsonb");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Before", "SocialTennis.Api.Domain.ScoreChange.Before#ScoreValue", b1 =>
+                        {
+                            b1.Property<DateOnly>("PlayedOn");
+
+                            b1.Property<bool>("Retired");
+
+                            b1.Property<int>("Winner");
+
+                            b1.ComplexCollection(typeof(List<Dictionary<string, object>>), "Sets", "SocialTennis.Api.Domain.ScoreChange.Before#ScoreValue.Sets#ScoreSet", b2 =>
+                                {
+                                    b2.IsRequired();
+
+                                    b2.Property<int>("First");
+
+                                    b2.Property<int?>("FirstTiebreak");
+
+                                    b2.Property<int>("Second");
+
+                                    b2.Property<int?>("SecondTiebreak");
+                                });
+
+                            b1
+                                .ToJson("Before")
+                                .HasColumnType("jsonb");
+                        });
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ByPlayerId");
+
+                    b.HasIndex("LeagueId", "GameId");
+
+                    b.ToTable("ScoreChanges");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.SessionToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -660,6 +801,46 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.Score", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "SubmittedBy")
+                        .WithMany()
+                        .HasForeignKey("SubmittedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.Game", "Game")
+                        .WithOne("Score")
+                        .HasForeignKey("SocialTennis.Api.Domain.Score", "LeagueId", "GameId")
+                        .HasPrincipalKey("SocialTennis.Api.Domain.Game", "LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("SubmittedBy");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.ScoreChange", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "ByPlayer")
+                        .WithMany()
+                        .HasForeignKey("ByPlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("LeagueId", "GameId")
+                        .HasPrincipalKey("LeagueId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ByPlayer");
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.SessionToken", b =>
                 {
                     b.HasOne("SocialTennis.Api.Domain.User", "User")
@@ -695,6 +876,8 @@ namespace SocialTennis.Api.Migrations
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
                 {
+                    b.Navigation("Score");
+
                     b.Navigation("Sides");
                 });
 

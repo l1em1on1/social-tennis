@@ -15,14 +15,17 @@ async function addClubPlayer(manager: Page, name: string, email: string) {
   await expect(manager.getByRole("status")).toContainText(`${name} is added`);
 }
 
-/** From Manage: creates a League in the first Club with the setup form's defaults (or another Type), and lands on its page. */
-async function createLeague(manager: Page, name: string, type?: string) {
+/**
+ * From Manage: creates a League in the first Club with the setup form's
+ * defaults (or another Type, or an earlier start), and lands on its page.
+ */
+async function createLeague(manager: Page, name: string, type?: string, starts = "2026-12-01") {
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   await manager.getByRole("link", { name: "New league" }).first().click();
   await expect(manager.getByRole("heading", { name: "New league", level: 1 })).toBeVisible();
   await manager.getByLabel("Name", { exact: true }).fill(name);
-  await manager.getByLabel("Starts").fill("2026-12-01");
+  await manager.getByLabel("Starts").fill(starts);
   await manager.getByLabel("Ends").fill("2027-03-31");
   if (type) await manager.getByLabel("Type").selectOption(type);
   await manager.getByRole("button", { name: "Create League" }).click();
@@ -573,6 +576,85 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
     `Division 1 You play ${una.name} and ${vic.name}, once each.`,
   );
   await xanContext.close();
+});
+
+test("a Player enters a Game's score set by set, and the League sees it on the Game and the ladder", async ({
+  page,
+  browser,
+}, testInfo) => {
+  // Three sign-ins and many round trips: over the default timeout on a busy real-API run.
+  test.slow();
+  const league = uniqueName(testInfo, "Scoring Ladder");
+  const [una, vic] = ["Una Scores", "Vic Scores"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `scores-${name.slice(0, 3).toLowerCase()}`),
+  }));
+
+  // A League that started on 1 November 2026, so its Games can have been played by now.
+  const managerContext = await browser.newContext();
+  const manager = await managerContext.newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of [una, vic]) await addClubPlayer(manager, name, email);
+  await createLeague(manager, league, undefined, "2026-11-01");
+  for (const { name, email } of [una, vic]) {
+    await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await manager.getByRole("button", { name: "Add to league" }).click();
+    await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  await manager.getByRole("link", { name: "Start the league" }).click();
+  await manager.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(manager.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  await managerContext.close();
+
+  // Una opens their Game from the ladder: no score yet, and they can enter it.
+  await logIn(page, testInfo, una.email);
+  await page.goto("/leagues");
+  await page.getByRole("link", { name: `Open the ladder of ${league}` }).click();
+  const games = page.getByRole("list", { name: "Division 1 Games" });
+  await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*Score needed`)]);
+  await games.getByRole("link", { name: new RegExp(`${una.name} v ${vic.name}`) }).click();
+  await expect(page.getByRole("heading", { name: `${una.name} v ${vic.name}`, level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Anyone who plays in it can enter the score.");
+  await page.getByRole("link", { name: "Enter score" }).click();
+
+  // One set of 6: 6–3, tapped in, on today's date.
+  await expect(page.getByRole("heading", { name: "Enter score", level: 1 })).toBeVisible();
+  const save = page.getByRole("button", { name: "Save score" });
+  await expect(save).toBeDisabled();
+  const tap = async (side: string, times: number) => {
+    const more = page.getByRole("group", { name: `Set, ${side}` }).getByRole("button", { name: "One more" });
+    for (let i = 0; i < times; i++) await more.click();
+  };
+  await tap(una.name, 6);
+  await tap(vic.name, 3);
+  await expect(page.getByLabel("Score so far")).toHaveText("6–3");
+  await expect(page.getByRole("status")).toHaveText(`${una.name} wins`);
+  await expectNoSeriousA11yViolations(page);
+  await save.click();
+
+  // Saved: the Match screen shows it, with who entered it, and the ladder has it.
+  await expect(page.getByRole("status").filter({ hasText: "Score saved" })).toBeVisible();
+  const score = page.getByRole("region", { name: "Score" });
+  await expect(score.getByRole("row").filter({ has: page.getByRole("rowheader") })).toHaveText([
+    new RegExp(`${una.name}.*6`),
+    new RegExp(`${vic.name}.*3`),
+  ]);
+  await expect(score).toContainText(`${una.name} won`);
+  await expect(score).toContainText(`entered by ${una.name}`);
+  await expect(score).toContainText("Played");
+  await expectNoSeriousA11yViolations(page);
+  await page.getByRole("link", { name: "Back to the ladder" }).click();
+  await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–3.*Played`)]);
+
+  // Vic, the other side, sees the same score, and nothing to enter.
+  const vicContext = await browser.newContext();
+  const vicPage = await vicContext.newPage();
+  await logIn(vicPage, testInfo, vic.email);
+  await vicPage.goto(page.url());
+  await vicPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
+  await expect(vicPage.getByRole("region", { name: "Score" })).toContainText(`entered by ${una.name}`);
+  await expect(vicPage.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+  await vicContext.close();
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {

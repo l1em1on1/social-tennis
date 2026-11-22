@@ -43,7 +43,7 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 - At 5–5 (or 8–8) the set goes to a tiebreak, first to 7 and 2 clear. The set is recorded as 6–5 (9–8) plus the tiebreak points, and the tiebreak row only appears at that score.
 - In best of 3, the third set only appears at one set all. Where the League allows it, it is a match tiebreak, first to 10 and 2 clear.
 - A retirement keeps the sets as they stood (incomplete is fine) and needs an explicit winner.
-- The date played must fall inside the month.
+- The date played must fall inside the month. **Built in #38 as:** from the Stage's first day to today in the Club's time zone, with no bound at the month's end, since a Stage stays open until it closes (ADR-0016).
 
 **Superseded by ADR-0031 (2026-11-21):** the ladder (P5), Start (M4) and Close (M6) screens show Divisions of 2 with a Bye. Divisions now hold about 4 Teams, everyone in a Division plays everyone, and there is no Bye.
 
@@ -59,8 +59,8 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 
 Feedback is ongoing: the wireframes are a living design, updated as screens are built and as the club reacts to them. Send people the published link and record what comes back in the table. The open questions are listed per screen in the notes panel; the main ones, still open:
 
-1. Which score entry variant: A, B, or C (or a mix)?
-2. The tiebreak rule for short sets: at 5–5 to 6–5, or at 6–6 to 7–6?
+1. Which score entry variant: A, B, or C (or a mix)? #38 builds A, the plainest reading of its ticket, until the club picks; changing it touches only `web/src/components/score-entry-form.tsx`.
+2. The tiebreak rule for short sets: at 5–5 to 6–5, or at 6–6 to 7–6? #38 builds 5–5 to 6–5, as CONTEXT.md (Set) has it.
 3. Home deadline: a date ("by 30 Nov") or a countdown ("9 days left")?
 4. Ladder: the whole ladder, or just your Division and the ones either side?
 5. Should a walkover need a reason?
