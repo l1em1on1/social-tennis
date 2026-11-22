@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
+import { StandingsTable } from "@/components/standings-table";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,8 +23,9 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
 
 /**
  * A League's ladder (#7, wireframe P5): every Division this Stage from the
- * top, each with its Teams and every Game between them (ADR-0031), with its
- * Score once entered and a link to its Match screen (#38). The Acting
+ * top, each with its Standings and who would move if the Stage closed now
+ * (#10), and every Game between its Teams (ADR-0031), with its Score once
+ * entered and a link to its Match screen (#38). The Acting
  * Player's Division is marked, with who they play, or it says they aren't on
  * the ladder. Only the League's Players and Managers see it: anyone else gets
  * a 404.
@@ -128,13 +130,12 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                 aside={ours ? <Badge tone="accent">You</Badge> : undefined}
                 className={cx(ours && "border-2 border-accent")}
               >
-                <ol aria-label={`Division ${division.number} Teams`} className="flex flex-col gap-1">
-                  {division.competitors.map((competitor) => (
-                    <li key={competitor.teamId} className={cx("break-words", isMe(competitor) ? "font-bold" : "font-medium")}>
-                      <span className="text-fg-muted">{competitor.position}.</span> {names(competitor)}
-                    </li>
-                  ))}
-                </ol>
+                <StandingsTable
+                  number={Number(division.number)}
+                  standings={division.standings}
+                  names={Object.fromEntries(division.competitors.map((competitor) => [competitor.teamId, names(competitor)]))}
+                  mine={division.competitors.filter(isMe).map((competitor) => competitor.teamId)}
+                />
                 <h3 className="mt-3 text-sm font-semibold">
                   Games <span className="font-normal text-fg-muted">· {division.games.length}</span>
                 </h3>

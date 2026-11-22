@@ -79,10 +79,10 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
     }
 
     /// <summary>Starts the League with these Teams, top first, in one Division, and the rest left out.</summary>
-    private static async Task StartAsync(HttpClient manager, Guid leagueId, Guid[] ladder, Guid[]? leftOut = null) =>
+    private static async Task StartAsync(HttpClient manager, Guid leagueId, Guid[] ladder, Guid[]? leftOut = null, int[]? divisions = null) =>
         (await manager.PostAsJsonAsync(
             $"/leagues/{leagueId}/start",
-            new { ladder, divisions = new[] { ladder.Length }, leftOut = leftOut ?? [], removed = Array.Empty<Guid>() }))
+            new { ladder, divisions = divisions ?? [ladder.Length], leftOut = leftOut ?? [], removed = Array.Empty<Guid>() }))
         .EnsureSuccessStatusCode();
 
     private static async Task<GetLeagueResponse> ManagedAsync(HttpClient manager, Guid leagueId) =>
@@ -601,5 +601,49 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
 
         var left = await db.ScoreChanges.Where(c => c.GameId == game.GameId).Select(c => new { c.Kind, c.ByPlayerId }).ToListAsync();
         Assert.Equal([(ScoreChangeKind.Entered, (Guid?)game.Una.PlayerId)], left.Select(c => (c.Kind, c.ByPlayerId)));
+    }
+
+    [Fact]
+    public async Task Each_Divisions_Standings_follow_its_Scores_and_say_who_would_move()
+    {
+        // Two Divisions of two: Ann over Bea, then Cal over Dee.
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bea", "Cal", "Dee" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        var teams = players.Select(p => TeamOf(league, p.PlayerId)).ToArray();
+        await StartAsync(manager, leagueId, teams, divisions: [2, 2]);
+        async Task<GetLeagueLadderResponse> LadderAsync() =>
+            (await players[0].Client.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
+        var before = await LadderAsync();
+
+        // Nothing played: level, and nobody moving yet.
+        Assert.All(before.Divisions, d => Assert.All(d.Standings, s => Assert.Equal((1, true, (StandingMove?)null), (s.Rank, s.Tied, s.Move))));
+
+        // Bea beats Ann in a Match Tiebreak; Cal beats Dee in straight sets.
+        var top = before.Divisions[0].Games.Single().Id;
+        var bottom = before.Divisions[1].Games.Single().Id;
+        (await SubmitAsync(players[1].Client, top, players[1].PlayerId, [Set(4, 6), Set(6, 3), Set(7, 10)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, bottom, players[2].PlayerId, [Set(6, 1), Set(6, 2)])).EnsureSuccessStatusCode();
+        var played = await LadderAsync();
+
+        var first = played.Divisions[0].Standings;
+        Assert.Equal([(teams[1], 1, StandingMove.Stays), (teams[0], 2, StandingMove.Down)], first.Select(s => (s.TeamId, s.Rank, s.Move)));
+        // The Match Tiebreak is one game: Bea 6+3+1 = 10 to Ann's 4+6+0 = 10.
+        Assert.Equal((1, 1, 0, 10, 10), (first[0].Played, first[0].Won, first[0].Lost, first[0].GamesFor, first[0].GamesAgainst));
+        Assert.Equal(
+            [(teams[2], StandingMove.Up), (teams[3], StandingMove.Stays)],
+            played.Divisions[1].Standings.Select(s => (s.TeamId, s.Move)));
+
+        // Corrected, Dee won: the Standings follow.
+        var version = (await GameAsync(players[2].Client, bottom)).Score!.Version;
+        (await CorrectAsync(players[3].Client, bottom, players[3].PlayerId, version, [Set(1, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        Assert.Equal(
+            [(teams[3], StandingMove.Up), (teams[2], StandingMove.Stays)],
+            (await LadderAsync()).Divisions[1].Standings.Select(s => (s.TeamId, s.Move)));
     }
 }

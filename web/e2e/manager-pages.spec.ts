@@ -93,7 +93,9 @@ test("a started League's ladder, from fixed data", async ({ page }, testInfo) =>
 
   await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
   const division = page.getByRole("region", { name: "Division 1" });
-  await expect(division.getByRole("list", { name: "Division 1 Teams" }).getByRole("listitem")).toHaveCount(3);
+  // Chris and Jo both won once; Chris by more games (#10). One Division, so nobody moves.
+  const standings = division.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings).toHaveText([/^1Chris Lee110\+2stays$/, /^2Jo Bennett211-1stays$/, /^3Alex Morgan101-1stays$/]);
   await expect(division.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
     /Jo Bennett v Alex Morgan/,
     /Jo Bennett v Chris Lee/,

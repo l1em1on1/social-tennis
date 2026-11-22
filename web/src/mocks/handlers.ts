@@ -3,6 +3,7 @@ import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
 import { DIVISION_SIZE, proposeDivisions } from "@/lib/league";
 import { checkScore, isMatchTiebreak, scoreFormat, type ScoreSet, type Side } from "@/lib/score";
+import { gamesOf, standingsOf } from "./standings";
 import {
   FIXTURE_ADMIN,
   FIXTURE_MANAGER,
@@ -945,9 +946,22 @@ export const handlers = [
     if (!league.stage) {
       return response(200).json({ ...facts, stage: null, divisions: [] });
     }
-    const divisions = ladderOf(league).map(({ number, competitors, games }) => ({
+    const ladder = ladderOf(league);
+    const format = scoreFormat(league.scoreFormat);
+    const divisions = ladder.map(({ number, competitors, games }) => ({
       number,
       competitors,
+      // As the API's Standings (#10), from the Scores so far.
+      standings: standingsOf(
+        competitors.map((competitor) => competitor.teamId),
+        games.map(({ id, firstTeamId, secondTeamId }) => {
+          const score = scores.get(id);
+          const [firstGames, secondGames] = score ? gamesOf(format, score.sets) : [0, 0];
+          return { first: firstTeamId, second: secondTeamId, result: score ? { winner: score.winner, firstGames, secondGames } : null };
+        }),
+        number,
+        ladder.length,
+      ),
       games: games.map(({ id, firstTeamId, secondTeamId }) => {
         const score = scores.get(id);
         return {
