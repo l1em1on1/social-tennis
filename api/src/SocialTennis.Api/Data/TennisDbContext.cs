@@ -188,6 +188,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
                 .OnDelete(DeleteBehavior.Cascade);
             score.ComplexCollection(s => s.Sets, sets => sets.ToJson());
             score.HasOne(s => s.SubmittedBy).WithMany().HasForeignKey(s => s.SubmittedById).OnDelete(DeleteBehavior.Restrict);
+            // Postgres's xmin, so no column to keep (ADR-0018; Npgsql docs, "Concurrency tokens").
+            score.Property(s => s.Version).IsRowVersion();
         });
         modelBuilder.Entity<ScoreChange>(change =>
         {
@@ -195,6 +197,7 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
                 .HasForeignKey(c => new { c.LeagueId, c.GameId })
                 .HasPrincipalKey(g => new { g.LeagueId, g.Id })
                 .OnDelete(DeleteBehavior.Cascade);
+            change.HasOne(c => c.ByUser).WithMany().HasForeignKey(c => c.ByUserId).OnDelete(DeleteBehavior.Restrict);
             change.HasOne(c => c.ByPlayer).WithMany().HasForeignKey(c => c.ByPlayerId).OnDelete(DeleteBehavior.Restrict);
             change.ComplexProperty(c => c.Before, before =>
             {

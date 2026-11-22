@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Data;
@@ -26,6 +27,9 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
     private static readonly int Year = ClockedTestFactory.Start.Year;
 
     private static readonly string Today = $"{Year}-07-11";
+
+    // xUnit makes a new instance per test: every test starts at the factory's start, whatever one before it moved.
+    private readonly DateTimeOffset start = factory.Clock.Now = ClockedTestFactory.Start;
 
     private static readonly object OneSetOf6 = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false };
 
@@ -357,5 +361,218 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Empty(seen.YourPlayerIds);
         Assert.Equal(["Una", "Vic"], seen.Sides.Select(side => side.Players.Single().Name));
         Assert.Equal((1, 1, 6, 1, false), (seen.Stage.Number, seen.Division, seen.ScoreFormat.GamesPerSet, seen.ScoreFormat.SetsPerGame, seen.ScoreFormat.MatchTiebreakDecider));
+    }
+
+    private static Task<HttpResponseMessage> CorrectAsync(
+        HttpClient client, Guid gameId, Guid playerId, uint version, object[] sets, string? playedOn = null, int? retirementWinner = null) =>
+        client.PutAsJsonAsync($"/games/{gameId}/score", new { playerId, playedOn = playedOn ?? Today, sets, retirementWinner, version });
+
+    private static Task<HttpResponseMessage> OverrideAsync(
+        HttpClient client, Guid gameId, uint version, object[] sets, string? playedOn = null, int? retirementWinner = null) =>
+        client.PutAsJsonAsync($"/games/{gameId}/score/override", new { playedOn = playedOn ?? Today, sets, retirementWinner, version });
+
+    private async Task CloseStageAsync(Guid leagueId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        await db.Stages.Where(s => s.LeagueId == leagueId).ExecuteUpdateAsync(set => set.SetProperty(s => s.ClosedAt, factory.Clock.Now));
+    }
+
+    private async Task<int> ChangesAsync(Guid gameId)
+    {
+        using var scope = factory.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<TennisDbContext>().ScoreChanges.CountAsync(c => c.GameId == gameId);
+    }
+
+    [Fact]
+    public async Task Either_Side_corrects_the_Score_and_every_change_is_kept_with_what_it_was()
+    {
+        var game = await SinglesAsync(BestOf3MatchTiebreak);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4), Set(6, 3)])).EnsureSuccessStatusCode();
+        var entered = (await GameAsync(game.Vic.Client, game.GameId)).Score!;
+
+        // Vic, the other Side, makes it three Sets, the third a Match Tiebreak he won.
+        factory.Clock.Now = start.AddHours(1);
+        var corrected = await CorrectAsync(
+            game.Vic.Client, game.GameId, game.Vic.PlayerId, entered.Version, [Set(6, 4), Set(3, 6), Set(7, 10)], $"{Year}-07-10");
+
+        Assert.Equal(HttpStatusCode.NoContent, corrected.StatusCode);
+        var afterVic = await GameAsync(game.Una.Client, game.GameId);
+        Assert.Equal((2, new DateOnly(Year, 7, 10), "Una"), (afterVic.Score!.Winner, afterVic.Score.PlayedOn, afterVic.Score.SubmittedBy));
+        Assert.Equal([false, false, true], afterVic.Score.Sets.Select(set => set.MatchTiebreak));
+        Assert.NotEqual(entered.Version, afterVic.Score.Version);
+
+        // Una cuts it back to the one Set played before a Retirement she says she won.
+        factory.Clock.Now = start.AddHours(2);
+        (await CorrectAsync(game.Una.Client, game.GameId, game.Una.PlayerId, afterVic.Score.Version, [Set(6, 4)], retirementWinner: 1))
+            .EnsureSuccessStatusCode();
+
+        var seen = await GameAsync(game.Wes.Client, game.GameId);
+        Assert.Equal((1, true), (seen.Score!.Winner, seen.Score.Retired));
+        Assert.Equal([(6, 4)], seen.Score.Sets.Select(set => (set.First, set.Second)));
+        // The latest first: who, when, and from what to what.
+        Assert.Equal(
+            [
+                (ScoreChangeKind.Corrected, "Una", start.AddHours(2), 3, 1),
+                (ScoreChangeKind.Corrected, "Vic", start.AddHours(1), 2, 3),
+                (ScoreChangeKind.Entered, "Una", start, 0, 2),
+            ],
+            seen.History.Select(c => (c.Kind, c.By!, c.At, c.Before?.Sets.Count ?? 0, c.After.Sets.Count)));
+        Assert.Equal((new DateOnly(Year, 7, 11), new DateOnly(Year, 7, 10)), (seen.History[1].Before!.PlayedOn, seen.History[1].After.PlayedOn));
+        Assert.Equal((false, true), (seen.History[0].Before!.Retired, seen.History[0].After.Retired));
+        Assert.Equal("Europe/London", seen.TimeZone);
+    }
+
+    [Fact]
+    public async Task A_correction_made_from_an_older_version_is_refused_and_changes_nothing()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var opened = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+        (await CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, opened, [Set(4, 6)])).EnsureSuccessStatusCode();
+
+        // Una saves what she opened before Vic's correction.
+        var stale = await CorrectAsync(game.Una.Client, game.GameId, game.Una.PlayerId, opened, [Set(6, 2)]);
+
+        Assert.Equal("score-changed", await ProblemTypeAsync(stale, HttpStatusCode.Conflict));
+        Assert.Equal(2, (await GameAsync(game.Una.Client, game.GameId)).Score!.Winner);
+        Assert.Equal(2, await ChangesAsync(game.GameId));
+    }
+
+    [Fact]
+    public async Task Two_corrections_from_the_same_version_at_once_save_one_and_refuse_the_other()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var opened = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+
+        var both = await Task.WhenAll(
+            CorrectAsync(game.Una.Client, game.GameId, game.Una.PlayerId, opened, [Set(6, 2)]),
+            CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, opened, [Set(2, 6)]));
+
+        Assert.Equal([HttpStatusCode.NoContent, HttpStatusCode.Conflict], both.Select(r => r.StatusCode).Order());
+        Assert.Equal(2, await ChangesAsync(game.GameId));
+    }
+
+    [Fact]
+    public async Task A_correction_that_says_what_the_Score_already_does_records_nothing()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var score = (await GameAsync(game.Una.Client, game.GameId)).Score!;
+
+        var same = await CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, score.Version, [Set(6, 4)]);
+
+        Assert.Equal(HttpStatusCode.NoContent, same.StatusCode);
+        Assert.Equal(1, await ChangesAsync(game.GameId));
+        Assert.Equal(score.Version, (await GameAsync(game.Una.Client, game.GameId)).Score!.Version);
+    }
+
+    [Fact]
+    public async Task Corrections_are_checked_like_entries()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+
+        var errors = await ErrorsAsync(await CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, version, [Set(6, 5)], $"{Year}-07-12"));
+
+        Assert.Equal(["A 6–5 set was won on a tiebreak at 5–5: enter its points."], errors["sets[0]"]);
+        Assert.Equal(["The date played can't be in the future."], errors["playedOn"]);
+        Assert.Equal(1, await ChangesAsync(game.GameId));
+    }
+
+    [Fact]
+    public async Task Only_a_Player_in_the_Game_corrects_a_Score_it_has()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        var sets = new[] { Set(6, 1) };
+
+        Assert.Equal("not-scored", await ProblemTypeAsync(await CorrectAsync(game.Una.Client, game.GameId, game.Una.PlayerId, 0, sets), HttpStatusCode.Conflict));
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+
+        Assert.Equal(
+            "not-in-game",
+            await ProblemTypeAsync(await CorrectAsync(game.Wes.Client, game.GameId, game.Wes.PlayerId, version, sets), HttpStatusCode.Forbidden));
+        Assert.Equal(HttpStatusCode.NotFound, (await CorrectAsync(game.Wes.Client, game.GameId, game.Una.PlayerId, version, sets)).StatusCode);
+        var outsider = await MemberAsync(game.Manager, game.ClubId, "Xan");
+        Assert.Equal(HttpStatusCode.NotFound, (await CorrectAsync(outsider.Client, game.GameId, outsider.PlayerId, version, sets)).StatusCode);
+        Assert.Equal(1, await ChangesAsync(game.GameId));
+    }
+
+    [Fact]
+    public async Task Once_the_Stage_closes_its_Players_cant_enter_or_correct_a_Score_and_a_Manager_overrides_it()
+    {
+        var scored = await SinglesAsync(OneSetOf6);
+        var unscored = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(scored.Una.Client, scored.GameId, scored.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(scored.Una.Client, scored.GameId)).Score!.Version;
+        factory.Clock.Now = start.AddDays(1);
+        await CloseStageAsync(scored.LeagueId);
+        await CloseStageAsync(unscored.LeagueId);
+
+        Assert.True((await GameAsync(scored.Una.Client, scored.GameId)).Stage.Closed);
+        Assert.Equal(
+            "stage-closed",
+            await ProblemTypeAsync(await CorrectAsync(scored.Vic.Client, scored.GameId, scored.Vic.PlayerId, version, [Set(4, 6)]), HttpStatusCode.Conflict));
+        Assert.Equal(
+            "stage-closed",
+            await ProblemTypeAsync(await SubmitAsync(unscored.Una.Client, unscored.GameId, unscored.Una.PlayerId, [Set(6, 1)]), HttpStatusCode.Conflict));
+
+        // The Manager, holding no Player, overrides it after the close.
+        factory.Clock.Now = start.AddDays(2);
+        var overridden = await OverrideAsync(scored.Manager, scored.GameId, version, [Set(4, 6)]);
+
+        Assert.Equal(HttpStatusCode.NoContent, overridden.StatusCode);
+        var seen = await GameAsync(scored.Una.Client, scored.GameId);
+        Assert.Equal(2, seen.Score!.Winner);
+        Assert.Equal((ScoreChangeKind.Overridden, (string?)null, start.AddDays(2)), (seen.History[0].Kind, seen.History[0].By, seen.History[0].At));
+        Assert.Equal(1, seen.History[0].Before!.Winner);
+
+        // A Manager holding Players is named by their first.
+        await scored.Manager.PostAsJsonAsync("/players", new { name = "Manny" });
+        factory.Clock.Now = start.AddDays(3);
+        (await OverrideAsync(scored.Manager, scored.GameId, seen.Score.Version, [Set(6, 0)])).EnsureSuccessStatusCode();
+        Assert.Equal("Manny", (await GameAsync(scored.Vic.Client, scored.GameId)).History[0].By);
+    }
+
+    [Fact]
+    public async Task Only_a_Manager_overrides_a_Score_the_Game_has_from_its_current_version()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        Assert.Equal("not-scored", await ProblemTypeAsync(await OverrideAsync(game.Manager, game.GameId, 0, [Set(6, 1)]), HttpStatusCode.Conflict));
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(game.Una.Client, game.GameId)).Score!.Version;
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await OverrideAsync(game.Una.Client, game.GameId, version, [Set(6, 1)])).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await OverrideAsync(game.Manager, Guid.NewGuid(), version, [Set(6, 1)])).StatusCode);
+        Assert.Equal(
+            ["The date played can't be in the future."],
+            (await ErrorsAsync(await OverrideAsync(game.Manager, game.GameId, version, [Set(6, 1)], $"{Year}-07-12")))["playedOn"]);
+        (await CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, version, [Set(4, 6)])).EnsureSuccessStatusCode();
+        Assert.Equal(
+            "score-changed",
+            await ProblemTypeAsync(await OverrideAsync(game.Manager, game.GameId, version, [Set(6, 1)]), HttpStatusCode.Conflict));
+        Assert.Equal(2, await ChangesAsync(game.GameId));
+    }
+
+    [Fact]
+    public async Task The_migration_gives_each_entry_so_far_the_User_who_holds_its_Player()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        var unasUser = await db.Players.Where(p => p.Id == game.Una.PlayerId).Select(p => p.UserId).SingleAsync();
+        var someoneElse = await db.Players.Where(p => p.Id == game.Vic.PlayerId).Select(p => p.UserId).SingleAsync();
+        await db.ScoreChanges.Where(c => c.GameId == game.GameId).ExecuteUpdateAsync(set => set.SetProperty(c => c.ByUserId, someoneElse));
+
+        foreach (var sql in new SocialTennis.Api.Migrations.ScoreCorrections().UpOperations.OfType<SqlOperation>().Select(o => o.Sql))
+        {
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        Assert.Equal(unasUser, await db.ScoreChanges.Where(c => c.GameId == game.GameId).Select(c => c.ByUserId).SingleAsync());
     }
 }

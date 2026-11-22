@@ -7,10 +7,12 @@ namespace SocialTennis.Api.Features.Games.Contracts;
 /// <param name="Winner">The Side that won, 1 or 2: from the Sets, or as declared for a Retirement.</param>
 /// <param name="Retired">The Game ended early: the Sets are as they stood.</param>
 /// <param name="SubmittedBy">The name of the Player who entered it.</param>
+/// <param name="Version">What a correction or an override sends back, so a stale one is refused (ADR-0018).</param>
 public record GameScore(
     DateOnly PlayedOn,
     IReadOnlyList<SetScore> Sets,
     int Winner,
     bool Retired,
     string SubmittedBy,
-    DateTimeOffset SubmittedAt);
+    DateTimeOffset SubmittedAt,
+    uint Version);

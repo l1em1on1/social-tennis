@@ -3,6 +3,7 @@
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
+import { Client } from "pg";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -646,14 +647,63 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await page.getByRole("link", { name: "Back to the ladder" }).click();
   await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–3.*Played`)]);
 
-  // Vic, the other side, sees the same score, and nothing to enter.
+  // Vic, the other side, sees the same score, and corrects it to 6–4: the history keeps both.
+  const ladderUrl = page.url();
   const vicContext = await browser.newContext();
   const vicPage = await vicContext.newPage();
   await logIn(vicPage, testInfo, vic.email);
-  await vicPage.goto(page.url());
+  await vicPage.goto(ladderUrl);
   await vicPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
+  const matchUrl = vicPage.url();
   await expect(vicPage.getByRole("region", { name: "Score" })).toContainText(`entered by ${una.name}`);
   await expect(vicPage.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+  await vicPage.getByRole("link", { name: "Correct the score" }).click();
+  await expect(vicPage.getByRole("heading", { name: "Correct the score", level: 1 })).toBeVisible();
+  await expect(vicPage.getByLabel("Score so far")).toHaveText("6–3");
+  await vicPage.getByRole("group", { name: `Set, ${vic.name}` }).getByRole("button", { name: "One more" }).click();
+  await expect(vicPage.getByLabel("Score so far")).toHaveText("6–4");
+  await vicPage.getByRole("button", { name: "Save correction" }).click();
+  await expect(vicPage.getByRole("status").filter({ hasText: "Correction saved" })).toBeVisible();
+  await expect(vicPage.getByRole("list", { name: "Changes to the score" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${vic.name} corrected it .*6–3 · ${una.name} won.*6–4 · ${una.name} won`),
+    new RegExp(`${una.name} entered it`),
+  ]);
+  await expectNoSeriousA11yViolations(vicPage);
+
+  if (testInfo.project.name === "real") {
+    // The Stage closes (#10 will do it; here, straight in the database): Vic can't change it, the Manager can.
+    const leagueId = new URL(ladderUrl).pathname.split("/").pop();
+    const db = new Client({ connectionString: process.env.DATABASE_URL });
+    await db.connect();
+    try {
+      await db.query(`UPDATE "Stages" SET "ClosedAt" = now() WHERE "LeagueId" = $1`, [leagueId]);
+    } finally {
+      await db.end();
+    }
+    await vicPage.goto(matchUrl);
+    await expect(vicPage.getByRole("note")).toContainText("Stage 1 is closed. This score can't be changed any more.");
+    await expect(vicPage.getByRole("link", { name: "Correct the score" })).toHaveCount(0);
+
+    const managerAgain = await browser.newContext();
+    const managerPage = await managerAgain.newPage();
+    await logIn(managerPage, testInfo, personaEmail(testInfo, "manager"));
+    await managerPage.goto(matchUrl);
+    await managerPage.getByRole("link", { name: "Override score (manager)" }).click();
+    await expect(managerPage.getByRole("heading", { name: "Override the score", level: 1 })).toBeVisible();
+    // 6–4 becomes 4–6: Vic's win.
+    for (let i = 0; i < 2; i++) {
+      await managerPage.getByRole("group", { name: `Set, ${una.name}` }).getByRole("button", { name: "One less" }).click();
+      await managerPage.getByRole("group", { name: `Set, ${vic.name}` }).getByRole("button", { name: "One more" }).click();
+    }
+    await expect(managerPage.getByLabel("Score so far")).toHaveText("4–6");
+    await managerPage.getByRole("button", { name: "Save override" }).click();
+    await expect(managerPage.getByRole("status").filter({ hasText: "Override saved" })).toBeVisible();
+    await expect(managerPage.getByRole("list", { name: "Changes to the score" }).getByRole("listitem").first()).toContainText(
+      `overrode it`,
+    );
+    await expect(managerPage.getByRole("region", { name: "Score" })).toContainText(`${vic.name} won`);
+    await managerAgain.close();
+  }
   await vicContext.close();
 });
 

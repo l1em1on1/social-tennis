@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
+import { entryOf } from "@/lib/score";
 import { ScoreEntryForm } from "./score-entry-form";
 
 const oneSetOf6 = { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false };
@@ -128,5 +129,38 @@ export const Impossible: Story = {
     await expect(within(canvas.getByRole("region", { name: "Set" })).getByText("6–6 can't happen: at 5–5 the set goes to a tiebreak.")).toBeVisible();
     await expect(more(canvas, "Set, Ben Carter")).toBeDisabled();
     await expect(save(canvas)).toBeDisabled();
+  },
+};
+
+/** Correcting a Score: it opens as recorded, a 6–5 on a tiebreak included, and saves as a correction. */
+export const Correcting: Story = {
+  args: {
+    mode: "correct",
+    version: 7,
+    format: bestOf3MatchTiebreak,
+    initial: { sets: [entryOf({ first: 6, second: 5, firstTiebreak: 7, secondTiebreak: 4 }), set(3, 6), set(10, 7)], playedOn: "2026-11-12" },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByLabelText("Score so far")).toHaveTextContent("6–5(4) 3–6 [10–7]");
+    await expect(canvas.getByLabelText("Date played")).toHaveValue("2026-11-12");
+    await expect(verdict(canvas)).toHaveTextContent("Ben Carter wins");
+    await expect(canvas.getByRole("button", { name: "Save correction" })).toBeEnabled();
+  },
+};
+
+/** A Manager overriding a Retirement: it opens with its winner picked. */
+export const Overriding: Story = {
+  args: {
+    mode: "override",
+    playerId: undefined,
+    version: 7,
+    format: bestOf3,
+    initial: { sets: [set(6, 4), set(2, 1)], retirementWinner: 2 },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("switch", { name: /Stopped early/ })).toBeChecked();
+    await expect(canvas.getByRole("radio", { name: "Dev Shah" })).toBeChecked();
+    await expect(verdict(canvas)).toHaveTextContent("Dev Shah wins (retirement)");
+    await expect(canvas.getByRole("button", { name: "Save override" })).toBeEnabled();
   },
 };

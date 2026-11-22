@@ -24,6 +24,13 @@ public class Stage
 
     public DateTimeOffset OpenedAt { get; set; }
 
+    /// <summary>
+    /// When the Stage closed (#10); none while it is open. Players' Scores are
+    /// editable until then, whatever the date: the lock follows this, never
+    /// <see cref="EndDate"/> (ADR-0016). A Manager can still override after.
+    /// </summary>
+    public DateTimeOffset? ClosedAt { get; set; }
+
     public List<LadderPlace> Places { get; set; } = [];
 
     public List<Game> Games { get; set; } = [];

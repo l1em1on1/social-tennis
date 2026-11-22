@@ -524,8 +524,24 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        put: operations["CorrectScore"];
         post: operations["SubmitScore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{gameId}/score/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["OverrideScore"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -599,6 +615,17 @@ export interface components {
             id: string;
             name: string;
         };
+        CorrectScoreRequest: {
+            /** Format: uuid */
+            playerId: string;
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["ScoreSet"][];
+            /** Format: int32 */
+            retirementWinner: null | number | string;
+            /** Format: uint32 */
+            version: number | string;
+        };
         CreateClubRequest: {
             name: string;
         };
@@ -652,6 +679,8 @@ export interface components {
             submittedBy: string;
             /** Format: date-time */
             submittedAt: string;
+            /** Format: uint32 */
+            version: number | string;
         };
         GameSideSummary: {
             /** Format: int32 */
@@ -667,6 +696,7 @@ export interface components {
             startDate: string;
             /** Format: date */
             endDate: string;
+            closed: boolean;
         };
         GetClubLeaguesResponse: {
             leagues: components["schemas"]["ClubLeague"][];
@@ -701,7 +731,9 @@ export interface components {
             division: number | string;
             sides: components["schemas"]["GameSideSummary"][];
             score: null | components["schemas"]["GameScore"];
+            history: components["schemas"]["ScoreHistoryEntry"][];
             yourPlayerIds: string[];
+            timeZone: string;
             /** Format: date */
             today: string;
         };
@@ -895,6 +927,15 @@ export interface components {
         MagicLinkRequest: {
             email: string;
         };
+        OverrideScoreRequest: {
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["ScoreSet"][];
+            /** Format: int32 */
+            retirementWinner: null | number | string;
+            /** Format: uint32 */
+            version: number | string;
+        };
         PageInfo: {
             /** Format: int32 */
             total: number | string;
@@ -1007,12 +1048,22 @@ export interface components {
         RenameLeagueRequest: {
             name: string;
         };
+        /** @enum {unknown} */
+        ScoreChangeKind: "Entered" | "Corrected" | "Overridden";
         ScoreFormat: {
             /** Format: int32 */
             gamesPerSet: number | string;
             /** Format: int32 */
             setsPerGame: number | string;
             matchTiebreakDecider: boolean;
+        };
+        ScoreHistoryEntry: {
+            kind: components["schemas"]["ScoreChangeKind"];
+            by: null | string;
+            /** Format: date-time */
+            at: string;
+            before: null | components["schemas"]["ScoreSnapshot"];
+            after: components["schemas"]["ScoreSnapshot"];
         };
         ScoreSet: {
             /** Format: int32 */
@@ -1023,6 +1074,14 @@ export interface components {
             firstTiebreak: null | number | string;
             /** Format: int32 */
             secondTiebreak: null | number | string;
+        };
+        ScoreSnapshot: {
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["SetScore"][];
+            /** Format: int32 */
+            winner: number | string;
+            retired: boolean;
         };
         SetPlayerRatingRequest: {
             /** Format: int32 */
@@ -2801,6 +2860,73 @@ export interface operations {
             };
         };
     };
+    CorrectScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     SubmitScore: {
         parameters: {
             query?: never;
@@ -2813,6 +2939,73 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SubmitScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    OverrideScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverrideScoreRequest"];
             };
         };
         responses: {

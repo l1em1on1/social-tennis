@@ -655,31 +655,45 @@ export interface SubmitScoreState {
   errors: Record<string, string[]>;
 }
 
-/** A whole number from a form field, or null when it's blank or isn't one. */
-function wholeNumber(value: FormDataEntryValue | null): number | null {
-  return typeof value === "string" && /^\d{1,3}$/.test(value) ? Number(value) : null;
+/** A whole number of up to `digits` digits from a form field, or null when it's blank or isn't one. */
+function wholeNumber(value: FormDataEntryValue | null | undefined, digits = 3): number | null {
+  return typeof value === "string" && new RegExp(`^\\d{1,${digits}}$`).test(value) ? Number(value) : null;
 }
 
+/** Where the Match screen explains a refusal it was sent back with (#38). */
+const SCORE_REFUSALS: Record<string, string> = {
+  "already-scored": "already-scored",
+  "stage-closed": "stage-closed",
+  "not-scored": "not-scored",
+};
+
 /**
- * A Player who played a Game enters its Score (#38), as the Acting Player the
- * form names. A refusal of the Score comes back as the API's own messages, which
- * the form shows by the field they name; a Game already scored, or one the
- * Player isn't in, sends them back to its Match screen to see why.
+ * A Score from the score form (#38): entered by a Player who played the Game,
+ * corrected by one while the Stage is open, or overridden by a Manager. A
+ * refusal of the Score itself comes back as the API's own messages, which the
+ * form shows by the field they name. A Score changed since the form opened
+ * reopens the form with it as it is now (ADR-0018); any other refusal sends
+ * them back to the Match screen to see why.
  */
 export async function submitScore(_previous: SubmitScoreState, formData: FormData): Promise<SubmitScoreState> {
   const gameId = formData.get("gameId");
+  const mode = formData.get("mode") ?? "enter";
   const playerId = formData.get("playerId");
+  const version = wholeNumber(formData.get("version"), 10);
   const playedOn = formData.get("playedOn");
-  const firsts = formData.getAll("first").map(wholeNumber);
-  const seconds = formData.getAll("second").map(wholeNumber);
+  const firsts = formData.getAll("first").map((value) => wholeNumber(value));
+  const seconds = formData.getAll("second").map((value) => wholeNumber(value));
   const firstTiebreaks = formData.getAll("firstTiebreak");
   const secondTiebreaks = formData.getAll("secondTiebreak");
   const winner = formData.get("retirementWinner");
   const invalid = { errors: { form: ["Some of the values weren't ones this form offers. Reload and try again."] } };
-  if (!isId(gameId) || !isId(playerId) || typeof playedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(playedOn)) {
+  if (!isId(gameId) || typeof playedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(playedOn)) {
     return invalid;
   }
   if (
+    (mode !== "enter" && mode !== "correct" && mode !== "override") ||
+    (mode !== "override" && !isId(playerId)) ||
+    (mode !== "enter" && version === null) ||
     firsts.length !== seconds.length ||
     firstTiebreaks.length !== firsts.length ||
     secondTiebreaks.length !== firsts.length ||
@@ -690,31 +704,38 @@ export async function submitScore(_previous: SubmitScoreState, formData: FormDat
     return invalid;
   }
 
+  const entry = {
+    playedOn,
+    sets: firsts.map((first, index) => ({
+      first: first!,
+      second: seconds[index]!,
+      firstTiebreak: wholeNumber(firstTiebreaks[index]),
+      secondTiebreak: wholeNumber(secondTiebreaks[index]),
+    })),
+    retirementWinner: winner === null ? null : Number(winner),
+  };
   const api = await apiWithSession();
-  const { error, response } = await api.POST("/games/{gameId}/score", {
-    params: { path: { gameId } },
-    body: {
-      playerId,
-      playedOn,
-      sets: firsts.map((first, index) => ({
-        first: first!,
-        second: seconds[index]!,
-        firstTiebreak: wholeNumber(firstTiebreaks[index]),
-        secondTiebreak: wholeNumber(secondTiebreaks[index]),
-      })),
-      retirementWinner: winner === null ? null : Number(winner),
-    },
-  });
+  const path = { params: { path: { gameId } } };
+  const { error, response } =
+    mode === "enter"
+      ? await api.POST("/games/{gameId}/score", { ...path, body: { ...entry, playerId: playerId as string } })
+      : mode === "correct"
+        ? await api.PUT("/games/{gameId}/score", { ...path, body: { ...entry, playerId: playerId as string, version: version! } })
+        : await api.PUT("/games/{gameId}/score/override", { ...path, body: { ...entry, version: version! } });
   if (response.status === 400 && error && "errors" in error) {
     return { errors: (error.errors ?? {}) as Record<string, string[]> };
   }
+  const refusal = error && "type" in error && typeof error.type === "string" ? error.type : null;
+  if (refusal === "score-changed") {
+    redirect(`/games/${gameId}/score?changed=1`);
+  }
   if (response.status === 403 || response.status === 409) {
-    redirect(`/games/${gameId}?refused=${response.status === 403 ? "not-in-game" : "already-scored"}`);
+    redirect(`/games/${gameId}?refused=${(refusal && SCORE_REFUSALS[refusal]) ?? "not-in-game"}`);
   }
   if (!response.ok && response.status !== 404) {
-    throw new Error(`POST /games/${gameId}/score failed with ${response.status}`);
+    throw new Error(`Saving the score of game ${gameId} failed with ${response.status}`);
   }
   // The ladder, the Leagues list and the Match screen all show it.
   revalidatePath("/", "layout");
-  redirect(`/games/${gameId}${response.ok ? "?entered=1" : ""}`);
+  redirect(`/games/${gameId}${response.ok ? `?saved=${mode}` : ""}`);
 }
