@@ -3,7 +3,7 @@
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
-import { logIn, personaEmail, uniqueName } from "./support/auth";
+import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
 /** On Manage: adds a Player to the first Club for an email nobody has signed in with yet. */
@@ -544,6 +544,18 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   ]);
   await expect(page.getByRole("list", { name: "Ladder" })).not.toContainText(wes.name);
   await expectNoSeriousA11yViolations(page);
+
+  // Another Player on Una's login, not in this League: switching to them says so, rather than "not on the ladder".
+  const ladderPage = page.url();
+  const child = uniqueName(testInfo, "Una's Child");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profiles" }).click();
+  await addAnotherPlayer(page, child);
+  await page.goto(ladderPage);
+  await page.getByRole("button", { name: /switch player/ }).click();
+  await page.getByRole("dialog", { name: "Play as" }).getByRole("button", { name: child }).click();
+  await expect(page.getByTestId("acting-player")).toHaveText(child);
+  await expect(page.getByRole("status")).toContainText(`${child} isn't in this league.`);
+  await expect(page.getByText("isn't on the ladder")).toHaveCount(0);
 
   const xanContext = await browser.newContext();
   const xanPage = await xanContext.newPage();

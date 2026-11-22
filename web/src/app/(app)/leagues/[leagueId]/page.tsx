@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -69,6 +70,13 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
   }
 
   const me = viewer.actingPlayer?.id;
+  // The API lets in a login with any of its Players in the League; the Acting Player
+  // may be another of them (a parent switched to a child who isn't in it).
+  const actingInLeague = viewer.actingPlayer
+    ? (
+        await api.GET("/players/{playerId}/leagues", { params: { path: { playerId: viewer.actingPlayer.id } } })
+      ).data?.leagues.some((league) => league.id === ladder.id && league.joined)
+    : false;
   const isMe = (competitor: Competitor) => competitor.players.some((player) => player.playerId === me);
   const mine = ladder.divisions.find((division) => division.competitors.some(isMe));
   const opponents = mine?.competitors.filter((competitor) => !isMe(competitor)).map(names) ?? [];
@@ -90,12 +98,18 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
           You&apos;re in <strong>Division {mine.number}</strong>. You play <strong>{list}</strong> by {formatDate(stage.endDate)}:
           arrange each game between you.
         </p>
+      ) : actingInLeague ? (
+        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+          {viewer.actingPlayer?.name} isn&apos;t on the ladder this Stage. Ask the manager if that&apos;s a mistake.
+        </p>
       ) : (
-        // A Player sees the ladder only for a League they're in; a Manager may be looking at anyone's.
-        viewer.actingPlayer &&
-        !viewer.roles.includes("Manager") && (
+        // Not in this League: another of the login's Players is, or a Manager is looking.
+        viewer.actingPlayer && (
           <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
-            {viewer.actingPlayer.name} isn&apos;t on the ladder this Stage. Ask the manager if that&apos;s a mistake.
+            {viewer.actingPlayer.name} isn&apos;t in this league.{" "}
+            <Link href="/leagues" className="font-medium text-accent underline">
+              See {viewer.actingPlayer.name}&apos;s leagues
+            </Link>
           </p>
         )
       )}

@@ -83,7 +83,8 @@ export async function addAnotherPlayer(page: Page, name: string) {
   const sheet = page.getByRole("dialog", { name: "Add a player" });
   await sheet.getByLabel("Name").fill(name);
   await sheet.getByRole("button", { name: "Add player" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
+  // .first(): a Player already in a Club lists it in a nested item that names them too.
+  await expect(page.getByRole("listitem").filter({ hasText: name }).first()).toBeVisible();
 }
 
 /**
