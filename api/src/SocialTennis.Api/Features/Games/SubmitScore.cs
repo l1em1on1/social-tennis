@@ -63,15 +63,12 @@ public static class SubmitScore
 
         if (!game.Plays)
         {
-            return TypedResults.Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                type: "not-in-game",
-                title: "Only a Player in this game can enter its score.");
+            return GameScores.NotInGame();
         }
 
         if (game.Scored)
         {
-            return AlreadyScored();
+            return GameScores.AlreadyScored();
         }
 
         var errors = new Dictionary<string, string[]>();
@@ -126,15 +123,9 @@ public static class SubmitScore
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // Another Player entered it between the check above and this save: the Score is keyed by its Game.
-            return AlreadyScored();
+            return GameScores.AlreadyScored();
         }
 
         return TypedResults.NoContent();
     }
-
-    private static ProblemHttpResult AlreadyScored() =>
-        TypedResults.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            type: "already-scored",
-            title: "This game already has a score.");
 }

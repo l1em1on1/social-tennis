@@ -198,13 +198,23 @@ export interface SetEntry {
 
 export const emptySet = (): SetEntry => ({ first: 0, second: 0, firstPoints: 0, secondPoints: 0 });
 
-/** Whether the entry is at the tiebreak score, so its points are asked for. */
-export const atTiebreak = (format: ScoreFormat, entry: SetEntry, index: number) =>
-  !isMatchTiebreak(format, index) && entry.first === format.gamesPerSet - 1 && entry.second === format.gamesPerSet - 1;
+/**
+ * Whether the entry is at the tiebreak score, so its points are asked for:
+ * 5–5 as played, or 6–5 either way as it's recorded, which is how a Player
+ * stepping up to the final score gets there.
+ */
+export function atTiebreak(format: ScoreFormat, entry: SetEntry, index: number): boolean {
+  const games = format.gamesPerSet;
+  const high = Math.max(entry.first, entry.second);
+  const low = Math.min(entry.first, entry.second);
+  return !isMatchTiebreak(format, index) && low === games - 1 && (high === games - 1 || high === games);
+}
 
 /**
  * The entry as recorded: a finished tiebreak at 5–5 makes the Set 6–5 to its
  * winner, with the points; an unfinished one keeps 5–5 and any points so far.
+ * At 6–5 the points go with the games as they are, and the rules say whether
+ * the tiebreak's winner won the Set.
  */
 export function recordedSet(format: ScoreFormat, entry: SetEntry, index: number): ScoreSet {
   if (!atTiebreak(format, entry, index)) {
@@ -213,6 +223,9 @@ export function recordedSet(format: ScoreFormat, entry: SetEntry, index: number)
   const { firstPoints, secondPoints } = entry;
   if (firstPoints === 0 && secondPoints === 0) {
     return { first: entry.first, second: entry.second, firstTiebreak: null, secondTiebreak: null };
+  }
+  if (entry.first !== entry.second) {
+    return { first: entry.first, second: entry.second, firstTiebreak: firstPoints, secondTiebreak: secondPoints };
   }
   const finished = race(Math.max(firstPoints, secondPoints), Math.min(firstPoints, secondPoints), TIEBREAK_POINTS, "tiebreak") === null;
   const games = format.gamesPerSet;

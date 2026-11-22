@@ -107,12 +107,25 @@ export const Retirement: Story = {
   },
 };
 
-/** 6–5 is only reached by a tiebreak at 5–5, so the set says so in red; the steppers stop at 6, so 7–5 can't be entered. */
+/** Stepping up to the final 6–5 asks for the tiebreak's points there too (#212 review): no need to go back to 5–5. */
+export const TiebreakEnteredAsSixFive: Story = {
+  args: { initial: { sets: [set(6, 4)] } },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(more(canvas, "Set, Dev Shah"));
+    await expect(within(canvas.getByRole("region", { name: "Set" })).getByText(/won on a tiebreak at 5–5: enter its points/)).toBeVisible();
+    for (let point = 0; point < 7; point++) await userEvent.click(more(canvas, "Set tiebreak, Ben Carter"));
+    for (let point = 0; point < 4; point++) await userEvent.click(more(canvas, "Set tiebreak, Dev Shah"));
+    await expect(canvas.getByLabelText("Score so far")).toHaveTextContent("6–5(4)");
+    await expect(verdict(canvas)).toHaveTextContent("Ben Carter wins");
+    await expect(save(canvas)).toBeEnabled();
+  },
+};
+
+/** 6–6 can't happen in sets of 6: the set says so in red, and the steppers stop at 6. */
 export const Impossible: Story = {
-  args: { initial: { sets: [set(6, 5)] } },
+  args: { initial: { sets: [set(6, 6)] } },
   play: async ({ canvas }) => {
-    await expect(canvas.queryByText("Tiebreak points")).not.toBeInTheDocument();
-    await expect(within(canvas.getByRole("region", { name: "Set" })).getByText(/won on a tiebreak at 5–5/)).toBeVisible();
+    await expect(within(canvas.getByRole("region", { name: "Set" })).getByText("6–6 can't happen: at 5–5 the set goes to a tiebreak.")).toBeVisible();
     await expect(more(canvas, "Set, Ben Carter")).toBeDisabled();
     await expect(save(canvas)).toBeDisabled();
   },

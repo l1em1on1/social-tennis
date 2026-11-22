@@ -154,7 +154,7 @@ export function ScoreEntryForm({ gameId, playerId, sides, format, stageStart, to
             {atTiebreak(format, entry, index) && (
               <div className="flex flex-col gap-3 rounded-xl bg-surface-muted p-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  Tiebreak points <Badge tone="accent">{`${format.gamesPerSet - 1}–${format.gamesPerSet - 1}`}</Badge>
+                  Tiebreak points <Badge tone="accent">{`at ${format.gamesPerSet - 1}–${format.gamesPerSet - 1}`}</Badge>
                 </p>
                 {sides.map((name, side) => (
                   <div key={side} className="flex items-center justify-between gap-3">
