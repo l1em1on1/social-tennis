@@ -131,7 +131,7 @@ The web UI is built on one foundation (ADR-0014), so feature tickets add screens
   - **The Start screen** (`components/league-start-form.tsx`).
     - It shows each Division with its Teams and Games.
     - Up and down buttons reorder Teams, across a Division's line too.
-    - "Up one" and "Down one" move the line between two Divisions, never leaving one under 2.
+    - Arrows on the line between two Divisions (▲ ▼, "Move line") move it a Team up or down, never leaving a Division under 2.
     - It can make more or fewer Divisions, each re-split evenly.
     - Teams can be left out, which re-splits the same number of Divisions, and are listed apart to put back.
     - There is no Bye.

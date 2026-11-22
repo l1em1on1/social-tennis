@@ -204,6 +204,7 @@ export function LeagueStartForm({
                         variant="ghost"
                         aria-label={`Leave out ${name}`}
                         onClick={() => leaveOut(teamId)}
+                        className="w-28 whitespace-nowrap"
                       >
                         Leave out
                       </Button>
@@ -213,24 +214,31 @@ export function LeagueStartForm({
               })}
             </ol>
             {division < sizes.length - 1 && (
-              <div className="flex flex-wrap items-center gap-1 border-t border-dashed border-border-strong pt-2">
-                <span className="text-sm text-fg-muted">Line under Division {division + 1}:</span>
+              // The line between two Divisions, on one row: arrows move it, as they move a Team,
+              // in the Teams' arrow column, with its label where their Leave out sits.
+              <div className="flex items-center gap-1 pt-1">
+                <span aria-hidden="true" className="mr-1 flex-1 border-t border-dashed border-border-strong" />
                 <Button
                   id={`line-up-${division + 1}`}
-                  variant="ghost"
+                  variant="secondary"
+                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} up`}
                   disabled={size <= 2}
                   onClick={() => moveLine(division + 1, "up")}
+                  className="px-3"
                 >
-                  Up one
+                  ▲
                 </Button>
                 <Button
                   id={`line-down-${division + 1}`}
-                  variant="ghost"
+                  variant="secondary"
+                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} down`}
                   disabled={sizes[division + 1] <= 2}
                   onClick={() => moveLine(division + 1, "down")}
+                  className="px-3"
                 >
-                  Down one
+                  ▼
                 </Button>
+                <span className="w-28 text-center text-sm whitespace-nowrap text-fg-muted">Move line</span>
               </div>
             )}
           </section>

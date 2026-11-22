@@ -34,11 +34,14 @@ export const Proposed: Story = {
   },
 };
 
-/** Moving the line under Division 1 down gives it a fourth Team from Division 2; the button keeps focus. */
+/** Moving the line between Divisions 1 and 2 down gives Division 1 a fourth Team; Division 2 can't go under 2, so its arrow turns off. */
 export const LineMoved: Story = {
   play: async ({ canvas, userEvent }) => {
     // Division 2 has 3, so it can give one: 4, 2 and 4.
-    await userEvent.click(canvas.getAllByRole("button", { name: "Down one" })[0]);
+    const down = canvas.getByRole("button", { name: "Move the line between Division 1 and 2 down" });
+    await userEvent.click(down);
+    await expect(down).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Move the line between Division 1 and 2 up" })).toHaveFocus();
     await expect([1, 2, 3].map((n) => division(canvas, n).length)).toEqual([4, 2, 4]);
     await expect(canvas.getByRole("status")).toHaveTextContent("Division 1 now has 4, Division 2 has 2.");
   },
