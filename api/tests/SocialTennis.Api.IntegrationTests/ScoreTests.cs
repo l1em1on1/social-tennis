@@ -10,6 +10,7 @@ using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Games.Contracts;
+using SocialTennis.Api.Features.Leagues;
 using SocialTennis.Api.Features.Leagues.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
 using SocialTennis.Api.Jobs;
@@ -1056,5 +1057,31 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             Assert.Equal(1, (int)ladder.Stage!.Number);
             Assert.True(ladder.HeldUp);
         }
+    }
+
+    [Fact]
+    public async Task A_close_that_doesnt_order_ties_is_refused_a_tie_it_finds_under_the_locks()
+    {
+        // As if a correction tied Division 2 after the job read its Standings: the job's close mustn't order the tie (#218 review).
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync(stageRoll: "Automatic");
+        var ladder = await LadderOfAsync(manager, leagueId);
+        (await SubmitAsync(players[1].Client, ladder.Divisions[0].Games.Single().Id, players[1].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        (await VoidAsync(manager, ladder.Divisions[1].Games.Single().Id)).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+
+        var result = await StageClose.CloseAsync(
+            db,
+            leagueId,
+            [[teams[1], teams[0]], [teams[2], teams[3]]],
+            [],
+            new DateOnly(Year, 8, 1),
+            new DateOnly(Year, 8, 31),
+            factory.Clock,
+            CancellationToken.None,
+            ordersTies: false);
+
+        Assert.Equal(CloseRefusal.TiesOpen, result.Refusal);
+        Assert.False((await GameAsync(players[0].Client, ladder.Divisions[0].Games.Single().Id)).Stage.Closed);
     }
 }
