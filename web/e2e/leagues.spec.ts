@@ -46,7 +46,7 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   await createLeague(manager, league);
   await expect(manager.getByRole("status")).toContainText(`${league} is created`);
   await expect(manager.getByText("One set of 6, tiebreak at 5–5")).toBeVisible();
-  await expect(manager.getByText("Divisional · calendar month Stages · Manager closes")).toBeVisible();
+  await expect(manager.getByText("Divisional · Divisions of 4 · calendar month Stages · Manager closes")).toBeVisible();
   await expectNoSeriousA11yViolations(manager);
 
   // The Player, signing in with the email the Manager used, finds it to join.
@@ -146,10 +146,17 @@ test("the League setup form keeps to the rules the API enforces", async ({ page 
   await knockout.check({ force: true });
   await expect(page.getByRole("option", { name: "Foursomes" })).toBeDisabled();
 
-  // Roll mode is a Divisional League's only.
+  // Roll mode, and Teams per Division (ADR-0031), are a Divisional League's only.
+  const divisionSize = page.getByLabel("Teams per Division");
   await expect(page.getByRole("group", { name: "When a Stage ends" })).toHaveCount(0);
+  await expect(divisionSize).toHaveCount(0);
   await page.getByRole("radio", { name: "Divisional ladder" }).check({ force: true });
   await expect(page.getByRole("group", { name: "When a Stage ends" })).toBeVisible();
+  await expect(divisionSize).toHaveValue("4");
+  // Foursomes' Divisions are always 4 Players.
+  await page.getByLabel("Type").selectOption("Foursomes");
+  await expect(divisionSize).toHaveCount(0);
+  await page.getByLabel("Type").selectOption("DoublesMix");
 
   // The Match Tiebreak switch only exists for best of three.
   const matchTiebreak = page.getByRole("checkbox", { name: /Match tiebreak decider/ });
@@ -471,7 +478,7 @@ test("a named partner sees the request wherever they are, and the Manager is tol
   await expect.soft(page.getByRole("heading", { name: "Leagues", level: 1 })).toBeVisible();
 });
 
-test("a Manager starts a League, reordering and leaving one out; each Player sees their Division and opponent, or the Bye", async ({
+test("a Manager starts a League, reordering and leaving one out; each Player sees their Division and everyone they play", async ({
   page,
   browser,
 }, testInfo) => {
@@ -495,16 +502,18 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
     await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
   }
 
-  // Proposed in the order they joined; Xan moves above Wes, and Wes is left out.
+  // Proposed in the order they joined, one Division of 4 (the League's size);
+  // Xan moves above Wes, and Wes is left out: a Division of 3, no Bye (ADR-0031).
   await manager.getByRole("link", { name: "Start the league" }).click();
   await expect(manager.getByRole("heading", { name: `Start ${league}`, level: 1 })).toBeVisible();
-  const ladder = manager.getByRole("list", { name: "Starting ladder" });
-  await expect(ladder.getByRole("listitem")).toHaveText(players.map(({ name }) => new RegExp(name)));
+  const division = manager.getByRole("list", { name: "Division 1" });
+  await expect(division.getByRole("listitem")).toHaveText(players.map(({ name }) => new RegExp(name)));
   await manager.getByRole("button", { name: `Move ${xan.name} up` }).click();
   await expect(manager.getByRole("button", { name: `Move ${xan.name} up` })).toBeFocused();
   await manager.getByRole("button", { name: `Leave out ${wes.name}` }).click();
-  await expect(ladder.getByRole("listitem").filter({ hasText: xan.name })).toContainText("Bye");
-  await expect(manager.getByText(`${xan.name} has the Bye`)).toBeVisible();
+  await expect(division.getByRole("listitem")).toHaveText([una, vic, xan].map(({ name }) => new RegExp(name)));
+  await expect(manager.getByRole("heading", { name: /Division 1 · 3 Teams · 3 Games/ })).toBeVisible();
+  await expect(manager.getByRole("list", { name: "Left out" })).toContainText(wes.name);
   await expectNoSeriousA11yViolations(manager);
   await manager.getByRole("button", { name: "Confirm and start" }).click();
 
@@ -519,7 +528,7 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await logIn(page, testInfo, una.email);
   await page.goto("/leagues");
   await expect(page.getByRole("region", { name: `${una.name}'s leagues` }).getByRole("region", { name: league })).toContainText(
-    `Division 1 You play ${vic.name}.`,
+    `Division 1 You play ${vic.name} and ${xan.name}, once each.`,
   );
 
   const xanContext = await browser.newContext();
@@ -527,7 +536,7 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await logIn(xanPage, testInfo, xan.email);
   await xanPage.goto("/leagues");
   await expect(xanPage.getByRole("region", { name: `${xan.name}'s leagues` }).getByRole("region", { name: league })).toContainText(
-    "You sit out this Stage",
+    `Division 1 You play ${una.name} and ${vic.name}, once each.`,
   );
   await xanContext.close();
 });

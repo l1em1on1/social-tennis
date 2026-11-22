@@ -524,6 +524,8 @@ export interface components {
             stageRoll: null | components["schemas"]["StageRoll"];
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
+            divisionSize: null | number | string;
+            /** Format: int32 */
             participantCount: number | string;
             /** Format: int32 */
             pendingRequestCount: number | string;
@@ -568,6 +570,8 @@ export interface components {
             stageLength: components["schemas"]["StageLength"];
             stageRoll: null | components["schemas"]["StageRoll"];
             scoreFormat: components["schemas"]["ScoreFormat"];
+            /** Format: int32 */
+            divisionSize?: null | number | string;
         };
         CreateLeagueResponse: {
             /** Format: uuid */
@@ -624,6 +628,8 @@ export interface components {
             stageLength: components["schemas"]["StageLength"];
             stageRoll: null | components["schemas"]["StageRoll"];
             scoreFormat: components["schemas"]["ScoreFormat"];
+            /** Format: int32 */
+            divisionSize: null | number | string;
             participants: components["schemas"]["LeagueParticipantSummary"][];
             joinRequests: components["schemas"]["LeagueJoinRequestSummary"][];
             teams: components["schemas"]["LeagueTeamSummary"][];
@@ -631,6 +637,9 @@ export interface components {
         };
         GetLeagueStartResponse: {
             competitors: components["schemas"]["LeagueStartCompetitor"][];
+            /** Format: int32 */
+            divisionSize: number | string;
+            divisions: (number | string)[];
             unpaired: components["schemas"]["LeagueStartPlayer"][];
             /** Format: int32 */
             waitingRequestCount: number | string;
@@ -792,6 +801,8 @@ export interface components {
             stageRoll: null | components["schemas"]["StageRoll"];
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
+            divisionSize: null | number | string;
+            /** Format: int32 */
             participantCount: number | string;
             joined: boolean;
             joinRequest: null | components["schemas"]["PlayerLeagueJoinRequest"];
@@ -808,6 +819,11 @@ export interface components {
             decidedAt: null | string;
             partnerName: null | string;
         };
+        PlayerLeagueOpponent: {
+            /** Format: uuid */
+            teamId: string;
+            names: string[];
+        };
         PlayerLeaguePartnerRequest: {
             /** Format: uuid */
             playerId: string;
@@ -817,8 +833,8 @@ export interface components {
         };
         PlayerLeaguePlace: {
             /** Format: int32 */
-            division: null | number | string;
-            opponents: string[];
+            division: number | string;
+            opponents: components["schemas"]["PlayerLeagueOpponent"][];
         };
         PlayerSummary: {
             /** Format: uuid */
@@ -873,6 +889,7 @@ export interface components {
         StageRoll: "Automatic" | "Manual" | null;
         StartLeagueRequest: {
             ladder: string[];
+            divisions: (number | string)[];
             leftOut: string[];
             removed: string[];
         };

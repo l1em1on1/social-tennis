@@ -54,10 +54,12 @@ export function describeStructure(league: {
   structure: LeagueStructure;
   stageRoll: StageRoll | null;
   stageLength: { count: number | string; unit: StageLengthUnit };
+  divisionSize?: number | string | null;
 }): string {
   const length = describeStageLength(league.stageLength).toLowerCase();
   if (league.structure === "Knockout") return `Knockout · ${length} a round`;
-  return `Divisional · ${length} Stages · ${league.stageRoll === "Automatic" ? "closes automatically" : "Manager closes"}`;
+  const divisions = league.divisionSize ? ` · Divisions of ${league.divisionSize}` : "";
+  return `Divisional${divisions} · ${length} Stages · ${league.stageRoll === "Automatic" ? "closes automatically" : "Manager closes"}`;
 }
 
 /**
@@ -75,12 +77,22 @@ export function formatDate(date: string): string {
 
 export const formatDates = (startDate: string, endDate: string) => `${formatDate(startDate)} – ${formatDate(endDate)}`;
 
+/** Teams per Division, as the API's League (ADR-0031): 4 unless the Manager says, from 2 to 8. */
+export const DIVISION_SIZE = { default: 4, min: 2, max: 8 } as const;
+
 /**
- * The Division of the Competitor in `position` (1 at the top) on a ladder of
- * `count` with Divisions of `size`, or null for the Bye: the one left over at
- * the bottom. As the API's `Ladder.DivisionOf` (#7, ADR-0013).
+ * The proposed Division sizes for a ladder of `count` with Divisions of about
+ * `size`, top first: as many Divisions as the count rounds to, at least one
+ * and none under 2, as even as possible, the bigger ones at the bottom. The
+ * same rule as the API's `Ladder.ProposeDivisions` (ADR-0031).
  */
-export function divisionOf(position: number, count: number, size = 2): number | null {
-  const division = Math.ceil(position / size);
-  return division <= Math.floor(count / size) ? division : null;
+export function proposeDivisions(count: number, size: number): number[] {
+  if (count < 2) return [];
+  const divisions = Math.min(Math.max(Math.floor((count + Math.floor(size / 2)) / size), 1), Math.floor(count / 2));
+  const smaller = Math.floor(count / divisions);
+  const bigger = count % divisions;
+  return Array.from({ length: divisions }, (_, index) => smaller + (index >= divisions - bigger ? 1 : 0));
 }
+
+/** A Division's Games in a Stage: every pair once. */
+export const gamesIn = (size: number) => (size * (size - 1)) / 2;

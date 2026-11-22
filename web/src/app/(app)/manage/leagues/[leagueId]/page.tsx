@@ -88,7 +88,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     if (!stage) return null;
     const team = teamOf(teamId);
     if (team?.position == null) return <Badge>Not on the ladder</Badge>;
-    return team.division != null ? <Badge tone="accent">{`Division ${team.division}`}</Badge> : <Badge tone="info">Bye</Badge>;
+    return <Badge tone="accent">{`Division ${team.division}`}</Badge>;
   };
 
   return (

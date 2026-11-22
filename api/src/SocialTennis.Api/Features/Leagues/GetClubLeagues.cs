@@ -34,6 +34,7 @@ public static class GetClubLeagues
                 l.StageLength,
                 l.StageRoll,
                 l.ScoreFormat,
+                l.DivisionSize,
                 l.Participants.Count,
                 l.JoinRequests.Count(r => r.Status == LeagueJoinRequestStatus.Pending),
                 l.Stages

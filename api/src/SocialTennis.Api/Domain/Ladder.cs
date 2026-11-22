@@ -1,26 +1,42 @@
 namespace SocialTennis.Api.Domain;
 
 /// <summary>
-/// Reading a Stage's ladder (ADR-0013, ADR-0030): its places are numbered from
-/// 1 at the top, and its Divisions are runs of a fixed size counting down from
-/// there. Pure, so the rules are unit-tested.
+/// The rules for splitting a ladder into Divisions and making their Games
+/// (ADR-0031). Pure, so they are unit-tested; the web app mirrors
+/// <see cref="ProposeDivisions"/> for the Start screen.
 /// </summary>
 public static class Ladder
 {
-    /// <summary>Competitors per Division: 2 for the Team-based Types, 4 for Foursomes (#14).</summary>
-    public static int DivisionSize(this LeagueType type) => type == LeagueType.Foursomes ? 4 : 2;
+    /// <summary>
+    /// The proposed Division sizes for a ladder of <paramref name="count"/>
+    /// Competitors with Divisions of about <paramref name="size"/>, top first:
+    /// as many Divisions as the count rounds to, at least one and none under 2,
+    /// split as evenly as possible, with the bigger Divisions at the bottom.
+    /// The Manager can change both the number and the sizes.
+    /// </summary>
+    /// <example>Size 4: 6 is 3 and 3; 9 is 4 and 5; 10 is 3, 3 and 4; 5 is one Division of 5.</example>
+    public static IReadOnlyList<int> ProposeDivisions(int count, int size)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 2);
+        ArgumentOutOfRangeException.ThrowIfLessThan(size, League.MinDivisionSize);
+        var divisions = Math.Clamp((count + (size / 2)) / size, 1, count / 2);
+        var smaller = count / divisions;
+        var bigger = count % divisions;
+        return [.. Enumerable.Range(0, divisions).Select(index => smaller + (index >= divisions - bigger ? 1 : 0))];
+    }
 
     /// <summary>
-    /// The Division of the Competitor in <paramref name="position"/> on a ladder
-    /// of <paramref name="count"/>, or null for the Bye: the single Competitor
-    /// left over at the bottom when a Division of 2 can't be filled.
+    /// The Games of a Division of <paramref name="size"/>: every pair once, as
+    /// indexes into the Division from its top, the higher place first.
     /// </summary>
-    public static int? DivisionOf(int position, int count, int size = 2)
+    public static IEnumerable<(int First, int Second)> RoundRobin(int size)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(position, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(position, count);
-        var divisions = count / size;
-        var division = (position + size - 1) / size;
-        return division <= divisions ? division : null;
+        for (var first = 0; first < size; first++)
+        {
+            for (var second = first + 1; second < size; second++)
+            {
+                yield return (first, second);
+            }
+        }
     }
 }

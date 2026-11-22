@@ -11,6 +11,13 @@ public class League
 {
     public const int NameMaxLength = 200;
 
+    /// <summary>Teams per Division when the Manager doesn't say (owner, 2026-11-21; ADR-0031).</summary>
+    public const int DefaultDivisionSize = 4;
+
+    public const int MinDivisionSize = 2;
+
+    public const int MaxDivisionSize = 8;
+
     public Guid Id { get; set; }
 
     public Guid ClubId { get; set; }
@@ -35,6 +42,15 @@ public class League
     public StageRoll? StageRoll { get; set; }
 
     public required ScoreFormat ScoreFormat { get; set; }
+
+    /// <summary>
+    /// How many Teams a Division normally holds, for a Divisional League of
+    /// the Team-based Types (ADR-0031): the Start screen proposes Divisions of
+    /// this size, and the Manager may make any a Team bigger or smaller. Null
+    /// for Knockout, which has no Divisions, and Foursomes, whose Divisions are
+    /// always 4 Players (#14).
+    /// </summary>
+    public int? DivisionSize { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

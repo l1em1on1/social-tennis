@@ -62,8 +62,10 @@ test("starting a League, from fixed data", async ({ page }, testInfo) => {
   await page.goto(`/manage/leagues/${FIXTURE_LEAGUE_ID}/start`);
 
   await expect(page.getByRole("heading", { name: "Start Winter Singles", level: 1 })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Starting ladder" }).getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("list", { name: "Division 1" }).getByRole("listitem")).toHaveCount(2);
   await expect(page.getByText("1 join request is still waiting.", { exact: false })).toBeVisible();
+  // Every Rating is 1, so the proposal is the order they joined, and the screen says so.
+  await expect(page.getByText("Proposed in the order players joined", { exact: false })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -76,7 +78,7 @@ test("a started League's Manager page, from fixed data", async ({ page }, testIn
   await expect(page.getByText("Stage 1 runs 1 Oct 2026 – 31 Oct 2026.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Start the league" })).toHaveCount(0);
   const players = page.getByRole("list", { name: "Players in the league" });
-  await expect(players.getByRole("listitem").filter({ hasText: "Chris Lee" })).toContainText("Bye");
+  await expect(players.getByRole("listitem").filter({ hasText: "Chris Lee" })).toContainText("Division 1");
   // On the ladder, leaving is a Withdrawal (#21): only Sam, left out, can be removed.
   await expect(players.getByRole("button", { name: /^Remove/ })).toHaveCount(1);
   await expect(players.getByRole("listitem").filter({ hasText: "Sam Morgan" })).toContainText("Not on the ladder");

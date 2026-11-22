@@ -28,6 +28,7 @@ public static class GetLeague
                 l.StageLength,
                 l.StageRoll,
                 l.ScoreFormat,
+                l.DivisionSize,
                 l.Participants
                     .OrderBy(p => p.JoinedAt)
                     .ThenBy(p => p.Player.Name)
@@ -81,14 +82,13 @@ public static class GetLeague
         // Each Team's place on the current Stage's ladder (#7).
         var places = await db.LadderPlaces
             .Where(p => p.LeagueId == leagueId && p.Stage.Number == league.Stage.Number)
-            .ToDictionaryAsync(p => p.TeamId, p => p.Position, cancellationToken);
-        var size = league.Type.DivisionSize();
+            .ToDictionaryAsync(p => p.TeamId, p => (p.Position, p.Division), cancellationToken);
         return TypedResults.Ok(league with
         {
             Teams =
             [
-                .. league.Teams.Select(team => places.TryGetValue(team.Id, out var position)
-                    ? team with { Position = position, Division = Ladder.DivisionOf(position, places.Count, size) }
+                .. league.Teams.Select(team => places.TryGetValue(team.Id, out var place)
+                    ? team with { Position = place.Position, Division = place.Division }
                     : team),
             ],
         });

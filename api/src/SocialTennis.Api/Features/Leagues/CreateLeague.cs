@@ -37,6 +37,10 @@ public static class CreateLeague
             StageLength = request.StageLength,
             StageRoll = request.StageRoll,
             ScoreFormat = request.ScoreFormat,
+            // Only a Divisional League of Teams has Divisions of a set size (ADR-0031).
+            DivisionSize = request.Structure == LeagueStructure.Divisional && request.Type.TeamSize() > 0
+                ? request.DivisionSize ?? League.DefaultDivisionSize
+                : null,
             CreatedAt = clock.GetUtcNow(),
         };
         db.Leagues.Add(league);

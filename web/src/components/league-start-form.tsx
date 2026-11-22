@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { startLeague } from "@/lib/actions";
-import { cx } from "@/lib/cx";
-import { divisionOf, formatDates } from "@/lib/league";
+import { formatDates, gamesIn } from "@/lib/league";
 
 export interface StartCompetitor {
   teamId: string;
@@ -14,75 +12,107 @@ export interface StartCompetitor {
   names: string[];
 }
 
+/** `count` split into `divisions` Divisions as evenly as possible, the bigger ones at the bottom. */
+function split(count: number, divisions: number): number[] {
+  const parts = Math.min(Math.max(divisions, 1), Math.floor(count / 2));
+  if (parts < 1) return [];
+  return Array.from({ length: parts }, (_, index) => Math.floor(count / parts) + (index >= parts - (count % parts) ? 1 : 0));
+}
+
 /**
  * The Manager's Start screen (#7, wireframe M4): the proposed starting ladder,
- * top first, to reorder with up and down buttons (easier with a thumb or a
- * screen reader than dragging) and to leave Competitors out of. Each row shows
- * the Division it would start in, or the Bye, as it changes. Confirming sends
- * the order, who is left out and who is removed, as shown here.
+ * top first, in Divisions of about the League's size (ADR-0031). The Manager
+ * moves Teams up and down with buttons (easier with a thumb or a screen
+ * reader than dragging), across a Division's line too; moves the line between
+ * two Divisions to make one a Team bigger; changes how many Divisions there
+ * are; and leaves Teams out. Every pair in a Division plays once a Stage, so
+ * each Division shows its Games. Confirming sends the ladder, the Division
+ * sizes, who is left out and who is removed, as shown here.
  */
 export function LeagueStartForm({
   leagueId,
   competitors,
+  divisions: proposed,
   unpaired,
   waitingRequestCount,
   firstStage,
 }: {
   leagueId: string;
   competitors: StartCompetitor[];
+  /** The proposed Division sizes, top first. */
+  divisions: number[];
   /** Doubles Players without a partner: starting removes them (owner, 2026-11-20). */
   unpaired: { playerId: string; name: string }[];
   waitingRequestCount: number;
   firstStage: { startDate: string; endDate: string };
 }) {
-  const [order, setOrder] = useState(() => competitors.map((competitor) => competitor.teamId));
-  const [out, setOut] = useState<ReadonlySet<string>>(() => new Set());
+  const [ladder, setLadder] = useState(() => competitors.map((competitor) => competitor.teamId));
+  const [leftOut, setLeftOut] = useState<string[]>([]);
+  const [sizes, setSizes] = useState(proposed);
   const [announcement, setAnnouncement] = useState("");
-  const moved = useRef<{ teamId: string; direction: "up" | "down" } | null>(null);
+  // The control to keep focus on once the list re-renders, and its partner for when it can't go further.
+  const refocus = useRef<{ id: string; fallback: string } | null>(null);
 
   const nameOf = (teamId: string) => competitors.find((competitor) => competitor.teamId === teamId)?.names.join(" & ") ?? "";
-  const ladder = order.filter((teamId) => !out.has(teamId));
-  const placeOf = (teamId: string) => ladder.indexOf(teamId) + 1;
-  const divisions = Math.floor(ladder.length / 2);
-  const bye = ladder.length % 2 === 1 ? ladder[ladder.length - 1] : undefined;
+  const starts = sizes.map((_, index) => sizes.slice(0, index).reduce((sum, size) => sum + size, 0));
+  const divisionOf = (index: number) => starts.filter((start) => start <= index).length;
+  const canStart = ladder.length >= 2 && sizes.length > 0 && sizes.every((size) => size >= 2);
 
-  // Moving a row re-renders the list: keep focus on the button that moved it,
-  // or on its partner button once it can't go further that way.
   useEffect(() => {
-    if (!moved.current) return;
-    const { teamId, direction } = moved.current;
-    moved.current = null;
-    const button = document.getElementById(`move-${direction}-${teamId}`) as HTMLButtonElement | null;
-    const fallback = document.getElementById(`move-${direction === "up" ? "down" : "up"}-${teamId}`);
-    (button && !button.disabled ? button : fallback)?.focus();
-  }, [order]);
+    if (!refocus.current) return;
+    const { id, fallback } = refocus.current;
+    refocus.current = null;
+    const control = document.getElementById(id) as HTMLButtonElement | null;
+    (control && !control.disabled ? control : document.getElementById(fallback))?.focus();
+  }, [ladder, sizes, leftOut]);
 
   function move(index: number, direction: "up" | "down") {
     const target = direction === "up" ? index - 1 : index + 1;
-    const next = [...order];
+    const next = [...ladder];
     [next[index], next[target]] = [next[target], next[index]];
-    const teamId = order[index];
-    moved.current = { teamId, direction };
-    setOrder(next);
-    // The place on the ladder that would be submitted: left-out rows don't count.
-    if (out.has(teamId)) {
-      setAnnouncement(`${nameOf(teamId)} moved ${direction}, still left out.`);
-    } else {
-      const ladderNext = next.filter((id) => !out.has(id));
-      const place = ladderNext.indexOf(teamId) + 1;
-      const division = divisionOf(place, ladderNext.length);
-      setAnnouncement(
-        `${nameOf(teamId)} moved ${direction} to place ${place} on the ladder, ${division ? `Division ${division}` : "the Bye"}.`,
-      );
-    }
+    const teamId = ladder[index];
+    refocus.current = { id: `move-${direction}-${teamId}`, fallback: `move-${direction === "up" ? "down" : "up"}-${teamId}` };
+    setLadder(next);
+    setAnnouncement(`${nameOf(teamId)} moved ${direction} to place ${target + 1}, Division ${divisionOf(target)}.`);
   }
 
-  function toggle(teamId: string) {
-    const next = new Set(out);
-    if (next.has(teamId)) next.delete(teamId);
-    else next.add(teamId);
-    setOut(next);
-    setAnnouncement(`${nameOf(teamId)} ${next.has(teamId) ? "left out" : "put back"}.`);
+  /** Moves the line under Division `division` (1-based) a Team up or down. */
+  function moveLine(division: number, direction: "up" | "down") {
+    const next = [...sizes];
+    next[division - 1] += direction === "down" ? 1 : -1;
+    next[division] += direction === "down" ? -1 : 1;
+    refocus.current = { id: `line-${direction}-${division}`, fallback: `line-${direction === "up" ? "down" : "up"}-${division}` };
+    setSizes(next);
+    setAnnouncement(`Division ${division} now has ${next[division - 1]}, Division ${division + 1} has ${next[division]}.`);
+  }
+
+  function changeDivisions(by: 1 | -1) {
+    const next = split(ladder.length, sizes.length + by);
+    refocus.current = { id: by > 0 ? "divisions-more" : "divisions-fewer", fallback: by > 0 ? "divisions-fewer" : "divisions-more" };
+    setSizes(next);
+    setAnnouncement(`${next.length} ${next.length === 1 ? "Division" : "Divisions"}: ${next.join(", ")}.`);
+  }
+
+  // Taking a Team off the ladder or putting one back re-splits it into the same number of Divisions.
+  function leaveOut(teamId: string) {
+    const next = ladder.filter((id) => id !== teamId);
+    // Its row leaves the ladder: focus follows it to its Put back button.
+    refocus.current = { id: `put-back-${teamId}`, fallback: `put-back-${teamId}` };
+    setLadder(next);
+    setLeftOut([...leftOut, teamId]);
+    setSizes(split(next.length, sizes.length || 1));
+    setAnnouncement(`${nameOf(teamId)} left out.`);
+  }
+
+  function putBack(teamId: string) {
+    const next = [...ladder, teamId];
+    // Back at the bottom of the ladder: focus follows it there, to Move up, or to
+    // Leave out when the ladder is still too short for a Division (no move buttons).
+    refocus.current = { id: `move-up-${teamId}`, fallback: `leave-out-${teamId}` };
+    setLadder(next);
+    setLeftOut(leftOut.filter((id) => id !== teamId));
+    setSizes(split(next.length, sizes.length || 1));
+    setAnnouncement(`${nameOf(teamId)} put back, at the bottom of the ladder.`);
   }
 
   return (
@@ -91,70 +121,175 @@ export function LeagueStartForm({
       {ladder.map((teamId) => (
         <input key={teamId} type="hidden" name="ladder" value={teamId} />
       ))}
-      {order
-        .filter((teamId) => out.has(teamId))
-        .map((teamId) => (
-          <input key={teamId} type="hidden" name="leftOut" value={teamId} />
-        ))}
+      {sizes.map((size, index) => (
+        <input key={index} type="hidden" name="divisions" value={size} />
+      ))}
+      {leftOut.map((teamId) => (
+        <input key={teamId} type="hidden" name="leftOut" value={teamId} />
+      ))}
       {unpaired.map((player) => (
         <input key={player.playerId} type="hidden" name="removed" value={player.playerId} />
       ))}
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
-        <div className="flex items-baseline justify-between gap-2">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Starting ladder</h2>
-          <p className="text-sm text-fg-muted">
-            {ladder.length} on it · {divisions} {divisions === 1 ? "Division" : "Divisions"}
-          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              id="divisions-fewer"
+              variant="secondary"
+              aria-label="Fewer Divisions"
+              disabled={sizes.length <= 1}
+              onClick={() => changeDivisions(-1)}
+              className="px-3"
+            >
+              −
+            </Button>
+            <p className="px-1 text-sm">
+              {sizes.length} {sizes.length === 1 ? "Division" : "Divisions"}
+            </p>
+            <Button
+              id="divisions-more"
+              variant="secondary"
+              aria-label="More Divisions"
+              disabled={sizes.length >= Math.floor(ladder.length / 2)}
+              onClick={() => changeDivisions(1)}
+              className="px-3"
+            >
+              +
+            </Button>
+          </div>
         </div>
-        <ol aria-label="Starting ladder" className="divide-y divide-border">
-          {order.map((teamId, index) => {
-            const name = nameOf(teamId);
-            const left = out.has(teamId);
-            const division = left ? null : divisionOf(placeOf(teamId), ladder.length);
-            return (
-              <li key={teamId} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <div className={cx("min-w-0 flex-1", left && "text-fg-muted")}>
-                  <p className={cx("font-medium break-words", left && "line-through")}>{name}</p>
-                  <p className="text-sm">
-                    {left ? (
-                      <Badge>Left out</Badge>
-                    ) : division ? (
-                      <Badge tone="accent">{`Division ${division}`}</Badge>
-                    ) : (
-                      <Badge tone="info">Bye</Badge>
-                    )}
-                  </p>
-                </div>
-                <div className="flex gap-1">
+
+        {sizes.map((size, division) => (
+          <section key={division} aria-labelledby={`division-${division + 1}`} className="flex flex-col gap-1">
+            <h3 id={`division-${division + 1}`} className="text-sm font-semibold">
+              Division {division + 1}{" "}
+              <span className="font-normal text-fg-muted">
+                · {size} {size === 1 ? "Team" : "Teams"} · {gamesIn(size)} {gamesIn(size) === 1 ? "Game" : "Games"}
+              </span>
+            </h3>
+            <ol aria-label={`Division ${division + 1}`} className="divide-y divide-border">
+              {ladder.slice(starts[division], starts[division] + size).map((teamId, offset) => {
+                const index = starts[division] + offset;
+                const name = nameOf(teamId);
+                return (
+                  <li key={teamId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <p className="min-w-0 flex-1 font-medium break-words">
+                      <span className="text-fg-muted">{index + 1}.</span> {name}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        id={`move-up-${teamId}`}
+                        variant="secondary"
+                        aria-label={`Move ${name} up`}
+                        disabled={index === 0}
+                        onClick={() => move(index, "up")}
+                        className="px-3"
+                      >
+                        ▲
+                      </Button>
+                      <Button
+                        id={`move-down-${teamId}`}
+                        variant="secondary"
+                        aria-label={`Move ${name} down`}
+                        disabled={index === ladder.length - 1}
+                        onClick={() => move(index, "down")}
+                        className="px-3"
+                      >
+                        ▼
+                      </Button>
+                      <Button
+                        id={`leave-out-${teamId}`}
+                        variant="ghost"
+                        aria-label={`Leave out ${name}`}
+                        onClick={() => leaveOut(teamId)}
+                        className="w-28 whitespace-nowrap"
+                      >
+                        Leave out
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            {division < sizes.length - 1 && (
+              // The line between two Divisions, on one row: arrows move it, as they move a Team,
+              // in the Teams' arrow column, with its label where their Leave out sits.
+              <div className="flex items-center gap-1 pt-1">
+                <span aria-hidden="true" className="mr-1 flex-1 border-t border-dashed border-border-strong" />
+                <Button
+                  id={`line-up-${division + 1}`}
+                  variant="secondary"
+                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} up`}
+                  disabled={size <= 2}
+                  onClick={() => moveLine(division + 1, "up")}
+                  className="px-3"
+                >
+                  ▲
+                </Button>
+                <Button
+                  id={`line-down-${division + 1}`}
+                  variant="secondary"
+                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} down`}
+                  disabled={sizes[division + 1] <= 2}
+                  onClick={() => moveLine(division + 1, "down")}
+                  className="px-3"
+                >
+                  ▼
+                </Button>
+                <span className="w-28 text-center text-sm whitespace-nowrap text-fg-muted">Move line</span>
+              </div>
+            )}
+          </section>
+        ))}
+
+        {sizes.length === 0 && ladder.length > 0 && (
+          // Too few for a Division: the Teams still on the ladder stay in view, to leave out or add to.
+          <section aria-labelledby="too-few" className="flex flex-col gap-1">
+            <h3 id="too-few" className="text-sm font-semibold">
+              On the ladder <span className="font-normal text-fg-muted">· a Division needs at least two</span>
+            </h3>
+            <ol aria-label="On the ladder" className="divide-y divide-border">
+              {ladder.map((teamId) => (
+                <li key={teamId} className="flex items-center justify-between gap-2 py-2">
+                  <p className="min-w-0 flex-1 font-medium break-words">{nameOf(teamId)}</p>
                   <Button
-                    id={`move-up-${teamId}`}
-                    variant="secondary"
-                    aria-label={`Move ${name} up`}
-                    disabled={index === 0}
-                    onClick={() => move(index, "up")}
-                    className="px-3"
+                    id={`leave-out-${teamId}`}
+                    variant="ghost"
+                    aria-label={`Leave out ${nameOf(teamId)}`}
+                    onClick={() => leaveOut(teamId)}
                   >
-                    ▲
+                    Leave out
                   </Button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {leftOut.length > 0 && (
+          <section aria-labelledby="left-out" className="flex flex-col gap-1">
+            <h3 id="left-out" className="text-sm font-semibold">
+              Left out <span className="font-normal text-fg-muted">· in the league, without a place</span>
+            </h3>
+            <ul aria-label="Left out" className="divide-y divide-border">
+              {leftOut.map((teamId) => (
+                <li key={teamId} className="flex items-center justify-between gap-2 py-2 text-fg-muted">
+                  <p className="min-w-0 flex-1 break-words">{nameOf(teamId)}</p>
                   <Button
-                    id={`move-down-${teamId}`}
-                    variant="secondary"
-                    aria-label={`Move ${name} down`}
-                    disabled={index === order.length - 1}
-                    onClick={() => move(index, "down")}
-                    className="px-3"
+                    id={`put-back-${teamId}`}
+                    variant="ghost"
+                    aria-label={`Put back ${nameOf(teamId)}`}
+                    onClick={() => putBack(teamId)}
                   >
-                    ▼
+                    Put back
                   </Button>
-                  <Button variant="ghost" aria-label={`${left ? "Put back" : "Leave out"} ${name}`} onClick={() => toggle(teamId)}>
-                    {left ? "Put back" : "Leave out"}
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <p role="status" className="sr-only">
           {announcement}
         </p>
@@ -162,40 +297,34 @@ export function LeagueStartForm({
 
       <ul className="flex flex-col gap-2 text-sm">
         <li>
-          Stage 1 runs <strong>{formatDates(firstStage.startDate, firstStage.endDate)}</strong>. Each Division plays its Game by
-          then.
+          Stage 1 runs <strong>{formatDates(firstStage.startDate, firstStage.endDate)}</strong>. Everyone in a Division plays
+          everyone else in it once by then.
         </li>
-        {bye && (
-          <li>
-            <strong>{nameOf(bye)}</strong> has the Bye: with an odd number, the last on the ladder sits out Stage 1 and doesn&apos;t
-            move.
-          </li>
-        )}
-        {out.size > 0 && (
+        {leftOut.length > 0 && (
           <li>Anyone left out stays in the league without a place on the ladder. You can still remove them afterwards.</li>
         )}
         {unpaired.length > 0 && (
           <li className="text-danger">
-            Starting removes{" "}
-            <strong>{unpaired.map((player) => player.name).join(", ")}</strong> from the league: they have no partner. They can ask
-            to join again.
+            Starting removes <strong>{unpaired.map((player) => player.name).join(", ")}</strong> from the league: they have no
+            partner. They can ask to join again.
           </li>
         )}
         {waitingRequestCount > 0 && (
           <li>
-            {waitingRequestCount === 1 ? "1 join request is" : `${waitingRequestCount} join requests are`} still waiting. Anyone
-            you approve after the start joins without a place on the ladder.
+            {waitingRequestCount === 1 ? "1 join request is" : `${waitingRequestCount} join requests are`} still waiting. They
+            don&apos;t hold up the start: they stay as reserves, and anyone you approve later joins without a place on the
+            ladder.
           </li>
         )}
       </ul>
 
-      <SubmitButton fullWidth disabled={ladder.length < 2} pendingLabel="Starting…">
+      <SubmitButton fullWidth disabled={!canStart} pendingLabel="Starting…">
         Confirm and start
       </SubmitButton>
       <p className="text-sm text-fg-muted">
-        {ladder.length < 2
-          ? "A ladder needs at least two on it."
-          : "Starting makes Stage 1's Games. After that, the ladder only changes as results move people."}
+        {canStart
+          ? "Starting makes Stage 1's Games. After that, the ladder only changes as results move people."
+          : "A ladder needs at least two on it, and every Division at least two."}
       </p>
     </form>
   );

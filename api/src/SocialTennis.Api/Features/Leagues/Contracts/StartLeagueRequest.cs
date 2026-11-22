@@ -1,4 +1,5 @@
 using FluentValidation;
+using SocialTennis.Api.Domain;
 
 namespace SocialTennis.Api.Features.Leagues.Contracts;
 
@@ -9,9 +10,14 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// the Manager didn't see.
 /// </summary>
 /// <param name="Ladder">The Teams to place, top first.</param>
+/// <param name="Divisions">The Division sizes, top first, each at least 2, adding up to the ladder (ADR-0031).</param>
 /// <param name="LeftOut">The Teams the Manager left out: they stay in the League, not placed.</param>
 /// <param name="Removed">The doubles Players without a partner, whom the start removes.</param>
-public record StartLeagueRequest(IReadOnlyList<Guid> Ladder, IReadOnlyList<Guid> LeftOut, IReadOnlyList<Guid> Removed)
+public record StartLeagueRequest(
+    IReadOnlyList<Guid> Ladder,
+    IReadOnlyList<int> Divisions,
+    IReadOnlyList<Guid> LeftOut,
+    IReadOnlyList<Guid> Removed)
 {
     public sealed class Validator : AbstractValidator<StartLeagueRequest>
     {
@@ -24,6 +30,19 @@ public record StartLeagueRequest(IReadOnlyList<Guid> Ladder, IReadOnlyList<Guid>
                 .Must(ladder => ladder.Count >= 2)
                 .WithMessage("A ladder needs at least two Competitors.")
                 .OverridePropertyName("ladder");
+            RuleFor(request => request.Divisions)
+                .Cascade(CascadeMode.Stop)
+                .NotNull()
+                .WithMessage("Say how the ladder splits into Divisions.")
+                .Must(divisions => divisions.Count > 0 && divisions.All(size => size >= League.MinDivisionSize))
+                .WithMessage($"A Division needs at least {League.MinDivisionSize} Teams.")
+                .OverridePropertyName("divisions");
+            RuleFor(request => request)
+                // Summed as long: an int Sum is checked and would throw on sizes near int.MaxValue.
+                .Must(request => request.Divisions.Sum(size => (long)size) == request.Ladder.Count)
+                .When(request => request.Ladder is not null && request.Divisions is not null)
+                .WithMessage("The Divisions hold the whole ladder, each Team once.")
+                .OverridePropertyName("divisions");
             RuleFor(request => request.LeftOut)
                 .NotNull()
                 .WithMessage("Say who is left out, even if nobody is.")

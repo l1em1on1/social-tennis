@@ -45,6 +45,8 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 - A retirement keeps the sets as they stood (incomplete is fine) and needs an explicit winner.
 - The date played must fall inside the month.
 
+**Superseded by ADR-0031 (2026-11-21):** the ladder (P5), Start (M4) and Close (M6) screens show Divisions of 2 with a Bye. Divisions now hold about 4 Teams, everyone in a Division plays everyone, and there is no Bye.
+
 ## Decisions taken in the wireframes
 
 - **The "Ladder" tab becomes "Leagues".** A Player can be in several Leagues, so the tab opens a list (mine, then joinable), and each League opens its ladder. This changes one nav entry from #40's shell when #5 lands.

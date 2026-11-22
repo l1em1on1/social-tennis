@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -12,16 +13,18 @@ using SocialTennis.Api.Features.Players.Contracts;
 namespace SocialTennis.Api.IntegrationTests;
 
 /// <summary>
-/// Issue #7, part 1: a Manager starts a Divisional League from a proposed
-/// ladder they may reorder and cut, which opens Stage 1 with a Game per
-/// Division and a Bye at the bottom; and what the ladder fixes afterwards.
+/// Issue #7: a Manager starts a Divisional League from a proposed ladder they
+/// may reorder, cut and split into Divisions, which opens Stage 1 with every
+/// pair in a Division playing once (ADR-0031); and what the ladder fixes
+/// afterwards.
 /// </summary>
 public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
 {
-    private static object ALeague(string type, string structure = "Divisional") => new
+    private static object ALeague(string type, string structure = "Divisional", int? divisionSize = null) => new
     {
         name = $"{type} {structure} League",
         type,
+        divisionSize,
         structure,
         startDate = "2026-12-01",
         endDate = "2027-03-31",
@@ -38,9 +41,10 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
     }
 
-    private static async Task<Guid> CreateLeagueAsync(HttpClient manager, Guid clubId, string type = "SinglesMixed", string structure = "Divisional")
+    private static async Task<Guid> CreateLeagueAsync(
+        HttpClient manager, Guid clubId, string type = "SinglesMixed", string structure = "Divisional", int? divisionSize = null)
     {
-        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", ALeague(type, structure));
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", ALeague(type, structure, divisionSize));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
     }
@@ -75,9 +79,17 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     private static async Task<GetLeagueStartResponse> ProposalAsync(HttpClient manager, Guid leagueId) =>
         (await manager.GetFromJsonAsync<GetLeagueStartResponse>($"/leagues/{leagueId}/start"))!;
 
+    /// <summary>Starts the League; unless told otherwise, the whole ladder is one Division.</summary>
     private static Task<HttpResponseMessage> StartAsync(
-        HttpClient manager, Guid leagueId, IEnumerable<Guid> ladder, IEnumerable<Guid>? leftOut = null, IEnumerable<Guid>? removed = null) =>
-        manager.PostAsJsonAsync($"/leagues/{leagueId}/start", new { ladder, leftOut = leftOut ?? [], removed = removed ?? [] });
+        HttpClient manager,
+        Guid leagueId,
+        IEnumerable<Guid> ladder,
+        IEnumerable<Guid>? leftOut = null,
+        IEnumerable<Guid>? removed = null,
+        IEnumerable<int>? divisions = null) =>
+        manager.PostAsJsonAsync(
+            $"/leagues/{leagueId}/start",
+            new { ladder, divisions = divisions ?? [ladder.Count()], leftOut = leftOut ?? [], removed = removed ?? [] });
 
     /// <summary>The Team of one of a singles participant.</summary>
     private static Guid TeamOf(GetLeagueResponse league, Guid playerId) =>
@@ -99,7 +111,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
             .OrderBy(g => g.Division)
             .Select(g => new { g.Division, Sides = g.Sides.OrderBy(s => s.Side).Select(s => s.TeamId).ToList() })
             .ToListAsync();
-        return [.. games.Select(g => (g.Division, g.Sides[0], g.Sides[1]))];
+        return [.. games.Select(g => (g.Division, g.Sides[0], g.Sides[1])).Order()];
     }
 
     [Fact]
@@ -119,6 +131,8 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         Assert.Equal([5.0, 3, 3, 1], proposal.Competitors.Select(c => c.Rating));
         Assert.Empty(proposal.Unpaired);
         Assert.Equal(0, proposal.WaitingRequestCount);
+        Assert.Equal(4, proposal.DivisionSize);
+        Assert.Equal([4], proposal.Divisions);
         Assert.Equal(new LeagueStageSummary(1, new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31)), proposal.FirstStage);
         Assert.Null((await LeagueAsync(manager, leagueId)).Stage);
     }
@@ -148,47 +162,106 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     }
 
     [Fact]
-    public async Task Starting_places_the_confirmed_order_in_Divisions_of_two_with_one_Game_each()
+    public async Task Starting_places_the_confirmed_order_in_the_Divisions_the_Manager_sized_and_every_pair_plays_once()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await NewClubAsync();
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var ids = new List<Guid>();
-        foreach (var name in new[] { "One", "Two", "Three", "Four" })
+        foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
         {
             ids.Add((await ParticipantAsync(manager, clubId, leagueId, name)).PlayerId);
         }
         var before = await LeagueAsync(manager, leagueId);
-        // The Manager reverses the proposal.
+        // The Manager reverses the proposal, and splits it into a Division of 2 over one of 3.
         var ladder = ids.AsEnumerable().Reverse().Select(id => TeamOf(before, id)).ToList();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await StartAsync(manager, leagueId, ladder)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await StartAsync(manager, leagueId, ladder, divisions: [2, 3])).StatusCode);
 
         var league = await LeagueAsync(manager, leagueId);
         Assert.Equal(new LeagueStageSummary(1, new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31)), league.Stage);
         Assert.Equal(
-            [(1, 1), (2, 1), (3, 2), (4, 2)],
+            [(1, 1), (2, 1), (3, 2), (4, 2), (5, 2)],
             ladder.Select(teamId => league.Teams.Single(t => t.Id == teamId)).Select(t => (t.Position!.Value, t.Division!.Value)));
-        Assert.Equal([(1, ladder[0], ladder[1]), (2, ladder[2], ladder[3])], await GamesAsync(leagueId));
+        Assert.Equal(
+            new[]
+            {
+                (1, ladder[0], ladder[1]),
+                (2, ladder[2], ladder[3]),
+                (2, ladder[2], ladder[4]),
+                (2, ladder[3], ladder[4]),
+            }.Order(),
+            await GamesAsync(leagueId));
     }
 
     [Fact]
-    public async Task With_an_odd_number_the_last_Competitor_has_the_Bye_and_no_Game()
+    public async Task The_proposal_splits_by_the_Leagues_Division_size_with_no_Bye()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId, divisionSize: 2);
+        foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
+        {
+            await ParticipantAsync(manager, clubId, leagueId, name);
+        }
+
+        var proposal = await ProposalAsync(manager, leagueId);
+
+        // Divisions of 2, and the fifth Team joins the bottom one rather than sitting out.
+        Assert.Equal(2, proposal.DivisionSize);
+        Assert.Equal([2, 3], proposal.Divisions);
+        (await StartAsync(manager, leagueId, proposal.Competitors.Select(c => c.TeamId), divisions: proposal.Divisions)).EnsureSuccessStatusCode();
+        var league = await LeagueAsync(manager, leagueId);
+        Assert.All(league.Teams, team => Assert.NotNull(team.Division));
+        Assert.Equal(4, (await GamesAsync(leagueId)).Count);
+    }
+
+    [Theory]
+    [InlineData(null, 4)]
+    [InlineData(3, 3)]
+    public async Task A_Divisional_League_of_Teams_has_a_Division_size_4_unless_the_Manager_says(int? asked, int stored)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+
+        var leagueId = await CreateLeagueAsync(manager, clubId, divisionSize: asked);
+
+        Assert.Equal(stored, (await LeagueAsync(manager, leagueId)).DivisionSize);
+    }
+
+    [Theory]
+    [InlineData("SinglesMixed", "Knockout")]
+    [InlineData("Foursomes", "Divisional")]
+    public async Task Knockout_and_Foursomes_Leagues_have_no_Division_size(string type, string structure)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+
+        var leagueId = await CreateLeagueAsync(manager, clubId, type, structure);
+
+        Assert.Null((await LeagueAsync(manager, leagueId)).DivisionSize);
+    }
+
+    [Fact]
+    public async Task Divisions_hold_the_whole_ladder_with_at_least_two_each()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await NewClubAsync();
         var leagueId = await CreateLeagueAsync(manager, clubId);
-        foreach (var name in new[] { "One", "Two", "Three" })
+        foreach (var name in new[] { "One", "Two", "Three", "Four" })
         {
             await ParticipantAsync(manager, clubId, leagueId, name);
         }
         var ladder = (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId).ToList();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await StartAsync(manager, leagueId, ladder)).StatusCode);
-
-        var bye = (await LeagueAsync(manager, leagueId)).Teams.Single(t => t.Id == ladder[2]);
-        Assert.Equal((3, (int?)null), (bye.Position!.Value, bye.Division));
-        Assert.Equal([(1, ladder[0], ladder[1])], await GamesAsync(leagueId));
+        // The last two overflow an int sum: still a 400, not a 500.
+        foreach (var divisions in new[] { new[] { 1, 3 }, new[] { 2, 3 }, new[] { 2 }, Array.Empty<int>(), new[] { int.MaxValue, int.MaxValue } })
+        {
+            var bad = await StartAsync(manager, leagueId, ladder, divisions: divisions);
+            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+            Assert.True((await bad.Content.ReadFromJsonAsync<ValidationProblemDetails>())!.Errors.ContainsKey("divisions"));
+        }
+        Assert.Null((await LeagueAsync(manager, leagueId)).Stage);
     }
 
     [Fact]
@@ -211,7 +284,8 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         var league = await LeagueAsync(manager, leagueId);
         Assert.Contains(league.Participants, p => p.PlayerId == outId);
         Assert.Equal(((int?)null, (int?)null), league.Teams.Single(t => t.Id == leftOut) is var team ? (team.Position, team.Division) : default);
-        Assert.Single(await GamesAsync(leagueId));
+        // The three placed are one Division, each pair playing once; the one left out plays nobody.
+        Assert.Equal(3, (await GamesAsync(leagueId)).Count);
         var seen = (await outClient.GetFromJsonAsync<GetPlayerLeaguesResponse>($"/players/{outId}/leagues"))!.Leagues.Single();
         Assert.Equal((1, (PlayerLeaguePlace?)null), (seen.Stage!.Number, seen.Place));
     }
@@ -410,7 +484,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     }
 
     [Fact]
-    public async Task A_Player_sees_their_Division_and_opponent_or_their_Bye()
+    public async Task A_Player_sees_their_Division_and_everyone_they_play_in_it()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await NewClubAsync();
@@ -425,9 +499,47 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         var thirdSees = (await third.GetFromJsonAsync<GetPlayerLeaguesResponse>($"/players/{thirdId}/leagues"))!.Leagues.Single();
 
         Assert.Equal(new DateOnly(2026, 12, 31), firstSees.Stage!.EndDate);
-        Assert.Equal((1, "Second"), (firstSees.Place!.Division!.Value, Assert.Single(firstSees.Place.Opponents)));
-        Assert.Equal(((int?)null, 0), (thirdSees.Place!.Division, thirdSees.Place.Opponents.Count));
+        Assert.Equal(1, firstSees.Place!.Division);
+        Assert.Equal(["Second", "Third"], firstSees.Place.Opponents.Select(o => Assert.Single(o.Names)));
+        Assert.Equal(["First", "Second"], thirdSees.Place!.Opponents.Select(o => Assert.Single(o.Names)));
         var listed = (await manager.GetFromJsonAsync<GetClubLeaguesResponse>($"/clubs/{clubId}/leagues"))!.Leagues.Single();
         Assert.Equal(1, listed.Stage!.Number);
+    }
+
+    /// <summary>
+    /// The DivisionSize migration's SQL on rows made the old way: a League
+    /// with no Division size, and a Stage whose places have no Division.
+    /// </summary>
+    [Fact]
+    public async Task The_migration_gives_old_Leagues_a_Division_size_and_old_places_their_Divisions()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var knockoutId = await CreateLeagueAsync(manager, clubId, structure: "Knockout");
+        foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
+        {
+            await ParticipantAsync(manager, clubId, leagueId, name);
+        }
+        var ladder = (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId).ToList();
+        (await StartAsync(manager, leagueId, ladder)).EnsureSuccessStatusCode();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            await db.Leagues.Where(l => l.Id == leagueId).ExecuteUpdateAsync(set => set.SetProperty(l => l.DivisionSize, (int?)null));
+            await db.LadderPlaces.Where(p => p.LeagueId == leagueId).ExecuteUpdateAsync(set => set.SetProperty(p => p.Division, 0));
+
+            foreach (var sql in new SocialTennis.Api.Migrations.DivisionSize().UpOperations.OfType<SqlOperation>().Select(o => o.Sql))
+            {
+                await db.Database.ExecuteSqlRawAsync(sql);
+            }
+        }
+
+        var league = await LeagueAsync(manager, leagueId);
+        Assert.Equal(4, league.DivisionSize);
+        // Divisions of 2 read from positions, and the old Bye, fifth, joins the Division above it.
+        Assert.Equal([1, 1, 2, 2, 2], ladder.Select(teamId => league.Teams.Single(t => t.Id == teamId).Division!.Value));
+        Assert.Null((await LeagueAsync(manager, knockoutId)).DivisionSize);
     }
 }

@@ -54,8 +54,8 @@ function TakeBack({ league, askerId, label }: { league: PlayerLeague; askerId: s
 
 /**
  * Where the Player stands in a League they're in (#7): before the start, that
- * the ladder comes then; after it, their Division and who they play by the
- * deadline, the Bye, or that they aren't on the ladder.
+ * the ladder comes then; after it, their Division and the Teams in it they
+ * play once each by the deadline (ADR-0031), or that they aren't on the ladder.
  */
 function LadderState({ league }: { league: PlayerLeague }) {
   const { stage, place } = league;
@@ -66,7 +66,6 @@ function LadderState({ league }: { league: PlayerLeague }) {
       </p>
     );
   }
-  const deadline = `Stage ${stage.number} runs to ${formatDate(stage.endDate)}.`;
   if (!place) {
     return (
       <p className="mt-2 text-sm">
@@ -75,18 +74,14 @@ function LadderState({ league }: { league: PlayerLeague }) {
       </p>
     );
   }
-  if (place.division == null) {
-    return (
-      <p className="mt-2 text-sm">
-        <Badge tone="info">Bye</Badge>{" "}
-        <span className="text-fg-muted">You sit out this Stage and don&apos;t move: with an odd number, the last on the ladder does. {deadline}</span>
-      </p>
-    );
-  }
+  const opponents = place.opponents.map((opponent) => opponent.names.join(" & "));
+  const list = opponents.length > 1 ? `${opponents.slice(0, -1).join(", ")} and ${opponents[opponents.length - 1]}` : opponents[0];
   return (
     <p className="mt-2 text-sm">
-      <Badge tone="accent">{`Division ${place.division}`}</Badge> You play <strong>{place.opponents.join(" & ")}</strong>.{" "}
-      <span className="text-fg-muted">{deadline} Arrange the game between you.</span>
+      <Badge tone="accent">{`Division ${place.division}`}</Badge> You play <strong>{list}</strong>, once each.{" "}
+      <span className="text-fg-muted">
+        Stage {stage.number} runs to {formatDate(stage.endDate)}: arrange the {opponents.length === 1 ? "game" : "games"} between you.
+      </span>
     </p>
   );
 }

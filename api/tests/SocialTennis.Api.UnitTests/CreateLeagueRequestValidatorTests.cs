@@ -19,7 +19,8 @@ public class CreateLeagueRequestValidatorTests
         StageLength? stageLength = null,
         ScoreFormat? scoreFormat = null,
         string name = "Winter Singles",
-        DateOnly? endDate = null) =>
+        DateOnly? endDate = null,
+        int? divisionSize = null) =>
         new(
             name,
             type,
@@ -28,7 +29,8 @@ public class CreateLeagueRequestValidatorTests
             endDate ?? new DateOnly(2027, 3, 31),
             stageLength ?? new StageLength(1, StageLengthUnit.Months),
             stageRoll,
-            scoreFormat ?? new ScoreFormat(6, 1, false));
+            scoreFormat ?? new ScoreFormat(6, 1, false),
+            divisionSize);
 
     [Theory]
     [InlineData(LeagueStructure.Divisional, StageRoll.Automatic)]
@@ -108,4 +110,28 @@ public class CreateLeagueRequestValidatorTests
     public void Refuses_a_Type_that_is_not_one_of_the_seven() =>
         Validator.TestValidate(ALeague(type: 0))
             .ShouldHaveValidationErrorFor("type");
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(8)]
+    public void A_Divisional_League_of_Teams_takes_a_Division_size_from_2_to_8_or_none(int? size) =>
+        Validator.TestValidate(ALeague(divisionSize: size)).ShouldNotHaveAnyValidationErrors();
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(9)]
+    public void Refuses_a_Division_size_outside_2_to_8(int size) =>
+        Validator.TestValidate(ALeague(divisionSize: size)).ShouldHaveValidationErrorFor("divisionSize");
+
+    [Fact]
+    public void Refuses_a_Division_size_for_a_Knockout_League() =>
+        Validator.TestValidate(ALeague(structure: LeagueStructure.Knockout, stageRoll: null, divisionSize: 4))
+            .ShouldHaveValidationErrorFor("divisionSize");
+
+    [Fact]
+    public void Refuses_a_Division_size_for_Foursomes() =>
+        Validator.TestValidate(ALeague(type: LeagueType.Foursomes, divisionSize: 4))
+            .ShouldHaveValidationErrorFor("divisionSize");
 }

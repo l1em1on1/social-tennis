@@ -9,9 +9,10 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <summary>
 /// What starting a League would do, for the Manager to change and confirm
 /// (#7): the proposed ladder, by Competitor Rating (a Team's is its Players'
-/// average), ties broken by earliest join time, then by Team (ADR-0013); the
-/// doubles Players it would remove; the Join Requests still waiting; and the
-/// first Stage's dates. Nothing changes.
+/// average), ties broken by earliest join time, then by Team (ADR-0013),
+/// split into Divisions of about the League's size (ADR-0031); the doubles
+/// Players it would remove; the Join Requests still waiting; and the first
+/// Stage's dates. Nothing changes.
 /// </summary>
 /// <remarks>
 /// A League that has started, or can't start yet (Knockout, #12; Foursomes,
@@ -26,7 +27,7 @@ public static class GetLeagueStart
     {
         var league = await db.Leagues
             .Where(l => l.Id == leagueId)
-            .Select(l => new { l.Type, l.Structure, l.StartDate, l.EndDate, l.StageLength })
+            .Select(l => new { l.Type, l.Structure, l.StartDate, l.EndDate, l.StageLength, l.DivisionSize })
             .SingleOrDefaultAsync(cancellationToken);
         if (league is null)
         {
@@ -63,8 +64,11 @@ public static class GetLeagueStart
             .ToList();
 
         var (start, end) = StageDates.First(league.StartDate, league.EndDate, league.StageLength);
+        var size = league.DivisionSize ?? League.DefaultDivisionSize;
         return TypedResults.Ok(new GetLeagueStartResponse(
             competitors,
+            size,
+            competitors.Count >= 2 ? Ladder.ProposeDivisions(competitors.Count, size) : [],
             await LeagueLadder.UnpairedAsync(db, leagueId, league.Type, cancellationToken),
             await db.LeagueJoinRequests.CountAsync(
                 r => r.LeagueId == leagueId && r.Status == LeagueJoinRequestStatus.Pending, cancellationToken),
