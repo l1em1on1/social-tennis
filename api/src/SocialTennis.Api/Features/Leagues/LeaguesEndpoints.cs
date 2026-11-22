@@ -71,6 +71,18 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(StartLeague));
 
+        // Closing the current Stage (#10): its screen, and the close.
+        league.MapGet("/close", GetStageClose.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(GetStageClose));
+
+        league.MapPost("/close", CloseStage.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<CloseStageRequest, CloseStageRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(CloseStage));
+
         // The ladder (#7): the League's Players and Managers; anyone else, a 404.
         league.MapGet("/ladder", GetLeagueLadder.HandleAsync)
             .WithName(nameof(GetLeagueLadder));

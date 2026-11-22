@@ -267,6 +267,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     // October is closed (see its Games): nothing waits on the Manager.
     heldUp: false,
     awaiting: { unscoredGameIds: [], ties: [] },
+    ended: false,
     divisions: [
       {
         number: 1,

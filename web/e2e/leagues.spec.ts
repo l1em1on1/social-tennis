@@ -3,7 +3,6 @@
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
-import { Client } from "pg";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -702,40 +701,35 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await page.goto(ladderUrl);
   await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–4.*Played`)]);
 
-  if (testInfo.project.name === "real") {
-    // The Stage closes (#10 will do it; here, straight in the database): Vic can't change it, the Manager can.
-    const leagueId = new URL(ladderUrl).pathname.split("/").pop();
-    const db = new Client({ connectionString: process.env.DATABASE_URL });
-    await db.connect();
-    try {
-      await db.query(`UPDATE "Stages" SET "ClosedAt" = now() WHERE "LeagueId" = $1`, [leagueId]);
-    } finally {
-      await db.end();
-    }
-    await vicPage.goto(matchUrl);
-    await expect(vicPage.getByRole("note")).toContainText("Stage 1 is closed. This score can't be changed any more.");
-    await expect(vicPage.getByRole("link", { name: "Correct the score" })).toHaveCount(0);
+  // The Manager closes Stage 1 (#10): Vic can't change its score any more, the Manager can still override it.
+  const leagueId = new URL(ladderUrl).pathname.split("/").pop();
+  const managerAgain = await browser.newContext();
+  const managerPage = await managerAgain.newPage();
+  await logIn(managerPage, testInfo, personaEmail(testInfo, "manager"));
+  await managerPage.goto(`/manage/leagues/${leagueId}`);
+  await managerPage.getByRole("link", { name: "Close Stage 1" }).click();
+  await expect(managerPage.getByRole("heading", { name: "Close Stage 1", level: 1 })).toBeVisible();
+  await managerPage.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(managerPage.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toContainText("Stage 2 runs");
 
-    const managerAgain = await browser.newContext();
-    const managerPage = await managerAgain.newPage();
-    await logIn(managerPage, testInfo, personaEmail(testInfo, "manager"));
-    await managerPage.goto(matchUrl);
-    await managerPage.getByRole("link", { name: "Override score (manager)" }).click();
-    await expect(managerPage.getByRole("heading", { name: "Override the score", level: 1 })).toBeVisible();
-    // 6–4 becomes 4–6: Vic's win.
-    for (let i = 0; i < 2; i++) {
-      await managerPage.getByRole("group", { name: `Set, ${una.name}` }).getByRole("button", { name: "One less" }).click();
-      await managerPage.getByRole("group", { name: `Set, ${vic.name}` }).getByRole("button", { name: "One more" }).click();
-    }
-    await expect(managerPage.getByLabel("Score so far")).toHaveText("4–6");
-    await managerPage.getByRole("button", { name: "Save override" }).click();
-    await expect(managerPage.getByRole("status").filter({ hasText: "Override saved" })).toBeVisible();
-    await expect(managerPage.getByRole("list", { name: "Changes to the score" }).getByRole("listitem").first()).toContainText(
-      `overrode it`,
-    );
-    await expect(managerPage.getByRole("region", { name: "Score" })).toContainText(`${vic.name} won`);
-    await managerAgain.close();
+  await vicPage.goto(matchUrl);
+  await expect(vicPage.getByRole("note")).toContainText("Stage 1 is closed. This score can't be changed any more.");
+  await expect(vicPage.getByRole("link", { name: "Correct the score" })).toHaveCount(0);
+
+  await managerPage.goto(matchUrl);
+  await managerPage.getByRole("link", { name: "Override score (manager)" }).click();
+  await expect(managerPage.getByRole("heading", { name: "Override the score", level: 1 })).toBeVisible();
+  // 6–4 becomes 4–6: Vic's win.
+  for (let i = 0; i < 2; i++) {
+    await managerPage.getByRole("group", { name: `Set, ${una.name}` }).getByRole("button", { name: "One less" }).click();
+    await managerPage.getByRole("group", { name: `Set, ${vic.name}` }).getByRole("button", { name: "One more" }).click();
   }
+  await expect(managerPage.getByLabel("Score so far")).toHaveText("4–6");
+  await managerPage.getByRole("button", { name: "Save override" }).click();
+  await expect(managerPage.getByRole("status").filter({ hasText: "Override saved" })).toBeVisible();
+  await expect(managerPage.getByRole("list", { name: "Changes to the score" }).getByRole("listitem").first()).toContainText("overrode it");
+  await expect(managerPage.getByRole("region", { name: "Score" })).toContainText(`${vic.name} won`);
+  await managerAgain.close();
   await vicContext.close();
 });
 
@@ -800,6 +794,76 @@ test("a Manager settles Games nobody scored from the to-do list: records one, ma
   ]);
   await page.goto(leaguePage);
   await expect(toDo.getByRole("listitem")).toHaveText([new RegExp(`${ben.name} v ${cy.name}`)]);
+});
+
+test("a Manager closes a Stage: the top goes up, the bottom down, a tie they order, a Team waiting joins, and Stage 2 opens", async ({
+  page,
+}, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Closing Ladder");
+  const players = ["Abe Closes", "Bo Closes", "Cat Closes", "Di Closes", "Ed Closes"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `closes-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [abe, bo, cat, di, ed] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  // Its Stages run a year, so Stage 1's deadline is far off (see createLeague).
+  await createLeague(page, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  // Ed waits off the ladder; the rest play in two Divisions of two.
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: `Leave out ${ed.name}` }).click();
+  await page.getByRole("button", { name: "More Divisions" }).click();
+  await expect(page.getByRole("list", { name: "Division 2" }).getByRole("listitem")).toHaveText([new RegExp(cat.name), new RegExp(di.name)]);
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+
+  // Abe beats Bo; Cat v Di isn't played, so who goes up from Division 2 is the Manager's to order.
+  const toDo = page.getByRole("region", { name: "To do" });
+  await toDo.getByRole("listitem").filter({ hasText: `${abe.name} v ${bo.name}` }).getByRole("link", { name: "Settle" }).click();
+  await page.getByRole("link", { name: "Record the score (manager)" }).click();
+  const more = page.getByRole("group", { name: `Set, ${abe.name}` }).getByRole("button", { name: "One more" });
+  for (let i = 0; i < 6; i++) await more.click();
+  await page.getByRole("button", { name: "Save score" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+  await page.goto(leaguePage);
+  await toDo.getByRole("listitem").filter({ hasText: `${cat.name} v ${di.name}` }).getByRole("link", { name: "Settle" }).click();
+  await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+  await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+  await page.goto(leaguePage);
+  await expect(toDo.getByRole("list", { name: "Ties that decide who moves" })).toContainText(`Division 2: ${cat.name}, ${di.name}`);
+
+  // The close: Bo goes down, the Manager puts Di above Cat so Di goes up, and Ed joins.
+  await toDo.getByRole("link", { name: "Close Stage 1" }).click();
+  await expect(page.getByRole("heading", { name: "Close Stage 1", level: 1 })).toBeVisible();
+  const divisionOne = page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem");
+  await expect(divisionOne).toHaveText([new RegExp(`${abe.name}.*stays`), new RegExp(`${bo.name}.*▼ to Division 2`)]);
+  await page.getByRole("button", { name: `Move ${di.name} up` }).click();
+  await expect(page.getByRole("list", { name: "Division 2 order" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${di.name}.*▲ to Division 1`),
+    new RegExp(`${cat.name}.*stays`),
+  ]);
+  await page.getByRole("checkbox", { name: ed.name }).check();
+  await expectNoSeriousA11yViolations(page);
+  await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toContainText(
+    "Stage 1 is closed, and Stage 2 runs 1 Nov 2027 – 31 Oct 2028.",
+  );
+
+  // Stage 2's ladder: Abe and Di; then Bo, Cat and Ed, each pair with a Game to play.
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  const standings = (n: number) =>
+    page.getByRole("table", { name: `Division ${n} standings` }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings(1)).toHaveText([new RegExp(abe.name), new RegExp(di.name)]);
+  await expect(standings(2)).toHaveText([new RegExp(bo.name), new RegExp(cat.name), new RegExp(ed.name)]);
+  await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveCount(3);
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {

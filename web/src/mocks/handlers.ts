@@ -1,7 +1,7 @@
 import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
-import { DIVISION_SIZE, proposeDivisions } from "@/lib/league";
+import { DIVISION_SIZE, proposeDivisions, relegate } from "@/lib/league";
 import { checkScore, isMatchTiebreak, scoreFormat, type ScoreSet, type Side } from "@/lib/score";
 import { gamesOf, openTiesOf, standingsOf } from "./standings";
 import {
@@ -179,8 +179,19 @@ interface MockLeague {
   teams: { id: string; createdAt: string }[];
   /** Teams per Division, for a Divisional League of Teams (ADR-0031). */
   divisionSize: number | null;
-  /** Stage 1 once started (#7), its ladder (Team ids, top first) and its Division sizes. */
+  /** The current Stage once started (#7), its ladder (Team ids, top first) and its Division sizes. */
   stage: { number: number; startDate: string; endDate: string } | null;
+  ladder: string[];
+  divisions: number[];
+  /** The current Stage has closed: it was the League's last, so the League has ended (#10). */
+  stageClosed: boolean;
+  /** Stages closed before the current one, with their ladders, so their Games stay (#10). */
+  pastStages: MockStage[];
+}
+
+/** A Stage and its ladder: the current one is the League's own fields, closed ones are kept as these. */
+interface MockStage {
+  stage: { number: number; startDate: string; endDate: string };
   ladder: string[];
   divisions: number[];
 }
@@ -216,7 +227,20 @@ function breakUp(league: MockLeague, teamId: string) {
 }
 /** As the API's StageDates.First (#7): from the League's start, one Stage length, no later than its end. */
 function firstStage(league: MockLeague) {
-  const [year, month, day] = league.startDate.split("-").map(Number);
+  return { number: 1, ...stageFrom(league, league.startDate) };
+}
+
+/** As the API's StageDates.Next (#10): from the day after the last Stage ended; none once the League has no day left. */
+function nextStage(league: MockLeague, previousEnd: string) {
+  const day = new Date(`${previousEnd}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + 1);
+  const start = day.toISOString().slice(0, 10);
+  return start > league.endDate ? null : stageFrom(league, start);
+}
+
+/** One Stage length from `start`, ending no later than the League. */
+function stageFrom(league: MockLeague, start: string) {
+  const [year, month, day] = start.split("-").map(Number);
   let next: Date;
   if (league.stageLength.unit === "Weeks") {
     next = new Date(Date.UTC(year, month - 1, day + 7 * league.stageLength.count));
@@ -228,7 +252,7 @@ function firstStage(league: MockLeague) {
   }
   next.setUTCDate(next.getUTCDate() - 1);
   const end = next.toISOString().slice(0, 10);
-  return { number: 1, startDate: league.startDate, endDate: end > league.endDate ? league.endDate : end };
+  return { startDate: start, endDate: end > league.endDate ? league.endDate : end };
 }
 
 /** As the API's LeagueLadder.CannotStartAsync (#7). */
@@ -379,17 +403,22 @@ const teamPlayers = (league: MockLeague, teamId: string) =>
       name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
     }));
 
-/** A started League's Divisions at the sizes the Manager confirmed, each pair playing once (ADR-0031). */
-function ladderOf(league: MockLeague) {
-  const competitors = league.ladder.map((teamId, index) => ({ teamId, position: index + 1, players: teamPlayers(league, teamId) }));
+/** The current Stage as a MockStage; none before the start. */
+const currentOf = (league: MockLeague): MockStage | null =>
+  league.stage ? { stage: league.stage, ladder: league.ladder, divisions: league.divisions } : null;
+
+/** A Stage's Divisions at the sizes the Manager confirmed, each pair playing once (ADR-0031); the current Stage's by default. */
+function ladderOf(league: MockLeague, of: MockStage | null = currentOf(league)) {
+  if (!of) return [];
+  const competitors = of.ladder.map((teamId, index) => ({ teamId, position: index + 1, players: teamPlayers(league, teamId) }));
   let start = 0;
-  return league.divisions.map((size, index) => {
+  return of.divisions.map((size, index) => {
     const teams = competitors.slice(start, start + size);
     start += size;
     const games = teams.flatMap((first, i) =>
       teams.slice(i + 1).map((second, j) => ({
-        // Unique across Leagues: the League's number, then the Division and the pair.
-        id: `00000000-0000-4000-8000-7${league.id.slice(-5)}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
+        // Unique across Leagues and Stages: the League's number, the Stage's, then the Division and the pair.
+        id: `00000000-0000-4000-8000-7${league.id.slice(-4)}${of.stage.number % 10}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
         firstTeamId: first.teamId,
         secondTeamId: second.teamId,
       })),
@@ -398,12 +427,16 @@ function ladderOf(league: MockLeague) {
   });
 }
 
-/** A League Game by id, with its League and Division (#38). */
+/** A League Game by id, with its League, Stage (closed or not) and Division (#38, #10). */
 function gameById(gameId: string) {
   for (const league of leagues) {
-    for (const division of league.stage ? ladderOf(league) : []) {
-      const game = division.games.find((candidate) => candidate.id === gameId);
-      if (game) return { league, division: division.number, ...game };
+    const current = currentOf(league);
+    for (const of of [...league.pastStages, ...(current ? [current] : [])]) {
+      const closed = of !== current || league.stageClosed;
+      for (const division of ladderOf(league, of)) {
+        const game = division.games.find((candidate) => candidate.id === gameId);
+        if (game) return { league, stage: { ...of.stage, closed }, division: division.number, ...game };
+      }
     }
   }
   return null;
@@ -436,6 +469,7 @@ const snapshotOf = (league: MockLeague, value: MockScoreValue) => ({ ...value, s
 /** As the API's GameScores.Check (#38): the winner, and the problems by wire name. */
 function checkEntry(
   league: MockLeague,
+  stage: { number: number; startDate: string },
   body: { playedOn: string; sets: { first: number | string; second: number | string; firstTiebreak?: number | string | null; secondTiebreak?: number | string | null }[]; retirementWinner?: number | string | null },
 ) {
   const value = (point: number | string | null | undefined) => (point === null || point === undefined ? null : Number(point));
@@ -448,11 +482,11 @@ function checkEntry(
   const declared = value(body.retirementWinner) as Side | null;
   const check = checkScore(scoreFormat(league.scoreFormat), sets, declared);
   const errors: Record<string, string[]> = check.ok ? {} : { [check.field]: [check.message] };
-  if (body.playedOn < league.stage!.startDate) {
+  if (body.playedOn < stage.startDate) {
     const started = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(
-      new Date(`${league.stage!.startDate}T00:00:00Z`),
+      new Date(`${stage.startDate}T00:00:00Z`),
     );
-    errors.playedOn = [`Stage ${league.stage!.number} started on ${started}: the game can't have been played before that.`];
+    errors.playedOn = [`Stage ${stage.number} started on ${started}: the game can't have been played before that.`];
   } else if (body.playedOn > clubToday()) {
     errors.playedOn = ["The date played can't be in the future."];
   }
@@ -478,6 +512,57 @@ const setScores = (league: MockLeague, sets: ScoreSet[]) =>
 /** Today in the Club's time zone (ADR-0016): every mock Club is in London. */
 const clubToday = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
+/** As the API's StageLadder.BuildAsync (#7, #10): the current Stage's Divisions, with their Games' Scores and Standings. */
+function ladderDivisions(league: MockLeague) {
+  const ladder = ladderOf(league);
+  const format = scoreFormat(league.scoreFormat);
+  const divisions = ladder.map(({ number, competitors, games }) => ({
+    number,
+    competitors,
+    // As the API's Standings (#10), from the Scores so far.
+    standings: standingsOf(
+      competitors.map((competitor) => competitor.teamId),
+      games.map(({ id, firstTeamId, secondTeamId }) => {
+        const score = scores.get(id);
+        const [firstGames, secondGames] = score ? gamesOf(format, score.sets) : [0, 0];
+        return { first: firstTeamId, second: secondTeamId, result: score ? { winner: score.winner, firstGames, secondGames } : null };
+      }),
+      number,
+      ladder.length,
+    ),
+    games: games.map(({ id, firstTeamId, secondTeamId }) => {
+      const score = scores.get(id);
+      return {
+        id,
+        firstTeamId,
+        secondTeamId,
+        score: score ? { winner: score.winner, retired: score.retired, sets: setScores(league, score.sets) } : null,
+        notPlayed: voided.has(id),
+      };
+    }),
+  }));
+  return divisions;
+}
+
+/** As the API: the Games nobody scored or voided, and the ties that decide who moves. */
+function awaitingOf(divisions: ReturnType<typeof ladderDivisions>) {
+  return {
+    unscoredGameIds: divisions.flatMap((division) => division.games.filter((game) => !game.score && !game.notPlayed).map((game) => game.id)),
+    ties: divisions.flatMap((division) =>
+      openTiesOf(division.standings, division.number, divisions.length).map((teamIds) => ({ division: division.number, teamIds })),
+    ),
+  };
+}
+
+/** Teams in the League but off its current ladder, complete for its Type: those a close can add (#10). */
+function waitingTeams(league: MockLeague) {
+  const size = teamSize(league.type);
+  return league.teams
+    .filter((team) => !league.ladder.includes(team.id))
+    .filter((team) => league.participants.filter((participant) => participant.teamId === team.id).length === size)
+    .map((team) => team.id);
+}
 
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
@@ -689,6 +774,8 @@ export const handlers = [
       stage: null,
       ladder: [],
       divisions: [],
+      stageClosed: false,
+      pastStages: [],
     };
     leagues.push(league);
     return response(201).json({ id: league.id, name: league.name });
@@ -948,44 +1035,100 @@ export const handlers = [
     }
     const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type, yourPlayerIds };
     if (!league.stage) {
-      return response(200).json({ ...facts, stage: null, divisions: [], heldUp: false, awaiting: { unscoredGameIds: [], ties: [] } });
+      return response(200).json({ ...facts, stage: null, divisions: [], heldUp: false, awaiting: { unscoredGameIds: [], ties: [] }, ended: false });
     }
-    const ladder = ladderOf(league);
-    const format = scoreFormat(league.scoreFormat);
-    const divisions = ladder.map(({ number, competitors, games }) => ({
-      number,
-      competitors,
-      // As the API's Standings (#10), from the Scores so far.
-      standings: standingsOf(
-        competitors.map((competitor) => competitor.teamId),
-        games.map(({ id, firstTeamId, secondTeamId }) => {
-          const score = scores.get(id);
-          const [firstGames, secondGames] = score ? gamesOf(format, score.sets) : [0, 0];
-          return { first: firstTeamId, second: secondTeamId, result: score ? { winner: score.winner, firstGames, secondGames } : null };
-        }),
-        number,
-        ladder.length,
-      ),
-      games: games.map(({ id, firstTeamId, secondTeamId }) => {
-        const score = scores.get(id);
-        return {
-          id,
-          firstTeamId,
-          secondTeamId,
-          score: score ? { winner: score.winner, retired: score.retired, sets: setScores(league, score.sets) } : null,
-          notPlayed: voided.has(id),
-        };
-      }),
-    }));
-    // As the API (#10): what holds up the close, and whether the deadline has passed. A mock Stage never closes.
-    const awaiting = {
-      unscoredGameIds: divisions.flatMap((division) => division.games.filter((game) => !game.score && !game.notPlayed).map((game) => game.id)),
-      ties: divisions.flatMap((division) =>
-        openTiesOf(division.standings, division.number, divisions.length).map((teamIds) => ({ division: division.number, teamIds })),
-      ),
-    };
-    return response(200).json({ ...facts, stage: league.stage, divisions, heldUp: clubToday() > league.stage.endDate, awaiting });
+    const divisions = ladderDivisions(league);
+    // As the API (#10): what holds up the close, and whether the deadline has passed.
+    const awaiting = league.stageClosed ? { unscoredGameIds: [], ties: [] } : awaitingOf(divisions);
+    const heldUp = !league.stageClosed && clubToday() > league.stage.endDate;
+    return response(200).json({ ...facts, stage: league.stage, divisions, heldUp, awaiting, ended: league.stageClosed });
   }),
+
+  // Closing the current Stage (#10): as the API's GetStageClose and CloseStage.
+  http.get("/leagues/{leagueId}/close", ({ request, params, response }) => {
+    const user = userOf(emailOf(request));
+    const league = leagueById(params.leagueId);
+    if (!(user.manager || user.admin) || !league?.stage) {
+      return response(404).empty();
+    }
+    if (league.stageClosed) {
+      return response(409).json(conflict("stage-closed", "This League's last Stage has closed: the League has ended."), problemJson);
+    }
+    const divisions = ladderDivisions(league);
+    const next = nextStage(league, league.stage.endDate);
+    return response(200).json({
+      stage: league.stage,
+      leagueEndDate: league.endDate,
+      heldUp: clubToday() > league.stage.endDate,
+      divisions,
+      awaiting: awaitingOf(divisions),
+      waiting: next ? waitingTeams(league).map((teamId) => ({ teamId, players: teamPlayers(league, teamId) })) : [],
+      nextStage: next,
+    });
+  }),
+
+  http.post("/leagues/{leagueId}/close", async ({ request, params, response }) => {
+    const user = userOf(emailOf(request));
+    const league = leagueById(params.leagueId);
+    if (!(user.manager || user.admin) || !league?.stage) {
+      return response(404).empty();
+    }
+    if (league.stageClosed) {
+      return response(409).json(conflict("stage-closed", "This League's last Stage has closed: the League has ended."), problemJson);
+    }
+    const body = await request.json();
+    const divisions = ladderDivisions(league);
+    if (awaitingOf(divisions).unscoredGameIds.length > 0) {
+      return response(409).json(conflict("stage-queue-not-empty", "Games with no score are holding the Stage up."), problemJson);
+    }
+    // The confirmed order must still follow each Division's Standings; ties in any order.
+    const follows =
+      body.divisions.length === divisions.length &&
+      divisions.every((division, index) => {
+        const order = body.divisions[index];
+        const rank = new Map(division.standings.map((standing) => [standing.teamId, Number(standing.rank)]));
+        return (
+          order.length === rank.size &&
+          new Set(order).size === order.length &&
+          order.every((team, at) => rank.has(team) && (at === 0 || rank.get(team)! >= rank.get(order[at - 1])!))
+        );
+      });
+    if (!follows) {
+      return response(409).json(conflict("standings-changed", "The Standings have changed since the close screen loaded."), problemJson);
+    }
+    const next = nextStage(league, league.stage.endDate);
+    const waiting = next ? waitingTeams(league) : [];
+    if (new Set(body.joining).size !== body.joining.length || !body.joining.every((team) => waiting.includes(team))) {
+      return response(409).json(conflict("league-changed", "The Teams waiting for a place have changed."), problemJson);
+    }
+    const errors: Record<string, string[]> = {};
+    if (!next && body.nextStartDate) {
+      errors.nextStartDate = ["This is the League's last Stage: closing it ends the League."];
+    } else if (next && !body.nextStartDate) {
+      errors.nextStartDate = ["Give the next Stage its dates."];
+    } else if (body.nextStartDate && body.nextEndDate) {
+      if (body.nextStartDate <= league.stage.endDate) {
+        errors.nextStartDate = ["The next Stage starts after this one ends."];
+      }
+      if (body.nextEndDate > league.endDate) {
+        errors.nextEndDate = ["The League ends before then."];
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    if (!body.nextStartDate || !body.nextEndDate) {
+      league.stageClosed = true;
+      return response(204).empty();
+    }
+    const placed = relegate(body.divisions, body.joining);
+    league.pastStages.push(currentOf(league)!);
+    league.stage = { number: league.stage.number + 1, startDate: body.nextStartDate, endDate: body.nextEndDate };
+    league.ladder = placed.flat();
+    league.divisions = placed.map((division) => division.length);
+    return response(204).empty();
+  }),
+
 
   // A Game for its Match screen (#38): seen by whoever can see its League's ladder.
   http.get("/games/{gameId}", ({ request, params, response }) => {
@@ -1014,7 +1157,7 @@ export const handlers = [
       type: league.type,
       scoreFormat: league.scoreFormat,
       // A mock Stage never closes: closing is #10.
-      stage: { ...league.stage!, closed: false },
+      stage: game.stage,
       division: game.division,
       sides,
       score: score
@@ -1064,10 +1207,13 @@ export const handlers = [
     if (scores.has(game.id)) {
       return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
     }
+    if (game.stage.closed) {
+      return response(409).json(conflict("stage-closed", "This game's Stage has closed, so only a Manager can change its score."), problemJson);
+    }
     if (voided.has(game.id)) {
       return response(409).json(conflict("not-played", "A manager has marked this game as not played, so it takes no score."), problemJson);
     }
-    const { errors, after } = checkEntry(league, { playedOn, sets, retirementWinner });
+    const { errors, after } = checkEntry(league, game.stage, { playedOn, sets, retirementWinner });
     if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
     }
@@ -1097,10 +1243,13 @@ export const handlers = [
     if (scores.has(game.id)) {
       return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
     }
+    if (game.stage.closed) {
+      return response(409).json(conflict("stage-closed", "This game's Stage has closed, so only a Manager can change its score."), problemJson);
+    }
     if (voided.has(game.id)) {
       return response(409).json(conflict("not-played", "A manager has marked this game as not played, so it takes no score."), problemJson);
     }
-    const { errors, after } = checkEntry(game.league, body);
+    const { errors, after } = checkEntry(game.league, game.stage, body);
     if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
     }
@@ -1130,6 +1279,9 @@ export const handlers = [
     if (scores.has(game.id)) {
       return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
     }
+    if (game.stage.closed) {
+      return response(409).json(conflict("stage-closed", "This game's Stage has closed, so only a Manager can change its score."), problemJson);
+    }
     voided.add(game.id);
     return response(204).empty();
   }),
@@ -1142,6 +1294,9 @@ export const handlers = [
     const game = gameById(params.gameId);
     if (!game) {
       return response(404).empty();
+    }
+    if (game.stage.closed) {
+      return response(409).json(conflict("stage-closed", "This game's Stage has closed, so only a Manager can change its score."), problemJson);
     }
     voided.delete(game.id);
     return response(204).empty();
@@ -1169,7 +1324,10 @@ export const handlers = [
     if (!score) {
       return response(409).json(conflict("not-scored", "This game has no score to change yet."), problemJson);
     }
-    const { errors, after } = checkEntry(league, body);
+    if (game.stage.closed) {
+      return response(409).json(conflict("stage-closed", "This game's Stage has closed, so only a Manager can change its score."), problemJson);
+    }
+    const { errors, after } = checkEntry(league, game.stage, body);
     if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
     }
@@ -1194,7 +1352,7 @@ export const handlers = [
     if (!score) {
       return response(409).json(conflict("not-scored", "This game has no score to change yet."), problemJson);
     }
-    const { errors, after } = checkEntry(game.league, body);
+    const { errors, after } = checkEntry(game.league, game.stage, body);
     if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
     }

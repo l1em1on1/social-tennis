@@ -27,10 +27,14 @@ public static class GameScores
     public static async Task<IDbContextTransaction> LockResultsAsync(TennisDbContext db, Guid leagueId, CancellationToken cancellationToken)
     {
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock({ResultsLockClass}, hashtext({leagueId.ToString()}))", cancellationToken);
+        await TakeResultsLockAsync(db, leagueId, cancellationToken);
         return transaction;
     }
+
+    /// <summary>Takes the League's results lock in the transaction already open, as closing a Stage does beside the League's entry lock.</summary>
+    public static async Task TakeResultsLockAsync(TennisDbContext db, Guid leagueId, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({ResultsLockClass}, hashtext({leagueId.ToString()}))", cancellationToken);
 
     /// <summary>The League of a Game, to lock its results before reading it; none for no such Game.</summary>
     public static Task<Guid?> LeagueOfAsync(TennisDbContext db, Guid gameId, CancellationToken cancellationToken) =>

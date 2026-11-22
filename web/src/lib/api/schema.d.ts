@@ -404,6 +404,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetStageClose"];
+        put?: never;
+        post: operations["CloseStage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/ladder": {
         parameters: {
             query?: never;
@@ -599,6 +615,25 @@ export interface components {
             /** Format: uuid */
             partnerId?: null | string;
         };
+        CloseNextStage: {
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+        };
+        CloseStageRequest: {
+            divisions: string[][];
+            joining: string[];
+            /** Format: date */
+            nextStartDate: null | string;
+            /** Format: date */
+            nextEndDate: null | string;
+        };
+        CloseWaitingTeam: {
+            /** Format: uuid */
+            teamId: string;
+            players: components["schemas"]["LadderPlayer"][];
+        };
         ClubInviteSummary: {
             /** Format: uuid */
             id: string;
@@ -781,6 +816,7 @@ export interface components {
             divisions: components["schemas"]["LadderDivision"][];
             heldUp: boolean;
             awaiting: components["schemas"]["LadderAwaiting"];
+            ended: boolean;
             yourPlayerIds: string[];
         };
         GetLeaguePartnersResponse: {
@@ -827,6 +863,16 @@ export interface components {
         GetPlayersResponse: {
             players: components["schemas"]["PlayerSummary"][];
             page: components["schemas"]["PageInfo"];
+        };
+        GetStageCloseResponse: {
+            stage: components["schemas"]["LeagueStageSummary"];
+            /** Format: date */
+            leagueEndDate: string;
+            heldUp: boolean;
+            divisions: components["schemas"]["LadderDivision"][];
+            awaiting: components["schemas"]["LadderAwaiting"];
+            waiting: components["schemas"]["CloseWaitingTeam"][];
+            nextStage: null | components["schemas"]["CloseNextStage"];
         };
         GetUsersResponse: {
             users: components["schemas"]["UserSummary"][];
@@ -2567,6 +2613,111 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StartLeagueRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetStageClose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetStageCloseResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CloseStage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseStageRequest"];
             };
         };
         responses: {

@@ -14,6 +14,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// on what's in <paramref name="Awaiting"/>, or for the Manager to close it.
 /// </param>
 /// <param name="Awaiting">What holds up the current Stage's close (#10).</param>
+/// <param name="Ended">The League's last Stage has closed (#10): the League is over, and this was its final ladder.</param>
 /// <param name="YourPlayerIds">
 /// The signed-in User's Players in this League, on the ladder or off it: the
 /// same rule that lets them see it. A User may hold several Players, and the
@@ -28,4 +29,5 @@ public record GetLeagueLadderResponse(
     IReadOnlyList<LadderDivision> Divisions,
     bool HeldUp,
     LadderAwaiting Awaiting,
+    bool Ended,
     IReadOnlyList<Guid> YourPlayerIds);

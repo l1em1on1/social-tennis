@@ -774,3 +774,48 @@ export async function voidGame(formData: FormData) {
 export async function unvoidGame(formData: FormData) {
   await setPlayed(formData, true);
 }
+
+/** The close form's last refusal, by the API's field names ("nextStartDate"…); "form" is the form's own. */
+export interface CloseStageState {
+  errors: Record<string, string[]>;
+}
+
+/**
+ * A Manager closes the current Stage (#10) as the close screen showed it:
+ * each Division's final order, the waiting Teams they ticked, and the next
+ * Stage's dates. Dates the API refuses come back to the form; a close that no
+ * longer matches the League (a score changed, a Team went) reloads the screen
+ * and says so.
+ */
+export async function closeStage(_previous: CloseStageState, formData: FormData): Promise<CloseStageState> {
+  const leagueId = formData.get("leagueId");
+  const divisions = formData.getAll("division").map((value) => (typeof value === "string" && value ? value.split(",") : []));
+  const joining = formData.getAll("joining").filter(isId);
+  const start = formData.get("nextStartDate");
+  const end = formData.get("nextEndDate");
+  const date = (value: FormDataEntryValue | null) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+  if (!isId(leagueId) || divisions.length === 0 || divisions.some((division) => division.length === 0 || !division.every(isId))) {
+    return { errors: { form: ["Some of the values weren't ones this form offers. Reload and try again."] } };
+  }
+
+  const api = await apiWithSession();
+  const { error, response } = await api.POST("/leagues/{leagueId}/close", {
+    params: { path: { leagueId } },
+    body: { divisions, joining, nextStartDate: date(start), nextEndDate: date(end) },
+  });
+  if (response.status === 400 && error && "errors" in error) {
+    return { errors: (error.errors ?? {}) as Record<string, string[]> };
+  }
+  const refusal = error && "type" in error && typeof error.type === "string" ? error.type : null;
+  if (refusal === "standings-changed" || refusal === "league-changed") {
+    redirect(`/manage/leagues/${leagueId}/close?error=changed`);
+  }
+  if (refusal === "stage-queue-not-empty") {
+    redirect(`/manage/leagues/${leagueId}/close?error=queue`);
+  }
+  if (!response.ok && response.status !== 404 && response.status !== 409) {
+    throw new Error(`POST /leagues/${leagueId}/close failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage/leagues/${leagueId}${response.ok ? "?closed=1" : ""}`);
+}
