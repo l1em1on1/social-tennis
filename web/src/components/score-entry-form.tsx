@@ -46,10 +46,10 @@ const setTitle = (format: ScoreFormat, index: number) =>
 
 /**
  * Entering a Game's Score (#38, wireframe P4, layout A): every Set on one
- * screen, two steppers each. The tiebreak points appear only at 5–5 (8–8),
- * and the Set is saved as 6–5 to the tiebreak's winner; the third Set
- * appears only at one set all, as a Match Tiebreak where the League plays
- * one. A Retirement keeps the Sets as they stood, with a declared winner.
+ * screen, two steppers each. The tiebreak points appear at 5–5 (8–8), or
+ * at 6–5 either way as recorded; a finished tiebreak at 5–5 is saved as
+ * 6–5 to its winner. The third Set appears only at one set all, as a Match
+ * Tiebreak where the League plays one. A Retirement keeps the Sets as they stood, with a declared winner.
  *
  * The hints are the API's own rules (`lib/score.ts`); the API still decides,
  * and anything it refuses shows where it belongs.
