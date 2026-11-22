@@ -442,7 +442,7 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
               <h3 className="font-semibold">Ties that decide who moves</h3>
               <ul aria-label="Ties that decide who moves" className="list-disc pl-5">
                 {ties.map((tie) => (
-                  <li key={Number(tie.division)}>
+                  <li key={`${Number(tie.division)}:${tie.teamIds.join()}`}>
                     Division {Number(tie.division)}: {tie.teamIds.map(name).join(", ")}
                   </li>
                 ))}

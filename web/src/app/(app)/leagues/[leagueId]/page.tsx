@@ -108,9 +108,13 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
           unscored={ladder.divisions.flatMap((division) =>
             division.games
               .filter((game) => ladder.awaiting.unscoredGameIds.includes(game.id))
-              .map((game) => `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}`),
+              .map((game) => ({ gameId: game.id, label: `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}` })),
           )}
-          ties={ladder.awaiting.ties.map((tie) => ({ division: Number(tie.division), names: tie.teamIds.map(teamName) }))}
+          ties={ladder.awaiting.ties.map((tie) => ({
+            division: Number(tie.division),
+            teamIds: tie.teamIds,
+            names: tie.teamIds.map(teamName),
+          }))}
         />
       )}
 

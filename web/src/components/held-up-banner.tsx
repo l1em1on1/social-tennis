@@ -13,10 +13,13 @@ export function HeldUpBanner({
 }: {
   stageNumber: number;
   endDate: string;
-  /** Each Game with no Score, by its Sides: "Una v Vic". */
-  unscored: string[];
-  /** Each tie that decides who moves: its Division and its Teams. */
-  ties: { division: number; names: string[] }[];
+  /** Each Game with no Score, and its Sides: "Una v Vic". */
+  unscored: { gameId: string; label: string }[];
+  /**
+   * Each tie that decides who moves: its Division, and its Teams' ids and
+   * names. A middle Division can have two, for first and for last.
+   */
+  ties: { division: number; teamIds: string[]; names: string[] }[];
 }) {
   const waiting = unscored.length > 0 || ties.length > 0;
   return (
@@ -29,10 +32,10 @@ export function HeldUpBanner({
         <>
           <ul className="list-disc pl-5">
             {unscored.map((game) => (
-              <li key={game}>No score yet: {game}</li>
+              <li key={game.gameId}>No score yet: {game.label}</li>
             ))}
             {ties.map((tie) => (
-              <li key={tie.division}>
+              <li key={`${tie.division}:${tie.teamIds.join()}`}>
                 A tie in Division {tie.division}: {tie.names.join(", ")}
               </li>
             ))}

@@ -8,8 +8,11 @@ const meta = {
   args: {
     stageNumber: 1,
     endDate: "2026-11-30",
-    unscored: ["Josh Lee v Ravi Rao", "Dev Shah v Liam Moss"],
-    ties: [{ division: 2, names: ["Omar Ali", "Tom Reid"] }],
+    unscored: [
+      { gameId: "g1", label: "Josh Lee v Ravi Rao" },
+      { gameId: "g2", label: "Dev Shah v Liam Moss" },
+    ],
+    ties: [{ division: 2, teamIds: ["t1", "t2"], names: ["Omar Ali", "Tom Reid"] }],
   },
 } satisfies Meta<typeof HeldUpBanner>;
 export default meta;
@@ -33,5 +36,23 @@ export const ReadyToClose: Story = {
   args: { unscored: [], ties: [] },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("region", { name: "Stage held up" })).toHaveTextContent("Everything is settled: the manager closes it next.");
+  },
+};
+
+/** A middle Division of four ranked 1, 1, 3, 3: a tie for who goes up and one for who goes down (#216 review). */
+export const TwoTiesInOneDivision: Story = {
+  args: {
+    unscored: [],
+    ties: [
+      { division: 2, teamIds: ["t1", "t2"], names: ["Omar Ali", "Tom Reid"] },
+      { division: 2, teamIds: ["t3", "t4"], names: ["Josh Lee", "Ravi Rao"] },
+    ],
+  },
+  play: async ({ canvas }) => {
+    const banner = canvas.getByRole("region", { name: "Stage held up" });
+    await expect(within(banner).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "A tie in Division 2: Omar Ali, Tom Reid",
+      "A tie in Division 2: Josh Lee, Ravi Rao",
+    ]);
   },
 };

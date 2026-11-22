@@ -812,4 +812,19 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.False(await db.Scores.AnyAsync(s => s.GameId == recorded.GameId));
         Assert.False(await db.ScoreChanges.AnyAsync(c => c.GameId == recorded.GameId));
     }
+
+    [Fact]
+    public async Task A_closed_Stage_isnt_held_up_and_waits_on_nothing_whatever_it_left_unscored()
+    {
+        var (_, leagueId, players, _) = await TwoDivisionsAsync();
+        await CloseStageAsync(leagueId);
+        // Past Stage 1's deadline, its Games unscored and its Divisions tied.
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 2, 12, 0, 0, TimeSpan.Zero);
+
+        var ladder = (await players[0].Client.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
+
+        Assert.False(ladder.HeldUp);
+        Assert.Empty(ladder.Awaiting.UnscoredGameIds);
+        Assert.Empty(ladder.Awaiting.Ties);
+    }
 }

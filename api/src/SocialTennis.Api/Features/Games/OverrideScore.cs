@@ -19,7 +19,7 @@ namespace SocialTennis.Api.Features.Games;
 /// like anyone in it, and overrides it after.
 /// <list type="bullet">
 /// <item>No such Game: 404.</item>
-/// <item>No Score yet: 409 <c>not-scored</c>. Recording a result for an unplayed Game is #10's resolution queue.</item>
+/// <item>No Score yet: 409 <c>not-scored</c>. A Manager records one with <see cref="RecordScore"/> (#10).</item>
 /// <item>An override made from an older version than the Score's: 409 <c>score-changed</c> (ADR-0018).</item>
 /// <item>The format and date rules of entering one: 400 under the wire name.</item>
 /// </list>
