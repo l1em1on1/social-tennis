@@ -531,6 +531,20 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
     `Division 1 You play ${vic.name} and ${xan.name}, once each.`,
   );
 
+  // The ladder: Una's Division marked, with everyone she plays and its three Games; Wes, left out, nowhere.
+  await page.getByRole("link", { name: `Open the ladder of ${league}` }).click();
+  await expect(page.getByRole("heading", { name: league, level: 1 })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(`You're in Division 1. You play ${vic.name} and ${xan.name}`);
+  const divisionOne = page.getByRole("region", { name: "Division 1" });
+  await expect(divisionOne).toContainText("You");
+  await expect(divisionOne.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${una.name} v ${vic.name}`),
+    new RegExp(`${una.name} v ${xan.name}`),
+    new RegExp(`${vic.name} v ${xan.name}`),
+  ]);
+  await expect(page.getByRole("list", { name: "Ladder" })).not.toContainText(wes.name);
+  await expectNoSeriousA11yViolations(page);
+
   const xanContext = await browser.newContext();
   const xanPage = await xanContext.newPage();
   await logIn(xanPage, testInfo, xan.email);

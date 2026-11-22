@@ -8,6 +8,7 @@ import {
   FIXTURE_USER_IDS,
   fixtureClubs,
   fixtureLeaguePages,
+  fixtureLadders,
   fixtureLeagueStarts,
   fixtureLeagues,
   fixtureMembers,
@@ -816,6 +817,50 @@ export const handlers = [
     league.ladder = [...ladder];
     league.divisions = sizes;
     return response(204).empty();
+  }),
+
+  // The ladder (#7): for the League's Players and Managers; a 404 for anyone else, as with the API.
+  http.get("/leagues/{leagueId}/ladder", ({ request, params, response }) => {
+    const fixed = fixtureLadders[params.leagueId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
+    const league = leagueById(params.leagueId);
+    const user = userOf(emailOf(request));
+    const inIt = playersOf(request).some((player) => league?.participants.some((participant) => participant.playerId === player.id));
+    if (!league || !(inIt || user.manager || user.admin)) {
+      return response(404).empty();
+    }
+    const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type };
+    if (!league.stage) {
+      return response(200).json({ ...facts, stage: null, divisions: [] });
+    }
+    const competitors = league.ladder.map((teamId, index) => ({
+      teamId,
+      position: index + 1,
+      players: league.participants
+        .filter((participant) => participant.teamId === teamId)
+        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+        .map((participant) => ({
+          playerId: participant.playerId,
+          name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
+        })),
+    }));
+    // The Divisions at the sizes the Manager confirmed, each pair playing once (ADR-0031).
+    let start = 0;
+    const divisions = league.divisions.map((size, index) => {
+      const teams = competitors.slice(start, start + size);
+      start += size;
+      const games = teams.flatMap((first, i) =>
+        teams.slice(i + 1).map((second, j) => ({
+          id: `${league.id.slice(0, -6)}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
+          firstTeamId: first.teamId,
+          secondTeamId: second.teamId,
+        })),
+      );
+      return { number: index + 1, competitors: teams, games };
+    });
+    return response(200).json({ ...facts, stage: league.stage, divisions });
   }),
 
   http.post("/leagues/{leagueId}/join-requests", async ({ request, params, response }) => {
