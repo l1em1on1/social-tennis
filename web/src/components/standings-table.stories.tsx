@@ -38,14 +38,17 @@ export const MidStage: Story = {
   },
 };
 
-/** Two level at the top: the tie-breaks don't separate them, so who goes up is the Manager's to settle. */
+/**
+ * Two level at the top: Omar beat Ravi 6–2 and Josh beat Tom 6–2, and they haven't played each
+ * other, so who goes up is the Manager's to settle. Tom beat Ravi 6–3, so the bottom is decided.
+ */
 export const TiedForFirst: Story = {
   args: {
     standings: [
       row("t2", 1, 1, 0, 6, 2, null, true),
       row("t3", 1, 1, 0, 6, 2, null, true),
-      row("t1", 3, 0, 1, 2, 6, "Stays"),
-      row("t4", 4, 0, 1, 2, 6, "Down"),
+      row("t1", 3, 1, 1, 8, 9, "Stays"),
+      row("t4", 4, 0, 2, 5, 12, "Down"),
     ],
   },
   play: async ({ canvas }) => {
