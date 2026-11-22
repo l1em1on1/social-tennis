@@ -822,6 +822,7 @@ export interface components {
             number: number | string;
             competitors: components["schemas"]["LadderCompetitor"][];
             games: components["schemas"]["LadderGame"][];
+            standings: components["schemas"]["LadderStanding"][];
         };
         LadderGame: {
             /** Format: uuid */
@@ -842,6 +843,24 @@ export interface components {
             /** Format: uuid */
             playerId: string;
             name: string;
+        };
+        LadderStanding: {
+            /** Format: uuid */
+            teamId: string;
+            /** Format: int32 */
+            rank: number | string;
+            /** Format: int32 */
+            played: number | string;
+            /** Format: int32 */
+            won: number | string;
+            /** Format: int32 */
+            lost: number | string;
+            /** Format: int32 */
+            gamesFor: number | string;
+            /** Format: int32 */
+            gamesAgainst: number | string;
+            tied: boolean;
+            move: null | components["schemas"]["StandingMove"];
         };
         LeagueJoinRequestPartner: {
             /** Format: uuid */
@@ -1107,6 +1126,8 @@ export interface components {
         StageLengthUnit: "Weeks" | "Months";
         /** @enum {unknown} */
         StageRoll: "Automatic" | "Manual" | null;
+        /** @enum {unknown} */
+        StandingMove: "Up" | "Down" | "Stays" | null;
         StartLeagueRequest: {
             ladder: string[];
             divisions: (number | string)[];

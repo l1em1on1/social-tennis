@@ -278,6 +278,12 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
           { id: FIXTURE_GAME_IDS.retirement, firstTeamId: id("f", 4), secondTeamId: id("f", 6), score: autumnScores.retirement },
           { id: FIXTURE_GAME_IDS.pending, firstTeamId: id("f", 5), secondTeamId: id("f", 6), score: null },
         ],
+        // Chris 4–2 and Jo 8–9 both won once, so games difference puts Chris first (#10).
+        standings: [
+          { teamId: id("f", 6), rank: 1, played: 1, won: 1, lost: 0, gamesFor: 4, gamesAgainst: 2, tied: false, move: "Stays" },
+          { teamId: id("f", 4), rank: 2, played: 2, won: 1, lost: 1, gamesFor: 8, gamesAgainst: 9, tied: false, move: "Stays" },
+          { teamId: id("f", 5), rank: 3, played: 1, won: 0, lost: 1, gamesFor: 5, gamesAgainst: 6, tied: false, move: "Stays" },
+        ],
       },
     ],
   },

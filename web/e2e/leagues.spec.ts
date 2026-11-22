@@ -646,6 +646,9 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await expectNoSeriousA11yViolations(page);
   await page.getByRole("link", { name: "Back to the ladder" }).click();
   await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–3.*Played`)]);
+  // The Standings follow (#10): one Division, so nobody moves.
+  const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings).toHaveText([new RegExp(`^1${una.name}110\\+3stays$`), new RegExp(`^2${vic.name}101-3stays$`)]);
 
   // Vic, the other side, sees the same score, and corrects it to 6–4: the history keeps both.
   const ladderUrl = page.url();

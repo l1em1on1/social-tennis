@@ -12,7 +12,7 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <summary>
 /// A League's ladder in its current Stage (#7): the Divisions from the top,
 /// each with its Teams and every Game between them (ADR-0031), with its Score
-/// once entered (#38). The Players in
+/// once entered (#38), and its Standings from those Scores (#10). The Players in
 /// the League see it, whether or not they are on the ladder, and so do Managers.
 /// </summary>
 /// <remarks>
@@ -82,25 +82,39 @@ public static class GetLeagueLadder
 
         // Each Division's Games in ladder order: by the higher Team's place, then the lower's.
         var positionOf = places.ToDictionary(p => p.Competitor.TeamId, p => p.Competitor.Position);
+        var count = places.Select(p => p.Division).Distinct().Count();
         var divisions = places
             .GroupBy(p => p.Division)
             .OrderBy(group => group.Key)
-            .Select(group => new LadderDivision(
-                group.Key,
-                [.. group.Select(p => p.Competitor)],
-                [
-                    .. games
-                        .Where(g => g.Division == group.Key)
-                        .OrderBy(g => positionOf[g.First])
-                        .ThenBy(g => positionOf[g.Second])
-                        .Select(g => new LadderGame(
+            .Select(group =>
+            {
+                var inDivision = games.Where(g => g.Division == group.Key).OrderBy(g => positionOf[g.First]).ThenBy(g => positionOf[g.Second]).ToList();
+                var standings = Standings.Rank(
+                    [.. group.Select(p => p.Competitor.TeamId)],
+                    [
+                        .. inDivision.Select(g => new StandingsGame(
+                            g.First,
+                            g.Second,
+                            g.Score is { } score ? Standings.ResultOf(league.ScoreFormat, score.Winner, score.Sets) : null)),
+                    ]);
+                return new LadderDivision(
+                    group.Key,
+                    [.. group.Select(p => p.Competitor)],
+                    [
+                        .. inDivision.Select(g => new LadderGame(
                             g.Id,
                             g.First,
                             g.Second,
                             g.Score is { } score
                                 ? new LadderGameScore(score.Winner, score.Retired, SetScore.Of(league.ScoreFormat, score.Sets))
                                 : null)),
-                ]))
+                    ],
+                    [
+                        .. standings.Select(s => new LadderStanding(
+                            s.TeamId, s.Rank, s.Played, s.Won, s.Lost, s.GamesFor, s.GamesAgainst, s.Tied,
+                            Standings.MoveOf(s, standings, group.Key, count))),
+                    ]);
+            })
             .ToList();
 
         return TypedResults.Ok(new GetLeagueLadderResponse(
