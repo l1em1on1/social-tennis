@@ -13,7 +13,7 @@ public static class JobRunner
 
     /// <summary>Registers every job. Adding one is a class beside these and a line here.</summary>
     public static IServiceCollection AddJobs(this IServiceCollection services) =>
-        services.AddScoped<IJob, PurgeTokensJob>();
+        services.AddScoped<IJob, PurgeTokensJob>().AddScoped<IJob, AutoRollJob>();
 
     /// <summary>
     /// Runs the named job in its own scope and returns the process exit code.

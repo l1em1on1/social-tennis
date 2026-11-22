@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using SocialTennis.Api.Features.Games;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Leagues.Contracts;
@@ -55,4 +56,167 @@ public static class StageClose
             type: "league-changed",
             title: "The Teams waiting for a place have changed since the close screen loaded.",
             detail: "Look at the close again.");
+
+    /// <summary>
+    /// Closes the League's current Stage with <paramref name="order"/>, every
+    /// Division's final order as the Manager confirmed it (or, for auto-roll,
+    /// its Standings), <paramref name="joining"/> Teams added at the bottom,
+    /// and the next Stage's dates: what <see cref="CloseStage"/> describes,
+    /// for the endpoint and the auto-roll job alike. The job passes
+    /// <paramref name="ordersTies"/> false: a tie that decides who moves is the
+    /// Manager's to order, so it refuses one, checked under the locks.
+    /// </summary>
+    public static async Task<CloseResult> CloseAsync(
+        TennisDbContext db,
+        Guid leagueId,
+        IReadOnlyList<IReadOnlyList<Guid>> order,
+        IReadOnlyList<Guid> joining,
+        DateOnly? nextStartDate,
+        DateOnly? nextEndDate,
+        TimeProvider clock,
+        CancellationToken cancellationToken,
+        bool ordersTies = true)
+    {
+        await using var transaction = await LeagueEntry.LockLeagueAsync(db, leagueId, cancellationToken);
+        await GameScores.TakeResultsLockAsync(db, leagueId, cancellationToken);
+        var league = await db.Leagues
+            .Where(l => l.Id == leagueId)
+            .Select(l => new { l.Type, l.EndDate, l.StageLength, l.ScoreFormat })
+            .SingleOrDefaultAsync(cancellationToken);
+        var stage = await db.Stages
+            .Where(s => s.LeagueId == leagueId)
+            .OrderByDescending(s => s.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (league is null || stage is null)
+        {
+            return new CloseResult(CloseRefusal.NotFound);
+        }
+
+        if (stage.ClosedAt is not null)
+        {
+            return new CloseResult(CloseRefusal.AlreadyClosed);
+        }
+
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, cancellationToken);
+        if (awaiting.UnscoredGameIds.Count > 0)
+        {
+            return new CloseResult(CloseRefusal.QueueNotEmpty);
+        }
+
+        if (!ordersTies && awaiting.Ties.Count > 0)
+        {
+            return new CloseResult(CloseRefusal.TiesOpen);
+        }
+
+        if (!FollowsStandings(divisions, order))
+        {
+            return new CloseResult(CloseRefusal.StandingsChanged);
+        }
+
+        var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
+        var waiting = next is null ? [] : await WaitingAsync(db, leagueId, stage.Id, league.Type, cancellationToken);
+        if (joining.Distinct().Count() != joining.Count
+            || !joining.All(team => waiting.Any(w => w.TeamId == team)))
+        {
+            return new CloseResult(CloseRefusal.LeagueChanged);
+        }
+
+        var errors = new Dictionary<string, string[]>();
+        if (next is null && nextStartDate is not null)
+        {
+            errors["nextStartDate"] = ["This is the League's last Stage: closing it ends the League."];
+        }
+        else if (next is not null && nextStartDate is null)
+        {
+            errors["nextStartDate"] = ["Give the next Stage its dates."];
+        }
+        else if (nextStartDate is { } start && nextEndDate is { } end)
+        {
+            if (start <= stage.EndDate)
+            {
+                errors["nextStartDate"] = [$"The next Stage starts after this one ends: on {stage.EndDate.AddDays(1).ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)} or later."];
+            }
+
+            if (end > league.EndDate)
+            {
+                errors["nextEndDate"] = [$"The League ends on {league.EndDate.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}."];
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            return new CloseResult(CloseRefusal.InvalidDates, errors);
+        }
+
+        var now = clock.GetUtcNow();
+        stage.ClosedAt = now;
+        if (nextStartDate is { } opensOn && nextEndDate is { } endsOn)
+        {
+            var opened = new Stage
+            {
+                Id = Guid.NewGuid(),
+                LeagueId = leagueId,
+                Number = stage.Number + 1,
+                StartDate = opensOn,
+                EndDate = endsOn,
+                OpenedAt = now,
+            };
+            db.Stages.Add(opened);
+            StageLadder.Place(opened, leagueId, Relegation.Next(order, joining));
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new CloseResult(CloseRefusal.None);
+    }
+
+    /// <summary>
+    /// Whether the confirmed order is every Division's Teams, and still follows
+    /// its Standings: no Team after one ranked below it. Tied Teams may be in
+    /// any order: the Manager's.
+    /// </summary>
+    private static bool FollowsStandings(IReadOnlyList<LadderDivision> divisions, IReadOnlyList<IReadOnlyList<Guid>> confirmed)
+    {
+        if (confirmed.Count != divisions.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < divisions.Count; index++)
+        {
+            var rankOf = divisions[index].Standings.ToDictionary(s => s.TeamId, s => s.Rank);
+            var order = confirmed[index];
+            if (order.Count != rankOf.Count || order.Distinct().Count() != order.Count || !order.All(rankOf.ContainsKey))
+            {
+                return false;
+            }
+
+            for (var place = 1; place < order.Count; place++)
+            {
+                if (rankOf[order[place]] < rankOf[order[place - 1]])
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
 }
+
+/// <summary>Why a close was refused, if it was (<see cref="StageClose.CloseAsync"/>).</summary>
+public enum CloseRefusal
+{
+    None,
+    NotFound,
+    AlreadyClosed,
+    QueueNotEmpty,
+    /// <summary>A tie decides who moves, and the auto-roll job doesn't order ties.</summary>
+    TiesOpen,
+    StandingsChanged,
+    LeagueChanged,
+    InvalidDates,
+}
+
+/// <summary>A close's outcome: refused or not, and the dates' problems by wire name.</summary>
+public sealed record CloseResult(CloseRefusal Refusal, Dictionary<string, string[]>? Errors = null);

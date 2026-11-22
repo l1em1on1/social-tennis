@@ -12,6 +12,7 @@ using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Games.Contracts;
 using SocialTennis.Api.Features.Leagues.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
+using SocialTennis.Api.Jobs;
 
 namespace SocialTennis.Api.IntegrationTests;
 
@@ -43,7 +44,8 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         return (await factory.CreateManagerClientAsync(), (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id);
     }
 
-    private static async Task<Guid> LeagueAsync(HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed", string? endDate = null)
+    private static async Task<Guid> LeagueAsync(
+        HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed", string? endDate = null, string stageRoll = "Manual")
     {
         var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
         {
@@ -53,7 +55,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             startDate = $"{Year}-07-01",
             endDate = endDate ?? $"{Year}-09-30",
             stageLength = new { count = 1, unit = "Months" },
-            stageRoll = "Manual",
+            stageRoll,
             scoreFormat,
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -655,10 +657,11 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
     private static Task<HttpResponseMessage> UnvoidAsync(HttpClient client, Guid gameId) => client.DeleteAsync($"/games/{gameId}/not-played");
 
     /// <summary>Two Divisions of two, Ann over Bea, then Cal over Dee, best of three with a Match Tiebreak.</summary>
-    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> TwoDivisionsAsync(string? endDate = null)
+    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> TwoDivisionsAsync(
+        string? endDate = null, string stageRoll = "Manual")
     {
         var (manager, clubId) = await ClubAsync();
-        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak, endDate: endDate);
+        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak, endDate: endDate, stageRoll: stageRoll);
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in new[] { "Ann", "Bea", "Cal", "Dee" })
         {
@@ -997,6 +1000,61 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             Assert.Equal(HttpStatusCode.NoContent, correct.StatusCode);
             Assert.Equal("standings-changed", await ProblemTypeAsync(close, HttpStatusCode.Conflict));
             Assert.Equal(1, (int)(await LadderOfAsync(manager, leagueId)).Stage!.Number);
+        }
+    }
+
+    private async Task RollAsync() =>
+        Assert.Equal(JobRunner.Succeeded, await JobRunner.RunAsync(factory.Services, "auto-roll", CancellationToken.None));
+
+    [Fact]
+    public async Task The_auto_roll_job_closes_an_auto_rolling_Stage_once_its_deadline_passes_and_only_once()
+    {
+        var (_, leagueId, players, teams) = await TwoDivisionsAsync(stageRoll: "Automatic");
+        var ladder = await LadderOfAsync(players[0].Client, leagueId);
+        (await SubmitAsync(players[1].Client, ladder.Divisions[0].Games.Single().Id, players[1].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[3].Client, ladder.Divisions[1].Games.Single().Id, players[3].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+
+        // Before the deadline, nothing rolls.
+        await RollAsync();
+        Assert.Equal(1, (int)(await LadderOfAsync(players[0].Client, leagueId)).Stage!.Number);
+
+        // Just past midnight in London on 1 August: Stage 1 rolls, the Standings deciding the moves.
+        factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 23, 5, 0, TimeSpan.Zero);
+        await RollAsync();
+        var rolled = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Equal((2, new DateOnly(Year, 8, 1), new DateOnly(Year, 8, 31)), ((int)rolled.Stage!.Number, rolled.Stage.StartDate, rolled.Stage.EndDate));
+        Assert.Equal(
+            [[teams[1], teams[3]], [teams[0], teams[2]]],
+            rolled.Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+
+        // Running it again, or late, changes nothing more.
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 2, 12, 0, 0, TimeSpan.Zero);
+        await RollAsync();
+        Assert.Equal(2, (int)(await LadderOfAsync(players[0].Client, leagueId)).Stage!.Number);
+    }
+
+    [Fact]
+    public async Task The_auto_roll_job_leaves_a_held_up_Stage_and_a_manually_rolled_one_open()
+    {
+        // An unscored Game, a tie that decides who moves, and a Manual League with nothing waiting.
+        var unscored = await TwoDivisionsAsync(stageRoll: "Automatic");
+        var tied = await TwoDivisionsAsync(stageRoll: "Automatic");
+        var manual = await TwoDivisionsAsync();
+        var tiedLadder = await LadderOfAsync(tied.Manager, tied.LeagueId);
+        (await SubmitAsync(tied.Players[1].Client, tiedLadder.Divisions[0].Games.Single().Id, tied.Players[1].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        (await VoidAsync(tied.Manager, tiedLadder.Divisions[1].Games.Single().Id)).EnsureSuccessStatusCode();
+        var manualLadder = await LadderOfAsync(manual.Manager, manual.LeagueId);
+        (await SubmitAsync(manual.Players[1].Client, manualLadder.Divisions[0].Games.Single().Id, manual.Players[1].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(manual.Players[3].Client, manualLadder.Divisions[1].Games.Single().Id, manual.Players[3].PlayerId, [Set(2, 6), Set(2, 6)])).EnsureSuccessStatusCode();
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 1, 12, 0, 0, TimeSpan.Zero);
+
+        await RollAsync();
+
+        foreach (var (client, leagueId) in new[] { (unscored.Manager, unscored.LeagueId), (tied.Manager, tied.LeagueId), (manual.Manager, manual.LeagueId) })
+        {
+            var ladder = await LadderOfAsync(client, leagueId);
+            Assert.Equal(1, (int)ladder.Stage!.Number);
+            Assert.True(ladder.HeldUp);
         }
     }
 }

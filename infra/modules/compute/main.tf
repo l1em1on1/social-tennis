@@ -349,6 +349,9 @@ locals {
   jobs = {
     # Deletes used or expired sign-in links and ended sessions.
     "purge-tokens" = "0 3 * * *"
+    # Closes auto-rolling Stages past their deadline with nothing waiting on
+    # the Manager (#10). 00:15 UTC is past midnight in London all year.
+    "auto-roll" = "15 0 * * *"
   }
 }
 
