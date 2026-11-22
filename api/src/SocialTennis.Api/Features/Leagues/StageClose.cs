@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using SocialTennis.Api.Features.Games;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Games;
 using SocialTennis.Api.Features.Leagues.Contracts;
 
 namespace SocialTennis.Api.Features.Leagues;
