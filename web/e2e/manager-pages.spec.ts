@@ -120,15 +120,27 @@ test("a Game's Match screen, from fixed data", async ({ page }, testInfo) => {
   await expect(score).toContainText("Retirement");
   await expect(score).toContainText("Chris Lee won when the game stopped early · played 12 Oct 2026 · entered by Jo Bennett");
 
-  // A Manager holding no Player sees a Game with no score, with nothing to enter.
+  // October has closed: a Game with no score is the Manager's to settle (#10), with nothing to enter here.
   await page.goto(`/games/${FIXTURE_GAME_IDS.pending}`);
-  await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Play by 31 Oct 2026.");
+  await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Stage 1 has closed without a score for this game");
   await expect(page.getByRole("link", { name: "Enter score" })).toHaveCount(0);
 
+  // Entered, then corrected; the Manager can override it after the close (#38).
   await page.goto(`/games/${FIXTURE_GAME_IDS.played}`);
   const rows = page.getByRole("region", { name: "Score" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
   await expect(rows).toHaveText([/Jo Bennett.*6/, /Alex Morgan.*5\(4\)/]);
+  await expect(page.getByRole("list", { name: "Changes to the score" }).getByRole("listitem")).toHaveText([
+    /Jo Bennett corrected it · 9 Oct, 08:15.*5–6\(4\) · Alex Morgan won.*6–5\(4\) · Jo Bennett won/,
+    /Alex Morgan entered it · 8 Oct, 20:40/,
+  ]);
+  await expect(page.getByRole("region", { name: "Score" })).toContainText("Stage 1 is closed. An override is kept in the score's history.");
   await expectNoSeriousA11yViolations(page);
+  await page.getByRole("link", { name: "Override score (manager)" }).click();
+  await expect(page.getByRole("heading", { name: "Override the score", level: 1 })).toBeVisible();
+  await expect(page.getByLabel("Score so far")).toHaveText("6–5(4)");
+  // Nothing to save until something changes.
+  await expect(page.getByRole("status")).toHaveText("Change something to save an override.");
+  await expect(page.getByRole("button", { name: "Save override" })).toBeDisabled();
 });
 
 test("Admin, from fixed data", async ({ page }, testInfo) => {

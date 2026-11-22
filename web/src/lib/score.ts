@@ -264,3 +264,21 @@ export function setsToSend(format: ScoreFormat, entries: SetEntry[]): ScoreSet[]
   }
   return sets;
 }
+
+/**
+ * A recorded Set back on the entry screen, to correct it: the games as
+ * recorded, 6–5 with its points included, which `recordedSet` keeps as they
+ * are; a Match Tiebreak's points are its games.
+ */
+export const entryOf = (set: Pick<Schemas["SetScore"], "first" | "second" | "firstTiebreak" | "secondTiebreak">): SetEntry => ({
+  first: Number(set.first),
+  second: Number(set.second),
+  firstPoints: set.firstTiebreak === null || set.firstTiebreak === undefined ? 0 : Number(set.firstTiebreak),
+  secondPoints: set.secondTiebreak === null || set.secondTiebreak === undefined ? 0 : Number(set.secondTiebreak),
+});
+
+/** When a change was made, where the Club is (ADR-0016): "8 Oct, 20:40". */
+export const formatInstant = (at: string, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone })
+    .format(new Date(at))
+    .replace(" at ", ", ");

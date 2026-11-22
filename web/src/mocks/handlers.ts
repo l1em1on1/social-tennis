@@ -408,16 +408,64 @@ function gameById(gameId: string) {
   return null;
 }
 
-/** Scores by Game id (#38): shared by every session, like the Leagues. */
-interface MockScore {
+/** What a Score said at one moment (#38). */
+interface MockScoreValue {
   playedOn: string;
   sets: ScoreSet[];
   winner: Side;
   retired: boolean;
+}
+
+/** Scores by Game id (#38): shared by every session, like the Leagues, with their history, the latest first. */
+interface MockScore extends MockScoreValue {
   submittedBy: string;
   submittedAt: string;
+  version: number;
+  history: { kind: Schemas["ScoreChangeKind"]; by: string | null; at: string; before: MockScoreValue | null; after: MockScoreValue }[];
 }
 const scores = new Map<string, MockScore>();
+let scoreVersions = 0;
+
+const snapshotOf = (league: MockLeague, value: MockScoreValue) => ({ ...value, sets: setScores(league, value.sets) });
+
+/** As the API's GameScores.Check (#38): the winner, and the problems by wire name. */
+function checkEntry(
+  league: MockLeague,
+  body: { playedOn: string; sets: { first: number | string; second: number | string; firstTiebreak?: number | string | null; secondTiebreak?: number | string | null }[]; retirementWinner?: number | string | null },
+) {
+  const value = (point: number | string | null | undefined) => (point === null || point === undefined ? null : Number(point));
+  const sets: ScoreSet[] = body.sets.map((set) => ({
+    first: Number(set.first),
+    second: Number(set.second),
+    firstTiebreak: value(set.firstTiebreak),
+    secondTiebreak: value(set.secondTiebreak),
+  }));
+  const declared = value(body.retirementWinner) as Side | null;
+  const check = checkScore(scoreFormat(league.scoreFormat), sets, declared);
+  const errors: Record<string, string[]> = check.ok ? {} : { [check.field]: [check.message] };
+  if (body.playedOn < league.stage!.startDate) {
+    const started = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(
+      new Date(`${league.stage!.startDate}T00:00:00Z`),
+    );
+    errors.playedOn = [`Stage ${league.stage!.number} started on ${started}: the game can't have been played before that.`];
+  } else if (body.playedOn > clubToday()) {
+    errors.playedOn = ["The date played can't be in the future."];
+  }
+  const after: MockScoreValue | null = check.ok
+    ? { playedOn: body.playedOn, sets, winner: check.winner, retired: declared !== null }
+    : null;
+  return { errors, after: Object.keys(errors).length === 0 ? after : null };
+}
+
+/** As the API's GameScores.ChangeAsync (#38): a stale version is refused; a change that changes nothing records nothing. */
+function changeScore(score: MockScore, version: number, after: MockScoreValue, kind: Schemas["ScoreChangeKind"], by: string | null) {
+  const before: MockScoreValue = { playedOn: score.playedOn, sets: score.sets, winner: score.winner, retired: score.retired };
+  if (JSON.stringify(before) === JSON.stringify(after)) return true;
+  if (version !== score.version) return false;
+  Object.assign(score, after, { version: (scoreVersions += 1) });
+  score.history.unshift({ kind, by, at: new Date().toISOString(), before, after });
+  return true;
+}
 
 const setScores = (league: MockLeague, sets: ScoreSet[]) =>
   sets.map((set, index) => ({ ...set, matchTiebreak: isMatchTiebreak(scoreFormat(league.scoreFormat), index) }));
@@ -939,10 +987,27 @@ export const handlers = [
       clubName: MOCK_CLUB.name,
       type: league.type,
       scoreFormat: league.scoreFormat,
-      stage: league.stage!,
+      // A mock Stage never closes: closing is #10.
+      stage: { ...league.stage!, closed: false },
       division: game.division,
       sides,
-      score: score ? { ...score, sets: setScores(league, score.sets) } : null,
+      score: score
+        ? {
+            playedOn: score.playedOn,
+            sets: setScores(league, score.sets),
+            winner: score.winner,
+            retired: score.retired,
+            submittedBy: score.submittedBy,
+            submittedAt: score.submittedAt,
+            version: score.version,
+          }
+        : null,
+      history: (score?.history ?? []).map((entry) => ({
+        ...entry,
+        before: entry.before ? snapshotOf(league, entry.before) : null,
+        after: snapshotOf(league, entry.after),
+      })),
+      timeZone: "Europe/London",
       yourPlayerIds: mine
         .filter((player) => sides.some((side) => side.players.some((p) => p.playerId === player.id)))
         .map((player) => player.id),
@@ -971,34 +1036,75 @@ export const handlers = [
     if (scores.has(game.id)) {
       return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
     }
-    const recorded: ScoreSet[] = sets.map((set) => ({
-      first: Number(set.first),
-      second: Number(set.second),
-      firstTiebreak: set.firstTiebreak === null || set.firstTiebreak === undefined ? null : Number(set.firstTiebreak),
-      secondTiebreak: set.secondTiebreak === null || set.secondTiebreak === undefined ? null : Number(set.secondTiebreak),
-    }));
-    const declared = retirementWinner === null || retirementWinner === undefined ? null : (Number(retirementWinner) as Side);
-    const check = checkScore(scoreFormat(league.scoreFormat), recorded, declared);
-    const errors: Record<string, string[]> = check.ok ? {} : { [check.field]: [check.message] };
-    if (playedOn < league.stage!.startDate) {
-      const started = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(
-        new Date(`${league.stage!.startDate}T00:00:00Z`),
-      );
-      errors.playedOn = [`Stage ${league.stage!.number} started on ${started}: the game can't have been played before that.`];
-    } else if (playedOn > clubToday()) {
-      errors.playedOn = ["The date played can't be in the future."];
-    }
-    if (!check.ok || errors.playedOn) {
+    const { errors, after } = checkEntry(league, { playedOn, sets, retirementWinner });
+    if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
     }
+    const submittedAt = new Date().toISOString();
     scores.set(game.id, {
-      playedOn,
-      sets: recorded,
-      winner: check.winner,
-      retired: declared !== null,
+      ...after,
       submittedBy: player.name,
-      submittedAt: new Date().toISOString(),
+      submittedAt,
+      version: (scoreVersions += 1),
+      history: [{ kind: "Entered", by: player.name, at: submittedAt, before: null, after }],
     });
+    return response(204).empty();
+  }),
+
+  // As the API's CorrectScore (#38): a Player in the Game, while the Stage is open (and a mock one always is).
+  http.put("/games/{gameId}/score", async ({ request, params, response }) => {
+    const body = await request.json();
+    const player = playersOf(request).find((candidate) => candidate.id === body.playerId);
+    const game = gameById(params.gameId);
+    const user = userOf(emailOf(request));
+    if (!player || !game) {
+      return response(404).empty();
+    }
+    const { league } = game;
+    const inLeague = playersOf(request).some((mine) => league.participants.some((p) => p.playerId === mine.id));
+    if (!(inLeague || user.manager || user.admin)) {
+      return response(404).empty();
+    }
+    const team = league.participants.find((participant) => participant.playerId === player.id)?.teamId;
+    if (team !== game.firstTeamId && team !== game.secondTeamId) {
+      return response(403).json({ type: "not-in-game", title: "Only a Player in this game can enter its score.", status: 403 }, problemJson);
+    }
+    const score = scores.get(game.id);
+    if (!score) {
+      return response(409).json(conflict("not-scored", "This game has no score to change yet."), problemJson);
+    }
+    const { errors, after } = checkEntry(league, body);
+    if (!after) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    if (!changeScore(score, Number(body.version), after, "Corrected", player.name)) {
+      return response(409).json(conflict("score-changed", "The score changed after you opened it."), problemJson);
+    }
+    return response(204).empty();
+  }),
+
+  // As the API's OverrideScore (#38): Managers only, open Stage or closed.
+  http.put("/games/{gameId}/score/override", async ({ request, params, response }) => {
+    const body = await request.json();
+    const user = userOf(emailOf(request));
+    if (!(user.manager || user.admin)) {
+      return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
+    }
+    const game = gameById(params.gameId);
+    if (!game) {
+      return response(404).empty();
+    }
+    const score = scores.get(game.id);
+    if (!score) {
+      return response(409).json(conflict("not-scored", "This game has no score to change yet."), problemJson);
+    }
+    const { errors, after } = checkEntry(game.league, body);
+    if (!after) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    if (!changeScore(score, Number(body.version), after, "Overridden", playersOf(request)[0]?.name ?? null)) {
+      return response(409).json(conflict("score-changed", "The score changed after you opened it."), problemJson);
+    }
     return response(204).empty();
   }),
 

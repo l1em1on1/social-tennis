@@ -24,10 +24,19 @@ import {
   type Side,
 } from "@/lib/score";
 
+/**
+ * Entering a Score; a Player who played correcting it while the Stage is
+ * open; or a Manager overriding it, open or closed (#38).
+ */
+export type ScoreEntryMode = "enter" | "correct" | "override";
+
 export interface ScoreEntryFormProps {
   gameId: string;
-  /** The Acting Player, who plays in the Game: the Score is entered as them. */
-  playerId: string;
+  mode?: ScoreEntryMode;
+  /** The Acting Player, who plays in the Game, entering or correcting it as them. None for an override. */
+  playerId?: string;
+  /** The Score's version a correction or an override is made from (ADR-0018). */
+  version?: number;
   /** Side 1's name, then Side 2's ("Una", "Ann & Bob"). */
   sides: [string, string];
   format: ScoreFormat;
@@ -54,7 +63,13 @@ const setTitle = (format: ScoreFormat, index: number) =>
  * The hints are the API's own rules (`lib/score.ts`); the API still decides,
  * and anything it refuses shows where it belongs.
  */
-export function ScoreEntryForm({ gameId, playerId, sides, format, stageStart, today, initial }: ScoreEntryFormProps) {
+const SAVE: Record<ScoreEntryMode, string> = { enter: "Save score", correct: "Save correction", override: "Save override" };
+
+/** What the entry would save, to tell a change from none. */
+const entryKey = (format: ScoreFormat, entries: SetEntry[], playedOn: string, retirementWinner: Side | null) =>
+  JSON.stringify({ sets: setsToSend(format, entries), playedOn, retirementWinner });
+
+export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, sides, format, stageStart, today, initial }: ScoreEntryFormProps) {
   const [state, action] = useActionState<SubmitScoreState, FormData>(submitScore, { errors: {} });
   const [entries, setEntries] = useState<SetEntry[]>(() =>
     [0, 1, 2].map((index) => initial?.sets?.[index] ?? emptySet()),
@@ -62,10 +77,13 @@ export function ScoreEntryForm({ gameId, playerId, sides, format, stageStart, to
   const [playedOn, setPlayedOn] = useState(initial?.playedOn ?? today);
   const [retired, setRetired] = useState(initial?.retirementWinner !== undefined);
   const [retirementWinner, setRetirementWinner] = useState<Side | null>(initial?.retirementWinner ?? null);
+  // A correction or override saves only a change (#213 review): what it started from, to compare.
+  const [startedFrom] = useState(() => (mode === "enter" ? null : entryKey(format, entries, playedOn, retired ? retirementWinner : null)));
 
   const shown = shownSets(format, entries);
   const sets = setsToSend(format, entries);
   const check = checkScore(format, sets, retired ? retirementWinner : null);
+  const unchanged = startedFrom === entryKey(format, entries, playedOn, retired ? retirementWinner : null);
   const dateOk = playedOn >= stageStart && playedOn <= today;
   const summary = sets
     .map((set, index) => ({ set, index }))
@@ -78,14 +96,18 @@ export function ScoreEntryForm({ gameId, playerId, sides, format, stageStart, to
 
   const verdict = retired && retirementWinner === null
     ? "Pick who won the game that stopped early."
-    : check.ok
+    : unchanged
+      ? `Change something to save ${mode === "override" ? "an override" : "a correction"}.`
+      : check.ok
       ? `${sides[check.winner - 1]} wins${retired ? " (retirement)" : ""}`
       : check.message;
 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="gameId" value={gameId} />
-      <input type="hidden" name="playerId" value={playerId} />
+      <input type="hidden" name="mode" value={mode} />
+      {playerId && <input type="hidden" name="playerId" value={playerId} />}
+      {version !== undefined && <input type="hidden" name="version" value={version} />}
       {sets.map((set, index) => (
         <span key={index} hidden>
           <input type="hidden" name="first" value={set.first} />
@@ -235,14 +257,24 @@ export function ScoreEntryForm({ gameId, playerId, sides, format, stageStart, to
         <p className="font-mono text-lg font-semibold" aria-label="Score so far">
           {summary || "—"}
         </p>
-        <p role="status" className={cx("text-sm", check.ok && !(retired && retirementWinner === null) ? "font-semibold text-success" : "text-fg-muted")}>
+        <p
+          role="status"
+          className={cx("text-sm", check.ok && !unchanged && !(retired && retirementWinner === null) ? "font-semibold text-success" : "text-fg-muted")}
+        >
           {verdict}
         </p>
         {(state.errors.sets ?? state.errors.retirementWinner) && (
           <p className="text-sm font-medium text-danger">{(state.errors.sets ?? state.errors.retirementWinner)?.join(" ")}</p>
         )}
-        <SubmitButton fullWidth pendingLabel="Saving…" disabled={!check.ok || !dateOk || (retired && retirementWinner === null)}>
-          Save score
+        {mode !== "enter" && (
+          <p className="text-sm text-fg-muted">
+            {mode === "override"
+              ? "Your override is recorded as yours, with the score it replaces, and everyone in the league can see it."
+              : "Your correction is recorded with your name and the score it replaces, and everyone in the league can see it."}
+          </p>
+        )}
+        <SubmitButton fullWidth pendingLabel="Saving…" disabled={!check.ok || !dateOk || unchanged || (retired && retirementWinner === null)}>
+          {SAVE[mode]}
         </SubmitButton>
       </div>
     </form>

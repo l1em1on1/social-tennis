@@ -35,4 +35,11 @@ public class Score
     public Player SubmittedBy { get; set; } = null!;
 
     public DateTimeOffset SubmittedAt { get; set; }
+
+    /// <summary>
+    /// The row's version (Postgres's <c>xmin</c>, ADR-0018): an edit sends the
+    /// version it was based on, and a stale one is refused rather than
+    /// overwriting a change its author never saw.
+    /// </summary>
+    public uint Version { get; set; }
 }

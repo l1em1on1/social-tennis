@@ -413,6 +413,12 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid>("SubmittedById")
                         .HasColumnType("uuid");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<int>("Winner")
                         .HasColumnType("integer");
 
@@ -452,7 +458,10 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateTimeOffset>("At")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("ByPlayerId")
+                    b.Property<Guid?>("ByPlayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GameId")
@@ -522,6 +531,8 @@ namespace SocialTennis.Api.Migrations
 
                     b.HasIndex("ByPlayerId");
 
+                    b.HasIndex("ByUserId");
+
                     b.HasIndex("LeagueId", "GameId");
 
                     b.ToTable("ScoreChanges");
@@ -565,6 +576,9 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
@@ -826,6 +840,11 @@ namespace SocialTennis.Api.Migrations
                     b.HasOne("SocialTennis.Api.Domain.Player", "ByPlayer")
                         .WithMany()
                         .HasForeignKey("ByPlayerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SocialTennis.Api.Domain.User", "ByUser")
+                        .WithMany()
+                        .HasForeignKey("ByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -837,6 +856,8 @@ namespace SocialTennis.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("ByPlayer");
+
+                    b.Navigation("ByUser");
 
                     b.Navigation("Game");
                 });

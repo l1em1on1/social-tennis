@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Score edits use optimistic concurrency; a stale edit is rejected, not merged
@@ -17,3 +17,5 @@ A Score carries a version. Reading a Score returns it, an edit sends back the ve
 ## Consequences
 
 The same token is the default for any other record that two people edit (a League's settings, the proposed starting ladder), adopted per ticket when the collision is real. Append-only records (edit history, join requests) don't need it.
+
+**Accepted (2026-11-22): built in #38.** Correcting (`PUT /games/{gameId}/score`) and overriding (`PUT /games/{gameId}/score/override`) send the `version` the Game's Score was read with, and EF Core makes it the UPDATE's condition. A stale one is a 409 with the stable type `score-changed`. **One change from the above:** the 409 doesn't carry the current Score. A ProblemDetails extension isn't in the generated client's types, so the web app reopens the form, which reads the Score as it is now, and says what happened. An edit that says what the Score already does is saved as nothing at all, so it needs no version check.

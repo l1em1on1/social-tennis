@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -20,8 +19,9 @@ namespace SocialTennis.Api.Features.Games;
 /// <list type="bullet">
 /// <item>A Player the signed-in User doesn't hold: 404.</item>
 /// <item>A Game the User can't see (none of their Players is in its League, and they aren't a Manager): 404, as for its Match screen.</item>
-/// <item>The User's Player, in the League or a Manager, but not in this Game: 403 <c>not-in-game</c>. A Manager overriding a Score is #38's second part.</item>
+/// <item>The User's Player, in the League or a Manager, but not in this Game: 403 <c>not-in-game</c>. A Manager changes a Score only by overriding one (<see cref="OverrideScore"/>).</item>
 /// <item>A Game that has a Score: 409 <c>already-scored</c>, also when two are entered at once.</item>
+/// <item>A Game whose Stage has closed (#10): 409 <c>stage-closed</c>. What's missing then is the Manager's to resolve.</item>
 /// <item>Sets the League's format doesn't allow (<see cref="ScoreRules"/>), or a Date played before the
 /// Stage started or after today in the Club's time zone: 400, with the problem under its wire name
 /// (ADR-0017), so the form shows it where it belongs.</item>
@@ -50,6 +50,7 @@ public static class SubmitScore
                 g.LeagueId,
                 g.Stage.Number,
                 g.Stage.StartDate,
+                Closed = g.Stage.ClosedAt != null,
                 g.Stage.League.Club.TimeZone,
                 g.Stage.League.ScoreFormat,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
@@ -72,29 +73,13 @@ public static class SubmitScore
             return GameScores.AlreadyScored();
         }
 
-        var errors = new Dictionary<string, string[]>();
-        var check = ScoreRules.Check(game.ScoreFormat, request.Sets, request.RetirementWinner);
-        if (!check.IsValid)
+        if (game.Closed)
         {
-            errors[check.Field!] = [check.Message!];
+            return GameScores.StageClosed();
         }
 
         var today = ClubCalendar.Today(game.TimeZone, clock);
-        if (request.PlayedOn < game.StartDate)
-        {
-            // Month names in English whatever the server's culture: the app's language.
-            errors["playedOn"] =
-            [
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"Stage {game.Number} started on {game.StartDate:d MMM yyyy}: the game can't have been played before that."),
-            ];
-        }
-        else if (request.PlayedOn > today)
-        {
-            errors["playedOn"] = ["The date played can't be in the future."];
-        }
-
+        var (winner, errors) = GameScores.Check(game.ScoreFormat, game.Number, game.StartDate, today, request);
         if (errors.Count > 0)
         {
             return TypedResults.ValidationProblem(errors);
@@ -107,7 +92,7 @@ public static class SubmitScore
             LeagueId = game.LeagueId,
             PlayedOn = request.PlayedOn,
             Sets = [.. request.Sets],
-            Winner = check.Winner,
+            Winner = winner,
             Retired = request.RetirementWinner is not null,
             SubmittedById = request.PlayerId,
             SubmittedAt = now,
@@ -120,6 +105,7 @@ public static class SubmitScore
             GameId = gameId,
             Kind = ScoreChangeKind.Entered,
             At = now,
+            ByUserId = userId,
             ByPlayerId = request.PlayerId,
             After = ScoreValue.Of(score),
         });

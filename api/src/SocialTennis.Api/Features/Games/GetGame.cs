@@ -11,7 +11,8 @@ namespace SocialTennis.Api.Features.Games;
 
 /// <summary>
 /// A League Game for its Match screen (#38): both Sides, its Score once
-/// entered, and which of the signed-in User's Players play in it. Seen by
+/// entered with every change to it, and which of the signed-in User's
+/// Players play in it. Seen by
 /// whoever can see its League's ladder (#7): the League's Players and Managers.
 /// </summary>
 /// <remarks>Anyone else gets a 404, as if the Game weren't there (ADR-0017).</remarks>
@@ -36,7 +37,7 @@ public static class GetGame
                 g.Stage.League.Club.TimeZone,
                 g.Stage.League.Type,
                 g.Stage.League.ScoreFormat,
-                Stage = new GameStage(g.Stage.Number, g.Stage.StartDate, g.Stage.EndDate),
+                Stage = new GameStage(g.Stage.Number, g.Stage.StartDate, g.Stage.EndDate, g.Stage.ClosedAt != null),
                 g.Division,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
                 Sides = g.Sides
@@ -65,6 +66,7 @@ public static class GetGame
                         g.Score.Retired,
                         SubmittedBy = g.Score.SubmittedBy.Name,
                         g.Score.SubmittedAt,
+                        g.Score.Version,
                     },
             })
             .AsSplitQuery()
@@ -75,8 +77,27 @@ public static class GetGame
         }
 
         var score = game.Score is { } s
-            ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.SubmittedAt)
+            ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.SubmittedAt, s.Version)
             : null;
+        var changes = await db.ScoreChanges
+            .Where(c => c.LeagueId == game.LeagueId && c.GameId == gameId)
+            .OrderByDescending(c => c.At)
+            .ThenByDescending(c => c.Kind)
+            .Select(c => new
+            {
+                c.Kind,
+                By = c.ByPlayer != null
+                    ? c.ByPlayer.Name
+                    : db.Players.Where(p => p.UserId == c.ByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
+                c.At,
+                c.Before,
+                c.After,
+            })
+            .ToListAsync(cancellationToken);
+        var snapshot = (ScoreValue value) => new ScoreSnapshot(value.PlayedOn, SetScore.Of(game.ScoreFormat, value.Sets), value.Winner, value.Retired);
+        var history = changes
+            .Select(c => new ScoreHistoryEntry(c.Kind, c.By, c.At, c.Before is { } before ? snapshot(before) : null, snapshot(c.After)))
+            .ToList();
         return TypedResults.Ok(new GetGameResponse(
             game.Id,
             game.LeagueId,
@@ -88,7 +109,9 @@ public static class GetGame
             game.Division,
             game.Sides,
             score,
+            history,
             game.Yours,
+            game.TimeZone,
             ClubCalendar.Today(game.TimeZone, clock)));
     }
 }

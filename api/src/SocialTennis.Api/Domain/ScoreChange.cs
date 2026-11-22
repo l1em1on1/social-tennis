@@ -19,10 +19,15 @@ public class ScoreChange
 
     public DateTimeOffset At { get; set; }
 
-    /// <summary>The Player who made it: one who played the Game, acted as by the User who holds them.</summary>
-    public Guid ByPlayerId { get; set; }
+    /// <summary>The signed-in User who made it.</summary>
+    public Guid ByUserId { get; set; }
 
-    public Player ByPlayer { get; set; } = null!;
+    public User ByUser { get; set; } = null!;
+
+    /// <summary>The Player they acted as, one who played the Game; none for a Manager's override.</summary>
+    public Guid? ByPlayerId { get; set; }
+
+    public Player? ByPlayer { get; set; }
 
     /// <summary>None when the Score was entered.</summary>
     public ScoreValue? Before { get; set; }

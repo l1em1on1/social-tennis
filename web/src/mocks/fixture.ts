@@ -248,6 +248,13 @@ const autumnScores = {
   retirement: { winner: 2, retired: true, sets: [{ first: 2, second: 4, firstTiebreak: null, secondTiebreak: null, matchTiebreak: false }] },
 } satisfies Record<string, Schemas["LadderGameScore"]>;
 
+/** Jo v Alex as Alex first entered it, the tiebreak points the wrong way round. */
+const alexFirst: Schemas["LadderGameScore"] = {
+  winner: 2,
+  retired: false,
+  sets: [{ first: 5, second: 6, firstTiebreak: 4, secondTiebreak: 7, matchTiebreak: false }],
+};
+
 export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> = {
   [autumnSingles.id]: {
     id: autumnSingles.id,
@@ -341,24 +348,40 @@ const autumnGame = (gameId: string, first: Schemas["ClubMember"], second: Schema
   clubName: RIVERSIDE.name,
   type: autumnSingles.type,
   scoreFormat: autumnSingles.scoreFormat,
-  stage: autumnStage,
+  // October is over and closed: its Players can't change a score, and the Manager can still override one.
+  stage: { ...autumnStage, closed: true },
   division: 1,
   sides: [
     { side: 1, teamId: id("f", firstTeam), players: [{ playerId: first.playerId, name: first.name }] },
     { side: 2, teamId: id("f", secondTeam), players: [{ playerId: second.playerId, name: second.name }] },
   ],
   yourPlayerIds: [],
-  today: "2026-10-20",
+  timeZone: "Europe/London",
+  today: "2026-11-02",
 });
 
+const snapshot = (score: Schemas["LadderGameScore"], playedOn: string) => ({ ...score, playedOn });
+
 export const fixtureGames: Record<string, Schemas["GetGameResponse"]> = {
+  // Alex entered it as Alex's win; Jo corrected the tiebreak the next morning.
   [FIXTURE_GAME_IDS.played]: {
     ...autumnGame(FIXTURE_GAME_IDS.played, jo, alex, 4, 5),
-    score: { ...autumnScores.played, playedOn: "2026-10-08", submittedBy: alex.name, submittedAt: "2026-10-08T19:40:00Z" },
+    score: { ...autumnScores.played, playedOn: "2026-10-08", submittedBy: alex.name, submittedAt: "2026-10-08T19:40:00Z", version: 812 },
+    history: [
+      {
+        kind: "Corrected",
+        by: jo.name,
+        at: "2026-10-09T07:15:00Z",
+        before: snapshot(alexFirst, "2026-10-08"),
+        after: snapshot(autumnScores.played, "2026-10-08"),
+      },
+      { kind: "Entered", by: alex.name, at: "2026-10-08T19:40:00Z", before: null, after: snapshot(alexFirst, "2026-10-08") },
+    ],
   },
   [FIXTURE_GAME_IDS.retirement]: {
     ...autumnGame(FIXTURE_GAME_IDS.retirement, jo, chris, 4, 6),
-    score: { ...autumnScores.retirement, playedOn: "2026-10-12", submittedBy: jo.name, submittedAt: "2026-10-12T18:05:00Z" },
+    score: { ...autumnScores.retirement, playedOn: "2026-10-12", submittedBy: jo.name, submittedAt: "2026-10-12T18:05:00Z", version: 640 },
+    history: [{ kind: "Entered", by: jo.name, at: "2026-10-12T18:05:00Z", before: null, after: snapshot(autumnScores.retirement, "2026-10-12") }],
   },
-  [FIXTURE_GAME_IDS.pending]: { ...autumnGame(FIXTURE_GAME_IDS.pending, alex, chris, 5, 6), score: null },
+  [FIXTURE_GAME_IDS.pending]: { ...autumnGame(FIXTURE_GAME_IDS.pending, alex, chris, 5, 6), score: null, history: [] },
 };
