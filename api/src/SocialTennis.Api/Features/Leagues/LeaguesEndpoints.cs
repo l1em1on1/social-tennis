@@ -83,6 +83,13 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(CloseStage));
 
+        // A Manager's mid-Stage move of a Team to another Division (#10): not Relegation's path.
+        league.MapPost("/moves", MoveTeam.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<MoveTeamRequest, MoveTeamRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(MoveTeam));
+
         // The ladder (#7): the League's Players and Managers; anyone else, a 404.
         league.MapGet("/ladder", GetLeagueLadder.HandleAsync)
             .WithName(nameof(GetLeagueLadder));

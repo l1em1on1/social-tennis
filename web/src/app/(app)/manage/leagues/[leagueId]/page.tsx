@@ -11,6 +11,7 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   addLeagueParticipant,
+  moveTeam,
   approveLeagueJoinRequest,
   rejectLeagueJoinRequest,
   removeLeagueParticipant,
@@ -36,7 +37,7 @@ const NAME_MAX_LENGTH = 200;
  * without a partner, to pair (#6); then adding a Club member straight in.
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
-  const [viewer, api, { leagueId }, { created, error, started: justStarted, closed: justClosed }] = await Promise.all([
+  const [viewer, api, { leagueId }, { created, error, started: justStarted, closed: justClosed, moved, moveRefused }] = await Promise.all([
     getViewer(),
     apiWithSession(),
     params,
@@ -149,6 +150,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             </ButtonLink>
           </div>
           {ladder && <ToDo ladder={ladder} />}
+          {ladder && !ladder.ended && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
         </div>
       ) : (
         canStart && (
@@ -471,6 +473,83 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
         <ButtonLink href={`/manage/leagues/${ladder.id}/close`} variant={ladder.heldUp ? "primary" : "secondary"}>
           Close Stage {Number(ladder.stage?.number)}
         </ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
+/** Why a move was refused, by the API's type (#10). */
+const MOVE_REFUSED: Record<string, string> = {
+  "team-has-results": "That Team has a result this Stage, so it can't move now: results stay where they were played. It moves at the close instead.",
+  "division-too-small": "That would leave its Division with one Team. A Division keeps at least two.",
+  "not-on-the-ladder": "That Team isn't on the ladder this Stage: add it when you close the Stage.",
+  "stage-closed": "The League has ended, so nobody moves.",
+  invalid: "Pick a Team and a different Division.",
+  changed: "The ladder changed meanwhile. Look at it again.",
+};
+
+/**
+ * A Manager's mid-Stage move (#10): a Team on the ladder to another
+ * Division, the exceptional movement (say to rebalance after a Withdrawal),
+ * by its own path, not the close's Relegation. It starts at the bottom there
+ * and plays everyone; its Games in the Division it leaves are dropped.
+ */
+function MoveTeamCard({ ladder, moved, refused }: { ladder: components["schemas"]["GetLeagueLadderResponse"]; moved?: string; refused?: string }) {
+  const teams = ladder.divisions.flatMap((division) =>
+    division.competitors.map((competitor) => ({
+      teamId: competitor.teamId,
+      division: Number(division.number),
+      name: competitor.players.map((player) => player.name).join(" & "),
+    })),
+  );
+  const movedTeam = teams.find((team) => team.teamId === moved);
+  return (
+    <Card title="Move a Team" aria-label="Move a Team">
+      <div className="flex flex-col gap-3">
+        {movedTeam && (
+          <p role="status" className="rounded-xl border border-success bg-success-muted px-3 py-2 text-sm">
+            {movedTeam.name} is in Division {movedTeam.division} now, at the bottom, with a Game against everyone there. Its unplayed Games in its old
+            Division are gone.
+          </p>
+        )}
+        {refused && MOVE_REFUSED[refused] && <ErrorState title="That move didn't happen" description={MOVE_REFUSED[refused]} />}
+        <p className="text-sm text-fg-muted">
+          For the exceptional case, such as rebalancing after someone leaves. A Team with a result this Stage moves at the close instead.
+        </p>
+        <form action={moveTeam} className="flex flex-col gap-3">
+          <input type="hidden" name="leagueId" value={ladder.id} />
+          <Field id="move-team" label="Team">
+            {(control) => (
+              <Select {...control} name="teamId" required defaultValue="">
+                <option value="" disabled>
+                  Pick a Team
+                </option>
+                {teams.map((team) => (
+                  <option key={team.teamId} value={team.teamId}>
+                    {team.name} · Division {team.division}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field id="move-division" label="To Division">
+            {(control) => (
+              <Select {...control} name="toDivision" required defaultValue="">
+                <option value="" disabled>
+                  Pick a Division
+                </option>
+                {ladder.divisions.map((division) => (
+                  <option key={Number(division.number)} value={Number(division.number)}>
+                    Division {Number(division.number)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <SubmitButton variant="secondary" pendingLabel="Moving…">
+            Move
+          </SubmitButton>
+        </form>
       </div>
     </Card>
   );

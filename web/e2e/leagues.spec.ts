@@ -903,6 +903,54 @@ test("a Manager closes a Stage: the top goes up, the bottom down, a tie they ord
   await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveCount(3);
 });
 
+test("a Manager moves a Team to another Division mid-Stage, and can't leave a Division with one", async ({ page }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Moving Ladder");
+  const players = ["Al Moves", "Bea Moves", "Cy Moves", "Di Moves", "Em Moves"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `moves-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [al, bea, cy, di, em] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  // Its Stage runs a year, so its deadline is far off (see createLeague).
+  await createLeague(page, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  // Two Divisions: Al and Bea, then Cy, Di and Em.
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: "More Divisions" }).click();
+  await expect(page.getByRole("list", { name: "Division 1" }).getByRole("listitem")).toHaveCount(2);
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+
+  // Cy moves up: the bottom of Division 1, playing Al and Bea.
+  const move = page.getByRole("region", { name: "Move a Team" });
+  await move.getByLabel("Team").selectOption({ label: `${cy.name} · Division 2` });
+  await move.getByLabel("To Division").selectOption({ label: "Division 1" });
+  await move.getByRole("button", { name: "Move" }).click();
+  await expect(move.getByRole("status")).toContainText(`${cy.name} is in Division 1 now`);
+  await expectNoSeriousA11yViolations(page);
+
+  // Division 2 has two left: Di can't leave it.
+  await move.getByLabel("Team").selectOption({ label: `${di.name} · Division 2` });
+  await move.getByLabel("To Division").selectOption({ label: "Division 1" });
+  await move.getByRole("button", { name: "Move" }).click();
+  await expect(move.getByRole("alert")).toContainText("That would leave its Division with one Team.");
+
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${al.name} v ${bea.name}`),
+    new RegExp(`${al.name} v ${cy.name}`),
+    new RegExp(`${bea.name} v ${cy.name}`),
+  ]);
+  await expect(page.getByRole("list", { name: "Division 2 Games" }).getByRole("listitem")).toHaveText([new RegExp(`${di.name} v ${em.name}`)]);
+});
+
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await page.goto("/manage/leagues/new");

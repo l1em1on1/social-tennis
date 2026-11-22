@@ -85,4 +85,28 @@ internal static class LeagueLadder
 
         return null;
     }
+
+    /// <summary>A mid-Stage move (#10) of a Team that isn't on the current ladder.</summary>
+    public static ProblemHttpResult NotOnTheLadder() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "not-on-the-ladder",
+            title: "This Team isn't on the ladder this Stage.",
+            detail: "The Manager adds it when the Stage closes.");
+
+    /// <summary>A mid-Stage move (#10) of a Team with a Score this Stage: results stay where they were played.</summary>
+    public static ProblemHttpResult HasResults() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "team-has-results",
+            title: "This Team has a result this Stage, so it can't move now.",
+            detail: "Results stay where they were played: it moves at the close instead.");
+
+    /// <summary>A mid-Stage move (#10) out of a Division of two, which would leave it one Team.</summary>
+    public static ProblemHttpResult DivisionTooSmall(int division) =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "division-too-small",
+            title: $"Division {division} would be left with one Team.",
+            detail: "A Division keeps at least two Teams.");
 }
