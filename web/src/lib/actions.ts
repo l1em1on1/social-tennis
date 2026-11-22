@@ -808,7 +808,9 @@ export async function closeStage(_previous: CloseStageState, formData: FormData)
   }
   const refusal = error && "type" in error && typeof error.type === "string" ? error.type : null;
   if (refusal === "standings-changed" || refusal === "league-changed") {
-    redirect(`/manage/leagues/${leagueId}/close?error=changed`);
+    // The dates don't depend on what changed: the reloaded screen keeps the ones typed (#217 review).
+    const dates = [date(start) && `start=${date(start)}`, date(end) && `end=${date(end)}`].filter(Boolean).join("&");
+    redirect(`/manage/leagues/${leagueId}/close?error=changed${dates ? `&${dates}` : ""}`);
   }
   if (refusal === "stage-queue-not-empty") {
     redirect(`/manage/leagues/${leagueId}/close?error=queue`);

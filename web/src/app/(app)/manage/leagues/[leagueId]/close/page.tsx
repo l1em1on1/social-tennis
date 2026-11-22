@@ -11,6 +11,9 @@ import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Close the Stage" };
 
+/** A date the close form typed, carried back through a refusal: only a well-formed one. */
+const typed = (value: string | string[] | undefined) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+
 /**
  * Closing the current Stage (#10, wireframe M6), for Managers. Games nobody
  * scored must be settled first; then the Manager orders any tie that decides
@@ -18,7 +21,7 @@ export const metadata: Metadata = { title: "Close the Stage" };
  * dates, and confirms.
  */
 export default async function CloseStagePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]/close">) {
-  const [viewer, api, { leagueId }, { error }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);
+  const [viewer, api, { leagueId }, { error, start, end }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);
   if (!viewer.roles.includes("Manager") || !isId(leagueId)) {
     notFound();
   }
@@ -102,7 +105,11 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
             ties: close.awaiting.ties.filter((tie) => Number(tie.division) === Number(division.number)).map((tie) => tie.teamIds),
           }))}
           waiting={close.waiting.map((team) => ({ teamId: team.teamId, name: name(team.players) }))}
-          nextStage={close.nextStage ?? null}
+          nextStage={
+            close.nextStage
+              ? { startDate: typed(start) ?? close.nextStage.startDate, endDate: typed(end) ?? close.nextStage.endDate }
+              : null
+          }
         />
       )}
 

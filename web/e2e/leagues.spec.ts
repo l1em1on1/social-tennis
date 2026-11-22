@@ -852,6 +852,9 @@ test("a Manager closes a Stage: the top goes up, the bottom down, a tie they ord
     await page.getByRole("checkbox", { name: ed.name }).check();
   };
   await orderAndTick();
+  // Stage 2 a week later than proposed.
+  await page.getByLabel("Starts").fill("2027-11-08");
+  await page.getByLabel("Ends").fill("2028-11-07");
   await expectNoSeriousA11yViolations(page);
 
   // Meanwhile Abe v Bo is overridden, in another tab: Bo won it after all.
@@ -874,11 +877,13 @@ test("a Manager closes a Stage: the top goes up, the bottom down, a tie they ord
   await expect(page.getByRole("alert").filter({ hasText: "Things changed while you were looking" })).toBeVisible();
   await expect(divisionOne).toHaveText([new RegExp(`${bo.name}.*stays`), new RegExp(`${abe.name}.*▼ to Division 2`)]);
   await expect(page.getByRole("checkbox", { name: ed.name })).not.toBeChecked();
+  // The dates don't depend on the scores: they stay as typed (#217 review).
+  await expect(page.getByLabel("Starts")).toHaveValue("2027-11-08");
+  await expect(page.getByLabel("Ends")).toHaveValue("2028-11-07");
   await orderAndTick();
-  // The Manager moves Stage 2's end a week on, and its start back into Stage 1 by mistake: the API refuses the
-  // start, and both dates keep what they typed (#217 review).
+  // The Manager moves Stage 2's start back into Stage 1 by mistake: the API refuses it, and both dates keep
+  // what they typed.
   await page.getByLabel("Starts").fill("2027-10-31");
-  await page.getByLabel("Ends").fill("2028-11-07");
   await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
   await expect(page.getByText(/The next Stage starts after this one ends/)).toBeVisible();
   await expect(page.getByLabel("Starts")).toHaveValue("2027-10-31");
