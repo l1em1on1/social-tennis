@@ -665,11 +665,13 @@ const SCORE_REFUSALS: Record<string, string> = {
   "already-scored": "already-scored",
   "stage-closed": "stage-closed",
   "not-scored": "not-scored",
+  "not-played": "not-played",
 };
 
 /**
  * A Score from the score form (#38): entered by a Player who played the Game,
- * corrected by one while the Stage is open, or overridden by a Manager. A
+ * corrected by one while the Stage is open, overridden by a Manager, or
+ * recorded by a Manager for a Game nobody scored (#10). A
  * refusal of the Score itself comes back as the API's own messages, which the
  * form shows by the field they name. A Score changed since the form opened
  * reopens the form with it as it is now (ADR-0018); any other refusal sends
@@ -691,9 +693,9 @@ export async function submitScore(_previous: SubmitScoreState, formData: FormDat
     return invalid;
   }
   if (
-    (mode !== "enter" && mode !== "correct" && mode !== "override") ||
-    (mode !== "override" && !isId(playerId)) ||
-    (mode !== "enter" && version === null) ||
+    (mode !== "enter" && mode !== "correct" && mode !== "override" && mode !== "record") ||
+    ((mode === "enter" || mode === "correct") && !isId(playerId)) ||
+    ((mode === "correct" || mode === "override") && version === null) ||
     firsts.length !== seconds.length ||
     firstTiebreaks.length !== firsts.length ||
     secondTiebreaks.length !== firsts.length ||
@@ -721,7 +723,9 @@ export async function submitScore(_previous: SubmitScoreState, formData: FormDat
       ? await api.POST("/games/{gameId}/score", { ...path, body: { ...entry, playerId: playerId as string } })
       : mode === "correct"
         ? await api.PUT("/games/{gameId}/score", { ...path, body: { ...entry, playerId: playerId as string, version: version! } })
-        : await api.PUT("/games/{gameId}/score/override", { ...path, body: { ...entry, version: version! } });
+        : mode === "override"
+          ? await api.PUT("/games/{gameId}/score/override", { ...path, body: { ...entry, version: version! } })
+          : await api.POST("/games/{gameId}/score/record", { ...path, body: entry });
   if (response.status === 400 && error && "errors" in error) {
     return { errors: (error.errors ?? {}) as Record<string, string[]> };
   }
@@ -738,4 +742,35 @@ export async function submitScore(_previous: SubmitScoreState, formData: FormDat
   // The ladder, the Leagues list and the Match screen all show it.
   revalidatePath("/", "layout");
   redirect(`/games/${gameId}${response.ok ? `?saved=${mode}` : ""}`);
+}
+
+/**
+ * A Manager marks a Game not played, or undoes that (#10). The Match screen
+ * it came from shows the result; a Game scored or a Stage closed meanwhile
+ * comes back as the refusal it is.
+ */
+async function setPlayed(formData: FormData, played: boolean) {
+  const gameId = formData.get("gameId");
+  if (!isId(gameId)) return;
+
+  const api = await apiWithSession();
+  const path = { params: { path: { gameId } } };
+  const { error, response } = played ? await api.DELETE("/games/{gameId}/not-played", path) : await api.PUT("/games/{gameId}/not-played", path);
+  const refusal = error && "type" in error && typeof error.type === "string" ? SCORE_REFUSALS[error.type] : undefined;
+  if (response.status === 409) {
+    redirect(`/games/${gameId}?refused=${refusal ?? "stage-closed"}`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Marking game ${gameId} ${played ? "played" : "not played"} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/games/${gameId}${response.ok ? `?saved=${played ? "unvoid" : "void"}` : ""}`);
+}
+
+export async function voidGame(formData: FormData) {
+  await setPlayed(formData, false);
+}
+
+export async function unvoidGame(formData: FormData) {
+  await setPlayed(formData, true);
 }

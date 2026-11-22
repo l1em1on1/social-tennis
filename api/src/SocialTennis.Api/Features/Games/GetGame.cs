@@ -40,6 +40,7 @@ public static class GetGame
                 Stage = new GameStage(g.Stage.Number, g.Stage.StartDate, g.Stage.EndDate, g.Stage.ClosedAt != null),
                 g.Division,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
+                NotPlayed = g.VoidedAt != null,
                 Sides = g.Sides
                     .OrderBy(s => s.Side)
                     .Select(s => new GameSideSummary(
@@ -64,7 +65,10 @@ public static class GetGame
                         g.Score.Sets,
                         g.Score.Winner,
                         g.Score.Retired,
-                        SubmittedBy = g.Score.SubmittedBy.Name,
+                        SubmittedBy = g.Score.SubmittedBy != null
+                            ? g.Score.SubmittedBy.Name
+                            : db.Players.Where(p => p.UserId == g.Score.SubmittedByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
+                        RecordedByManager = g.Score.SubmittedById == null,
                         g.Score.SubmittedAt,
                         g.Score.Version,
                     },
@@ -77,7 +81,7 @@ public static class GetGame
         }
 
         var score = game.Score is { } s
-            ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.SubmittedAt, s.Version)
+            ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.RecordedByManager, s.SubmittedAt, s.Version)
             : null;
         var changes = await db.ScoreChanges
             .Where(c => c.LeagueId == game.LeagueId && c.GameId == gameId)
@@ -109,6 +113,7 @@ public static class GetGame
             game.Division,
             game.Sides,
             score,
+            game.NotPlayed,
             history,
             game.Yours,
             game.TimeZone,

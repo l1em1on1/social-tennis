@@ -21,4 +21,12 @@ public static class StageDates
         var end = next.AddDays(-1);
         return (leagueStart, end > leagueEnd ? leagueEnd : end);
     }
+
+    /// <summary>
+    /// Whether a Stage ending on <paramref name="endDate"/> is past its
+    /// deadline: the end of that day where the Club is (ADR-0016). The one
+    /// place that says so. It locks nothing: a Stage stays open until it closes.
+    /// </summary>
+    public static bool DeadlinePassed(DateOnly endDate, string timeZone, TimeProvider clock) =>
+        ClubCalendar.Today(timeZone, clock) > endDate;
 }

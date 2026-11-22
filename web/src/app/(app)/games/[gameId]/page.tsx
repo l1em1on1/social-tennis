@@ -5,6 +5,8 @@ import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { unvoidGame, voidGame } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, formatDate } from "@/lib/league";
@@ -17,6 +19,9 @@ const SAVED: Record<string, string> = {
   enter: "Score saved. Everyone in the league can see it now.",
   correct: "Correction saved: the score is as shown, and its history keeps every change.",
   override: "Override saved: the score is as shown, and its history keeps every change.",
+  record: "Score recorded. The players in the game can still correct it while the Stage is open.",
+  void: "Marked not played: the game counts for nothing.",
+  unvoid: "No longer marked not played: the game can be scored again.",
 };
 
 /**
@@ -24,7 +29,8 @@ const SAVED: Record<string, string> = {
  * entered, who entered it and every change since; until then, the deadline
  * and, for a Player in it, the way to enter it. A Player in it corrects it
  * while the Stage is open; a Manager overrides it at any time; after the
- * close, its Players see it locked. The League's Players and Managers see
+ * close, its Players see it locked. A Manager settles one nobody scored by
+ * recording it or marking it not played, and can undo that (#10). The League's Players and Managers see
  * it; anyone else gets a 404.
  */
 export default async function MatchPage({ params, searchParams }: PageProps<"/games/[gameId]">) {
@@ -57,6 +63,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
     "not-in-game": "Only the players in this game can enter its score.",
     "stage-closed": `${stageName} has closed, so its players can't change this game's score any more.`,
     "not-scored": "This game has no score to change yet.",
+    "not-played": "A manager has marked this game as not played, so it takes no score.",
   };
   const savedMessage = typeof saved === "string" ? SAVED[saved] : undefined;
   const refusal = typeof refused === "string" ? refusals[refused] : undefined;
@@ -73,7 +80,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
         </p>
       </div>
 
-      {savedMessage && score && (
+      {savedMessage && (
         <p role="status" className="rounded-2xl border border-success bg-success-muted px-4 py-3 text-sm">
           {savedMessage}
         </p>
@@ -89,8 +96,10 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           <ScoreTable sides={sides} sets={score.sets} winner={Number(score.winner)} />
           <p className="mt-3 text-sm text-fg-muted">
             <strong className="text-fg">{sides[Number(score.winner) - 1]}</strong> won
-            {score.retired ? " when the game stopped early" : ""} · played {formatDate(score.playedOn)} · entered by{" "}
-            {score.submittedBy}
+            {score.retired ? " when the game stopped early" : ""} · played {formatDate(score.playedOn)} ·{" "}
+            {score.recordedByManager
+              ? `recorded by ${score.submittedBy ? `${score.submittedBy} (manager)` : "a manager"}`
+              : `entered by ${score.submittedBy ?? "a player"}`}
           </p>
           <div className="mt-3 flex flex-col gap-2">
             {playing && !stage.closed ? (
@@ -116,6 +125,20 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
             )}
           </div>
         </Card>
+      ) : game.notPlayed ? (
+        <Card title="Not played" aria-label="Not played" aside={<ResultStatusBadge status="void" />}>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm">A manager marked this game as not played: it counts for nothing, for either side.</p>
+            {manager && !stage.closed && (
+              <form action={unvoidGame}>
+                <input type="hidden" name="gameId" value={game.id} />
+                <SubmitButton variant="secondary" fullWidth pendingLabel="Undoing…">
+                  Undo: it can still be played
+                </SubmitButton>
+              </form>
+            )}
+          </div>
+        </Card>
       ) : (
         <Card title="No score yet" aria-label="No score yet" aside={<ResultStatusBadge status="pending" />}>
           <div className="flex flex-col gap-3">
@@ -130,11 +153,24 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
               <ButtonLink href={`/games/${game.id}/score`} fullWidth>
                 Enter score
               </ButtonLink>
+            ) : manager && !stage.closed ? (
+              <ButtonLink href={`/games/${game.id}/score`} variant="secondary" fullWidth>
+                Record the score (manager)
+              </ButtonLink>
             ) : (
               acting &&
               !playing && (
                 <p className="text-sm text-fg-muted">{acting.name} doesn&apos;t play in this game, so can&apos;t enter its score.</p>
               )
+            )}
+            {manager && !stage.closed && (
+              <form action={voidGame} className="flex flex-col gap-1">
+                <input type="hidden" name="gameId" value={game.id} />
+                <SubmitButton variant="secondary" fullWidth pendingLabel="Marking…">
+                  Mark not played (manager)
+                </SubmitButton>
+                <p className="text-xs text-fg-muted">It then counts for nothing, for either side. You can undo it while the Stage is open.</p>
+              </form>
             )}
           </div>
         </Card>

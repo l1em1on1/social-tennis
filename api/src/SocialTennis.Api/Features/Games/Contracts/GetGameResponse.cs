@@ -7,6 +7,7 @@ namespace SocialTennis.Api.Features.Games.Contracts;
 /// <param name="Division">The Division it is played in, 1 at the top.</param>
 /// <param name="Sides">Side 1, then Side 2.</param>
 /// <param name="Score">None until it's entered.</param>
+/// <param name="NotPlayed">A Manager marked it not played (#10): it counts for nothing, and takes no Score.</param>
 /// <param name="YourPlayerIds">
 /// The signed-in User's Players who play in it, any of whom can enter its
 /// Score. The Acting Player may be another of them, or none.
@@ -25,6 +26,7 @@ public record GetGameResponse(
     int Division,
     IReadOnlyList<GameSideSummary> Sides,
     GameScore? Score,
+    bool NotPlayed,
     IReadOnlyList<ScoreHistoryEntry> History,
     IReadOnlyList<Guid> YourPlayerIds,
     string TimeZone,

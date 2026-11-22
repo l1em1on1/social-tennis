@@ -19,7 +19,7 @@ namespace SocialTennis.Api.Features.Games;
 /// like anyone in it, and overrides it after.
 /// <list type="bullet">
 /// <item>No such Game: 404.</item>
-/// <item>No Score yet: 409 <c>not-scored</c>. Recording a result for an unplayed Game is #10's resolution queue.</item>
+/// <item>No Score yet: 409 <c>not-scored</c>. A Manager records one with <see cref="RecordScore"/> (#10).</item>
 /// <item>An override made from an older version than the Score's: 409 <c>score-changed</c> (ADR-0018).</item>
 /// <item>The format and date rules of entering one: 400 under the wire name.</item>
 /// </list>
@@ -34,6 +34,12 @@ public static class OverrideScore
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
+        if (await GameScores.LeagueOfAsync(db, gameId, cancellationToken) is not { } leagueId)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await using var transaction = await GameScores.LockResultsAsync(db, leagueId, cancellationToken);
         var game = await db.Games
             .Where(g => g.Id == gameId)
             .Select(g => new
@@ -69,6 +75,7 @@ public static class OverrideScore
             return refused;
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 }

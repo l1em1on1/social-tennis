@@ -108,12 +108,12 @@ test("a Game's Match screen, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_MANAGER);
 
-  // On the ladder: a tiebreak set, a retirement, and a Game still to play.
+  // On the ladder: a tiebreak set, a retirement, and a Game not played (#10).
   await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
   await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
     /Jo Bennett v Alex Morgan.*6–5\(4\).*Played/,
     /Jo Bennett v Chris Lee.*2–4.*Retirement/,
-    /Alex Morgan v Chris Lee.*Score needed/,
+    /Alex Morgan v Chris Lee.*Void/,
   ]);
 
   await page.goto(`/games/${FIXTURE_GAME_IDS.retirement}`);
@@ -122,10 +122,10 @@ test("a Game's Match screen, from fixed data", async ({ page }, testInfo) => {
   await expect(score).toContainText("Retirement");
   await expect(score).toContainText("Chris Lee won when the game stopped early · played 12 Oct 2026 · entered by Jo Bennett");
 
-  // October has closed: a Game with no score is the Manager's to settle (#10), with nothing to enter here.
-  await page.goto(`/games/${FIXTURE_GAME_IDS.pending}`);
-  await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Stage 1 has closed without a score for this game");
-  await expect(page.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+  // Marked not played before October closed (#10): it counts for nothing, and can't be undone now.
+  await page.goto(`/games/${FIXTURE_GAME_IDS.notPlayed}`);
+  await expect(page.getByRole("region", { name: "Not played" })).toContainText("it counts for nothing, for either side");
+  await expect(page.getByRole("button", { name: /Undo/ })).toHaveCount(0);
 
   // Entered, then corrected; the Manager can override it after the close (#38).
   await page.goto(`/games/${FIXTURE_GAME_IDS.played}`);

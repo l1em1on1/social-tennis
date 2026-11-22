@@ -22,6 +22,7 @@ namespace SocialTennis.Api.Features.Games;
 /// <item>The User's Player, in the League or a Manager, but not in this Game: 403 <c>not-in-game</c>. A Manager changes a Score only by overriding one (<see cref="OverrideScore"/>).</item>
 /// <item>A Game that has a Score: 409 <c>already-scored</c>, also when two are entered at once.</item>
 /// <item>A Game whose Stage has closed (#10): 409 <c>stage-closed</c>. What's missing then is the Manager's to resolve.</item>
+/// <item>A Game a Manager marked not played (#10): 409 <c>not-played</c>.</item>
 /// <item>Sets the League's format doesn't allow (<see cref="ScoreRules"/>), or a Date played before the
 /// Stage started or after today in the Club's time zone: 400, with the problem under its wire name
 /// (ADR-0017), so the form shows it where it belongs.</item>
@@ -43,6 +44,12 @@ public static class SubmitScore
             return TypedResults.NotFound();
         }
 
+        if (await GameScores.LeagueOfAsync(db, gameId, cancellationToken) is not { } leagueId)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await using var transaction = await GameScores.LockResultsAsync(db, leagueId, cancellationToken);
         var game = await db.Games
             .Where(g => g.Id == gameId)
             .Select(g => new
@@ -56,6 +63,7 @@ public static class SubmitScore
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
                 Plays = g.Sides.Any(s => s.Team.Members.Any(m => m.PlayerId == request.PlayerId)),
                 Scored = g.Score != null,
+                Voided = g.VoidedAt != null,
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (game is null || !(game.InLeague || user.IsInRole(Policies.Manager)))
@@ -78,6 +86,11 @@ public static class SubmitScore
             return GameScores.StageClosed();
         }
 
+        if (game.Voided)
+        {
+            return GameScores.NotPlayed();
+        }
+
         var today = ClubCalendar.Today(game.TimeZone, clock);
         var (winner, errors) = GameScores.Check(game.ScoreFormat, game.Number, game.StartDate, today, request);
         if (errors.Count > 0)
@@ -95,6 +108,7 @@ public static class SubmitScore
             Winner = winner,
             Retired = request.RetirementWinner is not null,
             SubmittedById = request.PlayerId,
+            SubmittedByUserId = userId,
             SubmittedAt = now,
         };
         db.Scores.Add(score);
@@ -112,6 +126,7 @@ public static class SubmitScore
         try
         {
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

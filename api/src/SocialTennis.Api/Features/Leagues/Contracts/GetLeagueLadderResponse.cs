@@ -9,6 +9,11 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// nothing on the ladder.
 /// </summary>
 /// <param name="Stage">The current Stage; null until the League starts.</param>
+/// <param name="HeldUp">
+/// The current Stage is past its deadline and still open (ADR-0016): it waits
+/// on what's in <paramref name="Awaiting"/>, or for the Manager to close it.
+/// </param>
+/// <param name="Awaiting">What holds up the current Stage's close (#10).</param>
 /// <param name="YourPlayerIds">
 /// The signed-in User's Players in this League, on the ladder or off it: the
 /// same rule that lets them see it. A User may hold several Players, and the
@@ -21,4 +26,6 @@ public record GetLeagueLadderResponse(
     LeagueType Type,
     LeagueStageSummary? Stage,
     IReadOnlyList<LadderDivision> Divisions,
+    bool HeldUp,
+    LadderAwaiting Awaiting,
     IReadOnlyList<Guid> YourPlayerIds);

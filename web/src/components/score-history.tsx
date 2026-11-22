@@ -9,11 +9,12 @@ const DID: Record<Entry["kind"], string> = {
   Entered: "entered it",
   Corrected: "corrected it",
   Overridden: "overrode it",
+  Recorded: "recorded it",
 };
 
-/** Who made a change: the Player, or for an override the Manager's own Player, or just "A manager". */
+/** Who made a change: the Player, or for a Manager's change their own Player, or just "A manager". */
 function who(entry: Entry): string {
-  if (entry.kind !== "Overridden") {
+  if (entry.kind !== "Overridden" && entry.kind !== "Recorded") {
     return entry.by ?? "Someone";
   }
   return entry.by ? `${entry.by} (manager)` : "A manager";

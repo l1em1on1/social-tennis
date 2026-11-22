@@ -61,3 +61,18 @@ export const ByAManager: Story = {
     await expect(canvas.getByRole("listitem")).toHaveTextContent("A manager overrode it");
   },
 };
+
+/** A Manager recorded a Game nobody scored (#10), then a Player in it corrected it. */
+export const RecordedByAManager: Story = {
+  args: {
+    history: [
+      { ...corrected, before: { ...entered.after } },
+      { ...entered, kind: "Recorded" as const, by: "Priya Nair" },
+    ],
+  },
+  play: async ({ canvas }) => {
+    const items = within(canvas.getByRole("list", { name: "Changes to the score" })).getAllByRole("listitem");
+    await expect(items[1]).toHaveTextContent("Priya Nair (manager) recorded it · 12 Nov, 21:40");
+    await expect(items[0]).toHaveTextContent("Ben Carter corrected it");
+  },
+};

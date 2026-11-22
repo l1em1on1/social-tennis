@@ -18,16 +18,27 @@ async function addClubPlayer(manager: Page, name: string, email: string) {
 
 /**
  * From Manage: creates a League in the first Club with the setup form's
- * defaults (or another Type, or an earlier start), and lands on its page.
+ * defaults (or another Type, other dates, or Stages of more months), and
+ * lands on its page.
+ *
+ * A League a test starts should keep its Stage 1 deadline far off: once it
+ * passes, the ladder shows the "held up" banner (#10), and the snapshot of
+ * the page would change with the real date.
  */
-async function createLeague(manager: Page, name: string, type?: string, starts = "2026-12-01") {
+async function createLeague(
+  manager: Page,
+  name: string,
+  type?: string,
+  { starts = "2026-12-01", ends = "2027-03-31", stageMonths }: { starts?: string; ends?: string; stageMonths?: number } = {},
+) {
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   await manager.getByRole("link", { name: "New league" }).first().click();
   await expect(manager.getByRole("heading", { name: "New league", level: 1 })).toBeVisible();
   await manager.getByLabel("Name", { exact: true }).fill(name);
   await manager.getByLabel("Starts").fill(starts);
-  await manager.getByLabel("Ends").fill("2027-03-31");
+  await manager.getByLabel("Ends").fill(ends);
+  if (stageMonths) await manager.getByLabel("Stage length", { exact: true }).fill(String(stageMonths));
   if (type) await manager.getByLabel("Type").selectOption(type);
   await manager.getByRole("button", { name: "Create League" }).click();
   await expect(manager.getByRole("heading", { name, level: 1 })).toBeVisible();
@@ -499,7 +510,7 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   const manager = await managerContext.newPage();
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
   for (const { name, email } of players) await addClubPlayer(manager, name, email);
-  await createLeague(manager, league);
+  await createLeague(manager, league, undefined, { starts: "2030-12-01", ends: "2031-03-31" });
   for (const { name, email } of players) {
     await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
     await manager.getByRole("button", { name: "Add to league" }).click();
@@ -522,7 +533,7 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await manager.getByRole("button", { name: "Confirm and start" }).click();
 
   await expect(manager.getByRole("status").filter({ hasText: "has started" })).toContainText(`${league} has started`);
-  await expect(manager.getByText("Stage 1 runs 1 Dec 2026 – 31 Dec 2026.")).toBeVisible();
+  await expect(manager.getByText("Stage 1 runs 1 Dec 2030 – 31 Dec 2030.")).toBeVisible();
   const inLeague = manager.getByRole("list", { name: "Players in the league" });
   await expect(inLeague.getByRole("listitem").filter({ hasText: una.name })).toContainText("Division 1");
   await expect(inLeague.getByRole("listitem").filter({ hasText: wes.name })).toContainText("Not on the ladder");
@@ -596,7 +607,8 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   const manager = await managerContext.newPage();
   await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
   for (const { name, email } of [una, vic]) await addClubPlayer(manager, name, email);
-  await createLeague(manager, league, undefined, "2026-11-01");
+  // Its Stage runs a year, so its deadline is far off (see createLeague).
+  await createLeague(manager, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
   for (const { name, email } of [una, vic]) {
     await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
     await manager.getByRole("button", { name: "Add to league" }).click();
@@ -725,6 +737,69 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
     await managerAgain.close();
   }
   await vicContext.close();
+});
+
+test("a Manager settles Games nobody scored from the to-do list: records one, marks one not played", async ({ page }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Settling Ladder");
+  const players = ["Ada Settles", "Ben Settles", "Cy Settles"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `settles-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [ada, ben, cy] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  // Its Stage runs a year, so its deadline is far off (see createLeague).
+  await createLeague(page, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+
+  // Three Games, none scored: all on the to-do list.
+  const toDo = page.getByRole("region", { name: "To do" }).getByRole("list", { name: "Games with no score" });
+  await expect(toDo.getByRole("listitem")).toHaveText([
+    new RegExp(`${ada.name} v ${ben.name}`),
+    new RegExp(`${ada.name} v ${cy.name}`),
+    new RegExp(`${ben.name} v ${cy.name}`),
+  ]);
+  await expectNoSeriousA11yViolations(page);
+
+  // Ada v Ben: the Manager records it.
+  await toDo.getByRole("listitem").first().getByRole("link", { name: "Settle" }).click();
+  await page.getByRole("link", { name: "Record the score (manager)" }).click();
+  await expect(page.getByRole("heading", { name: "Record the score", level: 1 })).toBeVisible();
+  const more = page.getByRole("group", { name: `Set, ${ada.name}` }).getByRole("button", { name: "One more" });
+  for (let i = 0; i < 6; i++) await more.click();
+  await page.getByRole("button", { name: "Save score" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Score" })).toContainText("recorded by a manager");
+
+  // Ada v Cy: marked not played, undone, and marked again.
+  await page.goto(leaguePage);
+  await toDo.getByRole("listitem").filter({ hasText: cy.name }).first().getByRole("link", { name: "Settle" }).click();
+  await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+  await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+  await page.getByRole("button", { name: "Undo: it can still be played" }).click();
+  await expect(page.getByRole("region", { name: "No score yet" })).toBeVisible();
+  await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+  await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+
+  // The ladder shows both; only Ben v Cy is left to settle.
+  await page.getByRole("link", { name: "Back to the ladder" }).click();
+  await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${ada.name} v ${ben.name}.*6–0.*Played`),
+    new RegExp(`${ada.name} v ${cy.name}.*Void`),
+    new RegExp(`${ben.name} v ${cy.name}.*Score needed`),
+  ]);
+  await page.goto(leaguePage);
+  await expect(toDo.getByRole("listitem")).toHaveText([new RegExp(`${ben.name} v ${cy.name}`)]);
 });
 
 test("a Player can't open a Manager's League pages", async ({ page }, testInfo) => {

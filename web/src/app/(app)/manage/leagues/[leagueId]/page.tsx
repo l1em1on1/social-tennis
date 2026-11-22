@@ -17,6 +17,7 @@ import {
   renameLeague,
   unpairTeam,
 } from "@/lib/actions";
+import type { components } from "@/lib/api/schema";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
@@ -52,6 +53,10 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   if (!league) {
     throw new Error(`GET /leagues/${leagueId} failed with ${response.status}`);
   }
+  // What holds up the current Stage's close (#10), as its Players see it on the ladder.
+  const { data: ladder } = league.stage
+    ? await api.GET("/leagues/{leagueId}/ladder", { params: { path: { leagueId } } })
+    : { data: undefined };
   const { data: members } = await api.GET("/clubs/{clubId}/members", {
     params: { path: { clubId: league.clubId } },
   });
@@ -143,6 +148,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               See the ladder
             </ButtonLink>
           </div>
+          {ladder && <ToDo ladder={ladder} />}
         </div>
       ) : (
         canStart && (
@@ -153,7 +159,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       )}
       {justStarted === "1" && stage && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
-          <strong>{league.name}</strong> has started. Each Division&apos;s Game is waiting to be played by{" "}
+          <strong>{league.name}</strong> has started. Each Division&apos;s Games are waiting to be played by{" "}
           {formatDate(stage.endDate)}.
         </p>
       )}
@@ -390,5 +396,62 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         Back to Manage
       </ButtonLink>
     </>
+  );
+}
+
+/**
+ * What the Manager settles before the Stage can close (#10; wireframe M5):
+ * each Game nobody scored, to record or mark not played on its Match screen,
+ * and each tie that decides who moves, which they order when they close it.
+ */
+function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderResponse"] }) {
+  const competitors = ladder.divisions.flatMap((division) => division.competitors);
+  const name = (teamId: string) =>
+    competitors.find((competitor) => competitor.teamId === teamId)?.players.map((player) => player.name).join(" & ") ?? "";
+  const unscored = ladder.divisions.flatMap((division) =>
+    division.games
+      .filter((game) => ladder.awaiting.unscoredGameIds.includes(game.id))
+      .map((game) => ({ game, division: Number(division.number) })),
+  );
+  const { ties } = ladder.awaiting;
+  return (
+    <Card title="To do before the Stage closes" aria-label="To do" aside={ladder.heldUp ? <Badge tone="warning">Held up</Badge> : undefined}>
+      {unscored.length === 0 && ties.length === 0 ? (
+        <p className="text-sm text-fg-muted">Nothing to settle: every game has a score or is marked not played.</p>
+      ) : (
+        <div className="flex flex-col gap-3 text-sm">
+          {unscored.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold">Games with no score</h3>
+              <ul aria-label="Games with no score" className="divide-y divide-border">
+                {unscored.map(({ game, division }) => (
+                  <li key={game.id} className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="min-w-0 break-words">
+                      {name(game.firstTeamId)} v {name(game.secondTeamId)} <span className="text-fg-muted">· Division {division}</span>
+                    </span>
+                    <ButtonLink href={`/games/${game.id}`} variant="secondary" className="shrink-0">
+                      Settle
+                    </ButtonLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {ties.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold">Ties that decide who moves</h3>
+              <ul aria-label="Ties that decide who moves" className="list-disc pl-5">
+                {ties.map((tie) => (
+                  <li key={`${Number(tie.division)}:${tie.teamIds.join()}`}>
+                    Division {Number(tie.division)}: {tie.teamIds.map(name).join(", ")}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-fg-muted">You put them in order when you close the Stage.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

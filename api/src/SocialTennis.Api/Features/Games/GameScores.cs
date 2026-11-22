@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Games.Contracts;
@@ -14,6 +15,27 @@ namespace SocialTennis.Api.Features.Games;
 /// </summary>
 public static class GameScores
 {
+    /// <summary>The advisory-lock class of a League's results (1160001–1160004 are taken: docs/architecture.md).</summary>
+    private const int ResultsLockClass = 1_160_005;
+
+    /// <summary>
+    /// Begins a transaction holding the League's results lock (#10): every
+    /// write to a Game's Score or played state takes it, and so will closing
+    /// the Stage, so a close sees every result it counts and none lands after.
+    /// Read the Game's state after taking it. The lock goes with the transaction.
+    /// </summary>
+    public static async Task<IDbContextTransaction> LockResultsAsync(TennisDbContext db, Guid leagueId, CancellationToken cancellationToken)
+    {
+        var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({ResultsLockClass}, hashtext({leagueId.ToString()}))", cancellationToken);
+        return transaction;
+    }
+
+    /// <summary>The League of a Game, to lock its results before reading it; none for no such Game.</summary>
+    public static Task<Guid?> LeagueOfAsync(TennisDbContext db, Guid gameId, CancellationToken cancellationToken) =>
+        db.Games.Where(g => g.Id == gameId).Select(g => (Guid?)g.LeagueId).SingleOrDefaultAsync(cancellationToken);
+
     public static ProblemHttpResult NotInGame() =>
         TypedResults.Problem(
             statusCode: StatusCodes.Status403Forbidden,
@@ -37,6 +59,12 @@ public static class GameScores
             statusCode: StatusCodes.Status409Conflict,
             type: "stage-closed",
             title: "This game's Stage has closed, so only a Manager can change its score.");
+
+    public static ProblemHttpResult NotPlayed() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "not-played",
+            title: "A manager has marked this game as not played, so it takes no score.");
 
     public static ProblemHttpResult ScoreChanged() =>
         TypedResults.Problem(
