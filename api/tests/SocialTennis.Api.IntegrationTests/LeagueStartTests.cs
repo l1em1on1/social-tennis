@@ -614,10 +614,12 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         var leftOut = TeamOf(before, outId);
         (await StartAsync(manager, leagueId, before.Teams.Select(t => t.Id).Where(id => id != leftOut), [leftOut])).EnsureSuccessStatusCode();
 
-        Assert.Equal(HttpStatusCode.OK, (await LadderAsync(outClient, leagueId)).StatusCode);
+        var outSees = (await (await LadderAsync(outClient, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([outId], outSees.YourPlayerIds);
         var managerSees = (await (await LadderAsync(otherManager, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
         Assert.Equal(2, Assert.Single(managerSees.Divisions).Competitors.Count);
         Assert.DoesNotContain(managerSees.Divisions.SelectMany(d => d.Competitors), c => c.TeamId == leftOut);
+        Assert.Empty(managerSees.YourPlayerIds);
     }
 
     [Fact]
@@ -647,5 +649,28 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
 
         Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, leagueId)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, Guid.NewGuid())).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_ladder_says_which_of_the_Users_Players_are_in_the_League_even_one_who_left_the_Club()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (parent, parentId) = await ParticipantAsync(manager, clubId, leagueId, "Parent");
+        await ParticipantAsync(manager, clubId, leagueId, "Other");
+        // A second Player on the same login, in the Club but not in the League.
+        var created = await parent.PostAsJsonAsync("/players", new { name = "Child" });
+        var childId = (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(parent, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([parentId], seen.YourPlayerIds);
+        Assert.DoesNotContain(childId, seen.YourPlayerIds);
+
+        // Leaving the Club doesn't take a Player out of the League (#21): they still see it, as one of theirs.
+        (await parent.DeleteAsync($"/players/{parentId}/clubs/{clubId}")).EnsureSuccessStatusCode();
+        var after = (await (await LadderAsync(parent, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([parentId], after.YourPlayerIds);
     }
 }

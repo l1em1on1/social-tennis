@@ -557,6 +557,14 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await expect(page.getByRole("status")).toContainText(`${child} isn't in this league.`);
   await expect(page.getByText("isn't on the ladder")).toHaveCount(0);
 
+  // Wes, left out, is in the League but off its ladder, and is told so.
+  const wesContext = await browser.newContext();
+  const wesPage = await wesContext.newPage();
+  await logIn(wesPage, testInfo, wes.email);
+  await wesPage.goto(ladderPage);
+  await expect(wesPage.getByRole("status")).toContainText(`${wes.name} isn't on the ladder this Stage.`);
+  await wesContext.close();
+
   const xanContext = await browser.newContext();
   const xanPage = await xanContext.newPage();
   await logIn(xanPage, testInfo, xan.email);

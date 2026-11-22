@@ -248,6 +248,8 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     clubName: RIVERSIDE.name,
     type: autumnSingles.type,
     stage: autumnStage,
+    // The fixture Manager holds no Player.
+    yourPlayerIds: [],
     divisions: [
       {
         number: 1,

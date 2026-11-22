@@ -70,13 +70,9 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
   }
 
   const me = viewer.actingPlayer?.id;
-  // The API lets in a login with any of its Players in the League; the Acting Player
-  // may be another of them (a parent switched to a child who isn't in it).
-  const actingInLeague = viewer.actingPlayer
-    ? (
-        await api.GET("/players/{playerId}/leagues", { params: { path: { playerId: viewer.actingPlayer.id } } })
-      ).data?.leagues.some((league) => league.id === ladder.id && league.joined)
-    : false;
+  // The API lets in a login with any of its Players in the League, and says which;
+  // the Acting Player may be another of them (a parent switched to a child who isn't in it).
+  const actingInLeague = viewer.actingPlayer ? ladder.yourPlayerIds.includes(viewer.actingPlayer.id) : false;
   const isMe = (competitor: Competitor) => competitor.players.some((player) => player.playerId === me);
   const mine = ladder.divisions.find((division) => division.competitors.some(isMe));
   const opponents = mine?.competitors.filter((competitor) => !isMe(competitor)).map(names) ?? [];

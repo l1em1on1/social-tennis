@@ -34,18 +34,18 @@ public static class GetLeagueLadder
                 l.Name,
                 ClubName = l.Club.Name,
                 l.Type,
-                InIt = l.Participants.Any(p => p.Player.UserId == userId),
+                Yours = l.Participants.Where(p => p.Player.UserId == userId).Select(p => p.PlayerId).ToList(),
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate }).FirstOrDefault(),
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (league is null || !(league.InIt || user.IsInRole(Policies.Manager)))
+        if (league is null || !(league.Yours.Count > 0 || user.IsInRole(Policies.Manager)))
         {
             return TypedResults.NotFound();
         }
 
         if (league.Stage is null)
         {
-            return TypedResults.Ok(new GetLeagueLadderResponse(leagueId, league.Name, league.ClubName, league.Type, null, []));
+            return TypedResults.Ok(new GetLeagueLadderResponse(leagueId, league.Name, league.ClubName, league.Type, null, [], league.Yours));
         }
 
         var places = await db.LadderPlaces
@@ -99,6 +99,7 @@ public static class GetLeagueLadder
             league.ClubName,
             league.Type,
             new LeagueStageSummary(league.Stage.Number, league.Stage.StartDate, league.Stage.EndDate),
-            divisions));
+            divisions,
+            league.Yours));
     }
 }

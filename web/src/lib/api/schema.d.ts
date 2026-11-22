@@ -632,6 +632,7 @@ export interface components {
             type: components["schemas"]["LeagueType"];
             stage: null | components["schemas"]["LeagueStageSummary"];
             divisions: components["schemas"]["LadderDivision"][];
+            yourPlayerIds: string[];
         };
         GetLeaguePartnersResponse: {
             partners: components["schemas"]["LeaguePartner"][];

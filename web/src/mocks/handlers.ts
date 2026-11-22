@@ -827,11 +827,13 @@ export const handlers = [
     }
     const league = leagueById(params.leagueId);
     const user = userOf(emailOf(request));
-    const inIt = playersOf(request).some((player) => league?.participants.some((participant) => participant.playerId === player.id));
-    if (!league || !(inIt || user.manager || user.admin)) {
+    const yourPlayerIds = playersOf(request)
+      .filter((player) => league?.participants.some((participant) => participant.playerId === player.id))
+      .map((player) => player.id);
+    if (!league || !(yourPlayerIds.length > 0 || user.manager || user.admin)) {
       return response(404).empty();
     }
-    const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type };
+    const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type, yourPlayerIds };
     if (!league.stage) {
       return response(200).json({ ...facts, stage: null, divisions: [] });
     }
