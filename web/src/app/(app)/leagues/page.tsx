@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Field } from "@/components/ui/field";
@@ -258,6 +259,11 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
                 </p>
               )}
               <LadderState league={league} />
+              <div className="mt-3">
+                <ButtonLink href={`/leagues/${league.id}`} variant="secondary" aria-label={`Open the ladder of ${league.name}`}>
+                  Open the ladder
+                </ButtonLink>
+              </div>
               {league.partnerRequest && (
                 <div className="mt-3">
                   <NamedAsPartner league={league} />

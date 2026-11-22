@@ -85,6 +85,22 @@ test("a started League's Manager page, from fixed data", async ({ page }, testIn
   await expectNoSeriousA11yViolations(page);
 });
 
+test("a started League's ladder, from fixed data", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+  await logIn(page, testInfo, FIXTURE_MANAGER);
+  await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+
+  await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
+  const division = page.getByRole("region", { name: "Division 1" });
+  await expect(division.getByRole("list", { name: "Division 1 Teams" }).getByRole("listitem")).toHaveCount(3);
+  await expect(division.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    /Jo Bennett v Alex Morgan/,
+    /Jo Bennett v Chris Lee/,
+    /Alex Morgan v Chris Lee/,
+  ]);
+  await expectNoSeriousA11yViolations(page);
+});
+
 test("Admin, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_ADMIN);

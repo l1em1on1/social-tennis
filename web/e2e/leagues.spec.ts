@@ -3,7 +3,7 @@
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
-import { logIn, personaEmail, uniqueName } from "./support/auth";
+import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
 /** On Manage: adds a Player to the first Club for an email nobody has signed in with yet. */
@@ -530,6 +530,40 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await expect(page.getByRole("region", { name: `${una.name}'s leagues` }).getByRole("region", { name: league })).toContainText(
     `Division 1 You play ${vic.name} and ${xan.name}, once each.`,
   );
+
+  // The ladder: Una's Division marked, with everyone she plays and its three Games; Wes, left out, nowhere.
+  await page.getByRole("link", { name: `Open the ladder of ${league}` }).click();
+  await expect(page.getByRole("heading", { name: league, level: 1 })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(`You're in Division 1. You play ${vic.name} and ${xan.name}`);
+  const divisionOne = page.getByRole("region", { name: "Division 1" });
+  await expect(divisionOne).toContainText("You");
+  await expect(divisionOne.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${una.name} v ${vic.name}`),
+    new RegExp(`${una.name} v ${xan.name}`),
+    new RegExp(`${vic.name} v ${xan.name}`),
+  ]);
+  await expect(page.getByRole("list", { name: "Ladder" })).not.toContainText(wes.name);
+  await expectNoSeriousA11yViolations(page);
+
+  // Another Player on Una's login, not in this League: switching to them says so, rather than "not on the ladder".
+  const ladderPage = page.url();
+  const child = uniqueName(testInfo, "Una's Child");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profiles" }).click();
+  await addAnotherPlayer(page, child);
+  await page.goto(ladderPage);
+  await page.getByRole("button", { name: /switch player/ }).click();
+  await page.getByRole("dialog", { name: "Play as" }).getByRole("button", { name: child }).click();
+  await expect(page.getByTestId("acting-player")).toHaveText(child);
+  await expect(page.getByRole("status")).toContainText(`${child} isn't in this league.`);
+  await expect(page.getByText("isn't on the ladder")).toHaveCount(0);
+
+  // Wes, left out, is in the League but off its ladder, and is told so.
+  const wesContext = await browser.newContext();
+  const wesPage = await wesContext.newPage();
+  await logIn(wesPage, testInfo, wes.email);
+  await wesPage.goto(ladderPage);
+  await expect(wesPage.getByRole("status")).toContainText(`${wes.name} isn't on the ladder this Stage.`);
+  await wesContext.close();
 
   const xanContext = await browser.newContext();
   const xanPage = await xanContext.newPage();

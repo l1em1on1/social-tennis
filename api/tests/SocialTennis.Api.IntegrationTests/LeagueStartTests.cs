@@ -542,4 +542,135 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         Assert.Equal([1, 1, 2, 2, 2], ladder.Select(teamId => league.Teams.Single(t => t.Id == teamId).Division!.Value));
         Assert.Null((await LeagueAsync(manager, knockoutId)).DivisionSize);
     }
+
+    private static Task<HttpResponseMessage> LadderAsync(HttpClient client, Guid leagueId) =>
+        client.GetAsync($"/leagues/{leagueId}/ladder");
+
+    [Fact]
+    public async Task The_ladder_shows_each_Division_from_the_top_with_its_Teams_and_every_Game_between_them()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var ladder = (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId).ToList();
+        (await StartAsync(manager, leagueId, ladder, divisions: [2, 3])).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(players[0].Client, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        Assert.Equal(new LeagueStageSummary(1, new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31)), seen.Stage);
+        Assert.Equal([1, 2], seen.Divisions.Select(d => d.Number));
+        Assert.Equal(
+            [["One", "Two"], ["Three", "Four", "Five"]],
+            seen.Divisions.Select(d => d.Competitors.Select(c => Assert.Single(c.Players).Name).ToArray()));
+        Assert.Equal([1, 2, 3, 4, 5], seen.Divisions.SelectMany(d => d.Competitors).Select(c => c.Position));
+        // Every pair in a Division once, the higher place as the first side, in ladder order.
+        Assert.Equal([(ladder[0], ladder[1])], seen.Divisions[0].Games.Select(g => (g.FirstTeamId, g.SecondTeamId)));
+        Assert.Equal(
+            [(ladder[2], ladder[3]), (ladder[2], ladder[4]), (ladder[3], ladder[4])],
+            seen.Divisions[1].Games.Select(g => (g.FirstTeamId, g.SecondTeamId)));
+        Assert.Equal(
+            (await GamesAsync(leagueId)).Count,
+            seen.Divisions.Sum(d => d.Games.Count));
+    }
+
+    [Fact]
+    public async Task A_doubles_ladder_names_both_Players_of_each_Team()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "A", "B", "C", "D" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        (await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = players[0].PlayerId, secondPlayerId = players[1].PlayerId })).EnsureSuccessStatusCode();
+        (await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = players[2].PlayerId, secondPlayerId = players[3].PlayerId })).EnsureSuccessStatusCode();
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(players[3].Client, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        var division = Assert.Single(seen.Divisions);
+        Assert.Equal(["A B", "C D"], division.Competitors.Select(c => string.Join(" ", c.Players.Select(p => p.Name))));
+        Assert.Single(division.Games);
+    }
+
+    [Fact]
+    public async Task Everyone_in_the_League_sees_the_ladder_even_off_it_and_Managers_do_too()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        using var otherManager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        await ParticipantAsync(manager, clubId, leagueId, "One");
+        await ParticipantAsync(manager, clubId, leagueId, "Two");
+        var (outClient, outId) = await ParticipantAsync(manager, clubId, leagueId, "Left out");
+        var before = await LeagueAsync(manager, leagueId);
+        var leftOut = TeamOf(before, outId);
+        (await StartAsync(manager, leagueId, before.Teams.Select(t => t.Id).Where(id => id != leftOut), [leftOut])).EnsureSuccessStatusCode();
+
+        var outSees = (await (await LadderAsync(outClient, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([outId], outSees.YourPlayerIds);
+        var managerSees = (await (await LadderAsync(otherManager, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal(2, Assert.Single(managerSees.Divisions).Competitors.Count);
+        Assert.DoesNotContain(managerSees.Divisions.SelectMany(d => d.Competitors), c => c.TeamId == leftOut);
+        Assert.Empty(managerSees.YourPlayerIds);
+    }
+
+    [Fact]
+    public async Task Before_the_start_the_ladder_is_empty()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (player, _) = await ParticipantAsync(manager, clubId, leagueId, "Waiting");
+
+        var seen = (await (await LadderAsync(player, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+
+        Assert.Equal(((LeagueStageSummary?)null, 0), (seen.Stage, seen.Divisions.Count));
+        Assert.Equal("SinglesMixed Divisional League", seen.Name);
+    }
+
+    [Fact]
+    public async Task A_Player_not_in_the_League_cant_see_its_ladder()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        await ParticipantAsync(manager, clubId, leagueId, "One");
+        await ParticipantAsync(manager, clubId, leagueId, "Two");
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+        var (member, _) = await MemberAsync(manager, clubId, "Club member only");
+
+        Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, leagueId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await LadderAsync(member, Guid.NewGuid())).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_ladder_says_which_of_the_Users_Players_are_in_the_League_even_one_who_left_the_Club()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync();
+        var leagueId = await CreateLeagueAsync(manager, clubId);
+        var (parent, parentId) = await ParticipantAsync(manager, clubId, leagueId, "Parent");
+        await ParticipantAsync(manager, clubId, leagueId, "Other");
+        // A second Player on the same login, in the Club but not in the League.
+        var created = await parent.PostAsJsonAsync("/players", new { name = "Child" });
+        var childId = (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
+        (await StartAsync(manager, leagueId, (await ProposalAsync(manager, leagueId)).Competitors.Select(c => c.TeamId))).EnsureSuccessStatusCode();
+
+        var seen = (await (await LadderAsync(parent, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([parentId], seen.YourPlayerIds);
+        Assert.DoesNotContain(childId, seen.YourPlayerIds);
+
+        // Leaving the Club doesn't take a Player out of the League (#21): they still see it, as one of theirs.
+        (await parent.DeleteAsync($"/players/{parentId}/clubs/{clubId}")).EnsureSuccessStatusCode();
+        var after = (await (await LadderAsync(parent, leagueId)).Content.ReadFromJsonAsync<GetLeagueLadderResponse>())!;
+        Assert.Equal([parentId], after.YourPlayerIds);
+    }
 }
