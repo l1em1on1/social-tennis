@@ -16,4 +16,7 @@ public record ScoreFormat(int GamesPerSet, int SetsPerGame, bool MatchTiebreakDe
     public static readonly IReadOnlyList<int> AllowedGamesPerSet = [6, 9];
 
     public static readonly IReadOnlyList<int> AllowedSetsPerGame = [1, 3];
+
+    /// <summary>Whether the Set at <paramref name="index"/> (0 for the first) is played as a Match Tiebreak.</summary>
+    public bool IsMatchTiebreak(int index) => MatchTiebreakDecider && SetsPerGame == 3 && index == 2;
 }

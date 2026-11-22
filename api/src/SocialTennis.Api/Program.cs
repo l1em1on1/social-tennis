@@ -12,6 +12,7 @@ using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth;
 using SocialTennis.Api.Features.Clubs;
+using SocialTennis.Api.Features.Games;
 using SocialTennis.Api.Features.Leagues;
 using SocialTennis.Api.Features.Players;
 using SocialTennis.Api.Features.Users;
@@ -199,6 +200,7 @@ app.MapAuthEndpoints();
 app.MapPlayersEndpoints();
 app.MapUsersEndpoints();
 app.MapLeaguesEndpoints();
+app.MapGamesEndpoints();
 
 await app.RunAsync();
 return 0;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ResultStatusBadge } from "@/components/result-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { isId } from "@/lib/ids";
 import { formatDate, formatDates, typeLabel } from "@/lib/league";
+import { formatSets } from "@/lib/score";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Ladder" };
@@ -20,7 +22,8 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
 
 /**
  * A League's ladder (#7, wireframe P5): every Division this Stage from the
- * top, each with its Teams and every Game between them (ADR-0031). The Acting
+ * top, each with its Teams and every Game between them (ADR-0031), with its
+ * Score once entered and a link to its Match screen (#38). The Acting
  * Player's Division is marked, with who they play, or it says they aren't on
  * the ladder. Only the League's Players and Managers see it: anyone else gets
  * a 404.
@@ -140,12 +143,21 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                     const ourGame = [game.firstTeamId, game.secondTeamId].some((teamId) =>
                       division.competitors.some((competitor) => competitor.teamId === teamId && isMe(competitor)),
                     );
+                    const { score } = game;
                     return (
-                      <li key={game.id} className="flex items-center justify-between gap-2 py-1.5">
-                        <span className={cx("break-words", ourGame && "font-semibold")}>
-                          {nameOf(game.firstTeamId)} v {nameOf(game.secondTeamId)}
-                        </span>
-                        <Badge tone="warning">To play</Badge>
+                      <li key={game.id}>
+                        <Link
+                          href={`/games/${game.id}`}
+                          className="flex items-center justify-between gap-2 py-1.5 hover:underline"
+                        >
+                          <span className={cx("min-w-0 break-words", ourGame && "font-semibold")}>
+                            {nameOf(game.firstTeamId)} v {nameOf(game.secondTeamId)}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {score && <span className="font-mono text-xs">{formatSets(score.sets)}</span>}
+                            <ResultStatusBadge status={score ? (score.retired ? "retirement" : "played") : "pending"} />
+                          </span>
+                        </Link>
                       </li>
                     );
                   })}

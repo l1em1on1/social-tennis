@@ -11,7 +11,7 @@ api/src/SocialTennis.Api/
 │   ├── <EndpointName>.cs       one file per endpoint, HandleAsync only
 │   └── Contracts/
 │       └── <RecordName>.cs     one file per request/response record
-├── Contracts/                  shared across features: PageInfo only
+├── Contracts/                  shared across features: PageInfo, SetScore
 ├── Validation/  OpenApi/  Authentication/  Membership/  Roles/
 ├── Data/  Domain/  Migrations/
 ```

@@ -500,6 +500,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/games/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{gameId}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SubmitScore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -605,6 +637,37 @@ export interface components {
             id: string;
             name: string;
         };
+        GamePlayer: {
+            /** Format: uuid */
+            playerId: string;
+            name: string;
+        };
+        GameScore: {
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["SetScore"][];
+            /** Format: int32 */
+            winner: number | string;
+            retired: boolean;
+            submittedBy: string;
+            /** Format: date-time */
+            submittedAt: string;
+        };
+        GameSideSummary: {
+            /** Format: int32 */
+            side: number | string;
+            /** Format: uuid */
+            teamId: string;
+            players: components["schemas"]["GamePlayer"][];
+        };
+        GameStage: {
+            /** Format: int32 */
+            number: number | string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+        };
         GetClubLeaguesResponse: {
             leagues: components["schemas"]["ClubLeague"][];
             page: components["schemas"]["PageInfo"];
@@ -623,6 +686,24 @@ export interface components {
             userId: string;
             email: string;
             roles: string[];
+        };
+        GetGameResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            leagueId: string;
+            leagueName: string;
+            clubName: string;
+            type: components["schemas"]["LeagueType"];
+            scoreFormat: components["schemas"]["ScoreFormat"];
+            stage: components["schemas"]["GameStage"];
+            /** Format: int32 */
+            division: number | string;
+            sides: components["schemas"]["GameSideSummary"][];
+            score: null | components["schemas"]["GameScore"];
+            yourPlayerIds: string[];
+            /** Format: date */
+            today: string;
         };
         GetLeagueLadderResponse: {
             /** Format: uuid */
@@ -717,6 +798,13 @@ export interface components {
             firstTeamId: string;
             /** Format: uuid */
             secondTeamId: string;
+            score: null | components["schemas"]["LadderGameScore"];
+        };
+        LadderGameScore: {
+            /** Format: int32 */
+            winner: number | string;
+            retired: boolean;
+            sets: components["schemas"]["SetScore"][];
         };
         LadderPlayer: {
             /** Format: uuid */
@@ -926,9 +1014,30 @@ export interface components {
             setsPerGame: number | string;
             matchTiebreakDecider: boolean;
         };
+        ScoreSet: {
+            /** Format: int32 */
+            first: number | string;
+            /** Format: int32 */
+            second: number | string;
+            /** Format: int32 */
+            firstTiebreak: null | number | string;
+            /** Format: int32 */
+            secondTiebreak: null | number | string;
+        };
         SetPlayerRatingRequest: {
             /** Format: int32 */
             rating: number | string;
+        };
+        SetScore: {
+            /** Format: int32 */
+            first: number | string;
+            /** Format: int32 */
+            second: number | string;
+            /** Format: int32 */
+            firstTiebreak: null | number | string;
+            /** Format: int32 */
+            secondTiebreak: null | number | string;
+            matchTiebreak: boolean;
         };
         StageLength: {
             /** Format: int32 */
@@ -944,6 +1053,15 @@ export interface components {
             divisions: (number | string)[];
             leftOut: string[];
             removed: string[];
+        };
+        SubmitScoreRequest: {
+            /** Format: uuid */
+            playerId: string;
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["ScoreSet"][];
+            /** Format: int32 */
+            retirementWinner: null | number | string;
         };
         UpdatePlayerRequest: {
             name: string;
@@ -2620,6 +2738,111 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetGameResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SubmitScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

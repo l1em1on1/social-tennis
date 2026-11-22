@@ -5,6 +5,7 @@ import { expect, test } from "./support/chromatic";
 import {
   FIXTURE_ADMIN,
   FIXTURE_DOUBLES_LEAGUE_ID,
+  FIXTURE_GAME_IDS,
   FIXTURE_LEAGUE_ID,
   FIXTURE_MANAGER,
   FIXTURE_STARTED_LEAGUE_ID,
@@ -98,6 +99,35 @@ test("a started League's ladder, from fixed data", async ({ page }, testInfo) =>
     /Jo Bennett v Chris Lee/,
     /Alex Morgan v Chris Lee/,
   ]);
+  await expectNoSeriousA11yViolations(page);
+});
+
+test("a Game's Match screen, from fixed data", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+  await logIn(page, testInfo, FIXTURE_MANAGER);
+
+  // On the ladder: a tiebreak set, a retirement, and a Game still to play.
+  await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+  await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+    /Jo Bennett v Alex Morgan.*6–5\(4\).*Played/,
+    /Jo Bennett v Chris Lee.*2–4.*Retirement/,
+    /Alex Morgan v Chris Lee.*Score needed/,
+  ]);
+
+  await page.goto(`/games/${FIXTURE_GAME_IDS.retirement}`);
+  await expect(page.getByRole("heading", { name: "Jo Bennett v Chris Lee", level: 1 })).toBeVisible();
+  const score = page.getByRole("region", { name: "Score" });
+  await expect(score).toContainText("Retirement");
+  await expect(score).toContainText("Chris Lee won when the game stopped early · played 12 Oct 2026 · entered by Jo Bennett");
+
+  // A Manager holding no Player sees a Game with no score, with nothing to enter.
+  await page.goto(`/games/${FIXTURE_GAME_IDS.pending}`);
+  await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Play by 31 Oct 2026.");
+  await expect(page.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+
+  await page.goto(`/games/${FIXTURE_GAME_IDS.played}`);
+  const rows = page.getByRole("region", { name: "Score" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(rows).toHaveText([/Jo Bennett.*6/, /Alex Morgan.*5\(4\)/]);
   await expectNoSeriousA11yViolations(page);
 });
 

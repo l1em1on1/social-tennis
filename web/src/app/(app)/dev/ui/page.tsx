@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState, Skeleton, SkeletonGroup } from "@/components/ui/states";
 import { devSurfacesEnabled } from "@/lib/mock-mode";
+import { StepperDemo } from "./stepper-demo";
 
 export const metadata: Metadata = { title: "UI showcase" };
 
@@ -77,6 +78,10 @@ export default function UiShowcasePage() {
             )}
           </Field>
         </div>
+      </Card>
+
+      <Card title="Stepper">
+        <StepperDemo />
       </Card>
 
       <Card title="Search and paging">

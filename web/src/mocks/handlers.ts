@@ -2,11 +2,13 @@ import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
 import { DIVISION_SIZE, proposeDivisions } from "@/lib/league";
+import { checkScore, isMatchTiebreak, scoreFormat, type ScoreSet, type Side } from "@/lib/score";
 import {
   FIXTURE_ADMIN,
   FIXTURE_MANAGER,
   FIXTURE_USER_IDS,
   fixtureClubs,
+  fixtureGames,
   fixtureLeaguePages,
   fixtureLadders,
   fixtureLeagueStarts,
@@ -365,6 +367,64 @@ function partnerName(league: MockLeague, playerId: string) {
   const partnerId = league.participants.find((participant) => participant.teamId === teamId && participant.playerId !== playerId)?.playerId;
   return allPlayers().find((candidate) => candidate.id === partnerId)?.name ?? null;
 }
+
+/** A Team's Players by join time, as the API names them. */
+const teamPlayers = (league: MockLeague, teamId: string) =>
+  league.participants
+    .filter((participant) => participant.teamId === teamId)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .map((participant) => ({
+      playerId: participant.playerId,
+      name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
+    }));
+
+/** A started League's Divisions at the sizes the Manager confirmed, each pair playing once (ADR-0031). */
+function ladderOf(league: MockLeague) {
+  const competitors = league.ladder.map((teamId, index) => ({ teamId, position: index + 1, players: teamPlayers(league, teamId) }));
+  let start = 0;
+  return league.divisions.map((size, index) => {
+    const teams = competitors.slice(start, start + size);
+    start += size;
+    const games = teams.flatMap((first, i) =>
+      teams.slice(i + 1).map((second, j) => ({
+        // Unique across Leagues: the League's number, then the Division and the pair.
+        id: `00000000-0000-4000-8000-7${league.id.slice(-5)}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
+        firstTeamId: first.teamId,
+        secondTeamId: second.teamId,
+      })),
+    );
+    return { number: index + 1, competitors: teams, games };
+  });
+}
+
+/** A League Game by id, with its League and Division (#38). */
+function gameById(gameId: string) {
+  for (const league of leagues) {
+    for (const division of league.stage ? ladderOf(league) : []) {
+      const game = division.games.find((candidate) => candidate.id === gameId);
+      if (game) return { league, division: division.number, ...game };
+    }
+  }
+  return null;
+}
+
+/** Scores by Game id (#38): shared by every session, like the Leagues. */
+interface MockScore {
+  playedOn: string;
+  sets: ScoreSet[];
+  winner: Side;
+  retired: boolean;
+  submittedBy: string;
+  submittedAt: string;
+}
+const scores = new Map<string, MockScore>();
+
+const setScores = (league: MockLeague, sets: ScoreSet[]) =>
+  sets.map((set, index) => ({ ...set, matchTiebreak: isMatchTiebreak(scoreFormat(league.scoreFormat), index) }));
+
+/** Today in the Club's time zone (ADR-0016): every mock Club is in London. */
+const clubToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 const problemJson = { headers: { "Content-Type": "application/problem+json" } };
 const invalid = (field: string) => ({ title: "Validation failed", status: 400, errors: { [field]: ["Invalid."] } });
@@ -837,32 +897,109 @@ export const handlers = [
     if (!league.stage) {
       return response(200).json({ ...facts, stage: null, divisions: [] });
     }
-    const competitors = league.ladder.map((teamId, index) => ({
-      teamId,
-      position: index + 1,
-      players: league.participants
-        .filter((participant) => participant.teamId === teamId)
-        .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
-        .map((participant) => ({
-          playerId: participant.playerId,
-          name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
-        })),
+    const divisions = ladderOf(league).map(({ number, competitors, games }) => ({
+      number,
+      competitors,
+      games: games.map(({ id, firstTeamId, secondTeamId }) => {
+        const score = scores.get(id);
+        return {
+          id,
+          firstTeamId,
+          secondTeamId,
+          score: score ? { winner: score.winner, retired: score.retired, sets: setScores(league, score.sets) } : null,
+        };
+      }),
     }));
-    // The Divisions at the sizes the Manager confirmed, each pair playing once (ADR-0031).
-    let start = 0;
-    const divisions = league.divisions.map((size, index) => {
-      const teams = competitors.slice(start, start + size);
-      start += size;
-      const games = teams.flatMap((first, i) =>
-        teams.slice(i + 1).map((second, j) => ({
-          id: `${league.id.slice(0, -6)}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
-          firstTeamId: first.teamId,
-          secondTeamId: second.teamId,
-        })),
-      );
-      return { number: index + 1, competitors: teams, games };
-    });
     return response(200).json({ ...facts, stage: league.stage, divisions });
+  }),
+
+  // A Game for its Match screen (#38): seen by whoever can see its League's ladder.
+  http.get("/games/{gameId}", ({ request, params, response }) => {
+    const fixed = fixtureGames[params.gameId];
+    if (fixed) {
+      return response(200).json(fixed);
+    }
+    const game = gameById(params.gameId);
+    const user = userOf(emailOf(request));
+    const mine = playersOf(request);
+    if (!game || !(mine.some((player) => game.league.participants.some((p) => p.playerId === player.id)) || user.manager || user.admin)) {
+      return response(404).empty();
+    }
+    const { league } = game;
+    const score = scores.get(game.id);
+    const sides = [game.firstTeamId, game.secondTeamId].map((teamId, index) => ({
+      side: index + 1,
+      teamId,
+      players: teamPlayers(league, teamId),
+    }));
+    return response(200).json({
+      id: game.id,
+      leagueId: league.id,
+      leagueName: league.name,
+      clubName: MOCK_CLUB.name,
+      type: league.type,
+      scoreFormat: league.scoreFormat,
+      stage: league.stage!,
+      division: game.division,
+      sides,
+      score: score ? { ...score, sets: setScores(league, score.sets) } : null,
+      yourPlayerIds: mine
+        .filter((player) => sides.some((side) => side.players.some((p) => p.playerId === player.id)))
+        .map((player) => player.id),
+      today: clubToday(),
+    });
+  }),
+
+  // As the API's SubmitScore (#38): a Player in the Game enters it once, checked by the same rules.
+  http.post("/games/{gameId}/score", async ({ request, params, response }) => {
+    const { playerId, playedOn, sets, retirementWinner } = await request.json();
+    const player = playersOf(request).find((candidate) => candidate.id === playerId);
+    const game = gameById(params.gameId);
+    const user = userOf(emailOf(request));
+    if (!player || !game) {
+      return response(404).empty();
+    }
+    const { league } = game;
+    const inLeague = playersOf(request).some((mine) => league.participants.some((p) => p.playerId === mine.id));
+    if (!(inLeague || user.manager || user.admin)) {
+      return response(404).empty();
+    }
+    const team = league.participants.find((participant) => participant.playerId === player.id)?.teamId;
+    if (team !== game.firstTeamId && team !== game.secondTeamId) {
+      return response(403).json({ type: "not-in-game", title: "Only a Player in this game can enter its score.", status: 403 }, problemJson);
+    }
+    if (scores.has(game.id)) {
+      return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
+    }
+    const recorded: ScoreSet[] = sets.map((set) => ({
+      first: Number(set.first),
+      second: Number(set.second),
+      firstTiebreak: set.firstTiebreak === null || set.firstTiebreak === undefined ? null : Number(set.firstTiebreak),
+      secondTiebreak: set.secondTiebreak === null || set.secondTiebreak === undefined ? null : Number(set.secondTiebreak),
+    }));
+    const declared = retirementWinner === null || retirementWinner === undefined ? null : (Number(retirementWinner) as Side);
+    const check = checkScore(scoreFormat(league.scoreFormat), recorded, declared);
+    const errors: Record<string, string[]> = check.ok ? {} : { [check.field]: [check.message] };
+    if (playedOn < league.stage!.startDate) {
+      const started = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(
+        new Date(`${league.stage!.startDate}T00:00:00Z`),
+      );
+      errors.playedOn = [`Stage ${league.stage!.number} started on ${started}: the game can't have been played before that.`];
+    } else if (playedOn > clubToday()) {
+      errors.playedOn = ["The date played can't be in the future."];
+    }
+    if (!check.ok || errors.playedOn) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    scores.set(game.id, {
+      playedOn,
+      sets: recorded,
+      winner: check.winner,
+      retired: declared !== null,
+      submittedBy: player.name,
+      submittedAt: new Date().toISOString(),
+    });
+    return response(204).empty();
   }),
 
   http.post("/leagues/{leagueId}/join-requests", async ({ request, params, response }) => {

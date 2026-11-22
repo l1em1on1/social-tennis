@@ -27,6 +27,8 @@ export const FIXTURE_LEAGUE_ID = id("e", 1);
 export const FIXTURE_DOUBLES_LEAGUE_ID = id("e", 2);
 /** Autumn Singles: started (#7), with a Division of 3 and someone left out. */
 export const FIXTURE_STARTED_LEAGUE_ID = id("e", 3);
+/** Its Games (#38): Jo beat Alex on a tiebreak, Chris won when Jo stopped early, and Alex v Chris has no score yet. */
+export const FIXTURE_GAME_IDS = { played: id("9", 1), retirement: id("9", 2), pending: id("9", 3) } as const;
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
@@ -241,6 +243,11 @@ const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
 };
 
 /** Autumn Singles' ladder (#7), as its Players and Managers see it. */
+const autumnScores = {
+  played: { winner: 1, retired: false, sets: [{ first: 6, second: 5, firstTiebreak: 7, secondTiebreak: 4, matchTiebreak: false }] },
+  retirement: { winner: 2, retired: true, sets: [{ first: 2, second: 4, firstTiebreak: null, secondTiebreak: null, matchTiebreak: false }] },
+} satisfies Record<string, Schemas["LadderGameScore"]>;
+
 export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> = {
   [autumnSingles.id]: {
     id: autumnSingles.id,
@@ -260,9 +267,9 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
         ],
         // Every pair once, the higher place first (ADR-0031).
         games: [
-          { id: id("9", 1), firstTeamId: id("f", 4), secondTeamId: id("f", 5) },
-          { id: id("9", 2), firstTeamId: id("f", 4), secondTeamId: id("f", 6) },
-          { id: id("9", 3), firstTeamId: id("f", 5), secondTeamId: id("f", 6) },
+          { id: FIXTURE_GAME_IDS.played, firstTeamId: id("f", 4), secondTeamId: id("f", 5), score: autumnScores.played },
+          { id: FIXTURE_GAME_IDS.retirement, firstTeamId: id("f", 4), secondTeamId: id("f", 6), score: autumnScores.retirement },
+          { id: FIXTURE_GAME_IDS.pending, firstTeamId: id("f", 5), secondTeamId: id("f", 6), score: null },
         ],
       },
     ],
@@ -324,4 +331,34 @@ export const fixtureUsers: Schemas["GetUsersResponse"] = {
     user(0, FIXTURE_ADMIN, [], { admin: true, adminBySetting: true }),
   ],
   page: { total: 9, offset: 0, limit: 50 },
+};
+
+/** Autumn Singles' Games (#38), as the fixture Manager sees them: holding no Player, so none of them theirs. */
+const autumnGame = (gameId: string, first: Schemas["ClubMember"], second: Schemas["ClubMember"], firstTeam: number, secondTeam: number) => ({
+  id: gameId,
+  leagueId: autumnSingles.id,
+  leagueName: autumnSingles.name,
+  clubName: RIVERSIDE.name,
+  type: autumnSingles.type,
+  scoreFormat: autumnSingles.scoreFormat,
+  stage: autumnStage,
+  division: 1,
+  sides: [
+    { side: 1, teamId: id("f", firstTeam), players: [{ playerId: first.playerId, name: first.name }] },
+    { side: 2, teamId: id("f", secondTeam), players: [{ playerId: second.playerId, name: second.name }] },
+  ],
+  yourPlayerIds: [],
+  today: "2026-10-20",
+});
+
+export const fixtureGames: Record<string, Schemas["GetGameResponse"]> = {
+  [FIXTURE_GAME_IDS.played]: {
+    ...autumnGame(FIXTURE_GAME_IDS.played, jo, alex, 4, 5),
+    score: { ...autumnScores.played, playedOn: "2026-10-08", submittedBy: alex.name, submittedAt: "2026-10-08T19:40:00Z" },
+  },
+  [FIXTURE_GAME_IDS.retirement]: {
+    ...autumnGame(FIXTURE_GAME_IDS.retirement, jo, chris, 4, 6),
+    score: { ...autumnScores.retirement, playedOn: "2026-10-12", submittedBy: jo.name, submittedAt: "2026-10-12T18:05:00Z" },
+  },
+  [FIXTURE_GAME_IDS.pending]: { ...autumnGame(FIXTURE_GAME_IDS.pending, alex, chris, 5, 6), score: null },
 };

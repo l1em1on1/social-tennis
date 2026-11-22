@@ -649,3 +649,72 @@ export async function renameLeague(formData: FormData) {
   revalidatePath("/", "layout");
   redirect(`/manage/leagues/${leagueId}`);
 }
+
+/** The score form's last refusal, by the API's field names ("playedOn", "sets", "sets[1]"…); "form" is the form's own. */
+export interface SubmitScoreState {
+  errors: Record<string, string[]>;
+}
+
+/** A whole number from a form field, or null when it's blank or isn't one. */
+function wholeNumber(value: FormDataEntryValue | null): number | null {
+  return typeof value === "string" && /^\d{1,3}$/.test(value) ? Number(value) : null;
+}
+
+/**
+ * A Player who played a Game enters its Score (#38), as the Acting Player the
+ * form names. A refusal of the Score comes back as the API's own messages, which
+ * the form shows by the field they name; a Game already scored, or one the
+ * Player isn't in, sends them back to its Match screen to see why.
+ */
+export async function submitScore(_previous: SubmitScoreState, formData: FormData): Promise<SubmitScoreState> {
+  const gameId = formData.get("gameId");
+  const playerId = formData.get("playerId");
+  const playedOn = formData.get("playedOn");
+  const firsts = formData.getAll("first").map(wholeNumber);
+  const seconds = formData.getAll("second").map(wholeNumber);
+  const firstTiebreaks = formData.getAll("firstTiebreak");
+  const secondTiebreaks = formData.getAll("secondTiebreak");
+  const winner = formData.get("retirementWinner");
+  const invalid = { errors: { form: ["Some of the values weren't ones this form offers. Reload and try again."] } };
+  if (!isId(gameId) || !isId(playerId) || typeof playedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(playedOn)) {
+    return invalid;
+  }
+  if (
+    firsts.length !== seconds.length ||
+    firstTiebreaks.length !== firsts.length ||
+    secondTiebreaks.length !== firsts.length ||
+    firsts.some((value) => value === null) ||
+    seconds.some((value) => value === null) ||
+    (winner !== null && winner !== "1" && winner !== "2")
+  ) {
+    return invalid;
+  }
+
+  const api = await apiWithSession();
+  const { error, response } = await api.POST("/games/{gameId}/score", {
+    params: { path: { gameId } },
+    body: {
+      playerId,
+      playedOn,
+      sets: firsts.map((first, index) => ({
+        first: first!,
+        second: seconds[index]!,
+        firstTiebreak: wholeNumber(firstTiebreaks[index]),
+        secondTiebreak: wholeNumber(secondTiebreaks[index]),
+      })),
+      retirementWinner: winner === null ? null : Number(winner),
+    },
+  });
+  if (response.status === 400 && error && "errors" in error) {
+    return { errors: (error.errors ?? {}) as Record<string, string[]> };
+  }
+  if (response.status === 403 || response.status === 409) {
+    redirect(`/games/${gameId}?refused=${response.status === 403 ? "not-in-game" : "already-scored"}`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`POST /games/${gameId}/score failed with ${response.status}`);
+  }
+  // The ladder, the Leagues list and the Match screen all show it.
+  revalidatePath("/", "layout");
+  redirect(`/games/${gameId}${response.ok ? "?entered=1" : ""}`);
+}

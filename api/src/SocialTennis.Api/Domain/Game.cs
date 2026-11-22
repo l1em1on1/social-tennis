@@ -2,8 +2,8 @@ namespace SocialTennis.Api.Domain;
 
 /// <summary>
 /// Two Sides playing a match (see CONTEXT.md, Game): here a Division's Game in
-/// a League Stage, made when the Stage opens (#7). The Date it's played, a
-/// Court and a Score come later (#9, #38).
+/// a League Stage, made when the Stage opens (#7). Its <see cref="Score"/> is
+/// entered once it's played (#38); arranging a Date and a Court is #9.
 /// </summary>
 public class Game
 {
@@ -20,4 +20,7 @@ public class Game
 
     /// <summary>Its two Sides, 1 and 2.</summary>
     public List<GameSide> Sides { get; set; } = [];
+
+    /// <summary>None until a Player who played it enters one (#38).</summary>
+    public Score? Score { get; set; }
 }
