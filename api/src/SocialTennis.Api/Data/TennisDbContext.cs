@@ -161,6 +161,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
                 .HasPrincipalKey(s => new { s.LeagueId, s.Id })
                 .OnDelete(DeleteBehavior.Cascade);
             game.HasIndex(g => new { g.StageId, g.Division });
+            // Who marked it not played (#10): kept, like who changed a Score.
+            game.HasOne<User>().WithMany().HasForeignKey(g => g.VoidedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<GameSide>(side =>
         {
@@ -188,6 +190,7 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
                 .OnDelete(DeleteBehavior.Cascade);
             score.ComplexCollection(s => s.Sets, sets => sets.ToJson());
             score.HasOne(s => s.SubmittedBy).WithMany().HasForeignKey(s => s.SubmittedById).OnDelete(DeleteBehavior.Restrict);
+            score.HasOne<User>().WithMany().HasForeignKey(s => s.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
             // Postgres's xmin, so no column to keep (ADR-0018; Npgsql docs, "Concurrency tokens").
             score.Property(s => s.Version).IsRowVersion();
         });

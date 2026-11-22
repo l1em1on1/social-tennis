@@ -3,7 +3,7 @@ import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
 import { DIVISION_SIZE, proposeDivisions } from "@/lib/league";
 import { checkScore, isMatchTiebreak, scoreFormat, type ScoreSet, type Side } from "@/lib/score";
-import { gamesOf, standingsOf } from "./standings";
+import { gamesOf, openTiesOf, standingsOf } from "./standings";
 import {
   FIXTURE_ADMIN,
   FIXTURE_MANAGER,
@@ -419,13 +419,17 @@ interface MockScoreValue {
 
 /** Scores by Game id (#38): shared by every session, like the Leagues, with their history, the latest first. */
 interface MockScore extends MockScoreValue {
-  submittedBy: string;
+  /** None when a Manager holding no Player recorded it (#10). */
+  submittedBy: string | null;
+  recordedByManager: boolean;
   submittedAt: string;
   version: number;
   history: { kind: Schemas["ScoreChangeKind"]; by: string | null; at: string; before: MockScoreValue | null; after: MockScoreValue }[];
 }
 const scores = new Map<string, MockScore>();
 let scoreVersions = 0;
+/** Games a Manager marked not played (#10). */
+const voided = new Set<string>();
 
 const snapshotOf = (league: MockLeague, value: MockScoreValue) => ({ ...value, sets: setScores(league, value.sets) });
 
@@ -944,7 +948,7 @@ export const handlers = [
     }
     const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type, yourPlayerIds };
     if (!league.stage) {
-      return response(200).json({ ...facts, stage: null, divisions: [] });
+      return response(200).json({ ...facts, stage: null, divisions: [], heldUp: false, awaiting: { unscoredGameIds: [], ties: [] } });
     }
     const ladder = ladderOf(league);
     const format = scoreFormat(league.scoreFormat);
@@ -969,10 +973,18 @@ export const handlers = [
           firstTeamId,
           secondTeamId,
           score: score ? { winner: score.winner, retired: score.retired, sets: setScores(league, score.sets) } : null,
+          notPlayed: voided.has(id),
         };
       }),
     }));
-    return response(200).json({ ...facts, stage: league.stage, divisions });
+    // As the API (#10): what holds up the close, and whether the deadline has passed. A mock Stage never closes.
+    const awaiting = {
+      unscoredGameIds: divisions.flatMap((division) => division.games.filter((game) => !game.score && !game.notPlayed).map((game) => game.id)),
+      ties: divisions.flatMap((division) =>
+        openTiesOf(division.standings, division.number, divisions.length).map((teamIds) => ({ division: division.number, teamIds })),
+      ),
+    };
+    return response(200).json({ ...facts, stage: league.stage, divisions, heldUp: clubToday() > league.stage.endDate, awaiting });
   }),
 
   // A Game for its Match screen (#38): seen by whoever can see its League's ladder.
@@ -1012,10 +1024,12 @@ export const handlers = [
             winner: score.winner,
             retired: score.retired,
             submittedBy: score.submittedBy,
+            recordedByManager: score.recordedByManager,
             submittedAt: score.submittedAt,
             version: score.version,
           }
         : null,
+      notPlayed: voided.has(game.id),
       history: (score?.history ?? []).map((entry) => ({
         ...entry,
         before: entry.before ? snapshotOf(league, entry.before) : null,
@@ -1050,6 +1064,9 @@ export const handlers = [
     if (scores.has(game.id)) {
       return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
     }
+    if (voided.has(game.id)) {
+      return response(409).json(conflict("not-played", "A manager has marked this game as not played, so it takes no score."), problemJson);
+    }
     const { errors, after } = checkEntry(league, { playedOn, sets, retirementWinner });
     if (!after) {
       return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
@@ -1058,10 +1075,75 @@ export const handlers = [
     scores.set(game.id, {
       ...after,
       submittedBy: player.name,
+      recordedByManager: false,
       submittedAt,
       version: (scoreVersions += 1),
       history: [{ kind: "Entered", by: player.name, at: submittedAt, before: null, after }],
     });
+    return response(204).empty();
+  }),
+
+  // As the API's RecordScore (#10): a Manager, for a Game nobody scored.
+  http.post("/games/{gameId}/score/record", async ({ request, params, response }) => {
+    const body = await request.json();
+    const user = userOf(emailOf(request));
+    if (!(user.manager || user.admin)) {
+      return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
+    }
+    const game = gameById(params.gameId);
+    if (!game) {
+      return response(404).empty();
+    }
+    if (scores.has(game.id)) {
+      return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
+    }
+    if (voided.has(game.id)) {
+      return response(409).json(conflict("not-played", "A manager has marked this game as not played, so it takes no score."), problemJson);
+    }
+    const { errors, after } = checkEntry(game.league, body);
+    if (!after) {
+      return response(400).json({ title: "Validation failed", status: 400, errors }, problemJson);
+    }
+    const by = playersOf(request)[0]?.name ?? null;
+    const submittedAt = new Date().toISOString();
+    scores.set(game.id, {
+      ...after,
+      submittedBy: by,
+      recordedByManager: true,
+      submittedAt,
+      version: (scoreVersions += 1),
+      history: [{ kind: "Recorded", by, at: submittedAt, before: null, after }],
+    });
+    return response(204).empty();
+  }),
+
+  // As the API's VoidGame and UnvoidGame (#10): Managers only; a scored Game was played.
+  http.put("/games/{gameId}/not-played", ({ request, params, response }) => {
+    const user = userOf(emailOf(request));
+    if (!(user.manager || user.admin)) {
+      return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
+    }
+    const game = gameById(params.gameId);
+    if (!game) {
+      return response(404).empty();
+    }
+    if (scores.has(game.id)) {
+      return response(409).json(conflict("already-scored", "This game already has a score."), problemJson);
+    }
+    voided.add(game.id);
+    return response(204).empty();
+  }),
+
+  http.delete("/games/{gameId}/not-played", ({ request, params, response }) => {
+    const user = userOf(emailOf(request));
+    if (!(user.manager || user.admin)) {
+      return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
+    }
+    const game = gameById(params.gameId);
+    if (!game) {
+      return response(404).empty();
+    }
+    voided.delete(game.id);
     return response(204).empty();
   }),
 

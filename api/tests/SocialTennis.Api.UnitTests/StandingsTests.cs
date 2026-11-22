@@ -148,4 +148,19 @@ public class StandingsTests
         Assert.Equal([(A, 1), (B, 1)], Ranks(standings));
         Assert.All(standings, s => Assert.Null(Standings.MoveOf(s, standings, 2, 3)));
     }
+
+    [Fact]
+    public void Open_ties_are_the_ones_that_decide_who_moves()
+    {
+        // A and B level at the top, D last; C third.
+        var standings = Standings.Rank([A, B, C, D], [Beat(A, C), Beat(B, D), Beat(A, D), Beat(B, C), Beat(C, D), Unplayed(A, B)]);
+
+        Assert.Equal([[A, B]], Standings.OpenTies(standings, 2, 3));
+        // In the top Division a tie for first decides nothing.
+        Assert.Empty(Standings.OpenTies(standings, 1, 3));
+        // A Division where nothing was played is one tie of everyone, for the Manager to order.
+        var unplayed = Standings.Rank([A, B], [Unplayed(A, B)]);
+        Assert.Equal([[A, B]], Standings.OpenTies(unplayed, 1, 2));
+        Assert.Empty(Standings.OpenTies(unplayed, 1, 1));
+    }
 }

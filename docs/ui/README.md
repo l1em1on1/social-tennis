@@ -63,7 +63,7 @@ Feedback is ongoing: the wireframes are a living design, updated as screens are 
 2. The tiebreak rule for short sets: at 5–5 to 6–5, or at 6–6 to 7–6? #38 builds 5–5 to 6–5, as CONTEXT.md (Set) has it.
 3. Home deadline: a date ("by 30 Nov") or a countdown ("9 days left")?
 4. Ladder: the whole ladder, or just your Division and the ones either side?
-5. Should a walkover need a reason?
+5. Should a walkover need a reason? For now an unplayed Game is only marked not played (a Void), and counts for nothing (owner, 2026-11-22, #10); Walkovers wait for scoring modes (#214).
 
 | Date | Who | Feedback | Outcome |
 | --- | --- | --- | --- |

@@ -123,6 +123,24 @@ public static class Standings
         return standing.Tied ? null : movesUp ? StandingMove.Up : StandingMove.Down;
     }
 
+    /// <summary>
+    /// The ties a Manager must order before the Stage closes (#10): Teams
+    /// sharing a place that moves, first in any Division but the top or last
+    /// in any but the bottom. A Division where nothing was played is one such
+    /// tie of all its Teams, ordered like any other (#10, part 2).
+    /// </summary>
+    public static IReadOnlyList<IReadOnlyList<Guid>> OpenTies(IReadOnlyList<Standing> division, int number, int divisions)
+    {
+        var last = division.Max(row => row.Rank);
+        return
+        [
+            .. division
+                .Where(row => row.Tied && ((row.Rank == 1 && number > 1) || (row.Rank == last && number < divisions)))
+                .GroupBy(row => row.Rank)
+                .Select(group => (IReadOnlyList<Guid>)[.. group.Select(row => row.TeamId)]),
+        ];
+    }
+
     /// <summary>Splits a group tied on wins and games difference by the Games among them, as far as they go.</summary>
     private static IEnumerable<List<Guid>> HeadToHead(List<Guid> group, IReadOnlyList<StandingsGame> games)
     {

@@ -14,4 +14,7 @@ public enum ScoreChangeKind
 
     /// <summary>A Manager overrode it, which they can do after the Stage closes too.</summary>
     Overridden = 3,
+
+    /// <summary>A Manager recorded it for a Game nobody had scored (#10).</summary>
+    Recorded = 4,
 }

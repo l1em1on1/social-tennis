@@ -29,10 +29,13 @@ public class Score
     /// <summary>The Game ended early (see CONTEXT.md, Retirement): a played result, with a declared winner.</summary>
     public bool Retired { get; set; }
 
-    /// <summary>The Player who entered it: one who played the Game.</summary>
-    public Guid SubmittedById { get; set; }
+    /// <summary>The Player who entered it, one who played the Game; none when a Manager recorded it (#10).</summary>
+    public Guid? SubmittedById { get; set; }
 
-    public Player SubmittedBy { get; set; } = null!;
+    public Player? SubmittedBy { get; set; }
+
+    /// <summary>The signed-in User who entered or recorded it.</summary>
+    public Guid SubmittedByUserId { get; set; }
 
     public DateTimeOffset SubmittedAt { get; set; }
 

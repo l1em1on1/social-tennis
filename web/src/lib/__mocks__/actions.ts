@@ -47,3 +47,5 @@ export async function createLeague(): Promise<CreateLeagueState> {
   };
 }
 export const submitScore = pending;
+export const voidGame = pending;
+export const unvoidGame = pending;

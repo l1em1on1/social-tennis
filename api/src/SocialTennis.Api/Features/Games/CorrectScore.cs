@@ -41,6 +41,12 @@ public static class CorrectScore
             return TypedResults.NotFound();
         }
 
+        if (await GameScores.LeagueOfAsync(db, gameId, cancellationToken) is not { } leagueId)
+        {
+            return TypedResults.NotFound();
+        }
+
+        await using var transaction = await GameScores.LockResultsAsync(db, leagueId, cancellationToken);
         var game = await db.Games
             .Where(g => g.Id == gameId)
             .Select(g => new
@@ -89,6 +95,7 @@ public static class CorrectScore
             return refused;
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 }

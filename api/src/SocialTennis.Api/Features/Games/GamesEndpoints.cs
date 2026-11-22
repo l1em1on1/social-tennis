@@ -4,7 +4,7 @@ using SocialTennis.Api.Validation;
 
 namespace SocialTennis.Api.Features.Games;
 
-/// <summary>A League Game and its Score (#38): entered, corrected and overridden.</summary>
+/// <summary>A League Game and its Score (#38): entered, corrected and overridden; recorded or marked not played by a Manager (#10).</summary>
 public static class GamesEndpoints
 {
     public static IEndpointRouteBuilder MapGamesEndpoints(this IEndpointRouteBuilder app)
@@ -37,6 +37,27 @@ public static class GamesEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(OverrideScore));
+
+        // Settling what holds up a Stage's close (#10): a Manager records a Score
+        // nobody entered, or marks the Game not played, and can undo that.
+        game.MapPost("/score/record", RecordScore.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ValidatesBody<RecordScoreRequest, RecordScoreRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(RecordScore));
+
+        game.MapPut("/not-played", VoidGame.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(VoidGame));
+
+        game.MapDelete("/not-played", UnvoidGame.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(UnvoidGame));
 
         return app;
     }

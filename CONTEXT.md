@@ -63,10 +63,10 @@ A League's list of what awaits the Manager before the current Stage can close: G
 _Avoid_: To-do list (the Manager screen's label, not the concept)
 
 **Walkover**:
-A Manager resolution of an unplayed Game awarding the result to one side without play — used at Stage close or on a Withdrawal.
+A Manager resolution of an unplayed Game awarding the result to one side without play — used at Stage close or on a Withdrawal. Not built yet: until scoring modes exist (#214) it would count for nothing, like a Void (owner, 2026-11-22).
 
 **Void**:
-A Manager resolution cancelling an unplayed Game entirely — it counts for nothing in standings.
+A Manager resolution cancelling an unplayed Game entirely — it counts for nothing in standings, and takes no Score. Shown as "not played". A Manager can undo it while the Stage is open. For now every unplayed Game is settled this way (owner, 2026-11-22): a Walkover counts the same until scoring modes exist (#214).
 
 **Team**:
 A League-scoped pairing of 1 or 2 Players (depending on League Type) who compete together for the life of the League — changing partner means a Withdrawal plus a fresh join, never an in-place re-pair. In a singles League each Player is a Team of one. In a doubles League a Player starts without a partner, and the Manager pairs two of them into a Team, or breaks a Team up (#6). Once the League has started, a Team on its ladder can't be broken up. Or two Players ask to join together, as a Team (see Join Request). A Team is not re-formed per Game. Not used by Socials (a Social's Games are assembled directly from RSVP'd Players each time, no persistent Team) or by `Foursomes` Leagues (see League Type) — a Team requires a fixed partner, which `Foursomes` doesn't have. A Team has no Rating of its own — it's always derived from its Players' Ratings (average, for now), never independently tracked.

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
+import { HeldUpBanner } from "@/components/held-up-banner";
 import { StandingsTable } from "@/components/standings-table";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -25,7 +26,8 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
  * A League's ladder (#7, wireframe P5): every Division this Stage from the
  * top, each with its Standings and who would move if the Stage closed now
  * (#10), and every Game between its Teams (ADR-0031), with its Score once
- * entered and a link to its Match screen (#38). The Acting
+ * entered and a link to its Match screen (#38). Past its deadline and still
+ * open, it says what holds the Stage up (#10). The Acting
  * Player's Division is marked, with who they play, or it says they aren't on
  * the ladder. Only the League's Players and Managers see it: anyone else gets
  * a 404.
@@ -81,6 +83,11 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
   const isMe = (competitor: Competitor) => competitor.players.some((player) => player.playerId === me);
   const mine = ladder.divisions.find((division) => division.competitors.some(isMe));
   const opponents = mine?.competitors.filter((competitor) => !isMe(competitor)).map(names) ?? [];
+  const competitors = ladder.divisions.flatMap((division) => division.competitors);
+  const teamName = (teamId: string) => {
+    const team = competitors.find((competitor) => competitor.teamId === teamId);
+    return team ? names(team) : "";
+  };
   const list = opponents.length > 1 ? `${opponents.slice(0, -1).join(", ")} and ${opponents[opponents.length - 1]}` : opponents[0];
 
   return (
@@ -93,6 +100,19 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
           {formatDate(stage.endDate)}.
         </span>
       </p>
+
+      {ladder.heldUp && (
+        <HeldUpBanner
+          stageNumber={Number(stage.number)}
+          endDate={stage.endDate}
+          unscored={ladder.divisions.flatMap((division) =>
+            division.games
+              .filter((game) => ladder.awaiting.unscoredGameIds.includes(game.id))
+              .map((game) => `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}`),
+          )}
+          ties={ladder.awaiting.ties.map((tie) => ({ division: Number(tie.division), names: tie.teamIds.map(teamName) }))}
+        />
+      )}
 
       {mine ? (
         <p role="status" className="rounded-2xl border border-accent bg-accent-muted px-4 py-3 text-sm">
@@ -156,7 +176,9 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {score && <span className="font-mono text-xs">{formatSets(score.sets)}</span>}
-                            <ResultStatusBadge status={score ? (score.retired ? "retirement" : "played") : "pending"} />
+                            <ResultStatusBadge
+                              status={score ? (score.retired ? "retirement" : "played") : game.notPlayed ? "void" : "pending"}
+                            />
                           </span>
                         </Link>
                       </li>

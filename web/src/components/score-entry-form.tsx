@@ -26,9 +26,10 @@ import {
 
 /**
  * Entering a Score; a Player who played correcting it while the Stage is
- * open; or a Manager overriding it, open or closed (#38).
+ * open; a Manager overriding it, open or closed (#38); or a Manager
+ * recording one for a Game nobody scored (#10).
  */
-export type ScoreEntryMode = "enter" | "correct" | "override";
+export type ScoreEntryMode = "enter" | "correct" | "override" | "record";
 
 export interface ScoreEntryFormProps {
   gameId: string;
@@ -63,7 +64,12 @@ const setTitle = (format: ScoreFormat, index: number) =>
  * The hints are the API's own rules (`lib/score.ts`); the API still decides,
  * and anything it refuses shows where it belongs.
  */
-const SAVE: Record<ScoreEntryMode, string> = { enter: "Save score", correct: "Save correction", override: "Save override" };
+const SAVE: Record<ScoreEntryMode, string> = {
+  enter: "Save score",
+  correct: "Save correction",
+  override: "Save override",
+  record: "Save score",
+};
 
 /** What the entry would save, to tell a change from none. */
 const entryKey = (format: ScoreFormat, entries: SetEntry[], playedOn: string, retirementWinner: Side | null) =>
@@ -78,7 +84,9 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
   const [retired, setRetired] = useState(initial?.retirementWinner !== undefined);
   const [retirementWinner, setRetirementWinner] = useState<Side | null>(initial?.retirementWinner ?? null);
   // A correction or override saves only a change (#213 review): what it started from, to compare.
-  const [startedFrom] = useState(() => (mode === "enter" ? null : entryKey(format, entries, playedOn, retired ? retirementWinner : null)));
+  const [startedFrom] = useState(() =>
+    mode === "enter" || mode === "record" ? null : entryKey(format, entries, playedOn, retired ? retirementWinner : null),
+  );
 
   const shown = shownSets(format, entries);
   const sets = setsToSend(format, entries);
@@ -270,7 +278,9 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
           <p className="text-sm text-fg-muted">
             {mode === "override"
               ? "Your override is recorded as yours, with the score it replaces, and everyone in the league can see it."
-              : "Your correction is recorded with your name and the score it replaces, and everyone in the league can see it."}
+              : mode === "record"
+                ? "It's recorded as a manager's, and the players in the game can still correct it while the Stage is open."
+                : "Your correction is recorded with your name and the score it replaces, and everyone in the league can see it."}
           </p>
         )}
         <SubmitButton fullWidth pendingLabel="Saving…" disabled={!check.ok || !dateOk || unchanged || (retired && retirementWinner === null)}>

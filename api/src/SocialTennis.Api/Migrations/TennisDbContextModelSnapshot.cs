@@ -138,7 +138,15 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid>("StageId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VoidedByUserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("VoidedByUserId");
 
                     b.HasIndex("LeagueId", "StageId");
 
@@ -410,7 +418,10 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateTimeOffset>("SubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("SubmittedById")
+                    b.Property<Guid?>("SubmittedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SubmittedByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<uint>("Version")
@@ -442,6 +453,8 @@ namespace SocialTennis.Api.Migrations
                     b.HasKey("GameId");
 
                     b.HasIndex("SubmittedById");
+
+                    b.HasIndex("SubmittedByUserId");
 
                     b.HasIndex("LeagueId", "GameId")
                         .IsUnique();
@@ -688,6 +701,11 @@ namespace SocialTennis.Api.Migrations
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
                 {
+                    b.HasOne("SocialTennis.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("VoidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SocialTennis.Api.Domain.Stage", "Stage")
                         .WithMany("Games")
                         .HasForeignKey("LeagueId", "StageId")
@@ -820,6 +838,11 @@ namespace SocialTennis.Api.Migrations
                     b.HasOne("SocialTennis.Api.Domain.Player", "SubmittedBy")
                         .WithMany()
                         .HasForeignKey("SubmittedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SocialTennis.Api.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

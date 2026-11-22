@@ -1,3 +1,4 @@
+using System.Globalization;
 using SocialTennis.Api.Domain;
 
 namespace SocialTennis.Api.UnitTests;
@@ -31,4 +32,23 @@ public class StageDatesTests
         Assert.Equal(
             (new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 20)),
             StageDates.First(new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 20), new StageLength(3, StageLengthUnit.Months)));
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory]
+    // 30 November in London is GMT: the deadline passes at midnight UTC.
+    [InlineData("2026-11-30T23:59:00Z", false)]
+    [InlineData("2026-12-01T00:00:00Z", true)]
+    // 31 July is on summer time: it passes at 23:00 UTC.
+    [InlineData("2026-07-31T22:59:00Z", false)]
+    [InlineData("2026-07-31T23:00:00Z", true)]
+    public void A_Stages_deadline_passes_at_the_end_of_its_last_day_where_the_Club_is(string now, bool passed)
+    {
+        var end = DateTimeOffset.Parse(now, CultureInfo.InvariantCulture).Month == 7 ? new DateOnly(2026, 7, 31) : new DateOnly(2026, 11, 30);
+
+        Assert.Equal(passed, StageDates.DeadlinePassed(end, "Europe/London", new FixedClock(DateTimeOffset.Parse(now, CultureInfo.InvariantCulture))));
+    }
 }

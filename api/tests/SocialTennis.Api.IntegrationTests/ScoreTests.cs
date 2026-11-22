@@ -646,4 +646,170 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             [(teams[3], StandingMove.Up), (teams[2], StandingMove.Stays)],
             (await LadderAsync()).Divisions[1].Standings.Select(s => (s.TeamId, s.Move)));
     }
+
+    private static Task<HttpResponseMessage> RecordAsync(HttpClient client, Guid gameId, object[] sets, string? playedOn = null, int? retirementWinner = null) =>
+        client.PostAsJsonAsync($"/games/{gameId}/score/record", new { playedOn = playedOn ?? Today, sets, retirementWinner });
+
+    private static Task<HttpResponseMessage> VoidAsync(HttpClient client, Guid gameId) => client.PutAsync($"/games/{gameId}/not-played", null);
+
+    private static Task<HttpResponseMessage> UnvoidAsync(HttpClient client, Guid gameId) => client.DeleteAsync($"/games/{gameId}/not-played");
+
+    /// <summary>Two Divisions of two, Ann over Bea, then Cal over Dee, best of three with a Match Tiebreak.</summary>
+    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> TwoDivisionsAsync()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bea", "Cal", "Dee" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        var teams = players.Select(p => TeamOf(league, p.PlayerId)).ToArray();
+        await StartAsync(manager, leagueId, teams, divisions: [2, 2]);
+        return (manager, leagueId, players, teams);
+    }
+
+    [Fact]
+    public async Task A_Manager_records_the_Score_of_a_Game_nobody_scored_and_it_names_no_Player()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+
+        var recorded = await RecordAsync(game.Manager, game.GameId, [Set(6, 3)]);
+
+        Assert.Equal(HttpStatusCode.NoContent, recorded.StatusCode);
+        var seen = await GameAsync(game.Una.Client, game.GameId);
+        Assert.Equal((1, true, (string?)null), (seen.Score!.Winner, seen.Score.RecordedByManager, seen.Score.SubmittedBy));
+        Assert.Equal((ScoreChangeKind.Recorded, (string?)null), (seen.History.Single().Kind, seen.History.Single().By));
+        // It's a Score like any other: a Player in the Game can correct it while the Stage is open.
+        (await CorrectAsync(game.Vic.Client, game.GameId, game.Vic.PlayerId, seen.Score.Version, [Set(3, 6)])).EnsureSuccessStatusCode();
+        // But not recorded twice, nor by a Player, nor for a Game there isn't.
+        Assert.Equal("already-scored", await ProblemTypeAsync(await RecordAsync(game.Manager, game.GameId, [Set(6, 1)]), HttpStatusCode.Conflict));
+        Assert.Equal(HttpStatusCode.Forbidden, (await RecordAsync(game.Una.Client, game.GameId, [Set(6, 1)])).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await RecordAsync(game.Manager, Guid.NewGuid(), [Set(6, 1)])).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_recorded_Score_is_checked_like_an_entered_one_and_names_the_Managers_own_Player()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        Assert.Equal(
+            ["The date played can't be in the future."],
+            (await ErrorsAsync(await RecordAsync(game.Manager, game.GameId, [Set(6, 1)], $"{Year}-07-12")))["playedOn"]);
+        await game.Manager.PostAsJsonAsync("/players", new { name = "Manny" });
+
+        (await RecordAsync(game.Manager, game.GameId, [Set(6, 1)])).EnsureSuccessStatusCode();
+
+        var seen = await GameAsync(game.Vic.Client, game.GameId);
+        Assert.Equal(("Manny", true), (seen.Score!.SubmittedBy, seen.Score.RecordedByManager));
+        Assert.Equal("Manny", seen.History.Single().By);
+    }
+
+    [Fact]
+    public async Task A_Manager_marks_a_Game_not_played_so_it_takes_no_Score_and_can_undo_it_while_the_Stage_is_open()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await VoidAsync(game.Manager, game.GameId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await VoidAsync(game.Manager, game.GameId)).StatusCode);
+
+        Assert.True((await GameAsync(game.Una.Client, game.GameId)).NotPlayed);
+        var ladder = (await game.Una.Client.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{game.LeagueId}/ladder"))!;
+        Assert.True(ladder.Divisions.Single().Games.Single().NotPlayed);
+        Assert.Empty(ladder.Awaiting.UnscoredGameIds);
+        Assert.Equal("not-played", await ProblemTypeAsync(await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 1)]), HttpStatusCode.Conflict));
+        Assert.Equal("not-played", await ProblemTypeAsync(await RecordAsync(game.Manager, game.GameId, [Set(6, 1)]), HttpStatusCode.Conflict));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await UnvoidAsync(game.Manager, game.GameId)).StatusCode);
+        Assert.False((await GameAsync(game.Una.Client, game.GameId)).NotPlayed);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 1)])).EnsureSuccessStatusCode();
+        // A Game with a Score was played.
+        Assert.Equal("already-scored", await ProblemTypeAsync(await VoidAsync(game.Manager, game.GameId), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task Only_a_Manager_marks_a_Game_not_played_and_not_once_its_Stage_has_closed()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        Assert.Equal(HttpStatusCode.Forbidden, (await VoidAsync(game.Una.Client, game.GameId)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await UnvoidAsync(game.Una.Client, game.GameId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await VoidAsync(game.Manager, Guid.NewGuid())).StatusCode);
+        (await VoidAsync(game.Manager, game.GameId)).EnsureSuccessStatusCode();
+        await CloseStageAsync(game.LeagueId);
+
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await UnvoidAsync(game.Manager, game.GameId), HttpStatusCode.Conflict));
+        var other = await SinglesAsync(OneSetOf6);
+        await CloseStageAsync(other.LeagueId);
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await VoidAsync(other.Manager, other.GameId), HttpStatusCode.Conflict));
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await RecordAsync(other.Manager, other.GameId, [Set(6, 1)]), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task Marking_a_Game_not_played_while_a_Player_scores_it_leaves_one_or_the_other()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+
+        await Task.WhenAll(VoidAsync(game.Manager, game.GameId), SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 1)]));
+
+        var seen = await GameAsync(game.Una.Client, game.GameId);
+        Assert.True(seen.NotPlayed ^ seen.Score is not null);
+    }
+
+    [Fact]
+    public async Task The_ladder_says_what_holds_up_the_Stage_and_once_its_deadline_has_passed_that_its_held_up()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        async Task<GetLeagueLadderResponse> LadderAsync() =>
+            (await players[0].Client.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
+        var before = await LadderAsync();
+        var (top, bottom) = (before.Divisions[0].Games.Single().Id, before.Divisions[1].Games.Single().Id);
+
+        // Nothing played: both Games wait, and each Division is a tie for its place that moves.
+        Assert.False(before.HeldUp);
+        Assert.Equal([top, bottom], before.Awaiting.UnscoredGameIds);
+        Assert.Equal([(1, teams[0], teams[1]), (2, teams[2], teams[3])], before.Awaiting.Ties.Select(t => (t.Division, t.TeamIds[0], t.TeamIds[1])));
+
+        // Bea beats Ann; Cal v Dee isn't played, so it waits on nothing but their tie.
+        (await SubmitAsync(players[1].Client, top, players[1].PlayerId, [Set(4, 6), Set(6, 3), Set(7, 10)])).EnsureSuccessStatusCode();
+        (await VoidAsync(manager, bottom)).EnsureSuccessStatusCode();
+        var settled = await LadderAsync();
+        Assert.Empty(settled.Awaiting.UnscoredGameIds);
+        Assert.Equal([(2, (IReadOnlyList<Guid>)[teams[2], teams[3]])], settled.Awaiting.Ties.Select(t => (t.Division, t.TeamIds)));
+
+        // Stage 1 runs to 31 July: still open at 23:59 that day in London, held up a minute later.
+        factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 22, 59, 0, TimeSpan.Zero);
+        Assert.False((await LadderAsync()).HeldUp);
+        factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 23, 0, 0, TimeSpan.Zero);
+        Assert.True((await LadderAsync()).HeldUp);
+    }
+
+    [Fact]
+    public async Task The_migration_gives_each_Score_so_far_its_Players_User_and_rolling_it_back_drops_the_Managers()
+    {
+        var entered = await SinglesAsync(OneSetOf6);
+        var recorded = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(entered.Una.Client, entered.GameId, entered.Una.PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        (await RecordAsync(recorded.Manager, recorded.GameId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        var unasUser = await db.Players.Where(p => p.Id == entered.Una.PlayerId).Select(p => p.UserId).SingleAsync();
+        var someoneElse = await db.Players.Where(p => p.Id == entered.Vic.PlayerId).Select(p => p.UserId).SingleAsync();
+        await db.Scores.Where(s => s.GameId == entered.GameId).ExecuteUpdateAsync(set => set.SetProperty(s => s.SubmittedByUserId, someoneElse));
+
+        foreach (var sql in new SocialTennis.Api.Migrations.StageSettling().UpOperations.OfType<SqlOperation>().Select(o => o.Sql))
+        {
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        Assert.Equal(unasUser, await db.Scores.Where(s => s.GameId == entered.GameId).Select(s => s.SubmittedByUserId).SingleAsync());
+
+        foreach (var sql in new SocialTennis.Api.Migrations.StageSettling().DownOperations.OfType<SqlOperation>().Select(o => o.Sql))
+        {
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        Assert.True(await db.Scores.AnyAsync(s => s.GameId == entered.GameId));
+        Assert.False(await db.Scores.AnyAsync(s => s.GameId == recorded.GameId));
+        Assert.False(await db.ScoreChanges.AnyAsync(c => c.GameId == recorded.GameId));
+    }
 }

@@ -26,6 +26,7 @@ public static class GetLeagueLadder
         Guid leagueId,
         ClaimsPrincipal user,
         TennisDbContext db,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         var userId = user.UserId();
@@ -37,8 +38,9 @@ public static class GetLeagueLadder
                 ClubName = l.Club.Name,
                 l.Type,
                 l.ScoreFormat,
+                l.Club.TimeZone,
                 Yours = l.Participants.Where(p => p.Player.UserId == userId).Select(p => p.PlayerId).ToList(),
-                Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate }).FirstOrDefault(),
+                Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null }).FirstOrDefault(),
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (league is null || !(league.Yours.Count > 0 || user.IsInRole(Policies.Manager)))
@@ -48,7 +50,8 @@ public static class GetLeagueLadder
 
         if (league.Stage is null)
         {
-            return TypedResults.Ok(new GetLeagueLadderResponse(leagueId, league.Name, league.ClubName, league.Type, null, [], league.Yours));
+            return TypedResults.Ok(new GetLeagueLadderResponse(
+                leagueId, league.Name, league.ClubName, league.Type, null, [], false, new LadderAwaiting([], []), league.Yours));
         }
 
         var places = await db.LadderPlaces
@@ -77,13 +80,14 @@ public static class GetLeagueLadder
                 First = g.Sides.Where(s => s.Side == 1).Select(s => s.TeamId).Single(),
                 Second = g.Sides.Where(s => s.Side == 2).Select(s => s.TeamId).Single(),
                 Score = g.Score == null ? null : new { g.Score.Winner, g.Score.Retired, g.Score.Sets },
+                NotPlayed = g.VoidedAt != null,
             })
             .ToListAsync(cancellationToken);
 
         // Each Division's Games in ladder order: by the higher Team's place, then the lower's.
         var positionOf = places.ToDictionary(p => p.Competitor.TeamId, p => p.Competitor.Position);
         var count = places.Select(p => p.Division).Distinct().Count();
-        var divisions = places
+        var ranked = places
             .GroupBy(p => p.Division)
             .OrderBy(group => group.Key)
             .Select(group =>
@@ -97,7 +101,7 @@ public static class GetLeagueLadder
                             g.Second,
                             g.Score is { } score ? Standings.ResultOf(league.ScoreFormat, score.Winner, score.Sets) : null)),
                     ]);
-                return new LadderDivision(
+                var division = new LadderDivision(
                     group.Key,
                     [.. group.Select(p => p.Competitor)],
                     [
@@ -107,16 +111,25 @@ public static class GetLeagueLadder
                             g.Second,
                             g.Score is { } score
                                 ? new LadderGameScore(score.Winner, score.Retired, SetScore.Of(league.ScoreFormat, score.Sets))
-                                : null)),
+                                : null,
+                            g.NotPlayed)),
                     ],
                     [
                         .. standings.Select(s => new LadderStanding(
                             s.TeamId, s.Rank, s.Played, s.Won, s.Lost, s.GamesFor, s.GamesAgainst, s.Tied,
                             Standings.MoveOf(s, standings, group.Key, count))),
                     ]);
+                return (Division: division, Ties: Standings.OpenTies(standings, group.Key, count).Select(tie => new LadderTie(group.Key, tie)));
             })
             .ToList();
+        var divisions = ranked.Select(r => r.Division).ToList();
 
+        // What waits on the Manager (#10): Games nobody scored or voided, and ties that decide a move.
+        var awaiting = league.Stage.Closed
+            ? new LadderAwaiting([], [])
+            : new LadderAwaiting(
+                [.. divisions.SelectMany(d => d.Games).Where(g => g.Score is null && !g.NotPlayed).Select(g => g.Id)],
+                [.. ranked.SelectMany(r => r.Ties)]);
         return TypedResults.Ok(new GetLeagueLadderResponse(
             leagueId,
             league.Name,
@@ -124,6 +137,8 @@ public static class GetLeagueLadder
             league.Type,
             new LeagueStageSummary(league.Stage.Number, league.Stage.StartDate, league.Stage.EndDate),
             divisions,
+            !league.Stage.Closed && StageDates.DeadlinePassed(league.Stage.EndDate, league.TimeZone, clock),
+            awaiting,
             league.Yours));
     }
 }

@@ -9,12 +9,18 @@ import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Score" };
 
-const HEADINGS: Record<ScoreEntryMode, string> = { enter: "Enter score", correct: "Correct the score", override: "Override the score" };
+const HEADINGS: Record<ScoreEntryMode, string> = {
+  enter: "Enter score",
+  correct: "Correct the score",
+  override: "Override the score",
+  record: "Record the score",
+};
 
 /**
  * Entering, correcting or overriding a Game's Score (#38, wireframe P4). The
  * Acting Player enters it, or corrects it while the Stage is open, if they
- * play in the Game; otherwise a Manager overrides one it has, open or closed.
+ * play in the Game; otherwise a Manager overrides one it has, open or closed,
+ * or records one nobody entered while the Stage is open (#10).
  * Anyone else goes back to the Match screen, which says why. A correction or
  * override starts from the Score as it is, and one refused because the
  * Score changed meanwhile comes back here with the new one (ADR-0018).
@@ -35,10 +41,25 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
   const acting = viewer.actingPlayer;
   const playing = acting !== null && game.yourPlayerIds.includes(acting.id);
   const { score, stage } = game;
-  const mode: ScoreEntryMode | null =
-    playing && !stage.closed ? (score ? "correct" : "enter") : score && viewer.roles.includes("Manager") ? "override" : null;
+  const manager = viewer.roles.includes("Manager");
+  const open = !stage.closed && !game.notPlayed;
+  const mode: ScoreEntryMode | null = score
+    ? playing && !stage.closed
+      ? "correct"
+      : manager
+        ? "override"
+        : null
+    : open
+      ? playing
+        ? "enter"
+        : manager
+          ? "record"
+          : null
+      : null;
   if (!mode) {
-    redirect(`/games/${gameId}?refused=${playing ? "stage-closed" : "not-in-game"}`);
+    redirect(
+      `/games/${gameId}?refused=${game.notPlayed && !score ? "not-played" : stage.closed && (playing || manager) ? "stage-closed" : "not-in-game"}`,
+    );
   }
 
   const sides = game.sides.map((side) => side.players.map((player) => player.name).join(" & ")) as [string, string];
@@ -58,10 +79,11 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
         </p>
         {score && (
           <p className="text-sm text-fg-muted">
-            Entered by {score.submittedBy}, played {formatDate(score.playedOn)}.
+            {score.recordedByManager ? "Recorded by a manager" : `Entered by ${score.submittedBy ?? "a player"}`}, played{" "}
+            {formatDate(score.playedOn)}.
           </p>
         )}
-        {mode !== "override" && viewer.players.length > 1 && (
+        {(mode === "enter" || mode === "correct") && viewer.players.length > 1 && (
           <p className="text-sm text-fg-muted">You&apos;re {mode === "enter" ? "entering" : "correcting"} it as {acting!.name}.</p>
         )}
       </div>
@@ -74,7 +96,7 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
         key={score?.version ?? "new"}
         gameId={game.id}
         mode={mode}
-        playerId={mode === "override" ? undefined : acting!.id}
+        playerId={mode === "enter" || mode === "correct" ? acting!.id : undefined}
         version={score ? Number(score.version) : undefined}
         sides={sides}
         format={scoreFormat(game.scoreFormat)}

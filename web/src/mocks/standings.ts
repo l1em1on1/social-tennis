@@ -84,3 +84,17 @@ export function standingsOf(teams: string[], games: Game[], number: number, divi
     return { ...standing, move };
   });
 }
+
+/** As Standings.OpenTies: tied Teams sharing a place that moves, for the Manager to order at close. */
+export function openTiesOf(standings: Standing[], number: number, divisions: number): string[][] {
+  const last = Math.max(...standings.map((standing) => Number(standing.rank)));
+  const ranks = [...new Set(standings.map((standing) => Number(standing.rank)))];
+  return ranks
+    .map((rank) => standings.filter((standing) => Number(standing.rank) === rank))
+    .filter(
+      (group) =>
+        group.length > 1 &&
+        ((Number(group[0].rank) === 1 && number > 1) || (Number(group[0].rank) === last && number < divisions)),
+    )
+    .map((group) => group.map((standing) => standing.teamId));
+}

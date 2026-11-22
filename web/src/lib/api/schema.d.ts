@@ -548,6 +548,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/games/{gameId}/score/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RecordScore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/games/{gameId}/not-played": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["VoidGame"];
+        post?: never;
+        delete: operations["UnvoidGame"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -676,7 +708,8 @@ export interface components {
             /** Format: int32 */
             winner: number | string;
             retired: boolean;
-            submittedBy: string;
+            submittedBy: null | string;
+            recordedByManager: boolean;
             /** Format: date-time */
             submittedAt: string;
             /** Format: uint32 */
@@ -731,6 +764,7 @@ export interface components {
             division: number | string;
             sides: components["schemas"]["GameSideSummary"][];
             score: null | components["schemas"]["GameScore"];
+            notPlayed: boolean;
             history: components["schemas"]["ScoreHistoryEntry"][];
             yourPlayerIds: string[];
             timeZone: string;
@@ -745,6 +779,8 @@ export interface components {
             type: components["schemas"]["LeagueType"];
             stage: null | components["schemas"]["LeagueStageSummary"];
             divisions: components["schemas"]["LadderDivision"][];
+            heldUp: boolean;
+            awaiting: components["schemas"]["LadderAwaiting"];
             yourPlayerIds: string[];
         };
         GetLeaguePartnersResponse: {
@@ -810,6 +846,10 @@ export interface components {
         InviteToClubRequest: {
             email: string;
         };
+        LadderAwaiting: {
+            unscoredGameIds: string[];
+            ties: components["schemas"]["LadderTie"][];
+        };
         LadderCompetitor: {
             /** Format: uuid */
             teamId: string;
@@ -832,6 +872,7 @@ export interface components {
             /** Format: uuid */
             secondTeamId: string;
             score: null | components["schemas"]["LadderGameScore"];
+            notPlayed: boolean;
         };
         LadderGameScore: {
             /** Format: int32 */
@@ -861,6 +902,11 @@ export interface components {
             gamesAgainst: number | string;
             tied: boolean;
             move: null | components["schemas"]["StandingMove"];
+        };
+        LadderTie: {
+            /** Format: int32 */
+            division: number | string;
+            teamIds: string[];
         };
         LeagueJoinRequestPartner: {
             /** Format: uuid */
@@ -1053,6 +1099,13 @@ export interface components {
             detail?: null | string;
             instance?: null | string;
         };
+        RecordScoreRequest: {
+            /** Format: date */
+            playedOn: string;
+            sets: components["schemas"]["ScoreSet"][];
+            /** Format: int32 */
+            retirementWinner: null | number | string;
+        };
         RedeemMagicLinkRequest: {
             token: string;
         };
@@ -1068,7 +1121,7 @@ export interface components {
             name: string;
         };
         /** @enum {unknown} */
-        ScoreChangeKind: "Entered" | "Corrected" | "Overridden";
+        ScoreChangeKind: "Entered" | "Corrected" | "Overridden" | "Recorded";
         ScoreFormat: {
             /** Format: int32 */
             gamesPerSet: number | string;
@@ -3045,6 +3098,181 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RecordScore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    VoidGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UnvoidGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unauthorized */
             401: {
