@@ -36,7 +36,7 @@ const NAME_MAX_LENGTH = 200;
  * without a partner, to pair (#6); then adding a Club member straight in.
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
-  const [viewer, api, { leagueId }, { created, error, started: justStarted }] = await Promise.all([
+  const [viewer, api, { leagueId }, { created, error, started: justStarted, closed: justClosed }] = await Promise.all([
     getViewer(),
     apiWithSession(),
     params,
@@ -156,6 +156,13 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             <ButtonLink href={`/manage/leagues/${league.id}/start`}>Start the league</ButtonLink>
           </div>
         )
+      )}
+      {justClosed === "1" && ladder?.stage && (
+        <p role="status" className="rounded-2xl border border-success bg-success-muted px-4 py-3 text-sm">
+          {ladder.ended
+            ? "The League's last Stage is closed: the League has ended."
+            : `Stage ${Number(ladder.stage.number) - 1} is closed, and Stage ${Number(ladder.stage.number)} runs ${formatDates(ladder.stage.startDate, ladder.stage.endDate)}.`}
+        </p>
       )}
       {justStarted === "1" && stage && (
         <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
@@ -405,6 +412,14 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
  * and each tie that decides who moves, which they order when they close it.
  */
 function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderResponse"] }) {
+  if (ladder.ended) {
+    return (
+      <Card title="The League has ended" aria-label="To do">
+        <p className="text-sm text-fg-muted">Its last Stage is closed. The ladder shows how it finished.</p>
+      </Card>
+    );
+  }
+
   const competitors = ladder.divisions.flatMap((division) => division.competitors);
   const name = (teamId: string) =>
     competitors.find((competitor) => competitor.teamId === teamId)?.players.map((player) => player.name).join(" & ") ?? "";
@@ -452,6 +467,11 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
           )}
         </div>
       )}
+      <div className="mt-3">
+        <ButtonLink href={`/manage/leagues/${ladder.id}/close`} variant={ladder.heldUp ? "primary" : "secondary"}>
+          Close Stage {Number(ladder.stage?.number)}
+        </ButtonLink>
+      </div>
     </Card>
   );
 }

@@ -23,6 +23,21 @@ public static class StageDates
     }
 
     /// <summary>
+    /// The Stage after one ending on <paramref name="previousEnd"/>: from the
+    /// next day, for one Stage length, ending no later than the League's end.
+    /// A League that started on the 5th goes on starting on the 5th, however
+    /// late a Stage closes (owner, 2026-11-22); the Manager can change the
+    /// dates at close. None once the League's end date leaves no day for one:
+    /// that Stage was its last.
+    /// </summary>
+    /// <remarks>Months clamp as in <see cref="First"/>, so a Stage from the 31st drifts to the 28th after February.</remarks>
+    public static (DateOnly Start, DateOnly End)? Next(DateOnly previousEnd, DateOnly leagueEnd, StageLength length)
+    {
+        var start = previousEnd.AddDays(1);
+        return start > leagueEnd ? null : First(start, leagueEnd, length);
+    }
+
+    /// <summary>
     /// Whether a Stage ending on <paramref name="endDate"/> is past its
     /// deadline: the end of that day where the Club is (ADR-0016). The one
     /// place that says so. It locks nothing: a Stage stays open until it closes.

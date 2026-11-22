@@ -51,4 +51,26 @@ public class StageDatesTests
 
         Assert.Equal(passed, StageDates.DeadlinePassed(end, "Europe/London", new FixedClock(DateTimeOffset.Parse(now, CultureInfo.InvariantCulture))));
     }
+
+    [Theory]
+    // From the day after the last, for one Stage length: the 5th stays the 5th.
+    [InlineData("2026-11-04", 1, StageLengthUnit.Months, "2027-03-31", "2026-11-05", "2026-12-04")]
+    [InlineData("2026-12-14", 2, StageLengthUnit.Weeks, "2027-03-31", "2026-12-15", "2026-12-28")]
+    // No later than the League's end.
+    [InlineData("2027-02-28", 1, StageLengthUnit.Months, "2027-03-15", "2027-03-01", "2027-03-15")]
+    // From the 31st, a shorter month clamps, as for the first Stage.
+    [InlineData("2027-01-30", 1, StageLengthUnit.Months, "2027-12-31", "2027-01-31", "2027-02-27")]
+    public void The_next_Stage_starts_the_day_after_the_last_ended(
+        string previousEnd, int count, StageLengthUnit unit, string leagueEnd, string start, string end)
+    {
+        var next = StageDates.Next(DateOnly.Parse(previousEnd, CultureInfo.InvariantCulture), DateOnly.Parse(leagueEnd, CultureInfo.InvariantCulture), new StageLength(count, unit));
+
+        Assert.Equal((DateOnly.Parse(start, CultureInfo.InvariantCulture), DateOnly.Parse(end, CultureInfo.InvariantCulture)), next);
+    }
+
+    [Fact]
+    public void There_is_no_next_Stage_once_the_Leagues_end_leaves_no_day_for_one()
+    {
+        Assert.Null(StageDates.Next(new DateOnly(2027, 3, 31), new DateOnly(2027, 3, 31), new StageLength(1, StageLengthUnit.Months)));
+    }
 }

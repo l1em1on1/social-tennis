@@ -81,26 +81,16 @@ public static class StartLeague
             OpenedAt = clock.GetUtcNow(),
         };
         db.Stages.Add(stage);
-        // Each Division in turn down the ladder, at the sizes the Manager
-        // confirmed, and every pair in it plays once, the higher place as Side 1.
+        // Each Division in turn down the ladder, at the sizes the Manager confirmed.
         var position = 0;
-        for (var division = 1; division <= request.Divisions.Count; division++)
+        var divisions = new List<IReadOnlyList<Guid>>();
+        foreach (var size in request.Divisions)
         {
-            var members = request.Ladder.Skip(position).Take(request.Divisions[division - 1]).ToList();
-            foreach (var teamId in members)
-            {
-                stage.Places.Add(new LadderPlace { LeagueId = leagueId, Position = ++position, Division = division, TeamId = teamId });
-            }
-
-            foreach (var (first, second) in Ladder.RoundRobin(members.Count))
-            {
-                var game = new Game { Id = Guid.NewGuid(), LeagueId = leagueId, Division = division };
-                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 1, TeamId = members[first] });
-                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 2, TeamId = members[second] });
-                stage.Games.Add(game);
-            }
+            divisions.Add([.. request.Ladder.Skip(position).Take(size)]);
+            position += size;
         }
 
+        StageLadder.Place(stage, leagueId, divisions);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

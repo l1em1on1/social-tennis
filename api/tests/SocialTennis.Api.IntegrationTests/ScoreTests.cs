@@ -43,7 +43,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         return (await factory.CreateManagerClientAsync(), (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id);
     }
 
-    private static async Task<Guid> LeagueAsync(HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed")
+    private static async Task<Guid> LeagueAsync(HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed", string? endDate = null)
     {
         var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
         {
@@ -51,7 +51,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             type,
             structure = "Divisional",
             startDate = $"{Year}-07-01",
-            endDate = $"{Year}-09-30",
+            endDate = endDate ?? $"{Year}-09-30",
             stageLength = new { count = 1, unit = "Months" },
             stageRoll = "Manual",
             scoreFormat,
@@ -655,10 +655,10 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
     private static Task<HttpResponseMessage> UnvoidAsync(HttpClient client, Guid gameId) => client.DeleteAsync($"/games/{gameId}/not-played");
 
     /// <summary>Two Divisions of two, Ann over Bea, then Cal over Dee, best of three with a Match Tiebreak.</summary>
-    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> TwoDivisionsAsync()
+    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> TwoDivisionsAsync(string? endDate = null)
     {
         var (manager, clubId) = await ClubAsync();
-        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak);
+        var leagueId = await LeagueAsync(manager, clubId, BestOf3MatchTiebreak, endDate: endDate);
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in new[] { "Ann", "Bea", "Cal", "Dee" })
         {
@@ -826,5 +826,177 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.False(ladder.HeldUp);
         Assert.Empty(ladder.Awaiting.UnscoredGameIds);
         Assert.Empty(ladder.Awaiting.Ties);
+    }
+
+    private static async Task<GetStageCloseResponse> CloseScreenAsync(HttpClient manager, Guid leagueId) =>
+        (await manager.GetFromJsonAsync<GetStageCloseResponse>($"/leagues/{leagueId}/close"))!;
+
+    private static Task<HttpResponseMessage> CloseAsync(
+        HttpClient manager, Guid leagueId, Guid[][] divisions, Guid[]? joining = null, string? start = null, string? end = null) =>
+        manager.PostAsJsonAsync(
+            $"/leagues/{leagueId}/close",
+            new { divisions, joining = joining ?? [], nextStartDate = start, nextEndDate = end });
+
+    private static async Task<GetLeagueLadderResponse> LadderOfAsync(HttpClient client, Guid leagueId) =>
+        (await client.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
+
+    private static Guid[][] Order(params Guid[][] divisions) => divisions;
+
+    [Fact]
+    public async Task Closing_moves_each_Divisions_first_up_and_last_down_and_opens_the_next_Stage_with_its_Games()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        var (top, bottom) = (ladder.Divisions[0].Games.Single().Id, ladder.Divisions[1].Games.Single().Id);
+        // Bea beats Ann at the top, Dee beats Cal below.
+        (await SubmitAsync(players[1].Client, top, players[1].PlayerId, [Set(4, 6), Set(6, 3), Set(7, 10)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[3].Client, bottom, players[3].PlayerId, [Set(2, 6), Set(3, 6)])).EnsureSuccessStatusCode();
+
+        var screen = await CloseScreenAsync(manager, leagueId);
+        Assert.Equal(new CloseNextStage(new DateOnly(Year, 8, 1), new DateOnly(Year, 8, 31)), screen.NextStage);
+        Assert.Empty(screen.Awaiting.UnscoredGameIds);
+        Assert.Empty(screen.Waiting);
+
+        var closed = await CloseAsync(
+            manager, leagueId, Order([teams[1], teams[0]], [teams[3], teams[2]]), start: $"{Year}-08-01", end: $"{Year}-08-31");
+
+        Assert.Equal(HttpStatusCode.NoContent, closed.StatusCode);
+        var next = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Equal((2, new DateOnly(Year, 8, 1), new DateOnly(Year, 8, 31)), ((int)next.Stage!.Number, next.Stage.StartDate, next.Stage.EndDate));
+        // Bea stays top, Dee comes up beneath her; Ann goes down to the top of Division 2, over Cal.
+        Assert.Equal(
+            [[teams[1], teams[3]], [teams[0], teams[2]]],
+            next.Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+        Assert.Equal(
+            [(teams[1], teams[3]), (teams[0], teams[2])],
+            next.Divisions.Select(d => (d.Games.Single().FirstTeamId, d.Games.Single().SecondTeamId)));
+        Assert.All(next.Divisions.SelectMany(d => d.Games), g => Assert.Null(g.Score));
+        // Stage 1's Games are closed: their Players can't change them.
+        Assert.True((await GameAsync(players[0].Client, top)).Stage.Closed);
+    }
+
+    [Fact]
+    public async Task Waiting_Teams_the_Manager_adds_join_the_bottom_of_the_bottom_Division()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 1)])).EnsureSuccessStatusCode();
+        var league = await ManagedAsync(game.Manager, game.LeagueId);
+        var (una, vic, wes) = (TeamOf(league, game.Una.PlayerId), TeamOf(league, game.Vic.PlayerId), TeamOf(league, game.Wes.PlayerId));
+
+        var screen = await CloseScreenAsync(game.Manager, game.LeagueId);
+        Assert.Equal([wes], screen.Waiting.Select(w => w.TeamId));
+        (await CloseAsync(game.Manager, game.LeagueId, Order([una, vic]), [wes], $"{Year}-08-01", $"{Year}-08-31")).EnsureSuccessStatusCode();
+
+        var next = await LadderOfAsync(game.Wes.Client, game.LeagueId);
+        Assert.Equal([una, vic, wes], next.Divisions.Single().Competitors.Select(c => c.TeamId));
+        Assert.Equal(3, next.Divisions.Single().Games.Count);
+    }
+
+    [Fact]
+    public async Task A_tie_that_decides_who_moves_goes_the_way_the_Manager_orders_it()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        (await SubmitAsync(players[0].Client, ladder.Divisions[0].Games.Single().Id, players[0].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        // Cal v Dee wasn't played: who goes up is the Manager's call.
+        (await VoidAsync(manager, ladder.Divisions[1].Games.Single().Id)).EnsureSuccessStatusCode();
+        Assert.Equal([teams[2], teams[3]], (await CloseScreenAsync(manager, leagueId)).Awaiting.Ties.Single().TeamIds);
+
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[3], teams[2]]), start: $"{Year}-08-01", end: $"{Year}-08-31"))
+            .EnsureSuccessStatusCode();
+
+        var next = await LadderOfAsync(manager, leagueId);
+        Assert.Equal([teams[0], teams[3]], next.Divisions[0].Competitors.Select(c => c.TeamId));
+    }
+
+    [Fact]
+    public async Task A_Stage_closes_only_as_the_Manager_saw_it_with_nothing_unscored_and_dates_inside_the_League()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        var (top, bottom) = (ladder.Divisions[0].Games.Single().Id, ladder.Divisions[1].Games.Single().Id);
+        var order = Order([teams[0], teams[1]], [teams[2], teams[3]]);
+        string start = $"{Year}-08-01", end = $"{Year}-08-31";
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await CloseAsync(players[0].Client, leagueId, order, start: start, end: end)).StatusCode);
+        // A Division that isn't there at all is a malformed request, not a server error (#217 review).
+        var holed = await manager.PostAsJsonAsync($"/leagues/{leagueId}/close", new { divisions = new Guid[]?[] { null, order[1] }, joining = Array.Empty<Guid>() });
+        Assert.Equal(["Every Division, in its final order."], (await ErrorsAsync(holed))["divisions"]);
+        Assert.Equal("stage-queue-not-empty", await ProblemTypeAsync(await CloseAsync(manager, leagueId, order, start: start, end: end), HttpStatusCode.Conflict));
+        (await SubmitAsync(players[0].Client, top, players[0].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, bottom, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+
+        // An order that the Standings don't give: what the Manager saw has changed.
+        Assert.Equal(
+            "standings-changed",
+            await ProblemTypeAsync(await CloseAsync(manager, leagueId, Order([teams[1], teams[0]], [teams[2], teams[3]]), start: start, end: end), HttpStatusCode.Conflict));
+        // A Team joining that isn't waiting.
+        Assert.Equal(
+            "league-changed",
+            await ProblemTypeAsync(await CloseAsync(manager, leagueId, order, [teams[0]], start, end), HttpStatusCode.Conflict));
+        // Dates: after Stage 1, inside the League, and both of them.
+        Assert.Equal(
+            ["The next Stage starts after this one ends: on 1 Aug " + Year + " or later."],
+            (await ErrorsAsync(await CloseAsync(manager, leagueId, order, start: $"{Year}-07-31", end: end)))["nextStartDate"]);
+        Assert.Equal(
+            [$"The League ends on 30 Sep {Year}."],
+            (await ErrorsAsync(await CloseAsync(manager, leagueId, order, start: start, end: $"{Year}-10-31")))["nextEndDate"]);
+        Assert.Equal(
+            ["Give the next Stage its dates."],
+            (await ErrorsAsync(await CloseAsync(manager, leagueId, order)))["nextStartDate"]);
+        Assert.False((await GameAsync(players[0].Client, top)).Stage.Closed);
+
+        // The Manager may move the dates: here a week's gap.
+        (await CloseAsync(manager, leagueId, order, start: $"{Year}-08-08", end: $"{Year}-09-07")).EnsureSuccessStatusCode();
+        Assert.Equal(new DateOnly(Year, 8, 8), (await LadderOfAsync(manager, leagueId)).Stage!.StartDate);
+    }
+
+    [Fact]
+    public async Task Closing_the_Leagues_last_Stage_ends_it_with_nobody_moving()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync(endDate: $"{Year}-07-31");
+        var ladder = await LadderOfAsync(manager, leagueId);
+        (await VoidAsync(manager, ladder.Divisions[0].Games.Single().Id)).EnsureSuccessStatusCode();
+        (await VoidAsync(manager, ladder.Divisions[1].Games.Single().Id)).EnsureSuccessStatusCode();
+
+        var screen = await CloseScreenAsync(manager, leagueId);
+        Assert.Null(screen.NextStage);
+        Assert.Equal(
+            ["This is the League's last Stage: closing it ends the League."],
+            (await ErrorsAsync(await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]), start: $"{Year}-08-01", end: $"{Year}-08-31")))["nextStartDate"]);
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]))).EnsureSuccessStatusCode();
+
+        var ended = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Equal(1, (int)ended.Stage!.Number);
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await manager.GetAsync($"/leagues/{leagueId}/close"), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task A_correction_racing_the_close_is_either_counted_by_it_or_refused_after_it()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        var (top, bottom) = (ladder.Divisions[0].Games.Single().Id, ladder.Divisions[1].Games.Single().Id);
+        (await SubmitAsync(players[1].Client, top, players[1].PlayerId, [Set(4, 6), Set(4, 6)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, bottom, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        var version = (await GameAsync(players[0].Client, top)).Score!.Version;
+
+        // The Manager closes on Bea's win as Ann corrects it to her own.
+        var both = await Task.WhenAll(
+            CloseAsync(manager, leagueId, Order([teams[1], teams[0]], [teams[2], teams[3]]), start: $"{Year}-08-01", end: $"{Year}-08-31"),
+            CorrectAsync(players[0].Client, top, players[0].PlayerId, version, [Set(6, 4), Set(6, 4)]));
+        var (close, correct) = (both[0], both[1]);
+
+        if (close.IsSuccessStatusCode)
+        {
+            Assert.Equal("stage-closed", await ProblemTypeAsync(correct, HttpStatusCode.Conflict));
+            Assert.Equal(2, (await GameAsync(players[0].Client, top)).Score!.Winner);
+        }
+        else
+        {
+            Assert.Equal(HttpStatusCode.NoContent, correct.StatusCode);
+            Assert.Equal("standings-changed", await ProblemTypeAsync(close, HttpStatusCode.Conflict));
+            Assert.Equal(1, (int)(await LadderOfAsync(manager, leagueId)).Stage!.Number);
+        }
     }
 }

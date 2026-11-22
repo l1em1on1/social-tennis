@@ -96,3 +96,25 @@ export function proposeDivisions(count: number, size: number): number[] {
 
 /** A Division's Games in a Stage: every pair once. */
 export const gamesIn = (size: number) => (size * (size - 1)) / 2;
+
+/**
+ * As the API's Relegation.Next (#10, ADR-0031): the next Stage's Divisions,
+ * top first, from this Stage's in their final order. Each Division's first
+ * goes up to the bottom of the one above, its last down to the top of the
+ * one below; the ends of the ladder stay put, and `joining` Teams start at
+ * the bottom of the bottom Division. The close screen previews it, and the
+ * mock applies it.
+ */
+export function relegate(divisions: string[][], joining: string[]): string[][] {
+  const count = divisions.length;
+  return divisions.map((division, index) => {
+    const up = index > 0 ? division[0] : null;
+    const down = index < count - 1 ? division[division.length - 1] : null;
+    return [
+      ...(index > 0 ? [divisions[index - 1][divisions[index - 1].length - 1]] : []),
+      ...division.filter((team) => team !== up && team !== down),
+      ...(index < count - 1 ? [divisions[index + 1][0]] : []),
+      ...(index === count - 1 ? joining : []),
+    ];
+  });
+}

@@ -101,6 +101,11 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
         </span>
       </p>
 
+      {ladder.ended && (
+        <p role="note" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+          The League has ended: this is how its last Stage finished.
+        </p>
+      )}
       {ladder.heldUp && (
         <HeldUpBanner
           stageNumber={Number(stage.number)}
