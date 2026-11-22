@@ -658,6 +658,10 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   // Read once the Match screen is showing: straight after the click it can still be the ladder's.
   const matchUrl = vicPage.url();
   await expect(vicPage.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+  // Una opens the correction form too, before Vic saves his (ADR-0018).
+  await page.goto(matchUrl);
+  await page.getByRole("link", { name: "Correct the score" }).click();
+  await expect(page.getByRole("heading", { name: "Correct the score", level: 1 })).toBeVisible();
   await vicPage.getByRole("link", { name: "Correct the score" }).click();
   await expect(vicPage.getByRole("heading", { name: "Correct the score", level: 1 })).toBeVisible();
   await expect(vicPage.getByLabel("Score so far")).toHaveText("6–3");
@@ -670,6 +674,18 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
     new RegExp(`${una.name} entered it`),
   ]);
   await expectNoSeriousA11yViolations(vicPage);
+
+  // Una's form was opened before Vic's correction: saving it is refused, and the form reopens with Vic's score.
+  await page.getByRole("group", { name: `Set, ${vic.name}` }).getByRole("button", { name: "One less" }).click();
+  await expect(page.getByLabel("Score so far")).toHaveText("6–2");
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(page.getByRole("note")).toContainText("Someone changed this score while you had it open.");
+  await expect(page.getByLabel("Score so far")).toHaveText("6–4");
+  await expect(page.getByRole("button", { name: "Save correction" })).toBeDisabled();
+  await expectNoSeriousA11yViolations(page);
+  // The form shows today's date, so the page Chromatic snapshots ends on the ladder instead.
+  await page.goto(ladderUrl);
+  await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–4.*Played`)]);
 
   if (testInfo.project.name === "real") {
     // The Stage closes (#10 will do it; here, straight in the database): Vic can't change it, the Manager can.

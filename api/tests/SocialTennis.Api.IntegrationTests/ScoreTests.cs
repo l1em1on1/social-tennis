@@ -235,6 +235,7 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
     {
         var oneSet = await SinglesAsync(OneSetOf6);
         var bestOf3 = await SinglesAsync(BestOf3MatchTiebreak);
+        var bestOf3NoMatchTiebreak = await SinglesAsync(new { gamesPerSet = 6, setsPerGame = 3, matchTiebreakDecider = false });
 
         Assert.Equal(
             ["A 6–5 set was won on a tiebreak at 5–5: enter its points."],
@@ -246,6 +247,11 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
             ["A match tiebreak is first to 10 points."],
             (await ErrorsAsync(await SubmitAsync(
                 bestOf3.Una.Client, bestOf3.GameId, bestOf3.Una.PlayerId, [Set(6, 4), Set(3, 6), Set(6, 2)])))["sets[2]"]);
+        // Where the League plays a full third Set, a first-to-10 decider isn't one.
+        Assert.Equal(
+            ["A set ends at 6 games."],
+            (await ErrorsAsync(await SubmitAsync(
+                bestOf3NoMatchTiebreak.Una.Client, bestOf3NoMatchTiebreak.GameId, bestOf3NoMatchTiebreak.Una.PlayerId, [Set(6, 4), Set(3, 6), Set(10, 7)])))["sets[2]"]);
         Assert.Equal(
             ["These sets finish the game, so it wasn't a retirement."],
             (await ErrorsAsync(await SubmitAsync(
