@@ -50,6 +50,7 @@ test("design directions: Home, ladder, Manage and a Match, in each direction", a
   for (const [name, email] of [["Una Directions", "una-directions@example.com"], ["Vic Directions", "vic-directions@example.com"]]) {
     await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
     await manager.getByRole("button", { name: "Add to league" }).click();
+    await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
   }
   await manager.getByRole("link", { name: "Start the league" }).click();
   await manager.getByRole("button", { name: "Confirm and start" }).click();

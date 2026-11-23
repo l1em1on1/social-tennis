@@ -135,10 +135,11 @@ html[data-direction] main h1 { letter-spacing: -0.02em; }
 
 /* Tennis-ball lime: bright and sporty. Deep court-green header, lime calls to action, cards that float. */
 html[data-direction="lime"] header.sticky { border-bottom: 0; box-shadow: 0 3px 0 var(--dir-brand); }
-html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed) {
+html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed):not(.border-warning) {
   border-color: transparent; border-radius: 1.25rem;
   box-shadow: 0 1px 2px rgb(20 33 18 / 0.06), 0 8px 20px -6px rgb(22 63 32 / 0.18);
 }
+html[data-direction="lime"] main section.rounded-2xl.border-warning { border-radius: 1.25rem; border-top-color: transparent; border-right-color: transparent; border-bottom-color: transparent; box-shadow: 0 1px 2px rgb(20 33 18 / 0.06), 0 8px 20px -6px rgb(22 63 32 / 0.18); }
 html[data-direction="lime"] main h1 { font-weight: 800; font-size: 1.75rem; }
 html[data-direction="lime"] main section.rounded-2xl > header h2 { font-weight: 800; }
 html[data-direction="lime"] .bg-accent { background: var(--dir-brand); color: var(--dir-brand-fg); }
@@ -146,7 +147,7 @@ html[data-direction="lime"] .bg-accent:hover { background: color-mix(in srgb, va
 html[data-direction="lime"] .border-dashed { background: var(--st-accent-muted); border-color: var(--st-border-strong); }
 html[data-direction="lime"] nav[aria-label="Main"] a[aria-current="page"] svg { background: var(--dir-brand); color: var(--dir-brand-fg); border-radius: 999px; padding: 2px 12px; box-sizing: content-box; }
 @media (prefers-color-scheme: dark) {
-  html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed) { border-color: var(--st-border); box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.6); }
+  html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed):not(.border-warning) { border-color: var(--st-border); box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.6); }
 }
 
 /* Clay court: warm and friendly. Cream page, terracotta rule under a light header, pill buttons, serif headings. */
