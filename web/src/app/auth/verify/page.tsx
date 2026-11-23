@@ -52,7 +52,7 @@ async function signIn(formData: FormData) {
 export default async function VerifyPage({ searchParams }: PageProps<"/auth/verify">) {
   const { token, join } = await searchParams;
   if (typeof token !== "string" || token.length === 0) {
-    redirect("/login?error=invalid-link");
+    redirect(isJoinCode(join) ? `/login?error=invalid-link&join=${join}` : "/login?error=invalid-link");
   }
 
   return (

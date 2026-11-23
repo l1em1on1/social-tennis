@@ -23,7 +23,8 @@ public record MagicLinkRequest(string Email, string? Join = null)
             RuleFor(request => request.Join)
                 .Must(JoinCodes.IsWellFormed)
                 .When(request => request.Join is not null)
-                .WithMessage("A join link's code is 22 letters, digits, '-' or '_'.");
+                .WithMessage("A join link's code is 22 letters, digits, '-' or '_'.")
+                .OverridePropertyName("join");
         }
     }
 }

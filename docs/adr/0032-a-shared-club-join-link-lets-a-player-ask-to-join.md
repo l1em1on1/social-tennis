@@ -22,7 +22,7 @@ Until now, Home listed every Club, and a Player asked to join one from there. A 
 - **Asking needs the current code** (`PUT /join-links/{code}/members/{playerId}`), and asking by Club id is gone. Without that, turning the link off or resetting it would change nothing. The ask itself is unchanged (CONTEXT.md, Club): it waits for a Manager, unless the User is in the Club already or a Manager pre-approved their email.
 - **A link that's off, was reset, or never existed** answers the same 404, and the page says only that the link doesn't work any more.
 - **Players don't list Clubs:** `GET /clubs` is for Managers and Admins.
-- **Signing in from a link returns to it on any device.** The proxy sends a signed-out visitor to `/login?join={code}`. The sign-in request carries the code (`MagicLinkRequest.Join`, its shape checked), and the API puts it in the emailed link as `&join=`. The verify page then redirects to `/join/{code}` once signed in. Only a well-formed code travels, never a path, so the redirect can't be steered elsewhere.
+- **Signing in from a link returns to it on any device.** The proxy sends a signed-out visitor to `/login?join={code}`; a visitor whose session has ended gets there the same way, through the page's 401. The sign-in request carries the code (`MagicLinkRequest.Join`, its shape checked), and the API puts it in the emailed link as `&join=`. The verify page then redirects to `/join/{code}` once signed in. Only a well-formed code travels, never a path, so the redirect can't be steered elsewhere.
 
 ## Considered Options
 

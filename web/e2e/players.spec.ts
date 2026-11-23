@@ -121,6 +121,20 @@ test("someone signed out opens a Club's join link, signs in, and is back on it t
   await expect(page.getByRole("heading", { name: "Waiting for approval" })).toBeVisible();
 });
 
+test("a session that has ended keeps a join link's code on the way to sign in", async ({ page }, testInfo) => {
+  const code = "AAAAAAAAAAAAAAAAAAAAAA";
+  // A session cookie the API no longer honours: the proxy lets it through, and the page's 401 sends it to sign in (#223 review).
+  await page.context().addCookies([{ name: "st_session", value: "ended", url: testInfo.project.use.baseURL! }]);
+
+  await page.goto(`/join/${code}`);
+  await expect(page).toHaveURL(`/login?join=${code}`);
+  await expect(page.getByText("Sign in first, then you can ask to join the club.")).toBeVisible();
+
+  // A sign-in link that lost its token keeps the code too.
+  await page.goto(`/auth/verify?join=${code}`);
+  await expect(page).toHaveURL(`/login?error=invalid-link&join=${code}`);
+});
+
 test("a link that's off, reset or unknown doesn't work, and says only that", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 

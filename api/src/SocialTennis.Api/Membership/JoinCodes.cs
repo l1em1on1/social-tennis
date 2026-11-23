@@ -20,6 +20,7 @@ public static partial class JoinCodes
     /// </summary>
     public static bool IsWellFormed(string? code) => code is not null && Shape().IsMatch(code);
 
-    [GeneratedRegex("^[A-Za-z0-9_-]{22}$")]
+    // \z, not $: in .NET, $ also matches before a final newline (#223 review).
+    [GeneratedRegex(@"^[A-Za-z0-9_-]{22}\z")]
     private static partial Regex Shape();
 }

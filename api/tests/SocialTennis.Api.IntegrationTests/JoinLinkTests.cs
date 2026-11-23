@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
 using SocialTennis.Api.Membership;
@@ -199,6 +200,8 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     [InlineData("short")]
     [InlineData("../../admin?x=1&y=2____")]
     [InlineData("aaaaaaaaaaaaaaaaaaaaa=")]
+    // A code and a newline: .NET's $ would match before it (#223 review).
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA\n")]
     public async Task A_sign_in_request_with_a_code_of_the_wrong_shape_is_refused(string join)
     {
         using var client = factory.CreateClient();
@@ -207,6 +210,9 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         var response = await client.PostAsJsonAsync("/auth/magic-link", new { email, join });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        // Under its wire name, as every refusal is (ADR-0017, #223 review).
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Equal(["join"], problem!.Errors.Keys);
         Assert.Equal(0, factory.Sender.SentTo(email));
     }
 }
