@@ -1270,6 +1270,45 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Equal(["Ann", "Bob"], game.Opponents.Order());
     }
 
+    /// <summary>A started singles League of three, Ann over Bea over Cal, in one Division.</summary>
+    private async Task<(HttpClient Manager, Guid ClubId, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players)> ThreeInADivisionAsync()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bea", "Cal" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        await StartAsync(manager, leagueId, [.. players.Select(p => TeamOf(league, p.PlayerId))]);
+        return (manager, clubId, leagueId, players);
+    }
+
+    [Fact]
+    public async Task Home_lists_only_the_Players_own_Games_in_their_Division()
+    {
+        var (_, _, _, players) = await ThreeInADivisionAsync();
+
+        // Ann plays Bea and Cal; Bea v Cal isn't hers (#221 review).
+        var games = (await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues.Single().Games;
+
+        Assert.Equal(["Bea", "Cal"], games.SelectMany(g => g.Opponents).Order());
+        Assert.All(games, g => Assert.Empty(g.Partners));
+    }
+
+    [Fact]
+    public async Task Home_leaves_out_the_Leagues_of_a_Club_the_Player_was_removed_from()
+    {
+        var (manager, clubId, _, players) = await ThreeInADivisionAsync();
+        Assert.Single((await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues);
+
+        // Removed from the Club, Ann no longer sees its Leagues (#109, #221 review).
+        (await manager.DeleteAsync($"/clubs/{clubId}/members/{players[0].PlayerId}")).EnsureSuccessStatusCode();
+
+        Assert.Empty((await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues);
+    }
+
     [Fact]
     public async Task Home_lists_only_Leagues_under_way_the_soonest_deadline_first_and_only_the_Players_own()
     {
