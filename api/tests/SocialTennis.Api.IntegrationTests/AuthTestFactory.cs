@@ -160,6 +160,23 @@ public class AuthTestFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
+    /// The Club's join link code (#222), turned on by the Admin if it's off.
+    /// Turning on keeps a link that's on, so parallel asks share one code, and
+    /// a test that resets a link gets the new one.
+    /// </summary>
+    public async Task<string> JoinCodeAsync(Guid clubId)
+    {
+        var admin = await AdminClientAsync();
+        var turnedOn = await admin.PutAsync($"/clubs/{clubId}/join-link", null);
+        turnedOn.EnsureSuccessStatusCode();
+        return (await turnedOn.Content.ReadFromJsonAsync<ClubJoinLink>())!.Code!;
+    }
+
+    /// <summary>The <paramref name="client"/>'s Player asks to join the Club through its join link (#222).</summary>
+    public async Task<HttpResponseMessage> AskToJoinAsync(HttpClient client, Guid clubId, Guid playerId) =>
+        await client.PutAsync($"/join-links/{await JoinCodeAsync(clubId)}/members/{playerId}", null);
+
+    /// <summary>
     /// A Club for tests that need one and don't care which. There is no seeded
     /// Club; the Admin creates this one, once per factory.
     /// </summary>

@@ -50,7 +50,9 @@ async function addUsers(emails: string[]) {
 // explicitly: a search that matches a single User (#134).
 test.use({ disableAutoSnapshot: true });
 
-test("an Admin creates a Club and renames it", async ({ page }, testInfo) => {
+test("an Admin creates a Club and renames it; on Manage its join link is turned on, reset and turned off", async ({
+  page,
+}, testInfo) => {
   // Two axe scans of a page that lists every User: slow against a database many runs have filled.
   test.slow();
   // "Zz": sorts after the Club the other specs join, which they find as the first one listed.
@@ -76,9 +78,29 @@ test("an Admin creates a Club and renames it", async ({ page }, testInfo) => {
   await expect(page.getByRole("listitem").filter({ hasText: renamed })).toBeVisible();
   await expect(page.getByText(name, { exact: true })).toHaveCount(0);
 
-  // Everyone sees it, under its new name.
-  await mainNav(page).getByRole("link", { name: "Home" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: renamed })).toBeVisible();
+  // Managers see it, under its new name, with its join link off (#222). Players don't list Clubs.
+  await mainNav(page).getByRole("link", { name: "Manage" }).click();
+  const card = page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: renamed, exact: true }) });
+  const joinLink = card.getByRole("region", { name: "Join link" });
+  await expect(joinLink).toContainText("Off.");
+
+  await joinLink.getByRole("button", { name: "Turn on the join link" }).click();
+  const field = joinLink.getByLabel(`Link to ask to join ${renamed}`);
+  await expect(field).toHaveValue(/\/join\/[A-Za-z0-9_-]{22}$/);
+  const first = await field.inputValue();
+  await expectNoSeriousA11yViolations(page);
+
+  // Reset: a new link, and the old one stops working.
+  await joinLink.getByRole("button", { name: "Reset link" }).click();
+  await expect(field).not.toHaveValue(first);
+  await page.goto(new URL(first).pathname);
+  await expect(page.getByRole("heading", { name: "This link doesn't work any more" })).toBeVisible();
+
+  // Off: no link at all.
+  await page.goto("/manage");
+  await joinLink.getByRole("button", { name: "Turn off" }).click();
+  await expect(joinLink).toContainText("Off.");
+  await expect(field).toHaveCount(0);
 });
 
 test("a club name of only spaces is refused with a message", async ({ page }, testInfo) => {

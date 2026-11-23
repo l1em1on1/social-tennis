@@ -43,12 +43,12 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     }
 
     /// <summary>A Player of <paramref name="client"/>'s User, approved into the Club.</summary>
-    private static async Task<Guid> PlayerInClubAsync(HttpClient client, HttpClient manager, Guid clubId, string name, string? gender = null)
+    private async Task<Guid> PlayerInClubAsync(HttpClient client, HttpClient manager, Guid clubId, string name, string? gender = null)
     {
         var created = await client.PostAsJsonAsync("/players", new { name, gender });
         created.EnsureSuccessStatusCode();
         var playerId = (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
-        (await client.PutAsync($"/clubs/{clubId}/members/{playerId}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(client, clubId, playerId)).EnsureSuccessStatusCode();
         (await manager.PutAsync($"/clubs/{clubId}/members/{playerId}/approval", null)).EnsureSuccessStatusCode();
         return playerId;
     }
@@ -373,7 +373,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
         var newcomer = await factory.CreateSignedInClientAsync();
         var pendingMember = (await (await newcomer.PostAsJsonAsync("/players", new { name = "Not yet a member" }))
             .Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
-        (await newcomer.PutAsync($"/clubs/{clubId}/members/{pendingMember}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(newcomer, clubId, pendingMember)).EnsureSuccessStatusCode();
 
         var partners = await PartnersAsync(alex, leagueId, alexId);
 

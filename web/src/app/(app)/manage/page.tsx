@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { CopyField } from "@/components/copy-field";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,10 +14,15 @@ import {
   approveClubMember,
   inviteToClub,
   removeClubMember,
+  resetJoinLink,
+  turnOffJoinLink,
+  turnOnJoinLink,
   withdrawClubInvite,
 } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
+import { joinPath } from "@/lib/join";
 import { describeStructure, formatDates, typeLabel } from "@/lib/league";
+import { publicUrl } from "@/lib/session";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "Manage" };
@@ -37,7 +43,8 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
 
 /**
  * Manager area: each Club's Leagues (each opens its own page, #5), and who is
- * in the Club. Requests to join are approved or declined here, Players added
+ * in the Club. The Club's join link is shared, reset and turned off here (#222),
+ * and the requests it brings approved or declined; Players are added
  * by name and email, members removed, and an email let in ahead of time (or
  * that invite taken back). Starting the ladder (#7), the to-do queue and month
  * close land here later. Rating is hidden from the UI for now (#161, ADR-0007).
@@ -59,14 +66,15 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
   const clubs = await Promise.all(
     clubList.clubs.map(async (club) => {
       const params = { params: { path: { clubId: club.id } } };
-      const [{ data }, { data: leagueList }] = await Promise.all([
+      const [{ data }, { data: leagueList }, { data: joinLink }] = await Promise.all([
         api.GET("/clubs/{clubId}/members", params),
         api.GET("/clubs/{clubId}/leagues", params),
+        api.GET("/clubs/{clubId}/join-link", params),
       ]);
-      if (!data || !leagueList) {
-        throw new Error(`GET /clubs/${club.id}/members or /leagues failed`);
+      if (!data || !leagueList || !joinLink) {
+        throw new Error(`GET /clubs/${club.id}/members, /leagues or /join-link failed`);
       }
-      return { ...club, ...data, leagues: leagueList.leagues };
+      return { ...club, ...data, leagues: leagueList.leagues, joinCode: joinLink.code ?? null };
     }),
   );
 
@@ -130,6 +138,50 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
               <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
                 New league
               </ButtonLink>
+            </section>
+
+            {/* One shared link per Club (#222, ADR-0032): opening it lets someone ask to join, approved below. */}
+            <section aria-labelledby={`join-link-${club.id}`} className="mt-5 flex flex-col gap-2">
+              <h3 id={`join-link-${club.id}`} className="font-semibold">
+                Join link
+              </h3>
+              {club.joinCode ? (
+                <>
+                  <CopyField
+                    id={`join-link-url-${club.id}`}
+                    label={`Link to ask to join ${club.name}`}
+                    hint="Share it in the club's chat or by email. Whoever opens it can ask to join, and you approve them below."
+                    value={publicUrl(joinPath(club.joinCode))}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <form action={resetJoinLink}>
+                      <input type="hidden" name="clubId" value={club.id} />
+                      <SubmitButton variant="secondary" pendingLabel="Resetting…">
+                        Reset link
+                      </SubmitButton>
+                    </form>
+                    <form action={turnOffJoinLink}>
+                      <input type="hidden" name="clubId" value={club.id} />
+                      <SubmitButton variant="secondary" pendingLabel="Turning off…">
+                        Turn off
+                      </SubmitButton>
+                    </form>
+                  </div>
+                  <p className="text-sm text-fg-muted">Resetting makes a new link, and the old one stops working.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-fg-muted">
+                    Off. Turn it on for a link you can share: whoever opens it can ask to join.
+                  </p>
+                  <form action={turnOnJoinLink}>
+                    <input type="hidden" name="clubId" value={club.id} />
+                    <SubmitButton variant="secondary" pendingLabel="Turning on…">
+                      Turn on the join link
+                    </SubmitButton>
+                  </form>
+                </>
+              )}
             </section>
 
             <section aria-labelledby={`waiting-${club.id}`} className="mt-5 flex flex-col gap-2">

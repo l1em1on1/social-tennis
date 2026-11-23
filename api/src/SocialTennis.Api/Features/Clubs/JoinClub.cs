@@ -9,19 +9,22 @@ using SocialTennis.Api.Membership;
 namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
-/// One of the signed-in User's Players asks to join a Club. The request waits
+/// One of the signed-in User's Players asks to join a Club, through its join
+/// link (#222, ADR-0032): asking needs the link's current code, so a Manager
+/// turning the link off or resetting it stops new requests. The request waits
 /// for a Manager's approval, unless the User is already in the Club (holds an
 /// approved member of it) or a Manager has invited their email: then the
 /// Player is a member at once, and the invite is used up (#164). The app is
 /// informal, so a User's Players aren't guarded against each other (owner,
 /// 2026-11-19). A PUT, so asking twice is the same as asking once, and never
 /// undoes an approval; asking again after the User got in lets a waiting
-/// request in.
+/// request in. A link that's off, was reset, or never existed is a 404, as
+/// is another User's Player.
 /// </summary>
 public static class JoinClub
 {
     public static async Task<Results<NoContent, NotFound>> HandleAsync(
-        Guid clubId,
+        string code,
         Guid playerId,
         ClaimsPrincipal user,
         TennisDbContext db,
@@ -30,7 +33,8 @@ public static class JoinClub
     {
         var userId = user.UserId();
         var held = await db.Players.AnyAsync(p => p.Id == playerId && p.UserId == userId, cancellationToken);
-        if (!held || !await db.Clubs.AnyAsync(c => c.Id == clubId, cancellationToken))
+        var linked = await db.Clubs.Where(c => c.JoinCode == code).Select(c => (Guid?)c.Id).SingleOrDefaultAsync(cancellationToken);
+        if (!held || linked is not { } clubId)
         {
             return TypedResults.NotFound();
         }

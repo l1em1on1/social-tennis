@@ -41,9 +41,10 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
     }
 
     [Fact]
-    public async Task An_Admin_creates_a_Club_and_everyone_signed_in_sees_it()
+    public async Task An_Admin_creates_a_Club_and_Managers_see_it_but_Players_dont_list_Clubs()
     {
         var admin = await factory.AdminClientAsync();
+        using var manager = await factory.CreateManagerClientAsync();
         using var player = await factory.CreateSignedInClientAsync();
         var name = $"Riverside {Guid.NewGuid():N}";
 
@@ -52,7 +53,9 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<CreateClubResponse>();
         Assert.Equal(name, created!.Name);
-        Assert.Contains(await ClubsAsync(player), club => club.Id == created.Id && club.Name == name);
+        Assert.Contains(await ClubsAsync(manager), club => club.Id == created.Id && club.Name == name);
+        // A Player gets into a Club through its join link, not a list of every Club (#222).
+        Assert.Equal(HttpStatusCode.Forbidden, (await player.GetAsync("/clubs")).StatusCode);
     }
 
     [Fact]
@@ -64,13 +67,13 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
             .Content.ReadFromJsonAsync<CreateClubResponse>();
         var playerId = (await (await player.PostAsJsonAsync("/players", new { name = "Sam" }))
             .Content.ReadFromJsonAsync<Features.Players.Contracts.CreatePlayerResponse>())!.Id;
-        await player.PutAsync($"/clubs/{created!.Id}/members/{playerId}", null);
+        await factory.AskToJoinAsync(player, created!.Id, playerId);
         var name = $"New {Guid.NewGuid():N}";
 
         var response = await admin.PutAsJsonAsync($"/clubs/{created.Id}", new { name });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal(name, (await ClubsAsync(player)).Single(club => club.Id == created.Id).Name);
+        Assert.Equal(name, (await ClubsAsync(admin)).Single(club => club.Id == created.Id).Name);
         var members = await admin.GetFromJsonAsync<GetClubMembersResponse>($"/clubs/{created.Id}/members");
         Assert.Single(members!.Members, member => member.PlayerId == playerId);
     }
@@ -130,7 +133,7 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
     [Fact]
     public async Task GetClubs_reports_the_total_matching_the_query()
     {
-        using var client = await factory.CreateSignedInClientAsync();
+        using var client = await factory.CreateManagerClientAsync();
 
         var body = await client.GetFromJsonAsync<GetClubsResponse>("/clubs");
 

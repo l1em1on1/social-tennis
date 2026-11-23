@@ -12,7 +12,9 @@ public static class ClubsEndpoints
 
         // Empty pattern, not "/": the group prefix is the whole route, and "/"
         // would combine to "/clubs/".
+        // Managers' and Admins' only: a Player gets into a Club through its join link (#222).
         group.MapGet("", GetClubs.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
             .WithName(nameof(GetClubs));
 
         group.MapPost("", CreateClub.HandleAsync)
@@ -24,9 +26,6 @@ public static class ClubsEndpoints
             .RequireAuthorization(Policies.Admin)
             .ValidatesBody<RenameClubRequest, RenameClubRequest.Validator>()
             .WithName(nameof(RenameClub));
-
-        group.MapPut("/{clubId:guid}/members/{playerId:guid}", JoinClub.HandleAsync)
-            .WithName(nameof(JoinClub));
 
         // A Manager's side of membership.
         group.MapGet("/{clubId:guid}/members", GetClubMembers.HandleAsync)
@@ -54,6 +53,32 @@ public static class ClubsEndpoints
         group.MapDelete("/{clubId:guid}/invites/{inviteId:guid}", WithdrawClubInvite.HandleAsync)
             .RequireAuthorization(Policies.Manager)
             .WithName(nameof(WithdrawClubInvite));
+
+        // The Club's join link (#222, ADR-0032): PUT turns it on and keeps a working code; reset makes a new one.
+        group.MapGet("/{clubId:guid}/join-link", GetJoinLink.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(GetJoinLink));
+
+        group.MapPut("/{clubId:guid}/join-link", TurnOnJoinLink.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(TurnOnJoinLink));
+
+        group.MapPost("/{clubId:guid}/join-link/reset", ResetJoinLink.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(ResetJoinLink));
+
+        group.MapDelete("/{clubId:guid}/join-link", TurnOffJoinLink.HandleAsync)
+            .RequireAuthorization(Policies.Manager)
+            .WithName(nameof(TurnOffJoinLink));
+
+        // A Player's side: the link names its Club, and asking through it waits for a Manager.
+        var links = app.MapGroup("/join-links");
+
+        links.MapGet("/{code}", GetJoinLinkClub.HandleAsync)
+            .WithName(nameof(GetJoinLinkClub));
+
+        links.MapPut("/{code}/members/{playerId:guid}", JoinClub.HandleAsync)
+            .WithName(nameof(JoinClub));
 
         return app;
     }

@@ -71,7 +71,7 @@ test("a link a mail scanner has already fetched still signs the User in", async 
 test("logging in lands on Home, and logging out ends the session", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
   await expect(page).toHaveTitle("Hits & Giggles");
-  await expect(page.getByRole("heading", { name: "Clubs" })).toBeVisible();
+  await expect(page.getByText(/^Signed in as /)).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 
   await page.getByRole("link", { name: "Profiles" }).click();

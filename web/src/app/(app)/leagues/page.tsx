@@ -284,7 +284,7 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
             description={
               inAClub
                 ? "When a manager creates a league at your club, it shows here."
-                : "Leagues belong to a club. Ask to join one on Home."
+                : "Leagues belong to a club. Ask your club's manager for its join link, or to add you."
             }
           />
         ) : (

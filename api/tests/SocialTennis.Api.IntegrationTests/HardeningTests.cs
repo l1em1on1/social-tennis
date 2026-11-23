@@ -160,7 +160,7 @@ public class HardeningTests(AuthTestFactory factory) : IClassFixture<AuthTestFac
         using var player = await factory.CreateSignedInClientAsync();
         var created = await player.PostAsJsonAsync("/players", new { name = "Sam" });
         var playerId = (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
-        (await player.PutAsync($"/clubs/{clubId}/members/{playerId}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(player, clubId, playerId)).EnsureSuccessStatusCode();
         (await manager.PutAsync($"/clubs/{clubId}/members/{playerId}/approval", null)).EnsureSuccessStatusCode();
         (await manager.PutAsync($"/leagues/{leagueId}/participants/{playerId}", null)).EnsureSuccessStatusCode();
         var before = await player.GetFromJsonAsync<GetPlayerLeaguesResponse>($"/players/{playerId}/leagues");

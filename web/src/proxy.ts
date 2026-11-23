@@ -1,9 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isJoinCode } from "@/lib/join";
 import { STRICT_TRANSPORT_SECURITY, contentSecurityPolicy, newNonce } from "@/lib/security-headers";
 import { publicUrl, secureCookies, sessionCookie } from "@/lib/session";
 
 /** Paths an anonymous visitor may open: the auth surface, and the health check (#111). */
 const PUBLIC_PATH = /^\/(login|auth\/verify|health|privacy)(\/|$)/;
+
+/**
+ * Where an anonymous visitor goes to sign in: a Club join link (#222) sends
+ * its code along, so the emailed sign-in link brings them back to it.
+ */
+function loginFor(pathname: string): string {
+  const code = /^\/join\/([^/]+)\/?$/.exec(pathname)?.[1];
+  return isJoinCode(code) ? `/login?join=${code}` : "/login";
+}
 
 /**
  * Runs on every page request (Next 16's proxy convention, the renamed
@@ -25,7 +35,7 @@ export function proxy(request: NextRequest) {
 
   let response: NextResponse;
   if (!PUBLIC_PATH.test(request.nextUrl.pathname) && !request.cookies.get(sessionCookie())) {
-    response = new NextResponse(null, { status: 307, headers: { Location: publicUrl("/login") } });
+    response = new NextResponse(null, { status: 307, headers: { Location: publicUrl(loginFor(request.nextUrl.pathname)) } });
   } else {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);

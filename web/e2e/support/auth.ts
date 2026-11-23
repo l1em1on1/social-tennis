@@ -39,12 +39,23 @@ export async function requestSignInLink(page: Page, testInfo: TestInfo, email: s
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
 
+  return emailedLinkFor(testInfo, email);
+}
+
+/**
+ * The address the sign-in email just requested for `email` would carry: the
+ * verify page, with the code of the Club join link the sign-in started from,
+ * if any (#222). The API puts it in the email; its integration tests check
+ * that, since the e2e stack sends none.
+ */
+export async function emailedLinkFor(testInfo: TestInfo, email: string, join?: string): Promise<string> {
+  const back = join ? `&join=${join}` : "";
   if (testInfo.project.name === "mock") {
-    return `/auth/verify?token=${encodeURIComponent(email)}`;
+    return `/auth/verify?token=${encodeURIComponent(email)}${back}`;
   }
   const token = await takeNewestMagicLink(email);
   await grantRolesNamedInEmail(email);
-  return `/auth/verify?token=${encodeURIComponent(token)}`;
+  return `/auth/verify?token=${encodeURIComponent(token)}${back}`;
 }
 
 /** Logs in: requests a link, opens it, and presses "Sign in" on the page it lands on. */

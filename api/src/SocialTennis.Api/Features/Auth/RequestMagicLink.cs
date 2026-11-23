@@ -80,6 +80,12 @@ public static class RequestMagicLink
         await transaction.CommitAsync(cancellationToken);
 
         var link = $"{options.VerifyUrlBase}?token={Uri.EscapeDataString(rawToken)}";
+        if (request.Join is { } join)
+        {
+            // Back to the join link that sent them here (#222); the validator checked its shape.
+            link += $"&join={Uri.EscapeDataString(join)}";
+        }
+
         try
         {
             await sender.SendAsync(email, link, cancellationToken);

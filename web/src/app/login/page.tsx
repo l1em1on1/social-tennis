@@ -9,37 +9,44 @@ import { Field, Input } from "@/components/ui/field";
 import { ErrorState } from "@/components/ui/states";
 import { api } from "@/lib/api/client";
 import { CLIENT_ADDRESS_HEADER, clientAddress } from "@/lib/client-address";
+import { isJoinCode } from "@/lib/join";
 import { mockApi } from "@/lib/mock-mode";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Log in" };
 
+/** The rest of a /login address: a join link's code (#222) stays with every answer. */
+const withJoin = (query: string, join: string | undefined) => `/login?${query}${join ? `&join=${join}` : ""}`;
+
 async function requestMagicLink(formData: FormData) {
   "use server";
   const email = formData.get("email");
+  // From a Club join link (#222): the emailed link brings them back to it.
+  const code = formData.get("join");
+  const join = isJoinCode(code) ? code : undefined;
   if (typeof email !== "string" || email.length === 0) {
-    redirect("/login?error=invalid-email");
+    redirect(withJoin("error=invalid-email", join));
   }
 
   // The API limits requests per client (#108); it can't see the browser itself.
   const address = clientAddress((await headers()).get("x-forwarded-for"));
   const { response } = await api.POST("/auth/magic-link", {
-    body: { email },
+    body: { email, join },
     headers: address ? { [CLIENT_ADDRESS_HEADER]: address } : undefined,
   });
   if (response.status === 429) {
-    redirect("/login?error=try-later");
+    redirect(withJoin("error=try-later", join));
   }
   if (response.status === 503) {
-    redirect("/login?error=send-failed");
+    redirect(withJoin("error=send-failed", join));
   }
   if (response.ok) {
-    redirect(`/login?sent=${encodeURIComponent(email)}`);
+    redirect(withJoin(`sent=${encodeURIComponent(email)}`, join));
   }
   // 400 is the API rejecting the address. Anything else is our fault, and
   // must not be blamed on what the person typed.
-  redirect(response.status === 400 ? "/login?error=invalid-email" : "/login?error=unexpected");
+  redirect(withJoin(response.status === 400 ? "error=invalid-email" : "error=unexpected", join));
 }
 
 const errors: Record<string, { title: string; description: string }> = {
@@ -71,8 +78,9 @@ const looksLikeEmail = (value: unknown): value is string =>
   typeof value === "string" && value.length <= 320 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { sent, error } = await searchParams;
+  const { sent, error, join: joinParam } = await searchParams;
   const sentTo = looksLikeEmail(sent) ? sent : undefined;
+  const join = isJoinCode(joinParam) ? joinParam : undefined;
   const problem = typeof error === "string" ? errors[error] : undefined;
 
   return (
@@ -88,7 +96,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           {mockApi ? (
             // Mock mode has no inbox: the mocked API accepts the email itself as the link token.
             <a
-              href={`/auth/verify?token=${encodeURIComponent(sentTo)}`}
+              href={`/auth/verify?token=${encodeURIComponent(sentTo)}${join ? `&join=${join}` : ""}`}
               className={`${buttonClasses("primary", true)} mt-4`}
             >
               Continue (mock API)
@@ -103,6 +111,12 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       ) : (
         <form action={requestMagicLink} className="flex flex-col gap-4">
           {problem && <ErrorState title={problem.title} description={problem.description} />}
+          {join && (
+            <>
+              <input type="hidden" name="join" value={join} />
+              <p className="text-fg-muted">Sign in first, then you can ask to join the club.</p>
+            </>
+          )}
           <Field id="email" label="Email address" hint="We'll email you a link to sign in. No password needed.">
             {(control) => (
               <Input {...control} name="email" type="email" required autoComplete="email" placeholder="you@example.com" />
