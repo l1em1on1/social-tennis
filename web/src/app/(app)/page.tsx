@@ -1,4 +1,5 @@
 import { PlayerForm } from "@/components/player-form";
+import { HeldUpNotice, owedGames, PlayerLeagueGames } from "@/components/player-league-games";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,8 +10,9 @@ import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
 
 /**
- * Home. #42 turns this into "this month's Games, deadline, Scores owed"; until
- * Leagues exist it is where a new User says who they are and joins a Club.
+ * Home (#42, wireframe P2): the Acting Player's Games this Stage in each of
+ * their Leagues, the Scores they still owe, the deadlines, and any Stage held
+ * up. It is also where a new User says who they are, and joins a Club.
  */
 export default async function Home({ searchParams }: PageProps<"/">) {
   const [viewer, api, { error: formError }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
@@ -19,11 +21,23 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // List endpoints return an envelope, not the array itself (ADR-0012) — the
   // collection is one property of it, alongside `page`.
   const { data: clubList, error } = await api.GET("/clubs");
+  // Switching the Acting Player switches all of it.
+  const { data: games, error: gamesError } = actingPlayer
+    ? await api.GET("/players/{playerId}/games", { params: { path: { playerId: actingPlayer.id } } })
+    : { data: undefined, error: undefined };
+  const owed = (games?.leagues ?? []).flatMap(owedGames).length;
   const membership = new Map(actingPlayer?.clubs.map((club) => [club.id, club]));
 
   return (
     <>
-      <h1 className="text-2xl font-bold">Home</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold">Home</h1>
+        {games && games.leagues.length > 0 && (
+          <p className="text-fg-muted">
+            {actingPlayer?.name} · {owed === 0 ? "no scores owed" : `${owed} ${owed === 1 ? "score" : "scores"} needed`}
+          </p>
+        )}
+      </div>
 
       {/* First sign-in: nobody to play as yet. Not a gate: a login that only runs leagues can leave it. */}
       {!actingPlayer && (
@@ -43,19 +57,36 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </Card>
       )}
 
-      {actingPlayer && (
-        <Card title="This month">
+      {actingPlayer &&
+        (gamesError || !games ? (
+          <ErrorState title="Your games didn't load" description="The server isn't reachable right now. Try again shortly." />
+        ) : games.leagues.length === 0 ? (
           <EmptyState
             title="No games yet"
-            description={`${actingPlayer.name}'s games appear here once a league they're in starts.`}
+            description={`${actingPlayer.name}'s games appear here once a league they're in starts. Ask to join one, or wait for the manager to add you.`}
             action={
               <ButtonLink href="/leagues" variant="secondary">
                 See leagues
               </ButtonLink>
             }
           />
-        </Card>
-      )}
+        ) : (
+          <>
+            {/* Above everything, so Players see what holds a Stage up without asking (wireframe P2). */}
+            {games.leagues
+              .filter((league) => league.heldUp)
+              .map((league) => (
+                <HeldUpNotice key={league.leagueId} league={league} />
+              ))}
+            <ul aria-label="Your leagues" className="flex flex-col gap-3">
+              {games.leagues.map((league) => (
+                <li key={league.leagueId}>
+                  <PlayerLeagueGames league={league} />
+                </li>
+              ))}
+            </ul>
+          </>
+        ))}
 
       {error || !clubList ? (
         <ErrorState title="Clubs didn't load" description="The server isn't reachable right now. Try again shortly." />

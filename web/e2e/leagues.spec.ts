@@ -228,7 +228,7 @@ test("a Manager renames a League, and its Player sees the new name", async ({ pa
   await page.goto("/leagues");
   const mine = page.getByRole("region", { name: `${kim}'s leagues` });
   await expect(mine.getByRole("region", { name: renamed })).toContainText("Joined");
-  await expect(page.getByRole("region", { name: league, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: league })).toHaveCount(0);
 });
 
 test("a Manager removes a Player from a League, and they can ask to join again", async ({ page, browser }, testInfo) => {
@@ -618,13 +618,17 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await expect(manager.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
   await managerContext.close();
 
-  // Una opens their Game from the ladder: no score yet, and they can enter it.
+  // Una lands on Home (#42): her Game, owing a score, and the deadline.
   await logIn(page, testInfo, una.email);
-  await page.goto("/leagues");
-  await page.getByRole("link", { name: `Open the ladder of ${league}` }).click();
-  const games = page.getByRole("list", { name: "Division 1 Games" });
-  await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*Score needed`)]);
-  await games.getByRole("link", { name: new RegExp(`${una.name} v ${vic.name}`) }).click();
+  const home = page.getByRole("region", { name: league, exact: true });
+  const homeGames = home.getByRole("list", { name: `Your games in ${league}` });
+  await expect(homeGames.getByRole("listitem")).toHaveText([new RegExp(`v ${vic.name}.*Score needed`)]);
+  await expect(home).toContainText("Stage 1 · play by 31 Oct 2027");
+  await expect(page.getByText("1 score needed")).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
+
+  // She opens the Game from Home: no score yet, and she can enter it.
+  await homeGames.getByRole("link", { name: new RegExp(`v ${vic.name}`) }).click();
   await expect(page.getByRole("heading", { name: `${una.name} v ${vic.name}`, level: 1 })).toBeVisible();
   await expect(page.getByRole("region", { name: "No score yet" })).toContainText("Anyone who plays in it can enter the score.");
   await page.getByRole("link", { name: "Enter score" }).click();
@@ -656,6 +660,7 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await expect(score).toContainText("Played");
   await expectNoSeriousA11yViolations(page);
   await page.getByRole("link", { name: "Back to the ladder" }).click();
+  const games = page.getByRole("list", { name: "Division 1 Games" });
   await expect(games.getByRole("listitem")).toHaveText([new RegExp(`${una.name} v ${vic.name}.*6–3.*Played`)]);
   // The Standings follow (#10): one Division, so nobody moves.
   const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
@@ -666,6 +671,11 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   const vicContext = await browser.newContext();
   const vicPage = await vicContext.newPage();
   await logIn(vicPage, testInfo, vic.email);
+  // On Vic's Home it's from his side: a loss, his games first.
+  await expect(
+    vicPage.getByRole("region", { name: league, exact: true }).getByRole("list", { name: `Your games in ${league}` }).getByRole("listitem"),
+  ).toHaveText([new RegExp(`v ${una.name}.*Lost 3–6.*Played`)]);
+  await expect(vicPage.getByText("no scores owed")).toBeVisible();
   await vicPage.goto(ladderUrl);
   await vicPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
   await expect(vicPage.getByRole("region", { name: "Score" })).toContainText(`entered by ${una.name}`);

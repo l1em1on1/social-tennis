@@ -123,6 +123,10 @@ public static class LeaguesEndpoints
         app.MapGet("/players/{playerId:guid}/leagues", GetPlayerLeagues.HandleAsync)
             .WithName(nameof(GetPlayerLeagues));
 
+        // Home (#42): the Player's Games this Stage, by League.
+        app.MapGet("/players/{playerId:guid}/games", GetPlayerGames.HandleAsync)
+            .WithName(nameof(GetPlayerGames));
+
         return app;
     }
 }
