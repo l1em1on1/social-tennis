@@ -483,7 +483,7 @@ export type JoinRefusal = (typeof JOIN_REFUSALS)[number] | "partner-gone";
 /**
  * A Player asks to join a League, alone or, in a doubles League, with the
  * partner picked by name (#6). The Player comes from the form and is checked
- * against this login's, as for `joinClub`; the partner is checked by the API.
+ * against this login's, as for `askToJoinClub`; the partner is checked by the API.
  * A refusal about the partner goes back to the page as `?error=`.
  */
 export async function askToJoinLeague(formData: FormData) {
