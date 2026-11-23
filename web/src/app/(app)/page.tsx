@@ -61,8 +61,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <p className="text-fg-muted">
             {waitingOn.length > 0
               ? `${actingPlayer.name}'s request to join ${waitingOn.join(" and ")} is with the club's manager. Once you're in, your leagues and games show here.`
-              : `Ask your club's manager for the club's join link, or to add ${viewer.email}. Once you're in, your leagues and games show here.`}
+              : viewer.roles.includes("Manager")
+                ? `To play, pre-approve ${viewer.email} for your club on Manage: ${actingPlayer.name} is in at once, and your leagues and games show here.`
+                : `Ask your club's manager for the club's join link, or to add ${viewer.email}. Once you're in, your leagues and games show here.`}
           </p>
+          {waitingOn.length === 0 && viewer.roles.includes("Manager") && (
+            <ButtonLink href="/manage" variant="secondary" className="mt-4">
+              Go to Manage
+            </ButtonLink>
+          )}
         </Card>
       )}
 

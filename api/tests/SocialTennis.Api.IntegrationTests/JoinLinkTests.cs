@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using SocialTennis.Api.Features.Clubs;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.IntegrationTests;
 

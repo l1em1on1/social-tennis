@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.WebUtilities;
 using SocialTennis.Api.Domain;
 
-namespace SocialTennis.Api.Features.Clubs;
+namespace SocialTennis.Api.Membership;
 
 /// <summary>
 /// A Club's join link code (#222, ADR-0032): 128 random bits in base64url, so

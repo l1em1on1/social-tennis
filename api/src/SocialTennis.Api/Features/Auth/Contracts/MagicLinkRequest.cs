@@ -1,6 +1,6 @@
 using FluentValidation;
 using SocialTennis.Api.Authentication;
-using SocialTennis.Api.Features.Clubs;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Auth.Contracts;
 

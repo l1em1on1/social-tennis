@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Features.Clubs.Contracts;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Clubs;
 

@@ -5,9 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Auth.Contracts;
-using SocialTennis.Api.Features.Clubs;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.IntegrationTests;
 

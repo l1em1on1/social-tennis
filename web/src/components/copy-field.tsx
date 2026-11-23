@@ -9,7 +9,8 @@ const noSubscription = () => () => {};
 /**
  * A value to copy, such as a Club's join link (#222): shown read-only, so a
  * long press selects it on any phone, and a Copy button where the browser
- * allows the clipboard (a secure page only).
+ * allows the clipboard (a secure page only). If the browser refuses the copy
+ * anyway, the button selects the value instead, for the person to copy.
  */
 export function CopyField({ id, label, hint, value }: { id: string; label: string; hint?: string; value: string }) {
   const canCopy = useSyncExternalStore(
@@ -17,7 +18,7 @@ export function CopyField({ id, label, hint, value }: { id: string; label: strin
     () => window.isSecureContext && navigator.clipboard !== undefined,
     () => false,
   );
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<boolean | null>(null);
 
   return (
     <div className="flex flex-col gap-2">
@@ -28,11 +29,16 @@ export function CopyField({ id, label, hint, value }: { id: string; label: strin
         <Button
           variant="secondary"
           onClick={async () => {
-            await navigator.clipboard.writeText(value);
-            setCopied(true);
+            try {
+              await navigator.clipboard.writeText(value);
+              setCopied(true);
+            } catch {
+              setCopied(false);
+              (document.getElementById(id) as HTMLInputElement | null)?.select();
+            }
           }}
         >
-          {copied ? "Copied" : "Copy link"}
+          {copied ? "Copied" : copied === false ? "Selected: copy it from the box" : "Copy link"}
         </Button>
       )}
     </div>
