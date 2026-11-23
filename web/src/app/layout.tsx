@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
+// PROTOTYPE (#226): design directions, picked by <html data-direction>. Not for main.
+import "./prototype-directions.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

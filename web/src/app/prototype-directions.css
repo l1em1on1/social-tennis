@@ -1,0 +1,174 @@
+/*
+ * PROTOTYPE (#226) — throwaway: three design directions over the real app,
+ * picked by <html data-direction="lime|clay|grass">. Tokens are WCAG AA-checked
+ * (scratch palettes.py); treatments vary the header, depth, headings, buttons
+ * and empty states. Not for main: the winner is rewritten into globals.css.
+ */
+
+html[data-direction="lime"] {
+  --st-bg: #f3f6ea;
+  --st-surface: #ffffff;
+  --st-surface-muted: #e7eedb;
+  --st-fg: #142112;
+  --st-fg-muted: #4a5843;
+  --st-border: #d4ddc6;
+  --st-border-strong: #74836a;
+  --st-accent: #1d5e2a;
+  --st-accent-hover: #164a21;
+  --st-accent-fg: #ffffff;
+  --st-accent-muted: #e2f0c2;
+  --dir-header-bg: #163f20;
+  --dir-header-fg: #f4fbe4;
+  --dir-brand: #c8e64a;
+  --dir-brand-fg: #142112;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-direction="lime"] {
+    --st-bg: #0c120b;
+    --st-surface: #151f13;
+    --st-surface-muted: #1f2d1a;
+    --st-fg: #eef6e4;
+    --st-fg-muted: #a8b89b;
+    --st-border: #2d3c27;
+    --st-border-strong: #6b7d5f;
+    --st-accent: #c8e64a;
+    --st-accent-hover: #d8ef7a;
+    --st-accent-fg: #142112;
+    --st-accent-muted: #2b3a12;
+    --dir-header-bg: #102414;
+    --dir-header-fg: #eef6e4;
+    --dir-brand: #c8e64a;
+    --dir-brand-fg: #142112;
+  }
+}
+
+html[data-direction="clay"] {
+  --st-bg: #fbf4ea;
+  --st-surface: #fffdf8;
+  --st-surface-muted: #f2e7d8;
+  --st-fg: #2a1c14;
+  --st-fg-muted: #6a5244;
+  --st-border: #e8d7c2;
+  --st-border-strong: #8e735f;
+  --st-accent: #a9401f;
+  --st-accent-hover: #8c3418;
+  --st-accent-fg: #ffffff;
+  --st-accent-muted: #f9e0d3;
+  --dir-header-bg: #fffdf8;
+  --dir-header-fg: #2a1c14;
+  --dir-brand: #a9401f;
+  --dir-brand-fg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-direction="clay"] {
+    --st-bg: #18110c;
+    --st-surface: #221812;
+    --st-surface-muted: #31231a;
+    --st-fg: #f7ede4;
+    --st-fg-muted: #c9b3a2;
+    --st-border: #4a3629;
+    --st-border-strong: #8e715c;
+    --st-accent: #f28a62;
+    --st-accent-hover: #f6a585;
+    --st-accent-fg: #2a1208;
+    --st-accent-muted: #4a2416;
+    --dir-header-bg: #221812;
+    --dir-header-fg: #f7ede4;
+    --dir-brand: #f28a62;
+    --dir-brand-fg: #2a1208;
+  }
+}
+
+html[data-direction="grass"] {
+  --st-bg: #f6f4f9;
+  --st-surface: #ffffff;
+  --st-surface-muted: #ece7f4;
+  --st-fg: #1d1527;
+  --st-fg-muted: #584d66;
+  --st-border: #ddd6e8;
+  --st-border-strong: #7f7392;
+  --st-accent: #5a2b85;
+  --st-accent-hover: #47216b;
+  --st-accent-fg: #ffffff;
+  --st-accent-muted: #ece0f7;
+  --dir-header-bg: #3a1a59;
+  --dir-header-fg: #ffffff;
+  --dir-brand: #7cc46a;
+  --dir-brand-fg: #11240c;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-direction="grass"] {
+    --st-bg: #110c17;
+    --st-surface: #1b1424;
+    --st-surface-muted: #292035;
+    --st-fg: #f2edf8;
+    --st-fg-muted: #b9adca;
+    --st-border: #3b2f4a;
+    --st-border-strong: #7e6f92;
+    --st-accent: #c8a5f0;
+    --st-accent-hover: #d8bef6;
+    --st-accent-fg: #1d1527;
+    --st-accent-muted: #382550;
+    --dir-header-bg: #231436;
+    --dir-header-fg: #f2edf8;
+    --dir-brand: #8fd17a;
+    --dir-brand-fg: #11240c;
+  }
+}
+
+
+/* Shared: the header takes the direction's colours, and the app name gets a ball. */
+html[data-direction] header.sticky { background: var(--dir-header-bg); color: var(--dir-header-fg); }
+html[data-direction] header.sticky .text-fg-muted { color: color-mix(in srgb, var(--dir-header-fg) 78%, var(--dir-header-bg)); }
+html[data-direction] header.sticky span.text-lg { display: inline-flex; align-items: center; gap: 0.45em; color: var(--dir-brand); }
+html[data-direction] header.sticky span.text-lg::before {
+  content: ""; width: 1.05em; height: 1.05em; border-radius: 999px; flex: none;
+  background:
+    radial-gradient(circle at 118% 50%, transparent 52%, var(--dir-header-bg) 53% 59%, transparent 60%),
+    radial-gradient(circle at -18% 50%, transparent 52%, var(--dir-header-bg) 53% 59%, transparent 60%),
+    var(--dir-brand);
+}
+html[data-direction] main h1 { letter-spacing: -0.02em; }
+
+/* Tennis-ball lime: bright and sporty. Deep court-green header, lime calls to action, cards that float. */
+html[data-direction="lime"] header.sticky { border-bottom: 0; box-shadow: 0 3px 0 var(--dir-brand); }
+html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed) {
+  border-color: transparent; border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgb(20 33 18 / 0.06), 0 8px 20px -6px rgb(22 63 32 / 0.18);
+}
+html[data-direction="lime"] main h1 { font-weight: 800; font-size: 1.75rem; }
+html[data-direction="lime"] main section.rounded-2xl > header h2 { font-weight: 800; }
+html[data-direction="lime"] .bg-accent { background: var(--dir-brand); color: var(--dir-brand-fg); }
+html[data-direction="lime"] .bg-accent:hover { background: color-mix(in srgb, var(--dir-brand) 88%, black); }
+html[data-direction="lime"] .border-dashed { background: var(--st-accent-muted); border-color: var(--st-border-strong); }
+html[data-direction="lime"] nav[aria-label="Main"] a[aria-current="page"] svg { background: var(--dir-brand); color: var(--dir-brand-fg); border-radius: 999px; padding: 2px 12px; box-sizing: content-box; }
+@media (prefers-color-scheme: dark) {
+  html[data-direction="lime"] main section.rounded-2xl.border:not(.border-dashed) { border-color: var(--st-border); box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.6); }
+}
+
+/* Clay court: warm and friendly. Cream page, terracotta rule under a light header, pill buttons, serif headings. */
+html[data-direction="clay"] header.sticky { border-bottom: 4px solid var(--dir-brand); }
+html[data-direction="clay"] main h1, html[data-direction="clay"] main section.rounded-2xl > header h2 { font-family: ui-serif, Georgia, "Times New Roman", serif; }
+html[data-direction="clay"] main h1 { font-size: 1.85rem; font-weight: 700; }
+html[data-direction="clay"] main section.rounded-2xl > header h2 { font-size: 1.15rem; display: inline-flex; align-items: center; gap: 0.5rem; }
+html[data-direction="clay"] main section.rounded-2xl > header h2::before { content: ""; width: 4px; height: 1.1em; border-radius: 2px; background: var(--st-accent); }
+html[data-direction="clay"] main section.rounded-2xl.border:not(.border-dashed) { border-radius: 1.5rem; box-shadow: 0 2px 10px -4px rgb(120 60 30 / 0.18); }
+html[data-direction="clay"] button.rounded-xl, html[data-direction="clay"] a.rounded-xl { border-radius: 999px; }
+html[data-direction="clay"] .border-dashed { background: var(--st-surface-muted); border-color: var(--st-accent); }
+html[data-direction="clay"] nav[aria-label="Main"] { box-shadow: inset 0 3px 0 var(--st-surface-muted); }
+html[data-direction="clay"] nav[aria-label="Main"] a[aria-current="page"] { box-shadow: inset 0 3px 0 var(--st-accent); }
+
+/* Grass-court purple: classic and calm. Deep purple header with a grass-green rule, striped cards, small-caps headings. */
+html[data-direction="grass"] header.sticky { border-bottom: 3px solid var(--dir-brand); }
+html[data-direction="grass"] main h1 { color: var(--st-accent); font-weight: 700; }
+html[data-direction="grass"] main section.rounded-2xl.border:not(.border-dashed) { border-top: 4px solid var(--dir-brand); border-radius: 0.75rem; }
+html[data-direction="grass"] main section.rounded-2xl > header h2 { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; color: var(--st-accent); }
+html[data-direction="grass"] button.rounded-xl, html[data-direction="grass"] a.rounded-xl, html[data-direction="grass"] .rounded-xl { border-radius: 0.5rem; }
+html[data-direction="grass"] .border-dashed { background: var(--st-accent-muted); border-style: solid; }
+html[data-direction="grass"] nav[aria-label="Main"] { background: var(--dir-header-bg); border-top: 0; }
+html[data-direction="grass"] nav[aria-label="Main"] a { color: color-mix(in srgb, var(--dir-header-fg) 78%, var(--dir-header-bg)); }
+html[data-direction="grass"] nav[aria-label="Main"] a[aria-current="page"] { color: var(--dir-brand); }
+
