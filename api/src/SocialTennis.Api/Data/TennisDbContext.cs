@@ -49,6 +49,9 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             club.Property(c => c.Name).HasMaxLength(Club.NameMaxLength);
             // Existing Clubs are the first Club's, in its zone (ADR-0016).
             club.Property(c => c.TimeZone).HasMaxLength(64).HasDefaultValue(Club.DefaultTimeZone);
+            // A link names one Club. Postgres lets any number of Clubs have none.
+            club.Property(c => c.JoinCode).HasMaxLength(Club.JoinCodeLength);
+            club.HasIndex(c => c.JoinCode).IsUnique();
         });
 
         modelBuilder.Entity<User>(user =>

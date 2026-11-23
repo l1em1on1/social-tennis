@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
+import { isJoinCode, joinPath, type NameFormPage } from "@/lib/join";
 import { ACTING_PLAYER_COOKIE, cookieOptions, sessionCookie } from "@/lib/session";
 import { getViewer } from "@/lib/viewer";
 import { LEAGUE_TYPES, type LeagueStructure, type LeagueType, type StageLengthUnit } from "@/lib/league";
@@ -37,10 +38,11 @@ export async function logout() {
 }
 
 /** Where a form sits, so its action can send a refusal back to the same page. */
-type NameFormPage = "/" | "/profiles";
-
 function nameFormPage(formData: FormData): NameFormPage {
-  return formData.get("from") === "/profiles" ? "/profiles" : "/";
+  const from = formData.get("from");
+  if (from === "/profiles") return "/profiles";
+  const code = typeof from === "string" ? /^\/join\/(.+)$/.exec(from)?.[1] : undefined;
+  return isJoinCode(code) ? joinPath(code) : "/";
 }
 
 /** Gender and Level as a form sends them: absent or "" is unset. Null if the value isn't one a form offers. */
@@ -113,28 +115,71 @@ export async function updatePlayer(formData: FormData) {
 }
 
 /**
- * A Player asks to join a Club. A Manager approves it, unless the User's email
- * was invited, in which case they are in at once. Pressing twice asks once:
- * the API's PUT is idempotent.
+ * One of this login's Players asks to join a Club through its join link
+ * (#222, ADR-0032). A Manager approves it, unless the User's email was
+ * pre-approved or the User is in the Club already: then they're in at once.
+ * Pressing twice asks once: the API's PUT is idempotent.
  *
- * The Player comes from the form, not the Acting Player cookie: the page may
- * have been rendered for a Player since switched away from in another tab, and
- * the request must be for the one the person saw. It is checked against the
- * Players this login holds, as `switchActingPlayer` does.
+ * The Player comes from the form, not the
+ * Acting Player cookie: the page may have been rendered for a Player since
+ * switched away from in another tab, and the request must be for the one the
+ * person saw. It is checked against the Players this login holds, as
+ * `switchActingPlayer` does.
  */
-export async function joinClub(formData: FormData) {
-  const path = clubAndPlayer(formData);
+export async function askToJoinClub(formData: FormData) {
+  const code = formData.get("code");
+  const playerId = formData.get("playerId");
   const viewer = await getViewer();
-  if (!path || !viewer.players.some((player) => player.id === path.playerId)) {
+  if (!isJoinCode(code) || !isId(playerId) || !viewer.players.some((player) => player.id === playerId)) {
     return;
   }
 
   const api = await apiWithSession();
-  const { response } = await api.PUT("/clubs/{clubId}/members/{playerId}", { params: { path } });
-  if (!response.ok) {
-    throw new Error(`Joining club ${path.clubId} failed with ${response.status}`);
+  const { response } = await api.PUT("/join-links/{code}/members/{playerId}", { params: { path: { code, playerId } } });
+  // 404: the link was turned off or reset since the page loaded; the page now says so.
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Asking to join through a link failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
+}
+
+/** A Manager turns a Club's join link on (#222). One that's on already stays as it is. */
+export async function turnOnJoinLink(formData: FormData) {
+  const clubId = formData.get("clubId");
+  if (!isId(clubId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/clubs/{clubId}/join-link", { params: { path: { clubId } } });
+  if (!response.ok) {
+    throw new Error(`Turning on a join link failed with ${response.status}`);
+  }
+  revalidatePath("/manage");
+}
+
+/** A Manager resets a Club's join link: a new link, and the old one stops working (#222). */
+export async function resetJoinLink(formData: FormData) {
+  const clubId = formData.get("clubId");
+  if (!isId(clubId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/clubs/{clubId}/join-link/reset", { params: { path: { clubId } } });
+  if (!response.ok) {
+    throw new Error(`Resetting a join link failed with ${response.status}`);
+  }
+  revalidatePath("/manage");
+}
+
+/** A Manager turns a Club's join link off: nobody can ask to join until it's on again (#222). */
+export async function turnOffJoinLink(formData: FormData) {
+  const clubId = formData.get("clubId");
+  if (!isId(clubId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/clubs/{clubId}/join-link", { params: { path: { clubId } } });
+  if (!response.ok) {
+    throw new Error(`Turning off a join link failed with ${response.status}`);
+  }
+  revalidatePath("/manage");
 }
 
 function clubAndPlayer(formData: FormData): { clubId: string; playerId: string } | null {
@@ -438,7 +483,7 @@ export type JoinRefusal = (typeof JOIN_REFUSALS)[number] | "partner-gone";
 /**
  * A Player asks to join a League, alone or, in a doubles League, with the
  * partner picked by name (#6). The Player comes from the form and is checked
- * against this login's, as for `joinClub`; the partner is checked by the API.
+ * against this login's, as for `askToJoinClub`; the partner is checked by the API.
  * A refusal about the partner goes back to the page as `?error=`.
  */
 export async function askToJoinLeague(formData: FormData) {

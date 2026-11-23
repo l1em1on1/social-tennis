@@ -1,32 +1,30 @@
 import { PlayerForm } from "@/components/player-form";
 import { HeldUpNotice, owedGames, PlayerLeagueGames } from "@/components/player-league-games";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState } from "@/components/ui/states";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { joinClub } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
 
 /**
  * Home (#42, wireframe P2): the Acting Player's Games this Stage in each of
  * their Leagues, the Scores they still owe, the deadlines, and any Stage held
- * up. It is also where a new User says who they are, and joins a Club.
+ * up. It is also where a new User says who they are. There's no list of Clubs
+ * to join (#222): a Player asks through their Club's join link, or a Manager
+ * adds them, so a Player in no Club yet is told how to get in.
  */
 export default async function Home({ searchParams }: PageProps<"/">) {
   const [viewer, api, { error: formError }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
   const { actingPlayer } = viewer;
 
-  // List endpoints return an envelope, not the array itself (ADR-0012) — the
-  // collection is one property of it, alongside `page`.
-  const { data: clubList, error } = await api.GET("/clubs");
+  const inAClub = actingPlayer?.clubs.some((club) => club.approved) ?? false;
+  const waitingOn = actingPlayer?.clubs.filter((club) => !club.approved).map((club) => club.name) ?? [];
   // Switching the Acting Player switches all of it.
-  const { data: games, error: gamesError } = actingPlayer
-    ? await api.GET("/players/{playerId}/games", { params: { path: { playerId: actingPlayer.id } } })
-    : { data: undefined, error: undefined };
+  const { data: games, error: gamesError } =
+    actingPlayer && inAClub
+      ? await api.GET("/players/{playerId}/games", { params: { path: { playerId: actingPlayer.id } } })
+      : { data: undefined, error: undefined };
   const owed = (games?.leagues ?? []).flatMap(owedGames).length;
-  const membership = new Map(actingPlayer?.clubs.map((club) => [club.id, club]));
 
   return (
     <>
@@ -57,7 +55,26 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </Card>
       )}
 
+      {actingPlayer && !inAClub && (
+        // Not in a Club yet: how to get in (#222).
+        <Card title={waitingOn.length > 0 ? "Waiting to join" : "Join your club"}>
+          <p className="text-fg-muted">
+            {waitingOn.length > 0
+              ? `${actingPlayer.name}'s request to join ${waitingOn.join(" and ")} is with the club's manager. Once you're in, your leagues and games show here.`
+              : viewer.roles.includes("Manager")
+                ? `To play, pre-approve ${viewer.email} for your club on Manage: ${actingPlayer.name} is in at once, and your leagues and games show here.`
+                : `Ask your club's manager for the club's join link, or to add ${viewer.email}. Once you're in, your leagues and games show here.`}
+          </p>
+          {waitingOn.length === 0 && viewer.roles.includes("Manager") && (
+            <ButtonLink href="/manage" variant="secondary" className="mt-4">
+              Go to Manage
+            </ButtonLink>
+          )}
+        </Card>
+      )}
+
       {actingPlayer &&
+        inAClub &&
         (gamesError || !games ? (
           <ErrorState title="Your games didn't load" description="The server isn't reachable right now. Try again shortly." />
         ) : games.leagues.length === 0 ? (
@@ -87,51 +104,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </ul>
           </>
         ))}
-
-      {error || !clubList ? (
-        <ErrorState title="Clubs didn't load" description="The server isn't reachable right now. Try again shortly." />
-      ) : (
-        <Card title="Clubs">
-          {clubList.clubs.length === 0 ? (
-            <EmptyState title="No clubs yet" description="An Admin sets up the club." />
-          ) : (
-            <>
-              <p className="mb-2 text-sm text-fg-muted">
-                {actingPlayer
-                  ? "A club manager approves each request to join."
-                  : "Save your name above to ask to join a club."}
-              </p>
-              <ul className="-my-2 divide-y divide-border">
-                {clubList.clubs.map((club) => (
-                  <li key={club.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
-                    <span className="font-medium">{club.name}</span>
-                    {membership.get(club.id)?.approved ? (
-                      <Badge tone="accent">Member</Badge>
-                    ) : membership.has(club.id) ? (
-                      <Badge>Waiting for approval</Badge>
-                    ) : (
-                      actingPlayer && (
-                        <form action={joinClub}>
-                          <input type="hidden" name="clubId" value={club.id} />
-                          <input type="hidden" name="playerId" value={actingPlayer.id} />
-                          <SubmitButton variant="secondary" pendingLabel="Asking…" aria-label={`Ask to join ${club.name}`}>
-                            Ask to join
-                          </SubmitButton>
-                        </form>
-                      )
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {actingPlayer && viewer.players.length > 1 && (
-                <p className="mt-3 text-sm text-fg-muted">
-                  Asking as {actingPlayer.name}. Switch player at the top to ask as someone else.
-                </p>
-              )}
-            </>
-          )}
-        </Card>
-      )}
 
       <p className="text-sm text-fg-muted">Signed in as {viewer.email}</p>
     </>

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { http as untypedHttp, passthrough } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
@@ -129,6 +130,23 @@ function userOf(email: string): MockUser {
 const inFixture = (request: Request) => [FIXTURE_MANAGER, FIXTURE_ADMIN].includes(emailOf(request));
 
 const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
+
+/**
+ * Each Club's join link (#222), by Club id, with the Club's name for the page
+ * it opens. Every link starts off, as in the API; turning one on or resetting
+ * it makes a new code.
+ */
+const joinLinks = new Map<string, { code: string; name: string }>();
+
+/** Fixed data's Riverside link, so its Manage page snapshot is the same every run. */
+const FIXTURE_JOIN_CODE = "FixedJoinCodeForSnapsh";
+
+function clubOfJoinCode(code: string) {
+  for (const [id, link] of joinLinks) {
+    if (link.code === code) return { id, name: link.name };
+  }
+  return undefined;
+}
 
 /**
  * Clubs an Admin created, by session. Kept to the session that made them, so
@@ -616,11 +634,12 @@ export const handlers = [
     return response(204).empty();
   }),
 
-  // Asking to join: waits for a Manager, unless the email was invited (which uses the invite up) or the User
-  // (a session, in the mock) already holds an approved member.
-  http.put("/clubs/{clubId}/members/{playerId}", ({ request, params, response }) => {
+  // Asking to join, through the Club's join link (#222): waits for a Manager, unless the email was invited (which
+  // uses the invite up) or the User (a session, in the mock) already holds an approved member. Only the shared Club
+  // takes members in the mock.
+  http.put("/join-links/{code}/members/{playerId}", ({ request, params, response }) => {
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
-    if (!player || params.clubId !== MOCK_CLUB.id) {
+    if (!player || clubOfJoinCode(params.code)?.id !== MOCK_CLUB.id) {
       return response(404).empty();
     }
     const userIsIn = playersOf(request).some((held) => held.membership?.approved);
@@ -628,6 +647,46 @@ export const handlers = [
       const admitted = invitedEmails.delete(player.email) || userIsIn;
       player.membership = { approved: admitted, requestedAt: player.membership?.requestedAt ?? new Date().toISOString() };
     }
+    return response(204).empty();
+  }),
+
+  // The Club a join link is for; a link that's off, reset or unknown is a 404 alike.
+  http.get("/join-links/{code}", ({ params, response }) => {
+    const club = clubOfJoinCode(params.code);
+    return club ? response(200).json({ clubId: club.id, clubName: club.name }) : response(404).empty();
+  }),
+
+  // A Manager's side of the link. Fixed data: Riverside's is on, Hillside's off, as the snapshots show.
+  http.get("/clubs/{clubId}/join-link", ({ request, params, response }) => {
+    if (inFixture(request)) {
+      return response(200).json({ code: params.clubId === fixtureClubs.clubs[1].id ? FIXTURE_JOIN_CODE : null });
+    }
+    return response(200).json({ code: joinLinks.get(params.clubId)?.code ?? null });
+  }),
+
+  // Turning on keeps a link that's on, as the API does, so tests sharing the Club share its link.
+  http.put("/clubs/{clubId}/join-link", ({ request, params, response }) => {
+    const club = [MOCK_CLUB, ...clubsOf(request)].find((candidate) => candidate.id === params.clubId);
+    if (!club) {
+      return response(404).empty();
+    }
+    const link = joinLinks.get(club.id) ?? { code: randomBytes(16).toString("base64url"), name: club.name };
+    joinLinks.set(club.id, link);
+    return response(200).json({ code: link.code });
+  }),
+
+  http.post("/clubs/{clubId}/join-link/reset", ({ request, params, response }) => {
+    const club = [MOCK_CLUB, ...clubsOf(request)].find((candidate) => candidate.id === params.clubId);
+    if (!club) {
+      return response(404).empty();
+    }
+    const code = randomBytes(16).toString("base64url");
+    joinLinks.set(club.id, { code, name: club.name });
+    return response(200).json({ code });
+  }),
+
+  http.delete("/clubs/{clubId}/join-link", ({ params, response }) => {
+    joinLinks.delete(params.clubId);
     return response(204).empty();
   }),
 

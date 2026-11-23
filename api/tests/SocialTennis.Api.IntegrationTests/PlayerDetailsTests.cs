@@ -32,7 +32,7 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
         var client = await factory.CreateSignedInClientAsync();
         var playerId = await CreatePlayerAsync(client, body ?? new { name = "Sam" });
         var clubId = await factory.AClubIdAsync();
-        (await client.PutAsync($"/clubs/{clubId}/members/{playerId}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(client, clubId, playerId)).EnsureSuccessStatusCode();
         return (client, playerId, clubId);
     }
 
@@ -249,8 +249,8 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
         var secondClub = (await (await admin.PostAsJsonAsync("/clubs", new { name = $"Second {Guid.NewGuid():N}" }))
             .Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
 
-        await client.PutAsync($"/clubs/{firstClub}/members/{playerId}", null);
-        await client.PutAsync($"/clubs/{secondClub}/members/{playerId}", null);
+        await factory.AskToJoinAsync(client, firstClub, playerId);
+        await factory.AskToJoinAsync(client, secondClub, playerId);
         await admin.PutAsync($"/clubs/{firstClub}/members/{playerId}/approval", null);
         await admin.PutAsync($"/clubs/{secondClub}/members/{playerId}/approval", null);
 

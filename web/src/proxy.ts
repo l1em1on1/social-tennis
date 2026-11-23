@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { JOIN_CODE_HEADER, joinCodeIn, loginPath } from "@/lib/join";
 import { STRICT_TRANSPORT_SECURITY, contentSecurityPolicy, newNonce } from "@/lib/security-headers";
 import { publicUrl, secureCookies, sessionCookie } from "@/lib/session";
 
@@ -25,10 +26,17 @@ export function proxy(request: NextRequest) {
 
   let response: NextResponse;
   if (!PUBLIC_PATH.test(request.nextUrl.pathname) && !request.cookies.get(sessionCookie())) {
-    response = new NextResponse(null, { status: 307, headers: { Location: publicUrl("/login") } });
+    // From a Club join link (#222), with its code, so the emailed sign-in link brings them back to it.
+    response = new NextResponse(null, { status: 307, headers: { Location: publicUrl(loginPath(joinCodeIn(request.nextUrl.pathname))) } });
   } else {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-nonce", nonce);
+    // The join link this request is for, if any, for a page that finds the session revoked (#222).
+    requestHeaders.delete(JOIN_CODE_HEADER);
+    const join = joinCodeIn(request.nextUrl.pathname);
+    if (join) {
+      requestHeaders.set(JOIN_CODE_HEADER, join);
+    }
     requestHeaders.set("Content-Security-Policy", csp);
     response = NextResponse.next({ request: { headers: requestHeaders } });
   }

@@ -29,6 +29,10 @@ namespace SocialTennis.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("JoinCode")
+                        .HasMaxLength(22)
+                        .HasColumnType("character varying(22)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -42,6 +46,9 @@ namespace SocialTennis.Api.Migrations
                         .HasDefaultValue("Europe/London");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("JoinCode")
+                        .IsUnique();
 
                     b.ToTable("Clubs");
                 });

@@ -2,6 +2,7 @@ import { Field, Input } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { createPlayer, updatePlayer } from "@/lib/actions";
+import type { NameFormPage } from "@/lib/join";
 import type { PlayerGender } from "@/lib/viewer";
 
 /** Matches the API's limit (Player.NameMaxLength). */
@@ -17,7 +18,7 @@ interface PlayerFormProps {
   hint?: string;
   submitLabel: string;
   /** The page the form is on, where a refused value is reported. */
-  from: "/" | "/profiles";
+  from: NameFormPage;
   /**
    * Also ask for Gender and Level. The first sign-in doesn't: one question,
    * and the rest can wait for Profiles.

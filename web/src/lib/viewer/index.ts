@@ -1,8 +1,9 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiWithSession } from "@/lib/api/server";
+import { JOIN_CODE_HEADER, loginPath } from "@/lib/join";
 import { ACTING_PLAYER_COOKIE } from "@/lib/session";
 import type { Role, Viewer } from "./types";
 
@@ -13,7 +14,8 @@ export type { PlayerClub, PlayerGender, PlayerSummary, Role, Viewer } from "./ty
  * Roles decide what the shell shows; the API checks them again on every call.
  *
  * proxy.ts only checks that a session cookie exists; this is the real validity
- * check — a revoked or expired session gets a 401 and lands back on /login.
+ * check — a revoked or expired session gets a 401 and lands back on /login,
+ * with the code of the Club join link it was opening, if any (#222).
  * Any other failure throws, so the route's error boundary shows it.
  *
  * Wrapped in React `cache`, so the layout and the page share one API round
@@ -26,7 +28,7 @@ export const getViewer = cache(async (): Promise<Viewer> => {
     api.GET("/players"),
   ]);
   if (response.status === 401 || playersResponse.status === 401) {
-    redirect("/login");
+    redirect(loginPath((await headers()).get(JOIN_CODE_HEADER)));
   }
   if (!me) {
     throw new Error(`GET /auth/me failed with ${response.status}`);

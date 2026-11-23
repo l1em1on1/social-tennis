@@ -54,7 +54,7 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         var client = await factory.CreateSignedInClientAsync();
         var created = await client.PostAsJsonAsync("/players", new { name });
         var playerId = (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
-        (await client.PutAsync($"/clubs/{clubId}/members/{playerId}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(client, clubId, playerId)).EnsureSuccessStatusCode();
         (await manager.PutAsync($"/clubs/{clubId}/members/{playerId}/approval", null)).EnsureSuccessStatusCode();
         return (client, playerId);
     }
@@ -322,7 +322,7 @@ public class LeaguesTests(AuthTestFactory factory) : IClassFixture<AuthTestFacto
         Assert.Equal(HttpStatusCode.NotFound, (await AskAsync(outsider, leagueId, outsiderId)).StatusCode);
         Assert.Empty(await PlayerLeaguesAsync(outsider, outsiderId));
 
-        (await outsider.PutAsync($"/clubs/{clubId}/members/{outsiderId}", null)).EnsureSuccessStatusCode();
+        (await factory.AskToJoinAsync(outsider, clubId, outsiderId)).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.NotFound, (await AskAsync(outsider, leagueId, outsiderId)).StatusCode);
         Assert.Empty(await PlayerLeaguesAsync(outsider, outsiderId));
 
