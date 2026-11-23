@@ -127,6 +127,7 @@ Scheduled jobs are commands in the API image that run once and exit; in producti
 
 ```sh
 docker compose run --rm api job purge-tokens   # deletes used or expired sign-in links and ended sessions
+docker compose run --rm api job auto-roll      # closes auto-rolling Stages past their deadline with nothing waiting on the Manager
 ```
 
 The exit code is 0 when the job finished, 1 when it failed, 2 for an unknown name (the log lists the jobs).
