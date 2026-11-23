@@ -19,12 +19,15 @@ namespace SocialTennis.Api.Features.Clubs;
 /// </summary>
 /// <remarks>
 /// Unlike an invite it makes the Player now, so it can be put in a League
-/// before the person arrives. Adding the same name and email twice makes two
-/// Players: two children can share a name, and a Manager can remove a mistake.
+/// before the person arrives. It also lets in the Players that email's User
+/// already holds, as pre-approving the email does: on Manage the two are one
+/// form, "Add someone", whose name is optional (#224). A name that User already
+/// holds (any case) makes no second Player: that Player is let in and returned,
+/// with 200 rather than 201.
 /// </remarks>
 public static class AddClubPlayer
 {
-    public static async Task<Results<Created<AddClubPlayerResponse>, NotFound>> HandleAsync(
+    public static async Task<Results<Created<AddClubPlayerResponse>, Ok<AddClubPlayerResponse>, NotFound>> HandleAsync(
         Guid clubId,
         AddClubPlayerRequest request,
         TennisDbContext db,
@@ -39,12 +42,29 @@ public static class AddClubPlayer
         var email = EmailAddress.Normalize(request.Email);
         var now = clock.GetUtcNow();
 
+        var name = request.Name.Trim();
+
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
+        var userId = await UserAccounts.EnsureAsync(db, email, now, cancellationToken);
+        // The login's Players come in with it, the one named too if it holds that name already.
+        await ClubAdmission.LetInAsync(db, email, clubId, now, cancellationToken);
+        var held = await db.Players
+            .Where(p => p.UserId == userId)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync(cancellationToken);
+        if (held.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) is { } existing)
+        {
+            await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return TypedResults.Ok(new AddClubPlayerResponse(existing.Id, existing.Name));
+        }
+
         var player = new Player
         {
             Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
-            UserId = await UserAccounts.EnsureAsync(db, email, now, cancellationToken),
+            Name = name,
+            UserId = userId,
             CreatedAt = now,
         };
         db.Players.Add(player);

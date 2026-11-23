@@ -215,24 +215,45 @@ export async function removeClubMember(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
-/** A Manager lets an email into a Club ahead of time. */
-export async function inviteToClub(formData: FormData) {
+/**
+ * A Manager lets someone into a Club by email, on Manage's "Add someone" form
+ * (#224). With a name, that Player is added now (`POST …/players`), and the
+ * address's other Players come in with it; a name the address already holds
+ * adds nobody new. Without one, the email is pre-approved (`POST …/invites`):
+ * its Players are in now, or once they sign in and save a name.
+ */
+export async function addToClub(formData: FormData) {
   const clubId = formData.get("clubId");
   const email = formData.get("email");
-  if (!isId(clubId) || typeof email !== "string") {
+  const name = formData.get("name") ?? "";
+  if (!isId(clubId) || typeof email !== "string" || typeof name !== "string") {
     redirect("/manage?error=email");
   }
 
   const api = await apiWithSession();
-  const { response } = await api.POST("/clubs/{clubId}/invites", { params: { path: { clubId } }, body: { email } });
-  if (response.status === 400) {
-    redirect("/manage?error=email");
+  const params = { params: { path: { clubId } } };
+  if (name.trim() === "") {
+    const { response } = await api.POST("/clubs/{clubId}/invites", { ...params, body: { email } });
+    if (response.status === 400) {
+      redirect("/manage?error=email");
+    }
+    if (!response.ok) {
+      throw new Error(`Inviting to club ${clubId} failed with ${response.status}`);
+    }
+    revalidatePath("/", "layout");
+    redirect(`/manage?invited=${encodeURIComponent(email.trim())}`);
   }
-  if (!response.ok) {
-    throw new Error(`Inviting to club ${clubId} failed with ${response.status}`);
+
+  const { data, response } = await api.POST("/clubs/{clubId}/players", { ...params, body: { name, email } });
+  if (response.status === 400) {
+    redirect("/manage?error=player");
+  }
+  if (!response.ok || !data) {
+    throw new Error(`Adding a player to club ${clubId} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
-  redirect(`/manage?invited=${encodeURIComponent(email.trim())}`);
+  // The Player's name as held: one the address had already keeps its own spelling.
+  redirect(`/manage?added=${encodeURIComponent(data.name)}`);
 }
 
 /** A Manager takes back an invite. Players it already let in stay members. */
@@ -356,30 +377,6 @@ export async function revokeRole(formData: FormData) {
     throw new Error(`Removing ${path.role} failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
-}
-
-/** A Manager adds a Player to a Club by name and email, for someone who may not have signed in yet. */
-export async function addClubPlayer(formData: FormData) {
-  const clubId = formData.get("clubId");
-  const name = formData.get("name");
-  const email = formData.get("email");
-  if (!isId(clubId) || typeof name !== "string" || typeof email !== "string") {
-    redirect("/manage?error=player");
-  }
-
-  const api = await apiWithSession();
-  const { response } = await api.POST("/clubs/{clubId}/players", {
-    params: { path: { clubId } },
-    body: { name, email },
-  });
-  if (response.status === 400) {
-    redirect("/manage?error=player");
-  }
-  if (!response.ok) {
-    throw new Error(`Adding a player to club ${clubId} failed with ${response.status}`);
-  }
-  revalidatePath("/", "layout");
-  redirect(`/manage?added=${encodeURIComponent(name.trim())}`);
 }
 
 /** The setup form's fields, as the API takes them. Null if a value isn't one the form offers. */

@@ -183,7 +183,7 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
     }
 
     [Fact]
-    public async Task A_Player_added_for_someone_already_signed_in_is_theirs_at_once_and_their_own_Players_are_untouched()
+    public async Task A_Player_added_for_someone_already_signed_in_is_theirs_at_once_and_lets_their_own_Players_in()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await factory.AClubIdAsync();
@@ -193,9 +193,11 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Pat Junior", email });
 
+        // The login is let in, as pre-approving its email would (#224): Pat joins with Pat Junior.
         var players = await PlayersAsync(client);
         Assert.Equal(["Pat", "Pat Junior"], players.Select(player => player.Name));
-        Assert.Empty(players.Single(player => player.Id == own).Clubs);
+        Assert.All(players, player => Assert.True(Assert.Single(player.Clubs, club => club.Id == clubId).Approved, player.Name));
+        Assert.Contains(players, player => player.Id == own);
     }
 
     [Fact]

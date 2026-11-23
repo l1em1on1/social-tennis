@@ -758,6 +758,16 @@ export const handlers = [
     if (name.length === 0 || name.length > 100 || !email.includes("@")) {
       return response(400).json(invalid("name"), problemJson);
     }
+    // As the API (#224): the address's Players come in too, and a name it holds already adds nobody new.
+    const held = allPlayers().filter((candidate) => candidate.email === email);
+    for (const other of held) {
+      other.membership = { approved: true, requestedAt: other.membership?.requestedAt ?? new Date().toISOString() };
+    }
+    const same = held.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
+    if (same) {
+      invitedEmails.delete(email);
+      return response(200).json({ playerId: same.id, name: same.name });
+    }
     const player: MockPlayer = {
       id: nextPlayerId(),
       name,

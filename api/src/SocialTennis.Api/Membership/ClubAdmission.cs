@@ -40,6 +40,35 @@ internal static class ClubAdmission
     }
 
     /// <summary>
+    /// Lets the Players this email's User holds into a Club: each one not in it
+    /// joins, and each one whose request was waiting is approved. Pre-approving
+    /// an email and a Manager adding a Player both do this (#224). Call it holding
+    /// <see cref="LockEmailAsync"/>, before saving. Returns how many Players the
+    /// User holds, none if the email has no User yet.
+    /// </summary>
+    public static async Task<int> LetInAsync(
+        TennisDbContext db, string normalizedEmail, Guid clubId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var players = await db.Players
+            .Where(p => p.User.Email == normalizedEmail)
+            .Select(p => new { p.Id, IsMember = p.Memberships.Any(m => m.ClubId == clubId) })
+            .ToListAsync(cancellationToken);
+        foreach (var player in players.Where(p => !p.IsMember))
+        {
+            db.ClubMemberships.Add(Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
+        }
+
+        // Waiting requests become memberships in one conditional update, so a
+        // Player leaving at this moment (which takes no lock) is skipped
+        // rather than failing (#109).
+        var waiting = players.Where(p => p.IsMember).Select(p => p.Id).ToList();
+        await db.ClubMemberships
+            .Where(m => m.ClubId == clubId && waiting.Contains(m.PlayerId))
+            .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
+        return players.Count;
+    }
+
+    /// <summary>
     /// Makes a Player the User has just been given a member of every Club that
     /// invited the User's email, and of every Club the User already holds a
     /// member of, and uses those invites up. Call it holding

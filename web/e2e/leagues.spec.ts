@@ -9,9 +9,9 @@ import { expectNoSeriousA11yViolations } from "./support/axe";
 /** On Manage: adds a Player to the first Club for an email nobody has signed in with yet. */
 async function addClubPlayer(manager: Page, name: string, email: string) {
   await manager.goto("/manage");
-  await manager.getByLabel("Player's name").first().fill(name);
+  await manager.getByLabel("Name (optional)").first().fill(name);
   await manager.getByLabel("Their email address").first().fill(email);
-  await manager.getByRole("button", { name: "Add player" }).first().click();
+  await manager.getByRole("button", { name: "Add", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${name} is added`);
 }
 

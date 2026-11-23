@@ -474,6 +474,25 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task A_name_the_login_already_holds_adds_no_second_Player_and_lets_that_one_in()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"held-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var sam = await CreatePlayerAsync(client, "Sam Smith");
+        var clubId = await NewClubIdAsync();
+
+        // Typed as the Manager hears it: any case, any spacing around.
+        var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "  sam SMITH ", email });
+
+        Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+        var body = await added.Content.ReadFromJsonAsync<AddClubPlayerResponse>();
+        Assert.Equal((sam.Id, "Sam Smith"), (body!.PlayerId, body.Name));
+        var only = Assert.Single(await PlayersAsync(client));
+        Assert.True(Assert.Single(only.Clubs).Approved);
+    }
+
+    [Fact]
     public async Task A_Player_a_Manager_adds_in_the_inviting_Club_is_a_member_once_and_uses_the_invite_up()
     {
         using var manager = await factory.CreateManagerClientAsync();
