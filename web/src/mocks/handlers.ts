@@ -403,6 +403,22 @@ const teamPlayers = (league: MockLeague, teamId: string) =>
       name: allPlayers().find((candidate) => candidate.id === participant.playerId)?.name ?? "",
     }));
 
+/**
+ * A Game's id, by its League, Stage and pair of Teams: so a mid-Stage move (#10),
+ * which shifts places, leaves every other Game, and its Score, where it was.
+ */
+const gameIds = new Map<string, string>();
+let gamesMade = 0;
+function gameIdOf(league: MockLeague, stage: number, first: string, second: string) {
+  const key = `${league.id}:${stage}:${first}:${second}`;
+  let id = gameIds.get(key);
+  if (!id) {
+    id = `00000000-0000-4000-8000-7${String((gamesMade += 1)).padStart(11, "0")}`;
+    gameIds.set(key, id);
+  }
+  return id;
+}
+
 /** The current Stage as a MockStage; none before the start. */
 const currentOf = (league: MockLeague): MockStage | null =>
   league.stage ? { stage: league.stage, ladder: league.ladder, divisions: league.divisions } : null;
@@ -416,9 +432,8 @@ function ladderOf(league: MockLeague, of: MockStage | null = currentOf(league)) 
     const teams = competitors.slice(start, start + size);
     start += size;
     const games = teams.flatMap((first, i) =>
-      teams.slice(i + 1).map((second, j) => ({
-        // Unique across Leagues and Stages: the League's number, the Stage's, then the Division and the pair.
-        id: `00000000-0000-4000-8000-7${league.id.slice(-4)}${of.stage.number % 10}${String(index + 1).padStart(2, "0")}${String(i).padStart(2, "0")}${String(i + j + 1).padStart(2, "0")}`,
+      teams.slice(i + 1).map((second) => ({
+        id: gameIdOf(league, of.stage.number, first.teamId, second.teamId),
         firstTeamId: first.teamId,
         secondTeamId: second.teamId,
       })),
@@ -1042,6 +1057,46 @@ export const handlers = [
     const awaiting = league.stageClosed ? { unscoredGameIds: [], ties: [] } : awaitingOf(divisions);
     const heldUp = !league.stageClosed && clubToday() > league.stage.endDate;
     return response(200).json({ ...facts, stage: league.stage, divisions, heldUp, awaiting, ended: league.stageClosed });
+  }),
+
+  // As the API's MoveTeam (#10): a Team on the ladder to another Division, mid-Stage.
+  http.post("/leagues/{leagueId}/moves", async ({ request, params, response }) => {
+    const user = userOf(emailOf(request));
+    const league = leagueById(params.leagueId);
+    const { teamId, toDivision } = await request.json();
+    if (!(user.manager || user.admin) || !league?.stage || !league.teams.some((team) => team.id === teamId)) {
+      return response(404).empty();
+    }
+    if (league.stageClosed) {
+      return response(409).json(conflict("stage-closed", "This League's last Stage has closed: the League has ended."), problemJson);
+    }
+    const divisions = ladderDivisions(league);
+    const from = divisions.find((division) => division.competitors.some((competitor) => competitor.teamId === teamId));
+    if (!from) {
+      return response(409).json(conflict("not-on-the-ladder", "This Team isn't on the ladder this Stage."), problemJson);
+    }
+    const to = Number(toDivision);
+    if (to > divisions.length || to === from.number) {
+      return response(400).json(invalid("toDivision"), problemJson);
+    }
+    const played = from.games.some((game) => game.score && (game.firstTeamId === teamId || game.secondTeamId === teamId));
+    if (played) {
+      return response(409).json(conflict("team-has-results", "This Team has a result this Stage, so it can't move now."), problemJson);
+    }
+    if (from.competitors.length <= 2) {
+      return response(409).json(conflict("division-too-small", `Division ${from.number} would be left with one Team.`), problemJson);
+    }
+    // As the API deletes them: the Team's Games where it was, their not-played marks with them, so if it
+    // comes back it gets new Games, not its old ones (#219 review).
+    for (const game of from.games.filter((game) => game.firstTeamId === teamId || game.secondTeamId === teamId)) {
+      voided.delete(game.id);
+      for (const [key, id] of gameIds) if (id === game.id) gameIds.delete(key);
+    }
+    const order = divisions.map((division) => division.competitors.map((competitor) => competitor.teamId).filter((team) => team !== teamId));
+    order[to - 1].push(teamId);
+    league.ladder = order.flat();
+    league.divisions = order.map((division) => division.length);
+    return response(204).empty();
   }),
 
   // Closing the current Stage (#10): as the API's GetStageClose and CloseStage.

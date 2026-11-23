@@ -420,6 +420,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MoveTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/ladder": {
         parameters: {
             query?: never;
@@ -1037,6 +1053,12 @@ export interface components {
         LeagueType: "SinglesMen" | "SinglesWomen" | "SinglesMixed" | "DoublesMen" | "DoublesWomen" | "DoublesMix" | "Foursomes";
         MagicLinkRequest: {
             email: string;
+        };
+        MoveTeamRequest: {
+            /** Format: uuid */
+            teamId: string;
+            /** Format: int32 */
+            toDivision: number | string;
         };
         OverrideScoreRequest: {
             /** Format: date */
@@ -2718,6 +2740,64 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CloseStageRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    MoveTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveTeamRequest"];
             };
         };
         responses: {

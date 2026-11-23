@@ -1084,4 +1084,128 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Equal(CloseRefusal.TiesOpen, result.Refusal);
         Assert.False((await GameAsync(players[0].Client, ladder.Divisions[0].Games.Single().Id)).Stage.Closed);
     }
+
+    /// <summary>Five Teams in two Divisions, Ann over Bea, then Cal over Dee over Eve; one set of 6.</summary>
+    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> FiveAsync(
+        string stageRoll = "Manual")
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, stageRoll: stageRoll);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bea", "Cal", "Dee", "Eve" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        var teams = players.Select(p => TeamOf(league, p.PlayerId)).ToArray();
+        await StartAsync(manager, leagueId, teams, divisions: [2, 3]);
+        return (manager, leagueId, players, teams);
+    }
+
+    private static Task<HttpResponseMessage> MoveAsync(HttpClient manager, Guid leagueId, Guid teamId, int toDivision) =>
+        manager.PostAsJsonAsync($"/leagues/{leagueId}/moves", new { teamId, toDivision });
+
+    private static (Guid, Guid)[] Pairs(LadderDivision division) => [.. division.Games.Select(g => (g.FirstTeamId, g.SecondTeamId))];
+
+    [Fact]
+    public async Task A_Manager_moves_a_Team_to_the_bottom_of_another_Division_and_it_plays_everyone_there()
+    {
+        var (manager, leagueId, _, teams) = await FiveAsync();
+        var before = await LadderOfAsync(manager, leagueId);
+        // One of Cal's Games was marked not played: it goes with the rest.
+        var calDee = before.Divisions[1].Games.Single(g => g.FirstTeamId == teams[2] && g.SecondTeamId == teams[3]).Id;
+        (await VoidAsync(manager, calDee)).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await MoveAsync(manager, leagueId, teams[2], 1)).StatusCode);
+
+        var after = await LadderOfAsync(manager, leagueId);
+        Assert.Equal(
+            [[(teams[0], 1), (teams[1], 2), (teams[2], 3)], [(teams[3], 4), (teams[4], 5)]],
+            after.Divisions.Select(d => d.Competitors.Select(c => (c.TeamId, (int)c.Position)).ToArray()));
+        // Ann v Bea stays; Cal plays each of them as Side 2; Division 2 keeps only Dee v Eve.
+        Assert.Equal([(teams[0], teams[1]), (teams[0], teams[2]), (teams[1], teams[2])], Pairs(after.Divisions[0]));
+        Assert.Equal([(teams[3], teams[4])], Pairs(after.Divisions[1]));
+        Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/games/{calDee}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_Team_moves_only_on_the_ladder_without_a_result_this_Stage_and_leaving_two_behind()
+    {
+        var (manager, leagueId, players, teams) = await FiveAsync();
+        var ladder = await LadderOfAsync(manager, leagueId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await MoveAsync(players[0].Client, leagueId, teams[2], 1)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await MoveAsync(manager, leagueId, Guid.NewGuid(), 1)).StatusCode);
+        Assert.Equal(["It's in Division 2 already."], (await ErrorsAsync(await MoveAsync(manager, leagueId, teams[2], 2)))["toDivision"]);
+        Assert.Equal(["This ladder has 2 Divisions."], (await ErrorsAsync(await MoveAsync(manager, leagueId, teams[2], 3)))["toDivision"]);
+        // Ann's Division has two: it can't lose one.
+        Assert.Equal("division-too-small", await ProblemTypeAsync(await MoveAsync(manager, leagueId, teams[0], 2), HttpStatusCode.Conflict));
+        // Dee has played: results stay where they were played.
+        var deeEve = ladder.Divisions[1].Games.Single(g => g.FirstTeamId == teams[3] && g.SecondTeamId == teams[4]).Id;
+        (await SubmitAsync(players[3].Client, deeEve, players[3].PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        Assert.Equal("team-has-results", await ProblemTypeAsync(await MoveAsync(manager, leagueId, teams[3], 1), HttpStatusCode.Conflict));
+        Assert.Equal(2, (await LadderOfAsync(manager, leagueId)).Divisions[0].Competitors.Count);
+
+        // Once the League has ended, nobody moves (#219 review).
+        var ended = await TwoDivisionsAsync(endDate: $"{Year}-07-31");
+        var endedLadder = await LadderOfAsync(ended.Manager, ended.LeagueId);
+        foreach (var game in endedLadder.Divisions.SelectMany(d => d.Games))
+        {
+            (await VoidAsync(ended.Manager, game.Id)).EnsureSuccessStatusCode();
+        }
+        (await CloseAsync(ended.Manager, ended.LeagueId, Order([ended.Teams[0], ended.Teams[1]], [ended.Teams[2], ended.Teams[3]]))).EnsureSuccessStatusCode();
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await MoveAsync(ended.Manager, ended.LeagueId, ended.Teams[2], 1), HttpStatusCode.Conflict));
+        Assert.Equal(
+            [[ended.Teams[0], ended.Teams[1]], [ended.Teams[2], ended.Teams[3]]],
+            (await LadderOfAsync(ended.Manager, ended.LeagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+
+        // A Team off the ladder isn't moved: it's added at the close.
+        var waiting = await SinglesAsync(OneSetOf6);
+        var wes = TeamOf(await ManagedAsync(waiting.Manager, waiting.LeagueId), waiting.Wes.PlayerId);
+        Assert.Equal("not-on-the-ladder", await ProblemTypeAsync(await MoveAsync(waiting.Manager, waiting.LeagueId, wes, 1), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task After_a_move_the_Stage_closes_as_usual_and_a_close_screen_from_before_it_is_refused()
+    {
+        var (manager, leagueId, players, teams) = await FiveAsync();
+        var before = await CloseScreenAsync(manager, leagueId);
+        (await MoveAsync(manager, leagueId, teams[2], 1)).EnsureSuccessStatusCode();
+        var after = await LadderOfAsync(manager, leagueId);
+        foreach (var game in after.Divisions.SelectMany(d => d.Games))
+        {
+            (await RecordAsync(manager, game.Id, [Set(6, 2)])).EnsureSuccessStatusCode();
+        }
+        string start = $"{Year}-08-01", end = $"{Year}-08-31";
+
+        // What the screen showed before the move no longer matches the Divisions.
+        var stale = before.Divisions.Select(d => d.Standings.Select(s => s.TeamId).ToArray()).ToArray();
+        Assert.Equal("standings-changed", await ProblemTypeAsync(await CloseAsync(manager, leagueId, stale, start: start, end: end), HttpStatusCode.Conflict));
+
+        // As it stands: Ann beat Bea and Cal, Bea beat Cal; Dee beat Eve.
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1], teams[2]], [teams[3], teams[4]]), start: start, end: end))
+            .EnsureSuccessStatusCode();
+        var next = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Equal(
+            [[teams[0], teams[1], teams[3]], [teams[2], teams[4]]],
+            next.Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+    }
+
+    [Fact]
+    public async Task The_auto_roll_job_rolls_a_Stage_after_a_move()
+    {
+        var (manager, leagueId, players, teams) = await FiveAsync(stageRoll: "Automatic");
+        (await MoveAsync(manager, leagueId, teams[2], 1)).EnsureSuccessStatusCode();
+        foreach (var game in (await LadderOfAsync(manager, leagueId)).Divisions.SelectMany(d => d.Games))
+        {
+            (await RecordAsync(manager, game.Id, [Set(6, 2)])).EnsureSuccessStatusCode();
+        }
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 1, 12, 0, 0, TimeSpan.Zero);
+
+        await RollAsync();
+
+        var next = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Equal(2, (int)next.Stage!.Number);
+        Assert.Equal([teams[0], teams[1], teams[3]], next.Divisions[0].Competitors.Select(c => c.TeamId));
+    }
 }

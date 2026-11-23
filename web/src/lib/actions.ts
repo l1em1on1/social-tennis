@@ -821,3 +821,39 @@ export async function closeStage(_previous: CloseStageState, formData: FormData)
   revalidatePath("/", "layout");
   redirect(`/manage/leagues/${leagueId}${response.ok ? "?closed=1" : ""}`);
 }
+
+/** The move refusals the Manager's League page explains (#10), by the API's type. */
+const MOVE_REFUSALS = ["team-has-results", "division-too-small", "not-on-the-ladder", "stage-closed"] as const;
+
+/**
+ * A Manager moves a Team on the ladder to another Division mid-Stage (#10).
+ * The League's page says what happened, or why it couldn't.
+ */
+export async function moveTeam(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const teamId = formData.get("teamId");
+  const toDivision = Number(formData.get("toDivision"));
+  if (!isId(leagueId)) return;
+  if (!isId(teamId) || !Number.isInteger(toDivision) || toDivision < 1) {
+    redirect(`/manage/leagues/${leagueId}?moveRefused=invalid`);
+  }
+
+  const api = await apiWithSession();
+  const { error, response } = await api.POST("/leagues/{leagueId}/moves", {
+    params: { path: { leagueId } },
+    body: { teamId, toDivision },
+  });
+  if (response.status === 400) {
+    redirect(`/manage/leagues/${leagueId}?moveRefused=invalid`);
+  }
+  if (response.status === 409) {
+    const type = error && "type" in error && typeof error.type === "string" ? error.type : "";
+    const known = (MOVE_REFUSALS as readonly string[]).includes(type) ? type : "changed";
+    redirect(`/manage/leagues/${leagueId}?moveRefused=${known}`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`POST /leagues/${leagueId}/moves failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/manage/leagues/${leagueId}${response.ok ? `?moved=${teamId}` : ""}`);
+}
