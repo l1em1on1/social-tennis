@@ -20,6 +20,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/players/{playerId}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetPlayerGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clubs": {
         parameters: {
             query?: never;
@@ -872,6 +888,10 @@ export interface components {
             waitingRequestCount: number | string;
             firstStage: components["schemas"]["LeagueStageSummary"];
         };
+        GetPlayerGamesResponse: {
+            leagues: components["schemas"]["PlayerGamesLeague"][];
+            page: components["schemas"]["PageInfo"];
+        };
         GetPlayerLeaguesResponse: {
             leagues: components["schemas"]["PlayerLeague"][];
             page: components["schemas"]["PageInfo"];
@@ -1096,6 +1116,31 @@ export interface components {
             name: string;
             approved: boolean;
         };
+        PlayerGame: {
+            /** Format: uuid */
+            gameId: string;
+            /** Format: int32 */
+            yourSide: number | string;
+            partners: string[];
+            opponents: string[];
+            score: null | components["schemas"]["LadderGameScore"];
+            notPlayed: boolean;
+        };
+        PlayerGamesLeague: {
+            /** Format: uuid */
+            leagueId: string;
+            leagueName: string;
+            clubName: string;
+            stage: components["schemas"]["LeagueStageSummary"];
+            /** Format: int32 */
+            division: null | number | string;
+            heldUp: boolean;
+            /** Format: int32 */
+            unscoredGames: number | string;
+            /** Format: int32 */
+            openTies: number | string;
+            games: components["schemas"]["PlayerGame"][];
+        };
         /** @enum {unknown} */
         PlayerGender: "Male" | "Female" | null;
         PlayerLeague: {
@@ -1312,6 +1357,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetPlayerLeaguesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetPlayerGames: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetPlayerGamesResponse"];
                 };
             };
             /** @description Unauthorized */

@@ -1208,4 +1208,151 @@ public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestF
         Assert.Equal(2, (int)next.Stage!.Number);
         Assert.Equal([teams[0], teams[1], teams[3]], next.Divisions[0].Competitors.Select(c => c.TeamId));
     }
+
+    private static async Task<GetPlayerGamesResponse> HomeAsync(HttpClient client, Guid playerId) =>
+        (await client.GetFromJsonAsync<GetPlayerGamesResponse>($"/players/{playerId}/games"))!;
+
+    [Fact]
+    public async Task Home_lists_a_Players_Games_this_Stage_and_their_Scores_once_entered()
+    {
+        var (_, leagueId, players, teams) = await TwoDivisionsAsync();
+        var before = (await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues.Single();
+
+        Assert.Equal((leagueId, 1, 1), (before.LeagueId, before.Division, (int)before.Stage.Number));
+        Assert.Equal((new DateOnly(Year, 7, 31), false, 2, 2), (before.Stage.EndDate, before.HeldUp, before.UnscoredGames, before.OpenTies));
+        var game = before.Games.Single();
+        Assert.Equal((1, (LadderGameScore?)null, false), (game.YourSide, game.Score, game.NotPlayed));
+        Assert.Empty(game.Partners);
+        Assert.Equal(["Bea"], game.Opponents);
+
+        // Bea wins it: Ann's Home has the Score, read from her Side.
+        (await SubmitAsync(players[1].Client, game.GameId, players[1].PlayerId, [Set(4, 6), Set(4, 6)])).EnsureSuccessStatusCode();
+        var after = (await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues.Single();
+        Assert.Equal((2, 1), (after.Games.Single().Score!.Winner, after.UnscoredGames));
+        // Bea sees the same Game as Side 2.
+        Assert.Equal(2, (await HomeAsync(players[1].Client, players[1].PlayerId)).Leagues.Single().Games.Single().YourSide);
+    }
+
+    [Fact]
+    public async Task Home_says_a_Player_is_off_the_ladder_and_when_the_Stage_is_held_up()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+
+        var wes = (await HomeAsync(game.Wes.Client, game.Wes.PlayerId)).Leagues.Single();
+        Assert.Equal(((int?)null, 0), (wes.Division, wes.Games.Count));
+
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 1, 12, 0, 0, TimeSpan.Zero);
+        var una = (await HomeAsync(game.Una.Client, game.Una.PlayerId)).Leagues.Single();
+        Assert.Equal((true, 1), (una.HeldUp, una.UnscoredGames));
+    }
+
+    [Fact]
+    public async Task Home_names_a_doubles_Players_partner_and_both_opponents()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, "DoublesMix");
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bob", "Cat", "Dan" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var pairs = new List<Guid>();
+        foreach (var (first, second) in new[] { (players[0], players[1]), (players[2], players[3]) })
+        {
+            var paired = await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = first.PlayerId, secondPlayerId = second.PlayerId });
+            pairs.Add((await paired.Content.ReadFromJsonAsync<PairTeamResponse>())!.Id);
+        }
+        await StartAsync(manager, leagueId, [.. pairs]);
+
+        var game = (await HomeAsync(players[3].Client, players[3].PlayerId)).Leagues.Single().Games.Single();
+
+        Assert.Equal(["Cat"], game.Partners);
+        Assert.Equal(["Ann", "Bob"], game.Opponents.Order());
+    }
+
+    /// <summary>A started singles League of three, Ann over Bea over Cal, in one Division.</summary>
+    private async Task<(HttpClient Manager, Guid ClubId, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players)> ThreeInADivisionAsync()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bea", "Cal" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        await StartAsync(manager, leagueId, [.. players.Select(p => TeamOf(league, p.PlayerId))]);
+        return (manager, clubId, leagueId, players);
+    }
+
+    [Fact]
+    public async Task Home_lists_only_the_Players_own_Games_in_their_Division()
+    {
+        var (_, _, _, players) = await ThreeInADivisionAsync();
+
+        // Ann plays Bea and Cal; Bea v Cal isn't hers (#221 review).
+        var games = (await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues.Single().Games;
+
+        Assert.Equal(["Bea", "Cal"], games.SelectMany(g => g.Opponents).Order());
+        Assert.All(games, g => Assert.Empty(g.Partners));
+    }
+
+    [Fact]
+    public async Task Home_leaves_out_the_Leagues_of_a_Club_the_Player_was_removed_from()
+    {
+        var (manager, clubId, _, players) = await ThreeInADivisionAsync();
+        Assert.Single((await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues);
+
+        // Removed from the Club, Ann no longer sees its Leagues (#109, #221 review).
+        (await manager.DeleteAsync($"/clubs/{clubId}/members/{players[0].PlayerId}")).EnsureSuccessStatusCode();
+
+        Assert.Empty((await HomeAsync(players[0].Client, players[0].PlayerId)).Leagues);
+    }
+
+    [Fact]
+    public async Task Home_lists_only_Leagues_under_way_the_soonest_deadline_first_and_only_the_Players_own()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var ann = await MemberAsync(manager, clubId, "Ann");
+        // Ann in a Stage ending 31 August, one ending 31 July, one not started, and one ended.
+        async Task<Guid> LeagueWithAnnAsync(string? endDate = null, bool start = true, int months = 1)
+        {
+            var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
+            {
+                name = $"League {Guid.NewGuid():N}",
+                type = "SinglesMixed",
+                structure = "Divisional",
+                startDate = $"{Year}-07-01",
+                endDate = endDate ?? $"{Year}-09-30",
+                stageLength = new { count = months, unit = "Months" },
+                stageRoll = "Manual",
+                scoreFormat = OneSetOf6,
+            });
+            var leagueId = (await response.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
+            (await manager.PutAsync($"/leagues/{leagueId}/participants/{ann.PlayerId}", null)).EnsureSuccessStatusCode();
+            var other = await ParticipantAsync(manager, clubId, leagueId, "Other");
+            if (start)
+            {
+                var teams = await ManagedAsync(manager, leagueId);
+                await StartAsync(manager, leagueId, [TeamOf(teams, ann.PlayerId), TeamOf(teams, other.PlayerId)]);
+            }
+            return leagueId;
+        }
+        var august = await LeagueWithAnnAsync(months: 2);
+        var july = await LeagueWithAnnAsync();
+        await LeagueWithAnnAsync(start: false);
+        var ended = await LeagueWithAnnAsync(endDate: $"{Year}-07-31");
+        var endedGame = (await LadderOfAsync(manager, ended)).Divisions.Single().Games.Single().Id;
+        (await VoidAsync(manager, endedGame)).EnsureSuccessStatusCode();
+        (await CloseAsync(manager, ended, [[.. (await LadderOfAsync(manager, ended)).Divisions.Single().Standings.Select(s => s.TeamId)]])).EnsureSuccessStatusCode();
+
+        Assert.Equal([july, august], (await HomeAsync(ann.Client, ann.PlayerId)).Leagues.Select(l => l.LeagueId));
+
+        // Another User's Player is a 404; a Player in no League has an empty Home.
+        var stranger = await MemberAsync(manager, clubId, "Stranger");
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.Client.GetAsync($"/players/{ann.PlayerId}/games")).StatusCode);
+        var home = await HomeAsync(stranger.Client, stranger.PlayerId);
+        Assert.Empty(home.Leagues);
+        Assert.Equal(0, home.Page.Total);
+    }
 }

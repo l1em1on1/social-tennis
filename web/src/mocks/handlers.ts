@@ -1531,6 +1531,50 @@ export const handlers = [
     return response(204).empty();
   }),
 
+  // As the API's GetPlayerGames (#42): Home's Games this Stage, by League, the soonest deadline first.
+  http.get("/players/{playerId}/games", ({ request, params, response }) => {
+    const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
+    if (!player) {
+      return response(404).empty();
+    }
+    const list = leagues
+      .filter((league) => league.stage && !league.stageClosed && isClubMember(player, league.clubId))
+      .filter((league) => league.participants.some((participant) => participant.playerId === player.id))
+      .sort((a, b) => a.stage!.endDate.localeCompare(b.stage!.endDate) || a.name.localeCompare(b.name))
+      .map((league) => {
+        const divisions = ladderDivisions(league);
+        const awaiting = awaitingOf(divisions);
+        const teamId = league.participants.find((participant) => participant.playerId === player.id)?.teamId;
+        const division = divisions.find((candidate) => candidate.competitors.some((competitor) => competitor.teamId === teamId));
+        const players = (team: string) => division!.competitors.find((competitor) => competitor.teamId === team)!.players;
+        return {
+          leagueId: league.id,
+          leagueName: league.name,
+          clubName: MOCK_CLUB.name,
+          stage: league.stage!,
+          division: division?.number ?? null,
+          heldUp: clubToday() > league.stage!.endDate,
+          unscoredGames: awaiting.unscoredGameIds.length,
+          openTies: awaiting.ties.length,
+          games: (division?.games ?? [])
+            .filter((game) => game.firstTeamId === teamId || game.secondTeamId === teamId)
+            .map((game) => {
+              const yourSide = game.firstTeamId === teamId ? 1 : 2;
+              const [ours, theirs] = yourSide === 1 ? [game.firstTeamId, game.secondTeamId] : [game.secondTeamId, game.firstTeamId];
+              return {
+                gameId: game.id,
+                yourSide,
+                partners: players(ours).filter((candidate) => candidate.playerId !== player.id).map((candidate) => candidate.name),
+                opponents: players(theirs).map((candidate) => candidate.name),
+                score: game.score,
+                notPlayed: game.notPlayed,
+              };
+            }),
+        };
+      });
+    return response(200).json({ leagues: list, page: wholeList(list.length) });
+  }),
+
   http.get("/players/{playerId}/leagues", ({ request, params, response }) => {
     const player = playersOf(request).find((candidate) => candidate.id === params.playerId);
     if (!player) {
