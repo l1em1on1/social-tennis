@@ -288,7 +288,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
               </form>
               {club.invites.length > 0 && (
                 <>
-                  <h4 className="text-sm font-semibold">Pre-approved, not signed in yet</h4>
+                  <h4 className="text-sm font-semibold">Pre-approved, no player yet</h4>
                   <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
                     {club.invites.map((invite) => (
                       <li key={invite.id} className="flex items-center gap-2 py-0.5">
