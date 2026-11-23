@@ -12,6 +12,15 @@ const directions = ["current", "lime", "clay", "grass"] as const;
 const modes = ["light", "dark"] as const;
 
 async function shoot(page: Page, screen: string) {
+  // As e2e/support/chromatic.ts does: a long page gets the nav in flow, drawn once at its end.
+  await page.evaluate(() => {
+    if (document.getElementById("nav-in-flow")) return;
+    const style = document.createElement("style");
+    style.nonce = document.querySelector<HTMLElement>("[nonce]")?.nonce ?? "";
+    style.id = "nav-in-flow";
+    style.textContent = 'nav[aria-label="Main"] { position: static !important; }';
+    document.head.append(style);
+  });
   for (const mode of modes) {
     await page.emulateMedia({ colorScheme: mode });
     for (const direction of directions) {
