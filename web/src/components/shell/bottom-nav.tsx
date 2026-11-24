@@ -70,7 +70,8 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
                     {icon}
                   </svg>
                 </LinkPending>
-                {label}
+                {/* Between md and lg the header is tight: icons only, the label still read out (#229 review). */}
+                <span className="md:max-lg:sr-only">{label}</span>
               </Link>
             </li>
           );

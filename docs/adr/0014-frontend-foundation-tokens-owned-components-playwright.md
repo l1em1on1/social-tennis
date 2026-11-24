@@ -24,7 +24,7 @@ Every Phase 1 ticket carries UI acceptance criteria and is done only when its sc
 
 **Amended (2026-11-24): responsive from `md` (#225).** The owner wants a better desktop version. Mobile-first stays: below Tailwind's `md` breakpoint (48rem, 768px) every screen is as it was. From `md` up:
 
-- **Navigation:** the main navigation is a top bar in the header, rather than tabs at the bottom. It is one `<nav aria-label="Main">` in the header either way, fixed to the bottom of a phone's screen by CSS, so it comes before the content in reading order.
+- **Navigation:** the main navigation is a top bar in the header, rather than tabs at the bottom. Between `md` and `lg` (1024px) it shows icons only, with each label still read out, and a long "Playing as" name is cut short, so the header fits a tablet held upright. It is one `<nav aria-label="Main">` in the header either way, fixed to the bottom of a phone's screen by CSS, so it comes before the content in reading order.
 - **Content:** it widens to `max-w-5xl`. Pages that gain from the width lay out in columns: Home's League cards, the Leagues list, Manage's Club cards (Leagues and the join link | who's in it), a League's Manager page, the ladder's Divisions, and Admin's table-like rows.
 - **Narrow pages:** forms, the Match screen, Profiles and the join page stay a centred `max-w-2xl` column (`PageColumn`).
 

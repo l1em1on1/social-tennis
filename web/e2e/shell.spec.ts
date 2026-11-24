@@ -54,6 +54,31 @@ test.describe("on a desktop screen", () => {
   });
 });
 
+test.describe("at the narrow end of md, a tablet held upright", () => {
+  test.use({ viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: false });
+
+  test("the header fits five entries and two Players with a long name", async ({ page }, testInfo) => {
+    await logIn(page, testInfo, personaEmail(testInfo, "manager-admin"));
+    await addFirstPlayer(page, "Bartholomew Featherstonehaugh");
+    await mainNav(page).getByRole("link", { name: "Profiles" }).click();
+    await addAnotherPlayer(page, "Bartholomew Featherstonehaugh Junior");
+    await mainNav(page).getByRole("link", { name: "Home" }).click();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+
+    // Icons only here, each still named by its label (#229 review).
+    await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, "horizontal scroll at 768px").toBeLessThanOrEqual(0);
+    for (const link of await mainNav(page).getByRole("link").all()) {
+      const box = await link.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
 test("a Player without roles sees no Manage or Admin entry, and can't open them", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 

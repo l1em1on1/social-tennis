@@ -18,15 +18,18 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
 
   // The accessible name is the visible text ("Playing as Alex Junior"), so
   // voice-control users can say what they see (WCAG 2.5.3, label in name).
+  // From md the header also holds the nav (#225): a long name is cut short there, in full on hover.
   const label = (
-    <span className="flex flex-col items-end leading-tight">
+    <span className="flex min-w-0 flex-col items-end leading-tight">
       <span className="text-xs font-normal text-fg-muted">Playing as </span>
-      <span data-testid="acting-player">{actingPlayer.name}</span>
+      <span data-testid="acting-player" title={actingPlayer.name} className="md:block md:max-w-40 md:truncate">
+        {actingPlayer.name}
+      </span>
     </span>
   );
 
   if (players.length === 1) {
-    return <div className="text-sm font-semibold">{label}</div>;
+    return <div className="min-w-0 text-sm font-semibold">{label}</div>;
   }
 
   return (
@@ -39,7 +42,7 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
         </>
       }
       triggerVariant="ghost"
-      triggerClassName="px-2 text-sm"
+      triggerClassName="min-w-0 px-2 text-sm"
     >
       <ul className="flex flex-col gap-2">
         {players.map((player) => {
