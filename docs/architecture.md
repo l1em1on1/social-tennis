@@ -587,7 +587,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | @playwright/test | 1.65.1 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.1-noble` image tag in `docker-compose.yml` (browsers ship in the image). Dependabot ignores the image (named `playwright` there), so both move together by hand on the npm PR |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
-| chromatic / @chromatic-com/playwright | 18.15.1 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
+| chromatic / @chromatic-com/playwright | 18.15.1 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.8, and its `esbuild` to the pinned version above, for security fixes (#133) |
 | storybook / @storybook/nextjs-vite / vite | 10.6.8 / 10.6.8 / 8.3.8 | Exact pins (#46). `storybook` is a direct dependency and also in `overrides`; the two must stay equal, or npm refuses the install |
 | TypeScript (language server only) | 5.x | sbx `toolchain` kit; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | sbx `rtk` kit; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest"; it checks the release checksum |
