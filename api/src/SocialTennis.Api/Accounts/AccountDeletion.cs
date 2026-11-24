@@ -8,11 +8,13 @@ using SocialTennis.Api.Features.Leagues;
 using SocialTennis.Api.Membership;
 using SocialTennis.Api.Roles;
 
-namespace SocialTennis.Api.Features.Users;
+namespace SocialTennis.Api.Accounts;
 
 /// <summary>
 /// Deleting a User (#116, ADR-0024): an Admin does it for someone who asked to
-/// be forgotten, and the 24-month retention job (#117) will reuse it.
+/// be forgotten, and the 24-month retention job (#117) will reuse it. Its own
+/// top-level folder, since a job calls it as well as an endpoint
+/// (docs/agents/api-endpoints.md).
 /// </summary>
 /// <remarks>
 /// <list type="bullet">

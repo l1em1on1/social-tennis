@@ -71,6 +71,19 @@ public partial class ScoreTests
     }
 
     [Fact]
+    public async Task A_deleted_Manager_who_marked_a_Game_not_played_is_deleted_and_the_mark_stays()
+    {
+        // The mark points at its Manager under a Restrict key: left in place, it would block the delete (#228 review).
+        var game = await SinglesAsync(OneSetOf6);
+        using var manager = await factory.CreateManagerClientAsync();
+        (await VoidAsync(manager, game.GameId)).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await DeleteUserAsync(await UserIdAsync(manager))).StatusCode);
+
+        Assert.True((await GameAsync(game.Vic.Client, game.GameId)).NotPlayed);
+    }
+
+    [Fact]
     public async Task A_deleted_email_signs_up_again_empty_and_its_old_links_and_invites_are_gone()
     {
         var (manager, _) = await ClubAsync();

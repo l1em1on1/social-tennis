@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
+using SocialTennis.Api.Accounts;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 
