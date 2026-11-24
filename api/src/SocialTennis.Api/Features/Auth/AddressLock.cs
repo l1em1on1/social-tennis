@@ -22,8 +22,12 @@ internal static class AddressLock
         TennisDbContext db, string normalizedEmail, CancellationToken cancellationToken)
     {
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({normalizedEmail}))", cancellationToken);
+        await TakeAsync(db, normalizedEmail, cancellationToken);
         return transaction;
     }
+
+    /// <summary>Takes this address's lock in the transaction already open, as deleting a User does (#116).</summary>
+    public static async Task TakeAsync(TennisDbContext db, string normalizedEmail, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({normalizedEmail}))", cancellationToken);
 }

@@ -25,10 +25,14 @@ internal static class LeagueEntry
         TennisDbContext db, Guid leagueId, CancellationToken cancellationToken)
     {
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({leagueId.ToString()}))", cancellationToken);
+        await TakeLeagueLockAsync(db, leagueId, cancellationToken);
         return transaction;
     }
+
+    /// <summary>Takes the League's lock in the transaction already open, as deleting a User does with several (#116).</summary>
+    public static async Task TakeLeagueLockAsync(TennisDbContext db, Guid leagueId, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({leagueId.ToString()}))", cancellationToken);
 
     /// <summary>Only a member of the League's Club can be in it: a pending membership doesn't count.</summary>
     public static Task<bool> IsClubMemberAsync(

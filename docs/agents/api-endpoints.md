@@ -12,7 +12,7 @@ api/src/SocialTennis.Api/
 │   └── Contracts/
 │       └── <RecordName>.cs     one file per request/response record
 ├── Contracts/                  shared across features: PageInfo, SetScore
-├── Validation/  OpenApi/  Authentication/  Membership/  Roles/
+├── Validation/  OpenApi/  Authentication/  Membership/  Roles/  Accounts/
 ├── Data/  Domain/  Migrations/
 ```
 

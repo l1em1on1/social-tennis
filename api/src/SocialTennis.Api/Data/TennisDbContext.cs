@@ -83,7 +83,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             player.Property(p => p.Name).HasMaxLength(Player.NameMaxLength);
             // Rows that predate the column are Players too, and none is unrated.
             player.Property(p => p.Rating).HasDefaultValue(Player.DefaultRating);
-            player.HasOne(p => p.User).WithMany().OnDelete(DeleteBehavior.Cascade);
+            // Restrict: a User is deleted only through AccountDeletion, which first makes its Players Former players (#116).
+            player.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ClubMembership>(membership =>

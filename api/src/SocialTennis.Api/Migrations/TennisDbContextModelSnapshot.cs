@@ -398,7 +398,7 @@ namespace SocialTennis.Api.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(1);
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -428,7 +428,7 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid?>("SubmittedById")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("SubmittedByUserId")
+                    b.Property<Guid?>("SubmittedByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<uint>("Version")
@@ -481,7 +481,7 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid?>("ByPlayerId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ByUserId")
+                    b.Property<Guid?>("ByUserId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("GameId")
@@ -834,8 +834,7 @@ namespace SocialTennis.Api.Migrations
                     b.HasOne("SocialTennis.Api.Domain.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("User");
                 });
@@ -850,8 +849,7 @@ namespace SocialTennis.Api.Migrations
                     b.HasOne("SocialTennis.Api.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("SubmittedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SocialTennis.Api.Domain.Game", "Game")
                         .WithOne("Score")
@@ -875,8 +873,7 @@ namespace SocialTennis.Api.Migrations
                     b.HasOne("SocialTennis.Api.Domain.User", "ByUser")
                         .WithMany()
                         .HasForeignKey("ByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SocialTennis.Api.Domain.Game", "Game")
                         .WithMany()

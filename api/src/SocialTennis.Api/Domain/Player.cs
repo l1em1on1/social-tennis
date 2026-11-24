@@ -51,10 +51,17 @@ public class Player
     /// </summary>
     public int Rating { get; set; } = DefaultRating;
 
-    /// <summary>The User holding this Player.</summary>
-    public Guid UserId { get; set; }
+    /// <summary>
+    /// The User holding this Player; none once that User is deleted (#116):
+    /// the Player is then a "Former player", held by nobody, kept only for the
+    /// results it played in.
+    /// </summary>
+    public Guid? UserId { get; set; }
 
-    public User User { get; set; } = null!;
+    public User? User { get; set; }
+
+    /// <summary>What a deleted User's Players are called (#116, ADR-0024).</summary>
+    public const string FormerPlayerName = "Former player";
 
     public List<ClubMembership> Memberships { get; set; } = [];
 

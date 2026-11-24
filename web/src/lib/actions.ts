@@ -379,6 +379,36 @@ export async function revokeRole(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+/**
+ * An Admin deletes a User (#116, ADR-0024): their Players show as "Former
+ * player" in results, and their sign-in ends. The API refuses (409) the
+ * Admin's own account, an Admin by configuration and the last Admin; the page
+ * offers none of those, so a refusal means the list changed underneath it.
+ */
+export async function deleteUser(formData: FormData) {
+  const userId = formData.get("userId");
+  if (!isId(userId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/users/{userId}", { params: { path: { userId } } });
+  if (response.status === 409) {
+    const search = formData.get("q");
+    const offset = formData.get("offset");
+    redirect(
+      adminHref({
+        error: "user-kept",
+        search: typeof search === "string" ? search.trim() : "",
+        offset: typeof offset === "string" ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0,
+      }),
+    );
+  }
+  // 404: another Admin deleted them first. The refreshed list shows that.
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Deleting a user failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
 /** The setup form's fields, as the API takes them. Null if a value isn't one the form offers. */
 function leagueFromForm(formData: FormData) {
   const text = (key: string) => {

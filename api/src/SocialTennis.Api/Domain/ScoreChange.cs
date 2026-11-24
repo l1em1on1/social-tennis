@@ -19,10 +19,10 @@ public class ScoreChange
 
     public DateTimeOffset At { get; set; }
 
-    /// <summary>The signed-in User who made it.</summary>
-    public Guid ByUserId { get; set; }
+    /// <summary>The signed-in User who made it; none once that User is deleted (#116).</summary>
+    public Guid? ByUserId { get; set; }
 
-    public User ByUser { get; set; } = null!;
+    public User? ByUser { get; set; }
 
     /// <summary>The Player they acted as, one who played the Game; none for a Manager's override.</summary>
     public Guid? ByPlayerId { get; set; }

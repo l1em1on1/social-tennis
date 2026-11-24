@@ -26,13 +26,14 @@ public static class CreatePlayer
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
+        var userId = user.UserId();
         var player = new Player
         {
             Id = Guid.NewGuid(),
             Name = request.Name.Trim(),
             Gender = request.Gender,
             Level = request.Level,
-            UserId = user.UserId(),
+            UserId = userId,
             CreatedAt = clock.GetUtcNow(),
         };
 
@@ -44,7 +45,7 @@ public static class CreatePlayer
 
         // Counted under the same per-email lock, so two adds at once can't both
         // slip in under the limit.
-        if (await db.Players.CountAsync(p => p.UserId == player.UserId, cancellationToken) >= Player.MaxPerUser)
+        if (await db.Players.CountAsync(p => p.UserId == userId, cancellationToken) >= Player.MaxPerUser)
         {
             return TypedResults.Problem(
                 statusCode: StatusCodes.Status409Conflict,
@@ -54,7 +55,7 @@ public static class CreatePlayer
         }
 
         db.Players.Add(player);
-        await ClubAdmission.AdmitNewPlayerAsync(db, player.UserId, email, player.Id, player.CreatedAt, cancellationToken);
+        await ClubAdmission.AdmitNewPlayerAsync(db, userId, email, player.Id, player.CreatedAt, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
