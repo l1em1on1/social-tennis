@@ -50,25 +50,25 @@ export function StandingsTable({
         <caption className="sr-only">Division {number} standings</caption>
         <thead className="text-xs text-fg-muted">
           <tr>
-            <th scope="col" className="w-8 py-1 font-medium">
+            <th scope="col" className="w-6 py-1 font-medium">
               <span className="sr-only">Place</span>
             </th>
             <th scope="col" className="py-1 font-medium">
               Team
             </th>
-            <th scope="col" className="w-7 py-1 text-center font-medium">
+            <th scope="col" className="w-6 py-1 text-center font-medium">
               <abbr title="Played">P</abbr>
             </th>
-            <th scope="col" className="w-7 py-1 text-center font-medium">
+            <th scope="col" className="w-6 py-1 text-center font-medium">
               <abbr title="Won">W</abbr>
             </th>
-            <th scope="col" className="w-7 py-1 text-center font-medium">
+            <th scope="col" className="w-6 py-1 text-center font-medium">
               <abbr title="Lost">L</abbr>
             </th>
-            <th scope="col" className="w-9 py-1 text-center font-medium">
+            <th scope="col" className="w-8 py-1 text-center font-medium">
               <abbr title="Games difference">±</abbr>
             </th>
-            <th scope="col" className="w-14 py-1 text-right font-medium">
+            <th scope="col" className="w-12 py-1 text-right font-medium">
               <span className="sr-only">If the Stage closed now</span>
             </th>
           </tr>
@@ -82,7 +82,7 @@ export function StandingsTable({
               <td className="py-1.5 tabular-nums text-fg-muted">
                 {results ? `${standing.tied ? "=" : ""}${Number(standing.rank)}` : "–"}
               </td>
-              <th scope="row" className="py-1.5 pr-2 font-[inherit] break-words">
+              <th scope="row" className="py-1.5 pr-2 font-[weight:inherit] wrap-anywhere">
                 {names[standing.teamId] ?? ""}
               </th>
               <td className="py-1.5 text-center tabular-nums">{Number(standing.played)}</td>

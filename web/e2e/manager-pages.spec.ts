@@ -101,6 +101,10 @@ test("a started League's ladder, from fixed data", async ({ page }, testInfo) =>
     /Jo Bennett v Chris Lee/,
     /Alex Morgan v Chris Lee/,
   ]);
+  // Each Game is a row to tap: 44px, on one line too (#221).
+  for (const row of await division.getByRole("list", { name: "Division 1 Games" }).getByRole("link").all()) {
+    expect((await row.boundingBox())!.height, await row.innerText()).toBeGreaterThanOrEqual(44);
+  }
   await expectNoSeriousA11yViolations(page);
 });
 

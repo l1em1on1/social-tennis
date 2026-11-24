@@ -239,7 +239,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
                 <label
                   key={side}
                   className={cx(
-                    "flex min-h-11 cursor-pointer items-center justify-center rounded-xl border px-3 text-center font-semibold break-words",
+                    "flex min-h-11 cursor-pointer items-center justify-center rounded-xl border px-3 text-center font-semibold wrap-anywhere",
                     "has-checked:border-accent has-checked:bg-accent-muted has-checked:text-accent",
                     "has-focus-visible:outline-2 has-focus-visible:outline-accent",
                     "border-border-strong",

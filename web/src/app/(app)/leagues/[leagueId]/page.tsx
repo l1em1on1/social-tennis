@@ -179,7 +179,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                       <li key={game.id}>
                         <Link
                           href={`/games/${game.id}`}
-                          className="flex items-center justify-between gap-2 py-1.5 hover:underline"
+                          className="flex min-h-11 items-center justify-between gap-2 py-1.5 hover:underline"
                         >
                           <span className={cx("min-w-0 break-words", ourGame && "font-semibold")}>
                             {nameOf(game.firstTeamId)} v {nameOf(game.secondTeamId)}

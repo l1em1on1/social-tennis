@@ -572,7 +572,7 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 |---|---|---|
 | .NET / ASP.NET Core / EF Core | 10.0 (LTS) | Solution uses the `.slnx` format (SDK 10 default) |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.x | EF Relational pinned explicitly to 10.0.15 to unify versions |
-| Microsoft.OpenApi | 2.13.0 | Template's 2.0.0 has GHSA-v5pm-xwqc-g5wc; 3.x breaks the .NET 10 OpenAPI source generator |
+| Microsoft.OpenApi | 2.13.1 | Template's 2.0.0 has GHSA-v5pm-xwqc-g5wc; 3.x breaks the .NET 10 OpenAPI source generator |
 | FluentValidation | 12.2.0 | Core package only — validators are constructed, not DI-resolved (ADR-0011) |
 | Next.js / React | 16.4 / 19.3 | `output: "standalone"` for the Docker runtime image |
 | Node | 24 (LTS) | Container-only, never on the host |
@@ -582,13 +582,13 @@ It bills the owner's Claude subscription through an OAuth token (`claude setup-t
 | Postgres | 18-alpine | Volume mounted at `/var/lib/postgresql` (18+ image layout) |
 | openapi-typescript / openapi-fetch | 7.x / 0.17.x | `js-yaml` override in `web/package.json` clears a dev-chain CVE |
 | eslint / eslint-config-next | 9.x / 16.4.6 | `typescript-estree`'s `minimatch` is overridden to ^11.0.1 (no fixed 10.x, #133). Drop each override in `web/package.json` once its parent ships a fixed version |
-| msw / openapi-msw | 3.0.5 / 2.1.1 | Exact pins. Only the mock API uses them |
+| msw / openapi-msw | 3.0.7 / 2.1.1 | Exact pins. Only the mock API uses them |
 | esbuild | 0.28.2 | Exact pin. Bundles the mock API; `overrides` holds Storybook's copy to the same version |
 | @playwright/test | 1.65.1 | Exact pin; **must equal** the `mcr.microsoft.com/playwright:v1.65.1-noble` image tag in `docker-compose.yml` (browsers ship in the image). Dependabot ignores the image (named `playwright` there), so both move together by hand on the npm PR |
 | @axe-core/playwright | 4.14.0 | Exact pin |
 | pg | 8.x | E2E only: seeds the magic-link token for real-API logins |
-| chromatic / @chromatic-com/playwright | 18.14.3 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
-| storybook / @storybook/nextjs-vite / vite | 10.6.7 / 10.6.7 / 8.3.8 | Exact pins (#46). `storybook` is a direct dependency and also in `overrides`; the two must stay equal, or npm refuses the install |
+| chromatic / @chromatic-com/playwright | 18.15.1 / 1.0.0 | Exact pins. The CLI needs git and the full history, hence the whole-repo mount in the `chromatic` service. The plugin pins `storybook` 10.2.13 exactly; `overrides` in `web/package.json` lift it to 10.6.7 and its `esbuild` to ^0.28.1 for security fixes (#133) |
+| storybook / @storybook/nextjs-vite / vite | 10.6.8 / 10.6.8 / 8.3.8 | Exact pins (#46). `storybook` is a direct dependency and also in `overrides`; the two must stay equal, or npm refuses the install |
 | TypeScript (language server only) | 5.x | sbx `toolchain` kit; 7.x ships no `lib/tsserver.js` |
 | RTK | 1.2.0 | sbx `rtk` kit; installer fetched at the v1.2.0 commit SHA, `RTK_VERSION` pinned so it never resolves "latest"; it checks the release checksum |
 | Terraform / azurerm / neon / cloudflare provider | 1.17.2 / ~> 5.14 / 0.18.0 / ~> 5.19 | `infra/` only. The Neon provider is community-maintained and pinned exactly. Cloudflare 5 renamed the DNS resource to `cloudflare_dns_record` and wants full record names |

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
 import { StandingsTable } from "./standings-table";
+import { Card } from "./ui/card";
 
 const ids = ["t1", "t2", "t3", "t4"];
 const names = { t1: "Tom Reid", t2: "Omar Ali", t3: "Josh Lee", t4: "Ravi Rao" };
@@ -35,6 +36,10 @@ export const MidStage: Story = {
     const [first, , , last] = rows(canvas);
     await expect(first).toHaveTextContent("1Omar Ali220+7▲ up");
     await expect(last).toHaveTextContent("4Ravi Rao202-6▼ down");
+    // The name too, not only the numbers: a th is bold unless told otherwise.
+    const weight = (name: string) => getComputedStyle(canvas.getByRole("rowheader", { name })).fontWeight;
+    await expect(weight("Josh Lee")).toBe("700");
+    await expect(weight("Omar Ali")).toBe("500");
   },
 };
 
@@ -65,5 +70,40 @@ export const NoScoresYet: Story = {
   play: async ({ canvas }) => {
     await expect(rows(canvas)[0]).toHaveTextContent("–Tom Reid0000");
     await expect(canvas.getByText("No scores yet: the table fills in as games are played.")).toBeVisible();
+  },
+};
+
+/** Whether a word sits on one line. Its text node's boxes: one per line it is broken over. */
+function onOneLine(cell: HTMLElement, word: string) {
+  const text = [...cell.childNodes].find((node) => node.textContent?.includes(word))!;
+  const range = document.createRange();
+  range.setStart(text, text.textContent!.indexOf(word));
+  range.setEnd(text, text.textContent!.indexOf(word) + word.length);
+  return range.getClientRects().length === 1;
+}
+
+/**
+ * On a card on a phone, as the ladder shows it. A name breaks between its
+ * words, and inside one only when that word alone is wider than the column:
+ * then it must, or the table would be wider than the card.
+ */
+export const LongNames: Story = {
+  args: { names: { ...names, t2: "OpponentWithAnUnusuallyLongUnbrokenName", t3: "Christopher Featherstone" } },
+  decorators: [
+    (Story) => (
+      <Card title="Division 2">
+        <Story />
+      </Card>
+    ),
+  ],
+  play: async ({ canvas }) => {
+    // Measured in the page's own font: the fallback's letters are narrower.
+    await document.fonts.ready;
+    const table = canvas.getByRole("table", { name: "Division 2 standings" });
+    await expect(table.scrollWidth).toBeLessThanOrEqual(table.parentElement!.clientWidth);
+    // The Acting Player's own row, in bold: the widest these words get.
+    const mine = canvas.getByRole("rowheader", { name: "Christopher Featherstone" });
+    await expect(onOneLine(mine, "Christopher")).toBe(true);
+    await expect(onOneLine(mine, "Featherstone")).toBe(true);
   },
 };
