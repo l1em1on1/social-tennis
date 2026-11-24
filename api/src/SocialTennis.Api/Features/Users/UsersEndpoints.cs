@@ -25,6 +25,11 @@ public static class UsersEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(RevokeRole));
 
+        // Deleting a User (#116): their Players become Former players, results intact.
+        group.MapDelete("/{userId:guid}", DeleteUser.HandleAsync)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(DeleteUser));
+
         return app;
     }
 }

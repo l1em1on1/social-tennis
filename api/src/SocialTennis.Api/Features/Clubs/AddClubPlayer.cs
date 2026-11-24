@@ -69,9 +69,9 @@ public static class AddClubPlayer
         };
         db.Players.Add(player);
         db.ClubMemberships.Add(ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
-        await ClubAdmission.AdmitNewPlayerAsync(db, player.UserId, email, player.Id, now, cancellationToken, except: clubId);
+        await ClubAdmission.AdmitNewPlayerAsync(db, userId, email, player.Id, now, cancellationToken, except: clubId);
         // The User is in this Club now: a request of theirs waiting here is approved.
-        await ClubAdmission.ApproveWaitingAsync(db, player.UserId, clubId, cancellationToken);
+        await ClubAdmission.ApproveWaitingAsync(db, userId, clubId, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

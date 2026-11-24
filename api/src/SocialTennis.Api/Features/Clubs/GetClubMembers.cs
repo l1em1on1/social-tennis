@@ -32,7 +32,8 @@ public static class GetClubMembers
             .Select(m => new ClubMember(
                 m.PlayerId,
                 m.Player.Name,
-                m.Player.User.Email,
+                // Held by a User: a Former player (#116) is a member of no Club.
+                m.Player.User!.Email,
                 db.SessionTokens.Any(s => s.UserId == m.Player.UserId),
                 m.Status == ClubMembershipStatus.Active,
                 m.Player.Gender,

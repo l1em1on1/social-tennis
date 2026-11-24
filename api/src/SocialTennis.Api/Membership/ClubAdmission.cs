@@ -34,10 +34,14 @@ internal static class ClubAdmission
         TennisDbContext db, string normalizedEmail, CancellationToken cancellationToken)
     {
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({normalizedEmail}))", cancellationToken);
+        await TakeEmailLockAsync(db, normalizedEmail, cancellationToken);
         return transaction;
     }
+
+    /// <summary>Takes this email's lock in the transaction already open, as deleting a User does (#116).</summary>
+    public static async Task TakeEmailLockAsync(TennisDbContext db, string normalizedEmail, CancellationToken cancellationToken) =>
+        await db.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock({LockClass}, hashtext({normalizedEmail}))", cancellationToken);
 
     /// <summary>
     /// Lets the Players this email's User holds into a Club: each one not in it
@@ -50,7 +54,7 @@ internal static class ClubAdmission
         TennisDbContext db, string normalizedEmail, Guid clubId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var players = await db.Players
-            .Where(p => p.User.Email == normalizedEmail)
+            .Where(p => p.User != null && p.User.Email == normalizedEmail)
             .Select(p => new { p.Id, IsMember = p.Memberships.Any(m => m.ClubId == clubId) })
             .ToListAsync(cancellationToken);
         foreach (var player in players.Where(p => !p.IsMember))

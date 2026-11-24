@@ -34,8 +34,8 @@ public class Score
 
     public Player? SubmittedBy { get; set; }
 
-    /// <summary>The signed-in User who entered or recorded it.</summary>
-    public Guid SubmittedByUserId { get; set; }
+    /// <summary>The signed-in User who entered or recorded it; none once that User is deleted (#116).</summary>
+    public Guid? SubmittedByUserId { get; set; }
 
     public DateTimeOffset SubmittedAt { get; set; }
 

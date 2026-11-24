@@ -3,7 +3,7 @@ using SocialTennis.Api.Domain;
 namespace SocialTennis.Api.Features.Leagues.Contracts;
 
 /// <summary>A Player in a League, as a Manager sees them.</summary>
-/// <param name="Email">The email of the User holding the Player.</param>
+/// <param name="Email">The email of the User holding the Player; none for a Former player, whose User was deleted (#116).</param>
 /// <param name="JoinedAt">
 /// The request time for an approved request, the add time for a Manager's add.
 /// Breaks ties in the proposed starting ladder (#7).
@@ -16,7 +16,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 public record LeagueParticipantSummary(
     Guid PlayerId,
     string Name,
-    string Email,
+    string? Email,
     int Rating,
     DateTimeOffset JoinedAt,
     PlayerGender? Gender,

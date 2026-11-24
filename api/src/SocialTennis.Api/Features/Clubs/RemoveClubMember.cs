@@ -24,12 +24,21 @@ public static class RemoveClubMember
         TennisDbContext db,
         CancellationToken cancellationToken)
     {
-        var email = await db.Players
+        var player = await db.Players
             .Where(p => p.Id == playerId)
-            .Select(p => p.User.Email)
+            .Select(p => new { Email = p.User != null ? p.User.Email : null })
             .SingleOrDefaultAsync(cancellationToken);
-        if (email is null)
+        if (player is null)
         {
+            return TypedResults.NoContent();
+        }
+
+        // A Former player (#116) has no email, so nothing to serialize with: just remove it.
+        if (player.Email is not { } email)
+        {
+            await db.ClubMemberships
+                .Where(m => m.ClubId == clubId && m.PlayerId == playerId)
+                .ExecuteDeleteAsync(cancellationToken);
             return TypedResults.NoContent();
         }
 

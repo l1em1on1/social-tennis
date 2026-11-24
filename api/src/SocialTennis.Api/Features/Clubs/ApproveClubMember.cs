@@ -21,9 +21,10 @@ public static class ApproveClubMember
         CancellationToken cancellationToken)
     {
         var holder = await db.Players
-            .Where(p => p.Id == playerId)
-            .Select(p => new { p.UserId, p.User.Email })
+            .Where(p => p.Id == playerId && p.User != null)
+            .Select(p => new { UserId = p.UserId!.Value, p.User!.Email })
             .SingleOrDefaultAsync(cancellationToken);
+        // None, or a Former player (#116), held by nobody: not a request to approve.
         if (holder is null)
         {
             return TypedResults.NotFound();

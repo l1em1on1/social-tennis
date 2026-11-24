@@ -67,7 +67,10 @@ public static class GetGame
                         g.Score.Retired,
                         SubmittedBy = g.Score.SubmittedBy != null
                             ? g.Score.SubmittedBy.Name
-                            : db.Players.Where(p => p.UserId == g.Score.SubmittedByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
+                            // A deleted Manager (#116) leaves no User: "A manager", never a Former player matched null to null.
+                            : g.Score.SubmittedByUserId == null
+                                ? null
+                                : db.Players.Where(p => p.UserId == g.Score.SubmittedByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
                         RecordedByManager = g.Score.SubmittedById == null,
                         g.Score.SubmittedAt,
                         g.Score.Version,
@@ -92,7 +95,9 @@ public static class GetGame
                 c.Kind,
                 By = c.ByPlayer != null
                     ? c.ByPlayer.Name
-                    : db.Players.Where(p => p.UserId == c.ByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
+                    : c.ByUserId == null
+                        ? null
+                        : db.Players.Where(p => p.UserId == c.ByUserId).OrderBy(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.Name).FirstOrDefault(),
                 c.At,
                 c.Before,
                 c.After,

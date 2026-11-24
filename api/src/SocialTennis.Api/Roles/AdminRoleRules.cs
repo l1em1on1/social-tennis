@@ -47,10 +47,14 @@ public static class AdminRoleRules
     public static async Task<IDbContextTransaction> LockRolesAsync(TennisDbContext db, CancellationToken cancellationToken)
     {
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await TakeRolesLockAsync(db, cancellationToken);
+        return transaction;
+    }
+
+    /// <summary>Takes the roles lock in the transaction already open, as deleting a User does first (#116).</summary>
+    public static async Task TakeRolesLockAsync(TennisDbContext db, CancellationToken cancellationToken) =>
         // Two-key form, its own class: apart from the per-email admission locks
         // (1160001, Membership/ClubAdmission.cs), the per-League entry locks
         // (1160002, Features/Leagues/LeagueEntry.cs) and the startup migration lock.
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({LockClass}, 0)", cancellationToken);
-        return transaction;
-    }
 }

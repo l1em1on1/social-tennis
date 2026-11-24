@@ -24,7 +24,7 @@ namespace SocialTennis.Api.IntegrationTests;
 /// 00:30 on 11 July next year in London (<see cref="ClockedTestFactory"/>), in
 /// a Stage that started on 1 July.
 /// </summary>
-public class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestFactory>
+public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<ClockedTestFactory>
 {
     private static readonly int Year = ClockedTestFactory.Start.Year;
 

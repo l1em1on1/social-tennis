@@ -33,7 +33,7 @@ public static class GetLeague
                     .OrderBy(p => p.JoinedAt)
                     .ThenBy(p => p.Player.Name)
                     .Select(p => new LeagueParticipantSummary(
-                        p.PlayerId, p.Player.Name, p.Player.User.Email, p.Player.Rating, p.JoinedAt, p.Player.Gender, p.TeamId))
+                        p.PlayerId, p.Player.Name, p.Player.User != null ? p.Player.User.Email : null, p.Player.Rating, p.JoinedAt, p.Player.Gender, p.TeamId))
                     .ToList(),
                 l.JoinRequests
                     .OrderBy(r => r.Status != LeagueJoinRequestStatus.Pending)
@@ -42,13 +42,14 @@ public static class GetLeague
                     .Select(r => new LeagueJoinRequestSummary(
                         r.PlayerId,
                         r.Player.Name,
-                        r.Player.User.Email,
+                        // A Former player's own requests are deleted with their User (#116).
+                        r.Player.User!.Email,
                         r.Player.Rating,
                         r.Player.Gender,
                         r.Partner == null
                             ? null
                             : new LeagueJoinRequestPartner(
-                                r.Partner.Id, r.Partner.Name, r.Partner.User.Email, r.Partner.Rating, r.Partner.Gender),
+                                r.Partner.Id, r.Partner.Name, r.Partner.User != null ? r.Partner.User.Email : null, r.Partner.Rating, r.Partner.Gender),
                         r.Status,
                         r.RequestedAt,
                         r.DecidedAt))
