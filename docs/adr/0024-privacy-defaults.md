@@ -17,7 +17,7 @@ The notice is a public page, `/privacy`, linked from the login page, the app she
 
 ## Consequences
 
-- Until #116 is built, deletion is done by hand, following the same rule. Retention can't start until #117 records when a User last signed in, and the notice says that it isn't in place yet.
+- **Deletion is built (#116, 2026-11-24).** An Admin removes the User on Admin (`DELETE /users/{userId}`, `AccountDeletion`), and the retention job will reuse that path. Their Players keep their places, Games and Scores as "Former player", with Gender and Level cleared, so nobody else's results change. They leave their Clubs. Their sign-in links, invites and sessions go, and the email can sign up again as a new account. Rating, a Manager's seeding number, stays with the Former player. Retention can't start until #117 records when a User last signed in, and the notice says that it isn't in place yet.
 - A change to what the app stores, who it shares with, or how long it keeps data updates the notice and this ADR together.
 
 ## Considered

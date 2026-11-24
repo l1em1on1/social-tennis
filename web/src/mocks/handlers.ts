@@ -63,9 +63,19 @@ let invitesMade = 0;
 let sessions = 0;
 let playersMade = 0;
 
+/**
+ * Deleted Users (#116), by email: the session counter when each was deleted.
+ * Their sessions made before then are over; a later sign-in is a new account.
+ */
+const deletedAtSession = new Map<string, number>();
+
 function sessionOf(request: Request): string | undefined {
   const bearer = request.headers.get("Authorization")?.replace(/^Bearer /, "");
-  return bearer?.startsWith(SESSION_PREFIX) ? bearer : undefined;
+  if (!bearer?.startsWith(SESSION_PREFIX)) return undefined;
+  const [encoded, count] = bearer.slice(SESSION_PREFIX.length).split(".");
+  const email = Buffer.from(encoded, "base64url").toString().toLowerCase();
+  const deletedAt = deletedAtSession.get(email);
+  return deletedAt !== undefined && Number(count) <= deletedAt ? undefined : bearer;
 }
 
 function emailOf(request: Request): string {
@@ -1771,6 +1781,28 @@ export const handlers = [
     } else {
       user.manager = false;
     }
+    return response(204).empty();
+  }),
+
+  // Deleting a User (#116), as the API: their Players become Former players and leave the Club, and their
+  // sessions end. Refused for one's own account and the configured Admin.
+  http.delete("/users/{userId}", ({ request, params, response }) => {
+    const entry = [...usersByEmail].find(([, user]) => user.id === params.userId);
+    if (!entry) {
+      return response(404).empty();
+    }
+    const [email] = entry;
+    if (email === emailOf(request) || email === CONFIGURED_ADMIN) {
+      const type = email === CONFIGURED_ADMIN ? "admin-by-setting" : "own-account";
+      return response(409).json({ type, title: "This User can't be deleted.", status: 409 }, problemJson);
+    }
+    for (const player of allPlayers().filter((candidate) => candidate.email === email)) {
+      Object.assign(player, { name: "Former player", gender: null, level: null, email: "" });
+      delete player.membership;
+    }
+    usersByEmail.delete(email);
+    invitedEmails.delete(email);
+    deletedAtSession.set(email, sessions);
     return response(204).empty();
   }),
 

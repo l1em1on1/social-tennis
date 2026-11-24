@@ -14,6 +14,14 @@ const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const userRow = (page: Page, email: string) =>
   page.getByRole("listitem").filter({ has: page.getByText(email, { exact: true }) });
 
+/** Opens a User's roles sheet from their row (#116) and returns it. Named by their email: these Users hold no Player. */
+async function rolesOf(page: Page, email: string) {
+  await userRow(page, email).getByRole("button", { name: `Roles for ${email}` }).click();
+  const sheet = page.getByRole("dialog", { name: `Roles for ${email}` });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
 /**
  * On Admin, searches for this email and returns its row. The Users list is
  * paged, newest first (#134), so a User may not be on the first page.
@@ -127,7 +135,7 @@ test("an Admin makes a User a Manager, and it takes effect without signing in ag
   await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
   const row = await findUser(admin, email);
   await expect(admin.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
-  await row.getByRole("button", { name: `Make manager of ${email}` }).click();
+  await (await rolesOf(admin, email)).getByRole("button", { name: `Make manager of ${email}` }).click();
   await expect(row.getByText("Manager", { exact: true })).toBeVisible();
 
   await page.reload();
@@ -135,15 +143,15 @@ test("an Admin makes a User a Manager, and it takes effect without signing in ag
   await mainNav(page).getByRole("link", { name: "Manage" }).click();
   await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
 
-  await row.getByRole("button", { name: `Remove manager from ${email}` }).click();
-  await expect(row.getByRole("button", { name: `Make manager of ${email}` })).toBeVisible();
+  await (await rolesOf(admin, email)).getByRole("button", { name: `Remove manager from ${email}` }).click();
+  await expect(row.getByText("Manager", { exact: true })).toHaveCount(0);
   await adminContext.close();
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
 
-test("an Admin makes another User an Admin after confirming, and can take it back", async ({
+test("an Admin makes another User an Admin from their roles sheet, and can take it back", async ({
   page,
   browser,
 }, testInfo) => {
@@ -154,22 +162,55 @@ test("an Admin makes another User an Admin after confirming, and can take it bac
   const admin = await adminContext.newPage();
   await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
   const row = await findUser(admin, email);
-  await row.getByRole("button", { name: `Make admin of ${email}` }).click();
-  const sheet = admin.getByRole("dialog", { name: `Make ${email} an Admin?` });
-  await expect(sheet).toBeVisible();
+  // The sheet says what an Admin can do: opening it is the step that asks first.
+  const sheet = await rolesOf(admin, email);
+  await expect(sheet).toContainText("An Admin can also create clubs and change anyone's roles");
   await expectNoSeriousA11yViolations(admin);
-  await sheet.getByRole("button", { name: "Make admin" }).click();
+  await sheet.getByRole("button", { name: `Make admin of ${email}` }).click();
   await expect(row.getByText("Admin", { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
 
-  await row.getByRole("button", { name: `Remove admin from ${email}` }).click();
-  await expect(row.getByRole("button", { name: `Make manager of ${email}` })).toBeVisible();
+  await (await rolesOf(admin, email)).getByRole("button", { name: `Remove admin from ${email}` }).click();
+  await expect(row.getByText("Admin", { exact: true })).toHaveCount(0);
   await adminContext.close();
 
   await page.reload();
   await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles"]);
+});
+
+test("an Admin removes a User after confirming: their row goes, and their sign-in ends", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const email = personaEmail(testInfo, "leaving");
+  await logIn(page, testInfo, email);
+
+  const adminContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
+  const row = await findUser(admin, email);
+  await row.getByRole("button", { name: `Remove ${email}` }).click();
+  const sheet = admin.getByRole("dialog", { name: `Remove ${email}?` });
+  await expect(sheet).toContainText("Their players show as “Former player” in results");
+  await expectNoSeriousA11yViolations(admin);
+  await sheet.getByRole("button", { name: "Remove user" }).click();
+  await expect(row).toHaveCount(0);
+  await expect(admin.getByText(`No one matches “${email}”.`)).toBeVisible();
+  await adminContext.close();
+
+  // Their session went with them (#116).
+  await page.reload();
+  await expect(page).toHaveURL(/\/login/);
+});
+
+test("an Admin can't remove themselves", async ({ page }, testInfo) => {
+  const email = personaEmail(testInfo, "self-admin");
+  await logIn(page, testInfo, email);
+  const row = await findUser(page, email);
+  await expect(row).toContainText("(you)");
+  await expect(row.getByRole("button", { name: `Remove ${email}` })).toHaveCount(0);
 });
 
 test("the Admin set in the app's configuration can't be demoted here", async ({ page }, testInfo) => {

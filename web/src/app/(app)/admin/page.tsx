@@ -10,7 +10,7 @@ import { SearchForm } from "@/components/ui/search-form";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { grantRole, revokeRole } from "@/lib/actions";
+import { deleteUser, grantRole, revokeRole } from "@/lib/actions";
 import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
@@ -24,6 +24,10 @@ const errors: Record<string, { title: string; description: string }> = {
     description: "That person is the only Admin, or is an Admin in the app's configuration.",
   },
   search: { title: "That search didn't work", description: "Search with letters, numbers, spaces and punctuation." },
+  "user-kept": {
+    title: "That user wasn't removed",
+    description: "They're you, the only Admin, or an Admin in the app's configuration.",
+  },
 };
 
 /** Users per page (#134). The API allows up to 100. */
@@ -114,7 +118,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       <Card title={`Users (${total})`}>
         <p className="mb-3 text-sm text-fg-muted">
           Managers approve who joins a club and run its leagues. Admins can also do everything on this page. A change
-          takes effect straight away.
+          takes effect straight away. Removing someone deletes their account; their players stay in results as
+          &ldquo;Former player&rdquo;.
         </p>
         <div className="mb-3">
           <SearchForm
@@ -143,91 +148,98 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             </>
           )}
         </p>
-        <ul className="-my-2 divide-y divide-border">
+        <ul className="-my-1 divide-y divide-border">
           {users.map((user) => {
             const you = user.id === viewer.userId;
             const who = user.players.length > 0 ? user.players.map((player) => player.name).join(", ") : user.email;
+            // Nobody removes themselves, an Admin by configuration, or the last Admin (#116).
+            const removable = !you && !user.adminBySetting && !user.lastAdmin;
             return (
-              <li key={user.id} className="flex flex-col gap-2 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium break-all">
-                      <span>{user.email}</span>
-                      {you && <span className="font-normal text-fg-muted"> (you)</span>}
-                    </p>
-                    <p className="text-sm text-fg-muted">
-                      {user.players.length > 0
+              // One line per User (#116): who, their roles, and two icons for what can change.
+              <li key={user.id} className="flex items-center gap-2 py-1.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    <span>{user.email}</span>
+                    {you && <span className="font-normal text-fg-muted"> (you)</span>}
+                  </p>
+                  <p className="truncate text-sm text-fg-muted">
+                    {user.adminBySetting
+                      ? "Admin in the app's configuration. It can only be changed where the app is deployed."
+                      : user.players.length > 0
                         ? user.players.map((player) => player.name).join(", ")
                         : "No player yet"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    {user.admin && <Badge tone="accent">Admin</Badge>}
-                    {user.manager && !user.admin && <Badge tone="accent">Manager</Badge>}
-                  </div>
+                  </p>
                 </div>
-
-                {user.admin ? (
-                  user.adminBySetting ? (
-                    <p className="text-sm text-fg-muted">
-                      Admin in the app&apos;s configuration. It can only be changed where the app is deployed.
+                {user.admin && <Badge tone="accent">Admin</Badge>}
+                {user.manager && !user.admin && <Badge tone="accent">Manager</Badge>}
+                {!user.adminBySetting && (
+                  <Sheet title={`Roles for ${who}`} triggerIcon="more" trigger={`Roles for ${user.email}`}>
+                    <p className="text-fg-muted">
+                      Managers approve who joins a club and run its leagues. An Admin can also create clubs and change
+                      anyone&apos;s roles, including yours.
                     </p>
-                  ) : user.lastAdmin ? (
-                    <div className="flex flex-col gap-2">
-                      <Button variant="secondary" disabled aria-describedby={`last-admin-${user.id}`}>
-                        Remove admin
-                      </Button>
-                      <p id={`last-admin-${user.id}`} className="text-sm text-fg-muted">
-                        The only Admin. Make someone else an Admin first.
-                      </p>
-                    </div>
-                  ) : (
-                    <form action={revokeRole}>
-                      <input type="hidden" name="userId" value={user.id} />
-                      <input type="hidden" name="role" value="Admin" />
-                      {keepView}
-                      {/* The spoken name starts with the visible text (WCAG 2.5.3) and adds who. */}
-                      <SubmitButton variant="secondary" pendingLabel="Removing…">
-                        Remove admin<span className="sr-only"> from {who}</span>
-                      </SubmitButton>
-                    </form>
-                  )
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <form action={user.manager ? revokeRole : grantRole}>
-                      <input type="hidden" name="userId" value={user.id} />
-                      <input type="hidden" name="role" value="Manager" />
-                      {keepView}
-                      <SubmitButton variant="secondary" pendingLabel="Saving…">
-                        {user.manager ? "Remove manager" : "Make manager"}
-                        <span className="sr-only">
-                          {user.manager ? " from " : " of "}
-                          {who}
-                        </span>
-                      </SubmitButton>
-                    </form>
-                    {/* Behind a sheet: an Admin can change everyone's roles, this one's included. */}
-                    <Sheet
-                      title={`Make ${who} an Admin?`}
-                      trigger={
+                    {user.admin ? (
+                      user.lastAdmin ? (
                         <>
-                          Make admin<span className="sr-only"> of {who}</span>
+                          <Button variant="secondary" fullWidth disabled aria-describedby={`last-admin-${user.id}`}>
+                            Remove admin
+                          </Button>
+                          <p id={`last-admin-${user.id}`} className="text-sm text-fg-muted">
+                            The only Admin. Make someone else an Admin first.
+                          </p>
                         </>
-                      }
-                    >
-                      <p className="text-fg-muted">
-                        An Admin can create clubs and change anyone&apos;s roles, including yours. They can also do
-                        everything a Manager can.
-                      </p>
-                      <form action={grantRole}>
-                        <input type="hidden" name="userId" value={user.id} />
-                        <input type="hidden" name="role" value="Admin" />
-                        <SubmitButton fullWidth pendingLabel="Saving…">
-                          Make admin
-                        </SubmitButton>
-                      </form>
-                    </Sheet>
-                  </div>
+                      ) : (
+                        <form action={revokeRole}>
+                          <input type="hidden" name="userId" value={user.id} />
+                          <input type="hidden" name="role" value="Admin" />
+                          {keepView}
+                          {/* The spoken name starts with the visible text (WCAG 2.5.3) and adds who. */}
+                          <SubmitButton variant="secondary" fullWidth pendingLabel="Removing…">
+                            Remove admin<span className="sr-only"> from {who}</span>
+                          </SubmitButton>
+                        </form>
+                      )
+                    ) : (
+                      <>
+                        <form action={user.manager ? revokeRole : grantRole}>
+                          <input type="hidden" name="userId" value={user.id} />
+                          <input type="hidden" name="role" value="Manager" />
+                          {keepView}
+                          <SubmitButton variant="secondary" fullWidth pendingLabel="Saving…">
+                            {user.manager ? "Remove manager" : "Make manager"}
+                            <span className="sr-only">
+                              {user.manager ? " from " : " of "}
+                              {who}
+                            </span>
+                          </SubmitButton>
+                        </form>
+                        <form action={grantRole}>
+                          <input type="hidden" name="userId" value={user.id} />
+                          <input type="hidden" name="role" value="Admin" />
+                          {keepView}
+                          <SubmitButton fullWidth pendingLabel="Saving…">
+                            Make admin<span className="sr-only"> of {who}</span>
+                          </SubmitButton>
+                        </form>
+                      </>
+                    )}
+                  </Sheet>
+                )}
+                {removable && (
+                  <Sheet title={`Remove ${user.email}?`} triggerIcon="trash" triggerTone="danger" trigger={`Remove ${user.email}`}>
+                    <p className="text-fg-muted">
+                      Their players show as &ldquo;Former player&rdquo; in results, so nobody else&apos;s scores change.
+                      They leave their clubs, and their sign-in ends. They can sign up again with this email, as a new
+                      account. This can&apos;t be undone.
+                    </p>
+                    <form action={deleteUser}>
+                      <input type="hidden" name="userId" value={user.id} />
+                      {keepView}
+                      <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                        Remove user
+                      </SubmitButton>
+                    </form>
+                  </Sheet>
                 )}
               </li>
             );

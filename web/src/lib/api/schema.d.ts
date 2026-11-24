@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["DeleteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clubs/{clubId}/leagues": {
         parameters: {
             query?: never;
@@ -1066,7 +1082,7 @@ export interface components {
             /** Format: uuid */
             playerId: string;
             name: string;
-            email: string;
+            email: null | string;
             /** Format: int32 */
             rating: number | string;
             gender: null | components["schemas"]["PlayerGender"];
@@ -1092,7 +1108,7 @@ export interface components {
             /** Format: uuid */
             playerId: string;
             name: string;
-            email: string;
+            email: null | string;
             /** Format: int32 */
             rating: number | string;
             /** Format: date-time */
@@ -2516,6 +2532,51 @@ export interface operations {
             path: {
                 userId: string;
                 role: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DeleteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
             };
             cookie?: never;
         };

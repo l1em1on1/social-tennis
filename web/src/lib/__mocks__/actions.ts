@@ -29,6 +29,7 @@ export const createClub = pending;
 export const renameClub = pending;
 export const grantRole = pending;
 export const revokeRole = pending;
+export const deleteUser = pending;
 export const askToJoinLeague = pending;
 export const takeBackLeagueJoinRequest = pending;
 export const pairTeam = pending;
