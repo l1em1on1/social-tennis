@@ -11,3 +11,5 @@ playwright.config.ts
 **/*.stories.tsx
 **/__mocks__/
 storybook-static/
+storybook-tests/
+playwright.storybook.config.ts

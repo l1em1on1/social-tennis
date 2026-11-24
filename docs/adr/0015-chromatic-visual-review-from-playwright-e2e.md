@@ -49,3 +49,5 @@ The override is a `<style>` with the page's CSP nonce (ADR-0027). The showcase n
 - **What they add:** four snapshots of the fixed world (Manage, a started League's Manager page, its ladder, Admin; `e2e/manager-pages.spec.ts`), plus `shell.spec.ts`'s desktop check.
 - **The nav's stories** add a `desktop` Storybook mode.
 - **The nav in flow** (#182) now applies below `md` only. There, the nav lives in the header and is moved to the end of the shell for the capture. From `md` up it is a top bar, drawn where it is.
+
+**Amended (2026-11-24): the accessibility check comes before the Storybook upload (#232).** The `/dev/ui` showcase and its spec are gone; axe now runs on every story instead (ADR-0014). In CI it runs before the stories are uploaded, so a failure means Chromatic's required "UI Tests: social-tennis_storybook" check is never reported and the PR can't merge. Dependabot PRs get that check from a `web` job instead (#158), so that job now waits for the Storybook job to pass.

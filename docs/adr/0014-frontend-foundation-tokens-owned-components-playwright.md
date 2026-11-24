@@ -36,3 +36,9 @@ Tap targets stay 44px at every width. A left sidebar was the other option; a top
 - **Type.** Page titles (`h1`) and card titles are in Fraunces, a warm variable serif loaded through `next/font`. Everything else stays in Geist.
 - **Shape and depth.** Buttons and icon buttons are pills; form fields stay rounded rectangles. Cards are rounder, with a soft shadow and a small terracotta mark before the title. Empty states sit on a muted fill with a terracotta dashed edge.
 - **Brand.** The header is ruled in terracotta and carries a ball mark in the brand colour, as do the login and sign-in pages and the app icon. The current tab has a terracotta bar on a phone and a pill from `md`.
+
+**Amended (2026-11-24): every component's accessibility is checked in Storybook (#232).** A page, `/dev/ui`, rendered every primitive so the e2e suite could run axe over it in light and dark. It existed only in dev or mocked builds, which made the mocked build a different app from the one shipped. The owner's rule (2026-11-24) is that every environment runs the same code, so the page is gone. The same axe check now runs on every Storybook story, in both colour schemes, after its play. That covers more than the page did: the forms, the ladder and the Match components too. This replaces the owner's decision of 2026-11-18 to keep the page.
+
+- **Considered:** serving `/dev/ui` in every environment to Admins only. It would put a page nobody needs in production.
+- **Considered:** Storybook's own test addons. Playwright and `@axe-core/playwright` are already here, and the e2e suite's check is reused as it is.
+- **Consequence:** a pairing that no story shows isn't checked in dark mode, so a new component comes with a story, and a new pairing on a card goes into `UI/On a card`.
