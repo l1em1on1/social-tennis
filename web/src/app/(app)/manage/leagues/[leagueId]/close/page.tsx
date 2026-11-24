@@ -8,6 +8,7 @@ import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { formatDate, formatDates } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Close the Stage" };
 
@@ -47,7 +48,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
   );
 
   return (
-    <>
+    <PageColumn>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold">Close Stage {Number(stage.number)}</h1>
         <p className="text-fg-muted">
@@ -118,6 +119,6 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
           Back to the league
         </ButtonLink>
       </div>
-    </>
+    </PageColumn>
   );
 }

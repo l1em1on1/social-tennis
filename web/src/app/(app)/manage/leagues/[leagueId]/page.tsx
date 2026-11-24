@@ -149,8 +149,11 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               See the ladder
             </ButtonLink>
           </div>
-          {ladder && <ToDo ladder={ladder} />}
-          {ladder && !ladder.ended && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
+          {/* From md, side by side (#225): what holds the close up, and moving a Team. */}
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:items-start md:gap-4">
+            {ladder && <ToDo ladder={ladder} />}
+            {ladder && !ladder.ended && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
+          </div>
         </div>
       ) : (
         canStart && (
@@ -210,198 +213,201 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         />
       )}
 
-      <Card title="Format">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-fg-muted">Runs</dt>
-          <dd>{formatDates(league.startDate, league.endDate)}</dd>
-          <dt className="text-fg-muted">Structure</dt>
-          <dd>{describeStructure(league)}</dd>
-          <dt className="text-fg-muted">Score</dt>
-          <dd>{describeScoreFormat(league.scoreFormat)}</dd>
-        </dl>
-      </Card>
+      {/* From md, the cards sit two by two (#225). */}
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:items-start">
+        <Card title="Format">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-fg-muted">Runs</dt>
+            <dd>{formatDates(league.startDate, league.endDate)}</dd>
+            <dt className="text-fg-muted">Structure</dt>
+            <dd>{describeStructure(league)}</dd>
+            <dt className="text-fg-muted">Score</dt>
+            <dd>{describeScoreFormat(league.scoreFormat)}</dd>
+          </dl>
+        </Card>
 
-      <Card title="Join requests" aside={pending.length > 0 && <Badge tone="warning">{`${pending.length} waiting`}</Badge>}>
-        {pending.length === 0 ? (
-          <p className="text-sm text-fg-muted">Nobody is waiting.</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {pending.map((request) => (
-              <li key={request.playerId} className="flex flex-col gap-2 py-3">
-                <div>
-                  <p className="font-medium">{withPartner(request)}</p>
-                  <p className="text-sm text-fg-muted">
-                    {request.partner ? "Asked together" : "Asked"} {formatDate(request.requestedAt.slice(0, 10))}
-                  </p>
-                  {sameGender(request) && (
+        <Card title="Join requests" aside={pending.length > 0 && <Badge tone="warning">{`${pending.length} waiting`}</Badge>}>
+          {pending.length === 0 ? (
+            <p className="text-sm text-fg-muted">Nobody is waiting.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {pending.map((request) => (
+                <li key={request.playerId} className="flex flex-col gap-2 py-3">
+                  <div>
+                    <p className="font-medium">{withPartner(request)}</p>
                     <p className="text-sm text-fg-muted">
-                      Both are the same gender. A mixed doubles team is usually a man and a woman, but you can still approve them.
+                      {request.partner ? "Asked together" : "Asked"} {formatDate(request.requestedAt.slice(0, 10))}
                     </p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <form action={approveLeagueJoinRequest}>
-                    <input type="hidden" name="leagueId" value={league.id} />
-                    <input type="hidden" name="playerId" value={request.playerId} />
-                    <SubmitButton pendingLabel="Approving…" aria-label={`Approve ${withPartner(request)}`}>
-                      Approve
-                    </SubmitButton>
-                  </form>
-                  <form action={rejectLeagueJoinRequest}>
-                    <input type="hidden" name="leagueId" value={league.id} />
-                    <input type="hidden" name="playerId" value={request.playerId} />
-                    <SubmitButton variant="secondary" pendingLabel="Rejecting…" aria-label={`Reject ${withPartner(request)}`}>
-                      Reject
-                    </SubmitButton>
-                  </form>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        {decided.some((request) => request.status === "Rejected") && (
-          <div className="mt-3 flex flex-col gap-1">
-            <p className="text-sm font-medium">Rejected</p>
-            <ul aria-label="Rejected requests" className="text-sm text-fg-muted">
-              {decided
-                .filter((request) => request.status === "Rejected")
-                .map((request) => (
-                  <li key={request.playerId}>{withPartner(request)}</li>
-                ))}
-            </ul>
-          </div>
-        )}
-      </Card>
-
-      <Card title={`Players (${league.participants.length})`}>
-        {league.participants.length === 0 ? (
-          <EmptyState
-            title="No players yet"
-            description="Approve requests above, or add club members below. They don't need to have signed in."
-          />
-        ) : (
-          <ul aria-label="Players in the league" className="divide-y divide-border">
-            {league.participants.map((participant) => (
-              <li key={participant.playerId} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                <div>
-                  <p className="font-medium">{participant.name}</p>
-                  <p className="text-sm text-fg-muted">
-                    Joined {formatDate(participant.joinedAt.slice(0, 10))} {placeBadge(participant.teamId)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  {/* Behind a sheet: removing is one tap away from a name in a list. On the ladder, leaving is a Withdrawal (#21). */}
-                  {!onLadder(participant.teamId) && (
-                  <Sheet
-                    title={`Remove ${participant.name}?`}
-                    trigger={
-                      <>
-                        Remove<span className="sr-only"> {participant.name}</span>
-                      </>
-                    }
-                  >
-                    <p className="text-fg-muted">
-                      {participant.name} will no longer be in {league.name}.{" "}
-                      {turnedDown.has(participant.playerId)
-                        ? "Their request to join was turned down, so they can't ask again, but you can add them back."
-                        : "They can ask to join again, or you can add them back."}
-                    </p>
-                    <form action={removeLeagueParticipant}>
+                    {sameGender(request) && (
+                      <p className="text-sm text-fg-muted">
+                        Both are the same gender. A mixed doubles team is usually a man and a woman, but you can still approve them.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <form action={approveLeagueJoinRequest}>
                       <input type="hidden" name="leagueId" value={league.id} />
-                      <input type="hidden" name="playerId" value={participant.playerId} />
-                      <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
-                        Remove from league
+                      <input type="hidden" name="playerId" value={request.playerId} />
+                      <SubmitButton pendingLabel="Approving…" aria-label={`Approve ${withPartner(request)}`}>
+                        Approve
                       </SubmitButton>
                     </form>
-                  </Sheet>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {doubles && (
-        <Card title={`Teams (${league.teams.length})`}>
-          {league.teams.length === 0 ? (
-            <p className="text-sm text-fg-muted">No teams yet. Pair the players below.</p>
-          ) : (
-            <ul aria-label="Teams in the league" className="divide-y divide-border">
-              {league.teams.map((team) => {
-                const names = team.playerIds.map(nameOf).join(" & ");
-                return (
-                  <li key={team.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                    <p className="font-medium">
-                      {names} {placeBadge(team.id)}
-                    </p>
-                    {team.position == null && (
-                      <form action={unpairTeam}>
-                        <input type="hidden" name="leagueId" value={league.id} />
-                        <input type="hidden" name="teamId" value={team.id} />
-                        <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
-                          Unpair
-                        </SubmitButton>
-                      </form>
-                    )}
-                  </li>
-                );
-              })}
+                    <form action={rejectLeagueJoinRequest}>
+                      <input type="hidden" name="leagueId" value={league.id} />
+                      <input type="hidden" name="playerId" value={request.playerId} />
+                      <SubmitButton variant="secondary" pendingLabel="Rejecting…" aria-label={`Reject ${withPartner(request)}`}>
+                        Reject
+                      </SubmitButton>
+                    </form>
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
-          <div className="mt-4 flex flex-col gap-3">
-            <h3 className="font-semibold">Without a partner ({unpaired.length})</h3>
-            {unpaired.length === 0 ? (
-              <p className="text-sm text-fg-muted">Everyone in the league has a partner.</p>
+          {decided.some((request) => request.status === "Rejected") && (
+            <div className="mt-3 flex flex-col gap-1">
+              <p className="text-sm font-medium">Rejected</p>
+              <ul aria-label="Rejected requests" className="text-sm text-fg-muted">
+                {decided
+                  .filter((request) => request.status === "Rejected")
+                  .map((request) => (
+                    <li key={request.playerId}>{withPartner(request)}</li>
+                  ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+
+        <Card title={`Players (${league.participants.length})`}>
+          {league.participants.length === 0 ? (
+            <EmptyState
+              title="No players yet"
+              description="Approve requests above, or add club members below. They don't need to have signed in."
+            />
+          ) : (
+            <ul aria-label="Players in the league" className="divide-y divide-border">
+              {league.participants.map((participant) => (
+                <li key={participant.playerId} className="flex min-h-12 items-center justify-between gap-3 py-2">
+                  <div>
+                    <p className="font-medium">{participant.name}</p>
+                    <p className="text-sm text-fg-muted">
+                      Joined {formatDate(participant.joinedAt.slice(0, 10))} {placeBadge(participant.teamId)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {/* Behind a sheet: removing is one tap away from a name in a list. On the ladder, leaving is a Withdrawal (#21). */}
+                    {!onLadder(participant.teamId) && (
+                    <Sheet
+                      title={`Remove ${participant.name}?`}
+                      trigger={
+                        <>
+                          Remove<span className="sr-only"> {participant.name}</span>
+                        </>
+                      }
+                    >
+                      <p className="text-fg-muted">
+                        {participant.name} will no longer be in {league.name}.{" "}
+                        {turnedDown.has(participant.playerId)
+                          ? "Their request to join was turned down, so they can't ask again, but you can add them back."
+                          : "They can ask to join again, or you can add them back."}
+                      </p>
+                      <form action={removeLeagueParticipant}>
+                        <input type="hidden" name="leagueId" value={league.id} />
+                        <input type="hidden" name="playerId" value={participant.playerId} />
+                        <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                          Remove from league
+                        </SubmitButton>
+                      </form>
+                    </Sheet>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {doubles && (
+          <Card title={`Teams (${league.teams.length})`}>
+            {league.teams.length === 0 ? (
+              <p className="text-sm text-fg-muted">No teams yet. Pair the players below.</p>
             ) : (
-              <ul aria-label="Players without a partner" className="text-sm">
-                {unpaired.map((participant) => (
-                  <li key={participant.playerId}>{participant.name}</li>
-                ))}
+              <ul aria-label="Teams in the league" className="divide-y divide-border">
+                {league.teams.map((team) => {
+                  const names = team.playerIds.map(nameOf).join(" & ");
+                  return (
+                    <li key={team.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
+                      <p className="font-medium">
+                        {names} {placeBadge(team.id)}
+                      </p>
+                      {team.position == null && (
+                        <form action={unpairTeam}>
+                          <input type="hidden" name="leagueId" value={league.id} />
+                          <input type="hidden" name="teamId" value={team.id} />
+                          <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
+                            Unpair
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
-            {unpaired.length >= 2 && (
-              <TeamPairingForm
-                // A new list after a pairing remounts the form, so it doesn't keep the paired Players' ids.
-                key={unpaired.map((participant) => participant.playerId).join()}
-                leagueId={league.id}
-                mixed={league.type === "DoublesMix"}
-                players={unpaired.map(({ playerId, name, gender }) => ({ playerId, name, gender }))}
-              />
-            )}
-          </div>
-        </Card>
-      )}
-      <Card title="Add a club member">
-        {addable.length === 0 ? (
-          <p className="text-sm text-fg-muted">
-            Every member of {league.clubName} is in this league. Add new players to the club on Manage first.
-          </p>
-        ) : (
-          <form action={addLeagueParticipant} className="flex flex-col gap-3">
-            <input type="hidden" name="leagueId" value={league.id} />
-            <Field id="add-participant" label="Player" hint="Added straight in, with no request to approve.">
-              {(control) => (
-                <Select {...control} name="playerId" required defaultValue="">
-                  <option value="" disabled>
-                    Pick a player…
-                  </option>
-                  {addable.map((member) => (
-                    <option key={member.playerId} value={member.playerId}>
-                      {member.name} ({member.email})
-                    </option>
+            <div className="mt-4 flex flex-col gap-3">
+              <h3 className="font-semibold">Without a partner ({unpaired.length})</h3>
+              {unpaired.length === 0 ? (
+                <p className="text-sm text-fg-muted">Everyone in the league has a partner.</p>
+              ) : (
+                <ul aria-label="Players without a partner" className="text-sm">
+                  {unpaired.map((participant) => (
+                    <li key={participant.playerId}>{participant.name}</li>
                   ))}
-                </Select>
+                </ul>
               )}
-            </Field>
-            <SubmitButton variant="secondary" pendingLabel="Adding…">
-              Add to league
-            </SubmitButton>
-          </form>
+              {unpaired.length >= 2 && (
+                <TeamPairingForm
+                  // A new list after a pairing remounts the form, so it doesn't keep the paired Players' ids.
+                  key={unpaired.map((participant) => participant.playerId).join()}
+                  leagueId={league.id}
+                  mixed={league.type === "DoublesMix"}
+                  players={unpaired.map(({ playerId, name, gender }) => ({ playerId, name, gender }))}
+                />
+              )}
+            </div>
+          </Card>
         )}
-      </Card>
+        <Card title="Add a club member">
+          {addable.length === 0 ? (
+            <p className="text-sm text-fg-muted">
+              Every member of {league.clubName} is in this league. Add new players to the club on Manage first.
+            </p>
+          ) : (
+            <form action={addLeagueParticipant} className="flex flex-col gap-3">
+              <input type="hidden" name="leagueId" value={league.id} />
+              <Field id="add-participant" label="Player" hint="Added straight in, with no request to approve.">
+                {(control) => (
+                  <Select {...control} name="playerId" required defaultValue="">
+                    <option value="" disabled>
+                      Pick a player…
+                    </option>
+                    {addable.map((member) => (
+                      <option key={member.playerId} value={member.playerId}>
+                        {member.name} ({member.email})
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <SubmitButton variant="secondary" pendingLabel="Adding…">
+                Add to league
+              </SubmitButton>
+            </form>
+          )}
+        </Card>
+      </div>
 
-      <ButtonLink href="/manage" variant="ghost">
+      <ButtonLink href="/manage" variant="ghost" className="md:self-start">
         Back to Manage
       </ButtonLink>
     </>

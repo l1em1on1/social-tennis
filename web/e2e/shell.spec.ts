@@ -25,6 +25,60 @@ test("the shell fits a 360px screen with 44px tap targets", async ({ page }, tes
   }
 });
 
+test.describe("on a desktop screen", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
+
+  test("the navigation is a top bar in the header, with 44px targets and nothing wider than the screen", async ({
+    page,
+  }, testInfo) => {
+    await logIn(page, testInfo, personaEmail(testInfo, "manager-admin"));
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, "horizontal scroll at 1280px").toBeLessThanOrEqual(0);
+
+    // In the header, at the top: no bar of tabs at the bottom (#225).
+    const nav = page.getByRole("banner").getByRole("navigation", { name: "Main" });
+    await expect(nav.getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
+    const header = (await page.getByRole("banner").boundingBox())!;
+    const navBox = (await nav.boundingBox())!;
+    expect(navBox.y + navBox.height).toBeLessThanOrEqual(header.y + header.height);
+    for (const link of await nav.getByRole("link").all()) {
+      const box = await link.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+    // The content uses the width: wider than a phone's column.
+    expect((await page.getByRole("main").boundingBox())!.width).toBeGreaterThan(700);
+    await expectNoSeriousA11yViolations(page);
+  });
+});
+
+test.describe("at the narrow end of md, a tablet held upright", () => {
+  test.use({ viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: false });
+
+  test("the header fits five entries and two Players with a long name", async ({ page }, testInfo) => {
+    await logIn(page, testInfo, personaEmail(testInfo, "manager-admin"));
+    await addFirstPlayer(page, "Bartholomew Featherstonehaugh");
+    await mainNav(page).getByRole("link", { name: "Profiles" }).click();
+    await addAnotherPlayer(page, "Bartholomew Featherstonehaugh Junior");
+    await mainNav(page).getByRole("link", { name: "Home" }).click();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+
+    // Icons only here, each still named by its label (#229 review).
+    await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage", "Admin"]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, "horizontal scroll at 768px").toBeLessThanOrEqual(0);
+    for (const link of await mainNav(page).getByRole("link").all()) {
+      const box = await link.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
 test("a Player without roles sees no Manage or Admin entry, and can't open them", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "player"));
 

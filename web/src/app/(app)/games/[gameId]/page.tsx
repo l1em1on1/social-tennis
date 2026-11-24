@@ -11,6 +11,7 @@ import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { describeScoreFormat, formatDate } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Match" };
 
@@ -69,7 +70,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
   const refusal = typeof refused === "string" ? refusals[refused] : undefined;
 
   return (
-    <>
+    <PageColumn>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold break-words">
           {sides[0]} v {sides[1]}
@@ -192,6 +193,6 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           Back to the ladder
         </ButtonLink>
       </div>
-    </>
+    </PageColumn>
   );
 }

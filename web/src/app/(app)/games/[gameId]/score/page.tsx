@@ -6,6 +6,7 @@ import { isId } from "@/lib/ids";
 import { describeScoreFormat, formatDate } from "@/lib/league";
 import { entryOf, scoreFormat } from "@/lib/score";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Score" };
 
@@ -71,7 +72,7 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
       }
     : undefined;
   return (
-    <>
+    <PageColumn>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold">{HEADINGS[mode]}</h1>
         <p className="text-fg-muted break-words">
@@ -104,6 +105,6 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
         today={game.today}
         initial={initial}
       />
-    </>
+    </PageColumn>
   );
 }

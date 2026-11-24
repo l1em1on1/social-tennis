@@ -234,8 +234,9 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
 
       {refusal && <ErrorState title="That request didn't go through" description={refusal} />}
 
-      <section aria-labelledby="mine" className="flex flex-col gap-3">
-        <h2 id="mine" className="text-base font-semibold">
+      {/* From md, the cards sit two by two (#225). */}
+      <section aria-labelledby="mine" className="flex flex-col gap-3 md:grid md:grid-cols-2 md:items-start">
+        <h2 id="mine" className="text-base font-semibold md:col-span-2">
           {actingPlayer.name}&apos;s leagues
         </h2>
         {mine.length === 0 ? (
@@ -274,8 +275,9 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
         )}
       </section>
 
-      <section aria-labelledby="joinable" className="flex flex-col gap-3">
-        <h2 id="joinable" className="text-base font-semibold">
+      {/* From md, the cards sit two by two (#225). */}
+      <section aria-labelledby="joinable" className="flex flex-col gap-3 md:grid md:grid-cols-2 md:items-start">
+        <h2 id="joinable" className="text-base font-semibold md:col-span-2">
           You can join
         </h2>
         {joinable.length === 0 ? (

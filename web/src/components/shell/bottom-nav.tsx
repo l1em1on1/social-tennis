@@ -29,7 +29,9 @@ function isActive(pathname: string, href: string) {
 }
 
 /**
- * Mobile bottom navigation. The server decides which entries a User sees
+ * The main navigation. On a phone, a bar of tabs fixed to the bottom of the
+ * screen; from the `md` breakpoint, a top bar in the header (#225), where the
+ * shell renders it either way. The server decides which entries a User sees
  * (Manage and Admin by role); this client component only marks the active one.
  */
 export function BottomNav({ keys }: { keys: NavKey[] }) {
@@ -38,33 +40,38 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+      className={cx(
+        "fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]",
+        "md:static md:z-auto md:flex-1 md:border-t-0 md:bg-transparent md:pb-0",
+      )}
     >
-      <ul className="mx-auto flex max-w-md">
+      <ul className="mx-auto flex max-w-md md:max-w-none md:justify-center md:gap-1">
         {keys.map((key) => {
           const { href, label, icon } = items[key];
           const active = isActive(pathname, href);
           return (
-            <li key={key} className="flex-1">
+            <li key={key} className="flex-1 md:flex-none">
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cx(
                   "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium",
-                  active ? "text-accent" : "text-fg-muted hover:text-fg",
+                  "md:min-h-11 md:flex-row md:gap-2 md:rounded-xl md:px-3 md:text-sm",
+                  active ? "text-accent md:bg-accent-muted" : "text-fg-muted hover:text-fg md:hover:bg-surface-muted",
                 )}
               >
                 {/* The icon turns into a spinner from the tap until the page arrives. */}
-                <LinkPending className="size-6">
+                <LinkPending className="size-6 md:size-5">
                   <svg
                     aria-hidden="true"
                     viewBox="0 0 24 24"
-                    className="size-6 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"
+                    className="size-6 fill-none stroke-current stroke-2 [stroke-linecap:round] [stroke-linejoin:round] md:size-5"
                   >
                     {icon}
                   </svg>
                 </LinkPending>
-                {label}
+                {/* Between md and lg the header is tight: icons only, the label still read out (#229 review). */}
+                <span className="md:max-lg:sr-only">{label}</span>
               </Link>
             </li>
           );

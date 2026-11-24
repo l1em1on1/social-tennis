@@ -7,6 +7,7 @@ import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
 import { typeLabel } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Start the league" };
 
@@ -49,11 +50,11 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
       throw new Error(`GET /leagues/${leagueId}/start failed with ${start.response.status}`);
     }
     return (
-      <>
+      <PageColumn>
         <h1 className="text-2xl font-bold break-words">Start {league.name}</h1>
         <ErrorState title="This league can't start" description={reason} />
         <div>{back}</div>
-      </>
+      </PageColumn>
     );
   }
 
@@ -62,7 +63,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
   // owner 2026-11-21) and stays 1, so the order is join order; the screen only says so when it is.
   const byJoinTime = new Set(competitors.map((competitor) => Number(competitor.rating))).size <= 1;
   return (
-    <>
+    <PageColumn>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold break-words">Start {league.name}</h1>
         <p className="text-fg-muted">
@@ -107,6 +108,6 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
         />
       )}
       <div>{back}</div>
-    </>
+    </PageColumn>
   );
 }

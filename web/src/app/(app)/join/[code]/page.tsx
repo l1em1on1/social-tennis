@@ -8,6 +8,7 @@ import { askToJoinClub } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isJoinCode, joinPath } from "@/lib/join";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Join a club" };
 
@@ -29,7 +30,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
 
   if (!club) {
     return (
-      <>
+      <PageColumn>
         <h1 className="text-2xl font-bold">Join a club</h1>
         <Card title="This link doesn't work any more">
           <p className="text-fg-muted">Ask your club&apos;s manager for a new one.</p>
@@ -37,14 +38,14 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
             Go to Home
           </ButtonLink>
         </Card>
-      </>
+      </PageColumn>
     );
   }
 
   const { actingPlayer } = viewer;
   const membership = actingPlayer?.clubs.find((candidate) => candidate.id === club.clubId);
   return (
-    <>
+    <PageColumn>
       <h1 className="text-2xl font-bold">Join {club.clubName}</h1>
 
       {!actingPlayer ? (
@@ -96,6 +97,6 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           )}
         </Card>
       )}
-    </>
+    </PageColumn>
   );
 }

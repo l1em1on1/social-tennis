@@ -21,3 +21,11 @@ Library specifics (package names, Next.js 16 instrumentation hooks for MSW, Play
 Every Phase 1 ticket carries UI acceptance criteria and is done only when its screen and its E2E happy path ship. Mobile wireframes for the Phase 1 screens are produced first so screens are designed rather than improvised. CI gains an E2E job in `web.yml`.
 
 **Amended (2026-11-20): real-API sign-in without an inbox.** The E2E stack sends no email, so a test signs in by submitting the real login form, then replacing the newest unused sign-in link's stored hash with the hash of a token it knows, and redeeming that. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that one helper, `e2e/support/auth.ts`, knows two table names.
+
+**Amended (2026-11-24): responsive from `md` (#225).** The owner wants a better desktop version. Mobile-first stays: below Tailwind's `md` breakpoint (48rem, 768px) every screen is as it was. From `md` up:
+
+- **Navigation:** the main navigation is a top bar in the header, rather than tabs at the bottom. Between `md` and `lg` (1024px) it shows icons only, with each label still read out, so the header fits a tablet held upright. From `md` a long "Playing as" name is cut short, in full on hover, so the full labels from `lg` can't overflow either. It is one `<nav aria-label="Main">` in the header either way, fixed to the bottom of a phone's screen by CSS, so it comes before the content in reading order.
+- **Content:** it widens to `max-w-5xl`. Pages that gain from the width lay out in columns: Home's League cards, the Leagues list, Manage's Club cards (Leagues and the join link | who's in it), a League's Manager page, the ladder's Divisions, and Admin's table-like rows.
+- **Narrow pages:** forms, the Match screen, Profiles and the join page stay a centred `max-w-2xl` column (`PageColumn`).
+
+Tap targets stay 44px at every width. A left sidebar was the other option; a top bar was chosen because there are only three to five entries, and it leaves the width to lists and tables.

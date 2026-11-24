@@ -104,206 +104,212 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
 
         return (
           <Card key={club.id} title={club.name}>
-            <section aria-labelledby={`leagues-${club.id}`} className="flex flex-col gap-2">
-              <h3 id={`leagues-${club.id}`} className="font-semibold">
-                Leagues ({club.leagues.length})
-              </h3>
-              {club.leagues.length === 0 ? (
-                <p className="text-sm text-fg-muted">No leagues yet.</p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {club.leagues.map((league) => (
-                    <li key={league.id} className="flex flex-col gap-1 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
-                          {league.name}
-                        </Link>
-                        <div className="flex gap-1">
-                          {league.stage && <Badge tone="success">Started</Badge>}
-                          {Number(league.pendingRequestCount) > 0 && (
-                            <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-sm text-fg-muted">
-                        {typeLabel(league.type)} · {describeStructure(league)}
-                      </p>
-                      <p className="text-sm text-fg-muted">
-                        {formatDates(league.startDate, league.endDate)} · {league.participantCount} in
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
-                New league
-              </ButtonLink>
-            </section>
+            {/* From md, two columns (#225): the Club's Leagues and link | who's in it. */}
+            <div className="md:grid md:grid-cols-2 md:gap-x-8">
+              <div>
+                <section aria-labelledby={`leagues-${club.id}`} className="flex flex-col gap-2">
+                  <h3 id={`leagues-${club.id}`} className="font-semibold">
+                    Leagues ({club.leagues.length})
+                  </h3>
+                  {club.leagues.length === 0 ? (
+                    <p className="text-sm text-fg-muted">No leagues yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {club.leagues.map((league) => (
+                        <li key={league.id} className="flex flex-col gap-1 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
+                              {league.name}
+                            </Link>
+                            <div className="flex gap-1">
+                              {league.stage && <Badge tone="success">Started</Badge>}
+                              {Number(league.pendingRequestCount) > 0 && (
+                                <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm text-fg-muted">
+                            {typeLabel(league.type)} · {describeStructure(league)}
+                          </p>
+                          <p className="text-sm text-fg-muted">
+                            {formatDates(league.startDate, league.endDate)} · {league.participantCount} in
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
+                    New league
+                  </ButtonLink>
+                </section>
 
-            {/* One shared link per Club (#222, ADR-0032): opening it lets someone ask to join, approved below. */}
-            <section aria-labelledby={`join-link-${club.id}`} className="mt-5 flex flex-col gap-2">
-              <h3 id={`join-link-${club.id}`} className="font-semibold">
-                Join link
-              </h3>
-              {club.joinCode ? (
-                <>
-                  <CopyField
-                    id={`join-link-url-${club.id}`}
-                    label={`Link to ask to join ${club.name}`}
-                    hint="Share it in the club's chat or by email. Whoever opens it can ask to join, and you approve them below."
-                    value={publicUrl(joinPath(club.joinCode))}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <form action={resetJoinLink}>
-                      <input type="hidden" name="clubId" value={club.id} />
-                      <SubmitButton variant="secondary" pendingLabel="Resetting…">
-                        Reset link
-                      </SubmitButton>
-                    </form>
-                    <form action={turnOffJoinLink}>
-                      <input type="hidden" name="clubId" value={club.id} />
-                      <SubmitButton variant="secondary" pendingLabel="Turning off…">
-                        Turn off
-                      </SubmitButton>
-                    </form>
-                  </div>
-                  <p className="text-sm text-fg-muted">Resetting makes a new link, and the old one stops working.</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-fg-muted">
-                    Off. Turn it on for a link you can share: whoever opens it can ask to join.
-                  </p>
-                  <form action={turnOnJoinLink}>
+                {/* One shared link per Club (#222, ADR-0032): opening it lets someone ask to join, approved below. */}
+                <section aria-labelledby={`join-link-${club.id}`} className="mt-5 flex flex-col gap-2">
+                  <h3 id={`join-link-${club.id}`} className="font-semibold">
+                    Join link
+                  </h3>
+                  {club.joinCode ? (
+                    <>
+                      <CopyField
+                        id={`join-link-url-${club.id}`}
+                        label={`Link to ask to join ${club.name}`}
+                        hint="Share it in the club's chat or by email. Whoever opens it can ask to join, and you approve them below."
+                        value={publicUrl(joinPath(club.joinCode))}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <form action={resetJoinLink}>
+                          <input type="hidden" name="clubId" value={club.id} />
+                          <SubmitButton variant="secondary" pendingLabel="Resetting…">
+                            Reset link
+                          </SubmitButton>
+                        </form>
+                        <form action={turnOffJoinLink}>
+                          <input type="hidden" name="clubId" value={club.id} />
+                          <SubmitButton variant="secondary" pendingLabel="Turning off…">
+                            Turn off
+                          </SubmitButton>
+                        </form>
+                      </div>
+                      <p className="text-sm text-fg-muted">Resetting makes a new link, and the old one stops working.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-fg-muted">
+                        Off. Turn it on for a link you can share: whoever opens it can ask to join.
+                      </p>
+                      <form action={turnOnJoinLink}>
+                        <input type="hidden" name="clubId" value={club.id} />
+                        <SubmitButton variant="secondary" pendingLabel="Turning on…">
+                          Turn on the join link
+                        </SubmitButton>
+                      </form>
+                    </>
+                  )}
+                </section>
+              </div>
+              <div>
+                <section aria-labelledby={`waiting-${club.id}`} className="mt-5 flex flex-col gap-2 md:mt-0">
+                  <h3 id={`waiting-${club.id}`} className="font-semibold">
+                    Asking to join ({waiting.length})
+                  </h3>
+                  {waiting.length === 0 ? (
+                    <p className="text-sm text-fg-muted">Nobody is waiting.</p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {waiting.map((member) => (
+                        // One line: who, and approve or decline beside them (#224).
+                        <li key={member.playerId} className="flex items-center gap-2 py-1.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">{member.name}</p>
+                            <p className="truncate text-sm text-fg-muted">{member.email}</p>
+                          </div>
+                          <form action={approveClubMember}>
+                            <input type="hidden" name="clubId" value={club.id} />
+                            <input type="hidden" name="playerId" value={member.playerId} />
+                            <SubmitIconButton icon="check" tone="accent" label={`Approve ${member.name}`} />
+                          </form>
+                          <form action={removeClubMember}>
+                            <input type="hidden" name="clubId" value={club.id} />
+                            <input type="hidden" name="playerId" value={member.playerId} />
+                            <SubmitIconButton icon="cross" tone="danger" label={`Decline ${member.name}`} />
+                          </form>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section aria-labelledby={`members-${club.id}`} className="mt-5 flex flex-col gap-2">
+                  <h3 id={`members-${club.id}`} className="font-semibold">
+                    Members ({members.length})
+                  </h3>
+                  {members.length === 0 ? (
+                    <p className="text-sm text-fg-muted">No members yet.</p>
+                  ) : (
+                    // One entry per login, with the Players it holds: a parent and their children sit together.
+                    <ul className="divide-y divide-border">
+                      {groupByEmail(members).map(([email, held]) => (
+                        <li key={email} className="flex flex-col py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="min-w-0 truncate text-sm text-fg-muted">{email}</p>
+                            {!held[0].signedIn && <Badge>Not signed in yet</Badge>}
+                          </div>
+                          <ul aria-label={`Players of ${email}`} className="flex flex-col">
+                            {held.map((member) => (
+                              // One line: the name, its level and gender, and removing it (#224).
+                              <li key={member.playerId} className="flex items-center gap-2">
+                                <p className="min-w-0 flex-1 truncate">
+                                  <span className="font-medium">{member.name}</span>
+                                  <span className="text-sm text-fg-muted">
+                                    {" · "}
+                                    {[member.level === null ? null : `Level ${member.level}`, member.gender]
+                                      .filter(Boolean)
+                                      .join(" · ") || "Level and gender not set"}
+                                  </span>
+                                </p>
+                                {/* Behind a sheet: removing is one tap away from a name in a list. */}
+                                <Sheet title={`Remove ${member.name}?`} triggerIcon="trash" triggerTone="danger" trigger={`Remove ${member.name}`}>
+                                  <p className="text-fg-muted">
+                                    {member.name} will no longer be a member of {club.name}. They can ask to join again.
+                                  </p>
+                                  <form action={removeClubMember}>
+                                    <input type="hidden" name="clubId" value={club.id} />
+                                    <input type="hidden" name="playerId" value={member.playerId} />
+                                    <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                                      Remove from club
+                                    </SubmitButton>
+                                  </form>
+                                </Sheet>
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* One form for both ways in (#224): a name adds that Player now, none pre-approves the email. */}
+                <section aria-labelledby={`add-${club.id}`} className="mt-5 flex flex-col gap-3">
+                  <h3 id={`add-${club.id}`} className="font-semibold">
+                    Add someone
+                  </h3>
+                  <form action={addToClub} className="flex flex-col gap-3">
                     <input type="hidden" name="clubId" value={club.id} />
-                    <SubmitButton variant="secondary" pendingLabel="Turning on…">
-                      Turn on the join link
+                    <Field id={`add-email-${club.id}`} label="Their email address">
+                      {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
+                    </Field>
+                    <Field
+                      id={`add-name-${club.id}`}
+                      label="Name (optional)"
+                      hint="With a name, that player is added now: use a parent's address for a child. Without one, they join with their own players once they sign in. Any players this address has already are let in too. We don't email them, so let them know."
+                    >
+                      {(control) => <Input {...control} name="name" maxLength={100} autoComplete="off" />}
+                    </Field>
+                    <SubmitButton variant="secondary" pendingLabel="Adding…">
+                      Add
                     </SubmitButton>
                   </form>
-                </>
-              )}
-            </section>
-
-            <section aria-labelledby={`waiting-${club.id}`} className="mt-5 flex flex-col gap-2">
-              <h3 id={`waiting-${club.id}`} className="font-semibold">
-                Asking to join ({waiting.length})
-              </h3>
-              {waiting.length === 0 ? (
-                <p className="text-sm text-fg-muted">Nobody is waiting.</p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {waiting.map((member) => (
-                    // One line: who, and approve or decline beside them (#224).
-                    <li key={member.playerId} className="flex items-center gap-2 py-1.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{member.name}</p>
-                        <p className="truncate text-sm text-fg-muted">{member.email}</p>
-                      </div>
-                      <form action={approveClubMember}>
-                        <input type="hidden" name="clubId" value={club.id} />
-                        <input type="hidden" name="playerId" value={member.playerId} />
-                        <SubmitIconButton icon="check" tone="accent" label={`Approve ${member.name}`} />
-                      </form>
-                      <form action={removeClubMember}>
-                        <input type="hidden" name="clubId" value={club.id} />
-                        <input type="hidden" name="playerId" value={member.playerId} />
-                        <SubmitIconButton icon="cross" tone="danger" label={`Decline ${member.name}`} />
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section aria-labelledby={`members-${club.id}`} className="mt-5 flex flex-col gap-2">
-              <h3 id={`members-${club.id}`} className="font-semibold">
-                Members ({members.length})
-              </h3>
-              {members.length === 0 ? (
-                <p className="text-sm text-fg-muted">No members yet.</p>
-              ) : (
-                // One entry per login, with the Players it holds: a parent and their children sit together.
-                <ul className="divide-y divide-border">
-                  {groupByEmail(members).map(([email, held]) => (
-                    <li key={email} className="flex flex-col py-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="min-w-0 truncate text-sm text-fg-muted">{email}</p>
-                        {!held[0].signedIn && <Badge>Not signed in yet</Badge>}
-                      </div>
-                      <ul aria-label={`Players of ${email}`} className="flex flex-col">
-                        {held.map((member) => (
-                          // One line: the name, its level and gender, and removing it (#224).
-                          <li key={member.playerId} className="flex items-center gap-2">
-                            <p className="min-w-0 flex-1 truncate">
-                              <span className="font-medium">{member.name}</span>
-                              <span className="text-sm text-fg-muted">
-                                {" · "}
-                                {[member.level === null ? null : `Level ${member.level}`, member.gender]
-                                  .filter(Boolean)
-                                  .join(" · ") || "Level and gender not set"}
-                              </span>
-                            </p>
-                            {/* Behind a sheet: removing is one tap away from a name in a list. */}
-                            <Sheet title={`Remove ${member.name}?`} triggerIcon="trash" triggerTone="danger" trigger={`Remove ${member.name}`}>
-                              <p className="text-fg-muted">
-                                {member.name} will no longer be a member of {club.name}. They can ask to join again.
-                              </p>
-                              <form action={removeClubMember}>
-                                <input type="hidden" name="clubId" value={club.id} />
-                                <input type="hidden" name="playerId" value={member.playerId} />
-                                <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
-                                  Remove from club
-                                </SubmitButton>
-                              </form>
-                            </Sheet>
+                  {club.invites.length > 0 && (
+                    <>
+                      <h4 className="text-sm font-semibold">Pre-approved, no player yet</h4>
+                      <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
+                        {club.invites.map((invite) => (
+                          <li key={invite.id} className="flex items-center gap-2 py-0.5">
+                            <span className="min-w-0 flex-1 truncate text-sm">{invite.email}</span>
+                            <form action={withdrawClubInvite}>
+                              <input type="hidden" name="clubId" value={club.id} />
+                              <input type="hidden" name="inviteId" value={invite.id} />
+                              <SubmitIconButton icon="cross" tone="danger" label={`Withdraw pre-approval for ${invite.email}`} />
+                            </form>
                           </li>
                         ))}
                       </ul>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {/* One form for both ways in (#224): a name adds that Player now, none pre-approves the email. */}
-            <section aria-labelledby={`add-${club.id}`} className="mt-5 flex flex-col gap-3">
-              <h3 id={`add-${club.id}`} className="font-semibold">
-                Add someone
-              </h3>
-              <form action={addToClub} className="flex flex-col gap-3">
-                <input type="hidden" name="clubId" value={club.id} />
-                <Field id={`add-email-${club.id}`} label="Their email address">
-                  {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
-                </Field>
-                <Field
-                  id={`add-name-${club.id}`}
-                  label="Name (optional)"
-                  hint="With a name, that player is added now: use a parent's address for a child. Without one, they join with their own players once they sign in. Any players this address has already are let in too. We don't email them, so let them know."
-                >
-                  {(control) => <Input {...control} name="name" maxLength={100} autoComplete="off" />}
-                </Field>
-                <SubmitButton variant="secondary" pendingLabel="Adding…">
-                  Add
-                </SubmitButton>
-              </form>
-              {club.invites.length > 0 && (
-                <>
-                  <h4 className="text-sm font-semibold">Pre-approved, no player yet</h4>
-                  <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
-                    {club.invites.map((invite) => (
-                      <li key={invite.id} className="flex items-center gap-2 py-0.5">
-                        <span className="min-w-0 flex-1 truncate text-sm">{invite.email}</span>
-                        <form action={withdrawClubInvite}>
-                          <input type="hidden" name="clubId" value={club.id} />
-                          <input type="hidden" name="inviteId" value={invite.id} />
-                          <SubmitIconButton icon="cross" tone="danger" label={`Withdraw pre-approval for ${invite.email}`} />
-                        </form>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </section>
+                    </>
+                  )}
+                </section>
+              </div>
+            </div>
           </Card>
         );
       })}

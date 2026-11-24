@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LeagueSetupForm } from "@/components/league-setup-form";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "New league" };
 
@@ -29,12 +30,12 @@ export default async function NewLeaguePage({ searchParams }: PageProps<"/manage
   }
 
   return (
-    <>
+    <PageColumn>
       <div>
         <h1 className="text-2xl font-bold">New league</h1>
         <p className="text-fg-muted">{club.name}</p>
       </div>
       <LeagueSetupForm clubId={club.id} today={todayAtTheClub()} />
-    </>
+    </PageColumn>
   );
 }
