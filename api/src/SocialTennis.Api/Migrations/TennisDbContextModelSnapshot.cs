@@ -654,6 +654,9 @@ namespace SocialTennis.Api.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
+                    b.Property<DateTimeOffset?>("LastSignedInAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Roles")
                         .HasColumnType("integer");
 

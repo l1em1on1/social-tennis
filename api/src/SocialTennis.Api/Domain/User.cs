@@ -14,6 +14,13 @@ public class User
     public DateTimeOffset CreatedAt { get; set; }
 
     /// <summary>
+    /// When they last redeemed a sign-in link, which retention counts from
+    /// (#117, ADR-0024). Null until they do: for a User a Manager added, and
+    /// for one who last signed in before this was recorded.
+    /// </summary>
+    public DateTimeOffset? LastSignedInAt { get; set; }
+
+    /// <summary>
     /// Roles granted to this User. Addresses in Auth:AdminEmails are Admins on
     /// top of whatever is stored here. Granting roles in the app is issue #18.
     /// </summary>

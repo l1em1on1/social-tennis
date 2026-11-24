@@ -2,11 +2,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using SocialTennis.Api.Authentication;
+using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
 using SocialTennis.Api.Features.Auth.Contracts;
 
@@ -67,6 +69,72 @@ public class AuthFlowTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
         Assert.NotNull(firstMe);
         Assert.NotNull(secondMe);
         Assert.Equal(firstMe.UserId, secondMe.UserId);
+    }
+
+    // #117: retention counts from a User's last sign-in (ADR-0024).
+    [Fact]
+    public async Task Redeeming_a_link_records_when_the_user_last_signed_in()
+    {
+        // A whole second, which Postgres gives back as it is.
+        var clock = new MovableClock { Now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds()) };
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(clock);
+        }));
+        using var client = host.CreateClient();
+        var email = UniqueEmail();
+
+        var first = clock.Now;
+        var session = await RedeemAsync(client, await RequestTokenAsync(client, email));
+        Assert.Equal(first, await LastSignedInAsync(host.Services, email));
+
+        // Using the session isn't a sign-in, nor is asking for a link.
+        clock.Now = first.AddMinutes(1);
+        UseSession(client, session.Token);
+        (await client.GetAsync("/auth/me")).EnsureSuccessStatusCode();
+        var token = await RequestTokenAsync(client, email);
+        Assert.Equal(first, await LastSignedInAsync(host.Services, email));
+
+        clock.Now = first.AddMinutes(2);
+        await RedeemAsync(client, token);
+        Assert.Equal(first.AddMinutes(2), await LastSignedInAsync(host.Services, email));
+
+        // A link that doesn't work signs nobody in: the same one again.
+        clock.Now = first.AddMinutes(3);
+        var again = await client.PostAsJsonAsync("/auth/sessions", new { token });
+        Assert.Equal(HttpStatusCode.Unauthorized, again.StatusCode);
+        Assert.Equal(first.AddMinutes(2), await LastSignedInAsync(host.Services, email));
+    }
+
+    [Fact]
+    public async Task A_user_a_manager_added_has_no_last_sign_in_until_they_sign_in()
+    {
+        var email = UniqueEmail();
+        using var client = factory.CreateClient();
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await factory.AClubIdAsync();
+        var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { email, name = "Added First" });
+        added.EnsureSuccessStatusCode();
+
+        Assert.Null(await LastSignedInAsync(factory.Services, email));
+
+        await RedeemAsync(client, await RequestTokenAsync(client, email));
+        Assert.NotNull(await LastSignedInAsync(factory.Services, email));
+    }
+
+    private sealed class MovableClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    private static async Task<DateTimeOffset?> LastSignedInAsync(IServiceProvider services, string email)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        return await db.Users.Where(u => u.Email == email).Select(u => u.LastSignedInAt).SingleAsync();
     }
 
     [Fact]

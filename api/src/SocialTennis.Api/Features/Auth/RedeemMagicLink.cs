@@ -63,6 +63,12 @@ public static class RedeemMagicLink
         // The address's User, created now if this is its first sign-in.
         var userId = await UserAccounts.EnsureAsync(db, magicToken.Email, now, cancellationToken);
 
+        // Retention counts from here (#117, ADR-0024). Only here: a User row
+        // can exist before anyone has signed in as it.
+        await db.Users
+            .Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(u => u.LastSignedInAt, now), cancellationToken);
+
         var rawSession = Tokens.NewToken();
         var expiresAt = now.AddDays(authOptions.Value.SessionLifetimeDays);
         db.SessionTokens.Add(new SessionToken
