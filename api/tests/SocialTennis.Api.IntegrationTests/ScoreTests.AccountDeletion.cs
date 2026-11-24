@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Clubs.Contracts;
@@ -122,6 +125,66 @@ public partial class ScoreTests
 
         var league = (await manager.GetFromJsonAsync<GetLeagueResponse>($"/leagues/{leagueId}"))!;
         Assert.DoesNotContain(league.JoinRequests, r => r.PlayerId == ann.PlayerId);
+    }
+
+    /// <summary>
+    /// Deleting a User, as asking sees it: the email's admission lock held while
+    /// their Player becomes a Former player and leaves the Club. A request made
+    /// meanwhile waits for the lock, then finds the Player held by nobody
+    /// (#228 review).
+    /// </summary>
+    private async Task<HttpResponseMessage> AskWhileDeletingAsync(string email, Guid playerId, Func<Task<HttpResponseMessage>> ask)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        await using var deleting = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(1160001, hashtext({email}))");
+        var asking = ask();
+        await Task.Delay(500);
+        await db.Players
+            .Where(p => p.Id == playerId)
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.UserId, (Guid?)null).SetProperty(p => p.Name, Player.FormerPlayerName));
+        await db.ClubMemberships.Where(m => m.PlayerId == playerId).ExecuteDeleteAsync();
+        await deleting.CommitAsync();
+        return await asking;
+    }
+
+    private async Task<bool> AnyRequestOfAsync(Guid playerId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        return await db.ClubMemberships.AnyAsync(m => m.PlayerId == playerId)
+            || await db.LeagueJoinRequests.AnyAsync(r => r.PlayerId == playerId);
+    }
+
+    [Fact]
+    public async Task Asking_to_join_a_Club_while_the_User_is_deleted_leaves_no_request()
+    {
+        var (_, clubId) = await ClubAsync();
+        var email = $"racing-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var playerId = (await (await client.PostAsJsonAsync("/players", new { name = "Rae" })).Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id;
+        var code = await factory.JoinCodeAsync(clubId);
+
+        var asked = await AskWhileDeletingAsync(email, playerId, () => client.PutAsync($"/join-links/{code}/members/{playerId}", null));
+
+        Assert.Equal(HttpStatusCode.NotFound, asked.StatusCode);
+        Assert.False(await AnyRequestOfAsync(playerId));
+    }
+
+    [Fact]
+    public async Task Asking_to_join_a_League_while_the_User_is_deleted_leaves_no_request()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6);
+        var ann = await MemberAsync(manager, clubId, "Ann");
+        var email = (await ann.Client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Email;
+
+        var asked = await AskWhileDeletingAsync(
+            email, ann.PlayerId, () => ann.Client.PostAsJsonAsync($"/leagues/{leagueId}/join-requests", new { playerId = ann.PlayerId }));
+
+        Assert.Equal(HttpStatusCode.NotFound, asked.StatusCode);
+        Assert.False(await AnyRequestOfAsync(ann.PlayerId));
     }
 
     [Fact]

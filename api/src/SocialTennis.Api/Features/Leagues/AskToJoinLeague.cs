@@ -5,6 +5,7 @@ using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Leagues.Contracts;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Leagues;
 
@@ -39,12 +40,22 @@ public static class AskToJoinLeague
     {
         var userId = user.UserId();
         var playerId = request.PlayerId;
+
+        // The asker's and the partner's admission locks first, as deleting a User
+        // takes them (#116), then the League's: a deletion and this request run
+        // one after the other, so neither leaves a request for a Former player.
+        var named = await db.Players
+            .Where(p => (p.Id == playerId || p.Id == request.PartnerId) && p.User != null)
+            .Select(p => p.User!.Email)
+            .ToListAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await ClubAdmission.TakeEmailLocksAsync(db, named, cancellationToken);
+        await LeagueEntry.TakeLeagueLockAsync(db, leagueId, cancellationToken);
         if (!await db.Players.AnyAsync(p => p.Id == playerId && p.UserId == userId, cancellationToken))
         {
             return TypedResults.NotFound();
         }
 
-        await using var transaction = await LeagueEntry.LockLeagueAsync(db, leagueId, cancellationToken);
         var league = await db.Leagues
             .Where(l => l.Id == leagueId)
             .Select(l => new { l.ClubId, l.Type })

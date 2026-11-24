@@ -32,16 +32,20 @@ public static class JoinClub
         CancellationToken cancellationToken)
     {
         var userId = user.UserId();
-        var held = await db.Players.AnyAsync(p => p.Id == playerId && p.UserId == userId, cancellationToken);
         var linked = await db.Clubs.Where(c => c.JoinCode == code).Select(c => (Guid?)c.Id).SingleOrDefaultAsync(cancellationToken);
-        if (!held || linked is not { } clubId)
+        if (linked is not { } clubId)
         {
             return TypedResults.NotFound();
         }
 
-        // Serialized with invites for this email, and with a second press.
+        // Serialized with invites for this email, with a second press, and with
+        // deleting this User (#116), so the Player is checked once it holds.
         var email = EmailAddress.Normalize(user.FindFirstValue(ClaimTypes.Email)!);
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
+        if (!await db.Players.AnyAsync(p => p.Id == playerId && p.UserId == userId, cancellationToken))
+        {
+            return TypedResults.NotFound();
+        }
 
         var membership = await db.ClubMemberships
             .SingleOrDefaultAsync(m => m.ClubId == clubId && m.PlayerId == playerId, cancellationToken);

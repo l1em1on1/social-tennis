@@ -38,6 +38,19 @@ internal static class ClubAdmission
         return transaction;
     }
 
+    /// <summary>
+    /// Takes the locks of several emails in the transaction already open, in
+    /// one order, so two callers naming the same people can't deadlock: asking
+    /// to join a League takes the asker's and the partner's (#228 review).
+    /// </summary>
+    public static async Task TakeEmailLocksAsync(TennisDbContext db, IEnumerable<string> normalizedEmails, CancellationToken cancellationToken)
+    {
+        foreach (var email in normalizedEmails.Distinct().Order(StringComparer.Ordinal))
+        {
+            await TakeEmailLockAsync(db, email, cancellationToken);
+        }
+    }
+
     /// <summary>Takes this email's lock in the transaction already open, as deleting a User does (#116).</summary>
     public static async Task TakeEmailLockAsync(TennisDbContext db, string normalizedEmail, CancellationToken cancellationToken) =>
         await db.Database.ExecuteSqlAsync(
