@@ -11,9 +11,10 @@
 #   lint  — ESLint. `next build` stopped linting in Next.js 16, so nothing
 #           else runs it.
 #
-#   storybook — builds and type-checks the component stories, then sends
-#           them to Chromatic's Storybook project in light and dark (#46).
-#           Skipped while CHROMATIC_STORYBOOK_PROJECT_TOKEN is unset.
+#   storybook — builds and type-checks the component stories, checks each
+#           one's accessibility in light and dark (#232), then sends them to
+#           Chromatic's Storybook project (#46; that step is skipped while
+#           CHROMATIC_STORYBOOK_PROJECT_TOKEN is unset).
 #
 # Runs on every PR and every push to main, and decides per job whether the
 # change touches it (ADR-0002). api/** counts, because the e2e job runs the
@@ -160,8 +161,9 @@ jobs:
   # on the PR don't carry to main otherwise (Chromatic docs, "GitHub
   # squash/rebase merge and the main branch"; ADR-0015).
   #
-  # Component stories, light and dark at 360px (#46). Built and type-checked
-  # on every web change, so a broken story fails here. Published to Chromatic's
+  # Component stories, light and dark at 360px (#46). Built, type-checked and
+  # checked with axe on every web change, so a broken story, a play that throws
+  # or a failing contrast fails here (#232). Published to Chromatic's
   # Storybook project, a second project beside the Playwright one (Chromatic
   # docs, "combine stories and E2E"), once CHROMATIC_STORYBOOK_PROJECT_TOKEN
   # is set; skipped until then.
@@ -184,6 +186,10 @@ jobs:
         run: >-
           docker compose --profile storybook run --rm --no-deps storybook
           sh -c "npx next typegen && npx tsc --noEmit"
+      # Before the upload, so that a failure blocks the merge: the required
+      # "UI Tests: social-tennis_storybook" check is then never reported.
+      - name: Check every story's accessibility, in light and dark
+        run: docker compose --profile storybook run --rm --no-deps storybook npm run test-storybook
       - name: Publish the stories to Chromatic
         if: env.CHROMATIC_STORYBOOK_PROJECT_TOKEN != ''
         env:
@@ -245,9 +251,16 @@ jobs:
   # With two Chromatic projects linked to the repo, Chromatic names each
   # check "UI Tests: <project name>" (#190). Renaming a project in Chromatic
   # renames its check: change CHROMATIC_CHECKS and the required checks with it.
+  #
+  # It waits for the storybook job, and reports nothing if that failed: a story
+  # that fails its accessibility check (#232) must block these PRs too.
   ui-tests-dependabot:
     name: UI Tests (not run on Dependabot PRs)
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
+    needs: storybook
+    if: >-
+      ${{ !cancelled()
+      && github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+      && contains(fromJSON('["success", "skipped"]'), needs.storybook.result) }}
     runs-on: ubuntu-latest
     permissions:
       statuses: write

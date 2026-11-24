@@ -9,6 +9,7 @@
     "lint": "eslint",
     "storybook": "storybook dev --port 6006 --host 0.0.0.0 --ci",
     "build-storybook": "storybook build",
+    "test-storybook": "playwright test --config playwright.storybook.config.ts",
     "api:generate": "openapi-typescript http://api:8080/openapi/v1.json -o src/lib/api/schema.d.ts"
   },
   "dependencies": {

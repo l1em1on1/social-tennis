@@ -4,6 +4,3 @@
  * is the constant `false` and everything it guards is dropped from the bundle.
  */
 export const mockApi = process.env.MOCK_API === "1";
-
-/** Dev-only surfaces (the UI showcase): in `next dev`, or in a mocked build. */
-export const devSurfacesEnabled = process.env.NODE_ENV !== "production" || mockApi;

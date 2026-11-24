@@ -33,7 +33,7 @@ Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app
 MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
 ```
 
-The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the starting roles: `manager@…` is a Manager and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown at http://localhost:3000/dev/ui.
+The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the starting roles: `manager@…` is a Manager and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
 
 ## Tests
 
@@ -43,7 +43,7 @@ Integration tests drive the API over HTTP against the real compose Postgres (the
 docker compose run --rm api-tests
 ```
 
-Frontend end-to-end tests run Playwright in a container against two production builds of the web app, one with the API mocked and one with the real API and Postgres. Accessibility checks (axe) run as part of them:
+Frontend end-to-end tests run Playwright in a container against two production builds of the web app, one with the API mocked and one with the real API and Postgres. Accessibility checks (axe) run as part of them; Storybook's, below, cover every component in light and dark:
 
 ```sh
 docker compose --profile e2e run --rm e2e
@@ -63,10 +63,15 @@ Component stories (Storybook, #46) run in their own compose service. The dev ser
 docker compose --profile storybook up storybook
 ```
 
-Build them, then publish to Chromatic's Storybook project, a second project with its own token:
+Build them and check every story's accessibility, in light and dark:
 
 ```sh
-docker compose --profile storybook run --rm storybook npm run build-storybook
+docker compose --profile storybook run --rm --no-deps storybook sh -c "npm run build-storybook && npm run test-storybook"
+```
+
+To publish the built stories to Chromatic's Storybook project, a second project with its own token:
+
+```sh
 CHROMATIC_PROJECT_TOKEN=<storybook project token> docker compose --profile storybook run --rm --no-deps chromatic npx chromatic --storybook-build-dir storybook-static --exit-zero-on-changes
 ```
 
