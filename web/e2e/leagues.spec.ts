@@ -743,6 +743,56 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
   await vicContext.close();
 });
 
+test.describe("with a Player whose name is one long word", () => {
+  // Not worth a visual review: the ladder's standings table still overflows with such a name.
+  test.use({ disableAutoSnapshot: true });
+
+  test("Home and the ladder's Divisions keep to a phone's width", async ({ page, browser }, testInfo) => {
+    test.slow();
+    const league = uniqueName(testInfo, "Narrow Ladder");
+    const una = { name: uniqueName(testInfo, "Una Narrow"), email: personaEmail(testInfo, "narrow-una") };
+    const long = {
+      name: uniqueName(testInfo, "OpponentWithAnUnusuallyLongUnbrokenName"),
+      email: personaEmail(testInfo, "narrow-long"),
+    };
+
+    const managerContext = await browser.newContext();
+    const manager = await managerContext.newPage();
+    await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+    for (const { name, email } of [una, long]) await addClubPlayer(manager, name, email);
+    // Its Stage runs a year, so its deadline is far off (see createLeague).
+    await createLeague(manager, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+    for (const { name, email } of [una, long]) {
+      await manager.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+      await manager.getByRole("button", { name: "Add to league" }).click();
+      await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
+    }
+    await manager.getByRole("link", { name: "Start the league" }).click();
+    await manager.getByRole("button", { name: "Confirm and start" }).click();
+    await expect(manager.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+    await managerContext.close();
+
+    // Home: her Game's opponent wraps inside the card, so nothing is wider than the screen.
+    await logIn(page, testInfo, una.email);
+    const home = page.getByRole("region", { name: league, exact: true });
+    await expect(home).toContainText(long.name);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, "horizontal scroll on Home at 360px").toBeLessThanOrEqual(0);
+
+    // The ladder: each Division's card is the column's width, not the longest word's.
+    await home.getByRole("link", { name: "Ladder" }).click();
+    await expect(page.getByRole("heading", { name: league, level: 1 })).toBeVisible();
+    const division = (await page.locator('ol[aria-label="Ladder"] > li').first().boundingBox())!;
+    const content = await page.getByRole("main").evaluate((main) => {
+      const { paddingLeft, paddingRight } = getComputedStyle(main);
+      return main.clientWidth - Number.parseFloat(paddingLeft) - Number.parseFloat(paddingRight);
+    });
+    expect(division.width).toBeLessThanOrEqual(content + 1);
+  });
+});
+
 test("a Manager settles Games nobody scored from the to-do list: records one, marks one not played", async ({ page }, testInfo) => {
   test.slow();
   const league = uniqueName(testInfo, "Settling Ladder");

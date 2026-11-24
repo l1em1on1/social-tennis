@@ -95,7 +95,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               .map((league) => (
                 <HeldUpNotice key={league.leagueId} league={league} />
               ))}
-            <ul aria-label="Your leagues" className="grid gap-3 md:grid-cols-2 md:items-start">
+            {/* A column on a phone, as before; two from md (#225). A bare grid would let a long word widen it. */}
+            <ul aria-label="Your leagues" className="flex flex-col gap-3 md:grid md:grid-cols-2 md:items-start">
               {games.leagues.map((league) => (
                 <li key={league.leagueId}>
                   <PlayerLeagueGames league={league} />

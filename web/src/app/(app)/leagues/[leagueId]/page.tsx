@@ -144,7 +144,8 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
         )
       )}
 
-      <ol aria-label="Ladder" className="grid gap-3 md:grid-cols-2 md:items-start">
+      {/* A column on a phone, as before; Divisions two by two from md (#225). */}
+      <ol aria-label="Ladder" className="flex flex-col gap-3 md:grid md:grid-cols-2 md:items-start">
         {ladder.divisions.map((division) => {
           const ours = division === mine;
           const nameOf = (teamId: string) => {
