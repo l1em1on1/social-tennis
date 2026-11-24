@@ -21,7 +21,7 @@ const tones: Record<IconButtonTone, string> = {
  */
 export function iconButtonClasses(tone: IconButtonTone = "neutral"): string {
   return cx(
-    "inline-flex size-11 shrink-0 items-center justify-center rounded-xl transition-colors",
+    "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors",
     "disabled:cursor-not-allowed disabled:opacity-50",
     tones[tone],
   );

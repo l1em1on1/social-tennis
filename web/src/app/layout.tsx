@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
 
@@ -10,6 +10,12 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+// The display serif for page and card titles (#226, Clay court). A variable font, so no weights to list.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
 });
 
@@ -24,8 +30,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Matches --st-bg in globals.css so the mobile browser chrome blends in.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f7f4" },
-    { media: "(prefers-color-scheme: dark)", color: "#11140f" },
+    { media: "(prefers-color-scheme: light)", color: "#fbf4ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#18110c" },
   ],
 };
 
@@ -35,7 +41,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // CSP guide: "all pages must be dynamically rendered").
   await connection();
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

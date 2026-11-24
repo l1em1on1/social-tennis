@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { BallMark } from "@/components/shell/ball-mark";
 import { BottomNav, type NavKey } from "@/components/shell/bottom-nav";
 import { PlayerSwitcher } from "@/components/shell/player-switcher";
 import { getViewer } from "@/lib/viewer";
@@ -26,9 +27,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 border-b border-border bg-surface">
+      {/* Ruled in terracotta, with the ball mark (#226). */}
+      <header className="sticky top-0 z-10 border-b-4 border-accent bg-surface">
         <div className="mx-auto flex min-h-14 max-w-md items-center justify-between gap-3 px-4 md:max-w-5xl">
-          <span className="shrink-0 text-lg font-bold">Hits & Giggles</span>
+          <span className="flex shrink-0 items-center gap-2 font-display text-lg font-bold text-accent">
+            <BallMark />
+            Hits & Giggles
+          </span>
           <BottomNav keys={nav} />
           <PlayerSwitcher viewer={viewer} />
         </div>

@@ -18,21 +18,38 @@
  * be faint; `border-strong` outlines form controls, so it keeps 3:1 against
  * both `surface` and `bg` (WCAG 1.4.11, non-text contrast) — axe doesn't
  * check borders, so that one is on us.
+ *
+ * The look is Clay court (#226, ADR-0014 as amended): a cream page, terracotta
+ * for the brand and every action, warm neutrals, serif titles. Each token's
+ * lowest contrast among the pairings in use, computed (light / dark):
+ *
+ *   fg            13.0 / 11.7   on accent-muted
+ *   fg-muted       5.7 /  6.7   on accent-muted
+ *   accent         4.8 /  5.5   on accent-muted (Badge, the current tab from md, a checked option)
+ *   accent-fg      6.1 /  7.2   on accent
+ *   success        5.6 /  8.2   on success-muted
+ *   warning        5.9 /  8.4   on warning-muted
+ *   danger         5.5 /  7.3   on danger-muted
+ *   info           6.7 /  7.4   on info-muted
+ *   border-strong  4.0 /  3.8   on bg / on surface
  */
 
 :root {
-  --st-bg: #f6f7f4;
-  --st-surface: #ffffff;
-  --st-surface-muted: #eceee8;
-  --st-fg: #1a1d17;
-  --st-fg-muted: #555c4f;
-  --st-border: #d3d8cc;
-  --st-border-strong: #7d8575; /* 3.8:1 on surface, 3.6:1 on bg */
+  --st-bg: #fbf4ea;
+  --st-surface: #fffdf8;
+  --st-surface-muted: #f2e7d8;
+  --st-fg: #2a1c14;
+  --st-fg-muted: #6a5244;
+  --st-border: #e8d7c2;
+  --st-border-strong: #8e735f; /* 4.3:1 on surface, 4.0:1 on bg */
 
-  --st-accent: #2f6b1f;
-  --st-accent-hover: #255617;
+  --st-accent: #a9401f;
+  --st-accent-hover: #8c3418;
   --st-accent-fg: #ffffff;
-  --st-accent-muted: #e2efdb;
+  --st-accent-muted: #f9e0d3;
+
+  /* A soft, warm lift under cards. */
+  --st-shadow-card: 0 2px 10px -4px rgb(120 60 30 / 0.18);
 
   --st-success: #1d6a40;
   --st-success-muted: #dcf2e5;
@@ -49,18 +66,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --st-bg: #11140f;
-    --st-surface: #1a1e17;
-    --st-surface-muted: #262b22;
-    --st-fg: #eef1ea;
-    --st-fg-muted: #aab2a2;
-    --st-border: #3a4233;
-    --st-border-strong: #727d68; /* 3.9:1 on surface, 4.3:1 on bg */
+    --st-bg: #18110c;
+    --st-surface: #221812;
+    --st-surface-muted: #31231a;
+    --st-fg: #f7ede4;
+    --st-fg-muted: #c9b3a2;
+    --st-border: #4a3629;
+    --st-border-strong: #8e715c; /* 3.9:1 on surface, 4.2:1 on bg */
 
-    --st-accent: #8fd16f;
-    --st-accent-hover: #a6dd8b;
-    --st-accent-fg: #10200a;
-    --st-accent-muted: #22381a;
+    --st-accent: #f28a62;
+    --st-accent-hover: #f6a585;
+    --st-accent-fg: #2a1208;
+    --st-accent-muted: #4a2416;
+
+    --st-shadow-card: 0 6px 18px -8px rgb(0 0 0 / 0.6);
 
     --st-success: #7fd8a2;
     --st-success-muted: #153122;
@@ -107,11 +126,20 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Here rather than on :root, where var(--font-fraunces) would resolve: Storybook sets it lower down (#230 review). */
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+
+  --shadow-card: var(--st-shadow-card);
 }
 
 @layer base {
   body {
     @apply bg-bg font-sans text-fg;
+  }
+
+  /* Page titles in the display serif (#226); everything else stays in Geist. */
+  h1 {
+    @apply font-display;
   }
 
   /* One visible focus style for every interactive element. */

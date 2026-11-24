@@ -56,8 +56,11 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
                 aria-current={active ? "page" : undefined}
                 className={cx(
                   "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium",
-                  "md:min-h-11 md:flex-row md:gap-2 md:rounded-xl md:px-3 md:text-sm",
-                  active ? "text-accent md:bg-accent-muted" : "text-fg-muted hover:text-fg md:hover:bg-surface-muted",
+                  "md:min-h-11 md:flex-row md:gap-2 md:rounded-full md:px-4 md:text-sm",
+                  // The current tab: a terracotta bar above it on a phone, a pill from md (#226).
+                  active
+                    ? "text-accent max-md:shadow-[inset_0_3px_0_var(--st-accent)] md:bg-accent-muted"
+                    : "text-fg-muted hover:text-fg md:hover:bg-surface-muted",
                 )}
               >
                 {/* The icon turns into a spinner from the tap until the page arrives. */}
