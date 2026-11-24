@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect } from "storybook/test";
 import { allModes } from "../../../.storybook/modes";
 import { Button } from "./button";
 import { Sheet } from "./sheet";
@@ -47,5 +48,13 @@ export const Open: Story = {
   ],
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Remove" }));
+  },
+};
+
+/** Opened from an icon button on a row's line (#224), named "Remove Anna Smith". */
+export const IconTrigger: Story = {
+  args: { triggerIcon: "trash", trigger: "Remove Anna Smith", triggerTone: "danger" },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("button", { name: "Remove Anna Smith" })).toHaveAttribute("aria-haspopup", "dialog");
   },
 };

@@ -1728,6 +1728,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddClubPlayerResponse"];
+                };
+            };
             /** @description Created */
             201: {
                 headers: {

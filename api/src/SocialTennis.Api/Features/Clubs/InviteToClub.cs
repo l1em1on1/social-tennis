@@ -38,25 +38,10 @@ public static class InviteToClub
         // another Manager inviting the same address.
         await using var transaction = await ClubAdmission.LockEmailAsync(db, email, cancellationToken);
 
-        var players = await db.Players
-            .Where(p => p.User.Email == email)
-            .Select(p => new { p.Id, IsMember = p.Memberships.Any(m => m.ClubId == clubId) })
-            .ToListAsync(cancellationToken);
-        foreach (var player in players.Where(p => !p.IsMember))
-        {
-            db.ClubMemberships.Add(ClubAdmission.Membership(clubId, player.Id, ClubMembershipStatus.Active, now));
-        }
-
-        // Waiting requests become memberships in one conditional update, so a
-        // Player leaving at this moment (which takes no lock) is skipped
-        // rather than failing the invite (#109).
-        var waiting = players.Where(p => p.IsMember).Select(p => p.Id).ToList();
-        await db.ClubMemberships
-            .Where(m => m.ClubId == clubId && waiting.Contains(m.PlayerId))
-            .ExecuteUpdateAsync(set => set.SetProperty(m => m.Status, ClubMembershipStatus.Active), cancellationToken);
+        var held = await ClubAdmission.LetInAsync(db, email, clubId, now, cancellationToken);
 
         // An invite exists only while its User holds no Player.
-        if (players.Count > 0)
+        if (held > 0)
         {
             await ClubAdmission.UseUpInvitesAsync(db, email, cancellationToken, clubId);
         }

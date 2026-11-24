@@ -3,15 +3,27 @@
 import { useId, useRef, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 import { buttonClasses, type ButtonVariant } from "./button";
+import { iconButtonClasses, type IconButtonTone } from "./icon-button";
+import { Icon, type IconName } from "./icons";
 
-interface SheetProps {
+type SheetProps = {
   title: string;
-  /** Content of the button that opens the sheet. */
-  trigger: ReactNode;
-  triggerVariant?: ButtonVariant;
   triggerClassName?: string;
   children: ReactNode;
-}
+} & (
+  | {
+      /** Content of the button that opens the sheet. */
+      trigger: ReactNode;
+      triggerVariant?: ButtonVariant;
+      triggerIcon?: never;
+    }
+  | {
+      /** An icon button opens it instead (#224), named by `trigger`: "Remove Anna Smith". */
+      triggerIcon: IconName;
+      trigger: string;
+      triggerTone?: IconButtonTone;
+    }
+);
 
 /**
  * Bottom sheet on phones, centred dialog on wider screens. Built on the native
@@ -19,20 +31,35 @@ interface SheetProps {
  * close, inert background, and top-layer stacking — the parts ADR-0014 says
  * are hard to get right by hand.
  */
-export function Sheet({ title, trigger, triggerVariant = "secondary", triggerClassName, children }: SheetProps) {
+export function Sheet(props: SheetProps) {
+  const { title, trigger, triggerClassName, children } = props;
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const open = () => ref.current?.showModal();
 
   return (
     <>
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        className={cx(buttonClasses(triggerVariant), triggerClassName)}
-        onClick={() => ref.current?.showModal()}
-      >
-        {trigger}
-      </button>
+      {props.triggerIcon ? (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-label={props.trigger}
+          title={props.trigger}
+          className={cx(iconButtonClasses(props.triggerTone), triggerClassName)}
+          onClick={open}
+        >
+          <Icon name={props.triggerIcon} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          className={cx(buttonClasses(props.triggerVariant ?? "secondary"), triggerClassName)}
+          onClick={open}
+        >
+          {trigger}
+        </button>
+      )}
       <dialog
         ref={ref}
         aria-labelledby={titleId}

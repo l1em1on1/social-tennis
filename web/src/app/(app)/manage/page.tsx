@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { SubmitIconButton } from "@/components/ui/icon-button";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
-  addClubPlayer,
+  addToClub,
   approveClubMember,
-  inviteToClub,
   removeClubMember,
   resetJoinLink,
   turnOffJoinLink,
@@ -29,7 +29,7 @@ export const metadata: Metadata = { title: "Manage" };
 
 const errors: Record<string, { title: string; description: string }> = {
   email: { title: "That email address didn't work", description: "Check it and try again." },
-  player: { title: "That player wasn't added", description: "Enter a name and a valid email address." },
+  player: { title: "That player wasn't added", description: "Check the email address, and keep the name to 100 characters." },
 };
 
 /** Members by the email of the login holding them, in the order the logins first appear. */
@@ -44,9 +44,9 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
 /**
  * Manager area: each Club's Leagues (each opens its own page, #5), and who is
  * in the Club. The Club's join link is shared, reset and turned off here (#222),
- * and the requests it brings approved or declined; Players are added
- * by name and email, members removed, and an email let in ahead of time (or
- * that invite taken back). Starting the ladder (#7), the to-do queue and month
+ * and the requests it brings approved or declined; someone is added by email,
+ * with a name to add their Player now or without one to pre-approve the email
+ * (#224), members removed, and a pre-approval taken back. Starting the ladder (#7), the to-do queue and month
  * close land here later. Rating is hidden from the UI for now (#161, ADR-0007).
  *
  * Hidden from the nav for non-Managers, and refused here too, since a URL can
@@ -193,31 +193,22 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
               ) : (
                 <ul className="divide-y divide-border">
                   {waiting.map((member) => (
-                    <li key={member.playerId} className="flex flex-col gap-2 py-3">
-                      <div>
-                        <p className="font-medium">{member.name}</p>
-                        <p className="text-sm break-all text-fg-muted">{member.email}</p>
+                    // One line: who, and approve or decline beside them (#224).
+                    <li key={member.playerId} className="flex items-center gap-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{member.name}</p>
+                        <p className="truncate text-sm text-fg-muted">{member.email}</p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <form action={approveClubMember}>
-                          <input type="hidden" name="clubId" value={club.id} />
-                          <input type="hidden" name="playerId" value={member.playerId} />
-                          <SubmitButton pendingLabel="Approving…" aria-label={`Approve ${member.name}`}>
-                            Approve
-                          </SubmitButton>
-                        </form>
-                        <form action={removeClubMember}>
-                          <input type="hidden" name="clubId" value={club.id} />
-                          <input type="hidden" name="playerId" value={member.playerId} />
-                          <SubmitButton
-                            variant="secondary"
-                            pendingLabel="Declining…"
-                            aria-label={`Decline ${member.name}`}
-                          >
-                            Decline
-                          </SubmitButton>
-                        </form>
-                      </div>
+                      <form action={approveClubMember}>
+                        <input type="hidden" name="clubId" value={club.id} />
+                        <input type="hidden" name="playerId" value={member.playerId} />
+                        <SubmitIconButton icon="check" tone="accent" label={`Approve ${member.name}`} />
+                      </form>
+                      <form action={removeClubMember}>
+                        <input type="hidden" name="clubId" value={club.id} />
+                        <input type="hidden" name="playerId" value={member.playerId} />
+                        <SubmitIconButton icon="cross" tone="danger" label={`Decline ${member.name}`} />
+                      </form>
                     </li>
                   ))}
                 </ul>
@@ -234,45 +225,37 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                 // One entry per login, with the Players it holds: a parent and their children sit together.
                 <ul className="divide-y divide-border">
                   {groupByEmail(members).map(([email, held]) => (
-                    <li key={email} className="flex flex-col gap-1 py-3">
+                    <li key={email} className="flex flex-col py-2">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm break-all text-fg-muted">{email}</p>
+                        <p className="min-w-0 truncate text-sm text-fg-muted">{email}</p>
                         {!held[0].signedIn && <Badge>Not signed in yet</Badge>}
                       </div>
                       <ul aria-label={`Players of ${email}`} className="flex flex-col">
                         {held.map((member) => (
-                          <li key={member.playerId} className="flex flex-col gap-2 py-2">
-                            <div>
-                              <p className="font-medium">{member.name}</p>
-                              <p className="text-sm text-fg-muted">
-                                {[member.gender, member.level === null ? null : `Level ${member.level}`]
+                          // One line: the name, its level and gender, and removing it (#224).
+                          <li key={member.playerId} className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 truncate">
+                              <span className="font-medium">{member.name}</span>
+                              <span className="text-sm text-fg-muted">
+                                {" · "}
+                                {[member.level === null ? null : `Level ${member.level}`, member.gender]
                                   .filter(Boolean)
                                   .join(" · ") || "Level and gender not set"}
+                              </span>
+                            </p>
+                            {/* Behind a sheet: removing is one tap away from a name in a list. */}
+                            <Sheet title={`Remove ${member.name}?`} triggerIcon="trash" triggerTone="danger" trigger={`Remove ${member.name}`}>
+                              <p className="text-fg-muted">
+                                {member.name} will no longer be a member of {club.name}. They can ask to join again.
                               </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {/* Behind a sheet: removing is one tap away from a name in a list. */}
-                              <Sheet
-                                title={`Remove ${member.name}?`}
-                                trigger={
-                                  <>
-                                    Remove<span className="sr-only"> {member.name}</span>
-                                  </>
-                                }
-                              >
-                                <p className="text-fg-muted">
-                                  {member.name} will no longer be a member of {club.name}. They can ask to join
-                                  again.
-                                </p>
-                                <form action={removeClubMember}>
-                                  <input type="hidden" name="clubId" value={club.id} />
-                                  <input type="hidden" name="playerId" value={member.playerId} />
-                                  <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
-                                    Remove from club
-                                  </SubmitButton>
-                                </form>
-                              </Sheet>
-                            </div>
+                              <form action={removeClubMember}>
+                                <input type="hidden" name="clubId" value={club.id} />
+                                <input type="hidden" name="playerId" value={member.playerId} />
+                                <SubmitButton variant="danger" fullWidth pendingLabel="Removing…">
+                                  Remove from club
+                                </SubmitButton>
+                              </form>
+                            </Sheet>
                           </li>
                         ))}
                       </ul>
@@ -282,64 +265,43 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
               )}
             </section>
 
+            {/* One form for both ways in (#224): a name adds that Player now, none pre-approves the email. */}
             <section aria-labelledby={`add-${club.id}`} className="mt-5 flex flex-col gap-3">
               <h3 id={`add-${club.id}`} className="font-semibold">
-                Add a player
+                Add someone
               </h3>
-              <form action={addClubPlayer} className="flex flex-col gap-3">
+              <form action={addToClub} className="flex flex-col gap-3">
                 <input type="hidden" name="clubId" value={club.id} />
-                <Field id={`add-name-${club.id}`} label="Player's name">
-                  {(control) => <Input {...control} name="name" required maxLength={100} autoComplete="off" />}
+                <Field id={`add-email-${club.id}`} label="Their email address">
+                  {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
                 </Field>
                 <Field
-                  id={`add-email-${club.id}`}
-                  label="Their email address"
-                  hint="For someone who hasn't signed in yet. The player is a member now, and theirs when they sign in with this address. Use a parent's address for a child."
+                  id={`add-name-${club.id}`}
+                  label="Name (optional)"
+                  hint="With a name, that player is added now: use a parent's address for a child. Without one, they join with their own players once they sign in. Any players this address has already are let in too. We don't email them, so let them know."
                 >
-                  {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
+                  {(control) => <Input {...control} name="name" maxLength={100} autoComplete="off" />}
                 </Field>
                 <SubmitButton variant="secondary" pendingLabel="Adding…">
-                  Add player
-                </SubmitButton>
-              </form>
-            </section>
-
-            <section aria-labelledby={`invite-${club.id}`} className="mt-5 flex flex-col gap-3">
-              <h3 id={`invite-${club.id}`} className="font-semibold">
-                Pre-approve an email address
-              </h3>
-              <form action={inviteToClub} className="flex flex-col gap-3">
-                <input type="hidden" name="clubId" value={club.id} />
-                <Field
-                  id={`invite-email-${club.id}`}
-                  label="Email address"
-                  hint="Their players join without asking: now if they have one, or once they sign in with this address and save their name. We don't email them, so let them know."
-                >
-                  {(control) => <Input {...control} name="email" type="email" required autoComplete="off" />}
-                </Field>
-                <SubmitButton variant="secondary" pendingLabel="Saving…">
-                  Pre-approve
+                  Add
                 </SubmitButton>
               </form>
               {club.invites.length > 0 && (
-                <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
-                  {club.invites.map((invite) => (
-                    <li key={invite.id} className="flex flex-col gap-2 py-3">
-                      <span className="text-sm break-all">{invite.email}</span>
-                      <form action={withdrawClubInvite}>
-                        <input type="hidden" name="clubId" value={club.id} />
-                        <input type="hidden" name="inviteId" value={invite.id} />
-                        <SubmitButton
-                          variant="secondary"
-                          pendingLabel="Withdrawing…"
-                          aria-label={`Withdraw pre-approval for ${invite.email}`}
-                        >
-                          Withdraw
-                        </SubmitButton>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <h4 className="text-sm font-semibold">Pre-approved, no player yet</h4>
+                  <ul aria-label="Pre-approved addresses" className="divide-y divide-border">
+                    {club.invites.map((invite) => (
+                      <li key={invite.id} className="flex items-center gap-2 py-0.5">
+                        <span className="min-w-0 flex-1 truncate text-sm">{invite.email}</span>
+                        <form action={withdrawClubInvite}>
+                          <input type="hidden" name="clubId" value={club.id} />
+                          <input type="hidden" name="inviteId" value={invite.id} />
+                          <SubmitIconButton icon="cross" tone="danger" label={`Withdraw pre-approval for ${invite.email}`} />
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           </Card>

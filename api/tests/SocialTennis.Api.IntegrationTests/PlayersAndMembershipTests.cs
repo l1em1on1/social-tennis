@@ -262,6 +262,33 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         Assert.Empty((await PlayersAsync(client)).Single(p => p.Id == later.Id).Clubs);
     }
 
+    /// <summary>
+    /// A Manager letting an email in, by pre-approving it or adding a Player for
+    /// it, lets in every Player that login holds: one who left or was removed
+    /// too. It's the Manager's decision, made again (#224, #227 review).
+    /// </summary>
+    [Theory]
+    [InlineData("left")]
+    [InlineData("removed")]
+    public async Task A_Manager_adding_a_Player_lets_back_in_a_sibling_who_left_or_was_removed(string how)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"sibling-{how}-{Guid.NewGuid():N}@example.test";
+        var clubId = await NewClubIdAsync();
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var pat = await CreatePlayerAsync(client, "Pat");
+        var gone = how == "left"
+            ? await client.DeleteAsync($"/players/{pat.Id}/clubs/{clubId}")
+            : await manager.DeleteAsync($"/clubs/{clubId}/members/{pat.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, gone.StatusCode);
+        Assert.Empty(Assert.Single(await PlayersAsync(client)).Clubs);
+
+        await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Pat Junior", email });
+
+        Assert.All(await PlayersAsync(client), p => Assert.True(Assert.Single(p.Clubs).Approved, p.Name));
+    }
+
     [Fact]
     public async Task Withdrawing_an_unused_invite_admits_nobody()
     {
@@ -471,6 +498,25 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         await manager.PostAsJsonAsync($"/clubs/{otherClubId}/players", new { name = "Robin Junior", email });
         var junior = (await PlayersAsync(client)).Single(p => p.Name == "Robin Junior");
         Assert.Equal(new[] { clubId, otherClubId }.Order(), junior.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
+    }
+
+    [Fact]
+    public async Task A_name_the_login_already_holds_adds_no_second_Player_and_lets_that_one_in()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var email = $"held-{Guid.NewGuid():N}@example.test";
+        using var client = await factory.CreateSignedInClientAsync(email);
+        var sam = await CreatePlayerAsync(client, "Sam Smith");
+        var clubId = await NewClubIdAsync();
+
+        // Typed as the Manager hears it: any case, any spacing around.
+        var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "  sam SMITH ", email });
+
+        Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+        var body = await added.Content.ReadFromJsonAsync<AddClubPlayerResponse>();
+        Assert.Equal((sam.Id, "Sam Smith"), (body!.PlayerId, body.Name));
+        var only = Assert.Single(await PlayersAsync(client));
+        Assert.True(Assert.Single(only.Clubs).Approved);
     }
 
     [Fact]

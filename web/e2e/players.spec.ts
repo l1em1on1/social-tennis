@@ -180,8 +180,8 @@ test("someone a Manager invited by email is in the Club as soon as they save the
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
-  await manager.getByLabel("Email address", { exact: true }).first().fill(email);
-  await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
+  await manager.getByLabel("Their email address").first().fill(email);
+  await manager.getByRole("button", { name: "Add", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
   const invite = manager.getByRole("list", { name: "Pre-approved addresses" }).getByRole("listitem").filter({ hasText: email });
   await expect(invite).toBeVisible();
@@ -225,8 +225,8 @@ test("a Manager removes a member, and withdraws an invite", async ({ page, brows
 
   // An invite nobody has used can be taken back.
   const email = personaEmail(testInfo, "withdrawn");
-  await manager.getByLabel("Email address", { exact: true }).first().fill(email);
-  await manager.getByRole("button", { name: "Pre-approve", exact: true }).first().click();
+  await manager.getByLabel("Their email address").first().fill(email);
+  await manager.getByRole("button", { name: "Add", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${email} is pre-approved`);
   await manager.getByRole("button", { name: `Withdraw pre-approval for ${email}` }).click();
   await expect(manager.getByRole("list", { name: "Pre-approved addresses" }).getByText(email)).toHaveCount(0);
@@ -285,9 +285,9 @@ test("a Manager adds a Player by name and email, and they hold it on signing in"
   await manager.goto("/manage");
   // The first Club listed: the Admin specs create others, which sort after it.
   const clubName = (await manager.getByRole("heading", { level: 2 }).first().textContent()) ?? "";
-  await manager.getByLabel("Player's name").first().fill(child);
+  await manager.getByLabel("Name (optional)").first().fill(child);
   await manager.getByLabel("Their email address").first().fill(email);
-  await manager.getByRole("button", { name: "Add player" }).first().click();
+  await manager.getByRole("button", { name: "Add", exact: true }).first().click();
   await expect(manager.getByRole("status")).toContainText(`${child} is added`);
 
   // Listed under the login that will hold it, which nobody has used yet.
