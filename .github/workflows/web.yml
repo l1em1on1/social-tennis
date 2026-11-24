@@ -1,9 +1,9 @@
 # Web CI. Four gates, all through compose so nothing runs bare on the runner
 # (CLAUDE.md):
 #   build — the production image (npm ci + next build inside web/Dockerfile),
-#           the same path `docker compose up --build` uses, proof that the
-#           MSW mocks were compiled out of it (ADR-0009), and a scan that
-#           fails on a fixable critical vulnerability (#114).
+#           the same path `docker compose up --build` uses, proof that it
+#           holds no mock code (ADR-0033), and a scan that fails on a fixable
+#           critical vulnerability (#114).
 #   e2e   — Playwright against the mocked and the real stack (ADR-0014),
 #           then the mock run's DOM snapshots go to Chromatic for visual
 #           review (ADR-0015). Skipped while CHROMATIC_PROJECT_TOKEN is unset.
@@ -94,13 +94,15 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Build the web image exactly as `docker compose up --build` does
         run: docker compose build web
-      - name: The production build contains no MSW code
+      # The mock API isn't in this image's build context. "mock-session." is
+      # in its handlers (SESSION_PREFIX) and "[MSW]" in MSW itself.
+      - name: The production build contains no mock code
         run: |
           docker compose run --rm --no-deps web sh -c '
-            test ! -e node_modules/msw && test ! -e node_modules/openapi-msw \
-              || { echo "MSW package shipped in the production image"; exit 1; }
-            ! grep -rqs -e "\[MSW\]" -e onUnhandledFrame .next server.js \
-              || { echo "MSW code bundled into the production build"; exit 1; }'
+            test ! -e node_modules/msw && test ! -e node_modules/openapi-msw && test ! -e mock-api \
+              || { echo "Mock code shipped in the production image"; exit 1; }
+            ! grep -rqs -e "\[MSW\]" -e "mock-session\." -e MOCK_API .next server.js \
+              || { echo "Mock code bundled into the production build"; exit 1; }'
       - name: Fail on a critical vulnerability that has a fix (.trivyignore.yaml lists accepted ones)
         run: scripts/scan-image.sh "$(docker compose config --format json | jq -r .name)-web"
 
@@ -119,7 +121,7 @@ jobs:
           # (Chromatic docs, "Run with caution when using the pull_request event").
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Build the e2e stack (web-e2e, web-mock, api)
+      - name: Build the e2e stack (web-e2e, web-mock, mock-api, api)
         run: docker compose --profile e2e build
       - name: Run Playwright in its compose service
         run: docker compose --profile e2e run --rm e2e
@@ -142,7 +144,7 @@ jobs:
             npx chromatic --playwright --exit-zero-on-changes "${accept[@]}"
       - name: Service logs
         if: failure()
-        run: docker compose --profile e2e logs web-e2e web-mock api
+        run: docker compose --profile e2e logs web-e2e web-mock mock-api api
       - name: Upload the Playwright report
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

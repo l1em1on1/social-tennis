@@ -35,12 +35,11 @@ services:
       - ./web:/src
       - web_node_modules:/src/node_modules
     environment:
-      API_URL: http://api:8080
+      # Web alone, against the mock API (ADR-0033):
+      #   API_URL=http://mock-api:8080 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web mock-api
+      API_URL: ${API_URL:-http://api:8080}
       PUBLIC_BASE_URL: http://localhost:3000
       WATCHPACK_POLLING: "true"
-      # MOCK_API=1 serves the app with the API mocked by MSW (ADR-0009):
-      #   MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
-      MOCK_API: ${MOCK_API:-}
     # `npm ci`: installs exactly what package-lock.json says, never updates it (#113).
     command: sh -c "npm ci --no-audit --no-fund && npm run dev -- --hostname 0.0.0.0"
 

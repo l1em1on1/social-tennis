@@ -50,6 +50,20 @@ test("a form shows it is working and ignores a second press", async ({ page }, t
   expect(posts).toBe(1);
 });
 
+test.describe("after asking for a link", () => {
+  // The test above ends on the same page, and is its snapshot.
+  test.use({ disableAutoSnapshot: true });
+
+  // In every environment: nothing but the email signs anyone in (ADR-0033).
+  test("the page offers no way to sign in without the email", async ({ page }, testInfo) => {
+    await requestSignInLink(page, testInfo, personaEmail(testInfo, "player"));
+
+    await expect(page.locator('[href*="/auth/verify"]')).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("link")).toHaveText(["Privacy notice"]);
+    await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
+  });
+});
+
 test("a sign-in address with no token goes back to the login page", async ({ page }) => {
   await page.goto("/auth/verify");
   await expect(page).toHaveURL(/\/login\?error=invalid-link$/);

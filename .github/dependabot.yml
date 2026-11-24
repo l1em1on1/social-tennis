@@ -53,7 +53,7 @@ updates:
 
   # Base images are pinned as tag@sha256 digest (#25); Dependabot moves both.
   - package-ecosystem: docker
-    directories: [/api, /web, /infra]
+    directories: [/api, /web, /web/mock-api, /infra]
     schedule:
       interval: monthly
     ignore:

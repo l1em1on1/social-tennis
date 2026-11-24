@@ -1,5 +1,3 @@
-import { mockApi } from "@/lib/mock-mode";
-
 // Every request asks the API afresh; an answer from a cache would prove nothing.
 export const dynamic = "force-dynamic";
 
@@ -20,10 +18,6 @@ const API_TIMEOUT_MS = 25_000;
  * reached is in web's log, not in a public response.
  */
 export async function GET() {
-  if (mockApi) {
-    return Response.json({ status: "ok" }, { headers: NO_STORE });
-  }
-
   try {
     const response = await fetch(new URL("/health", process.env.API_URL), {
       cache: "no-store",

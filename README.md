@@ -30,10 +30,10 @@ Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app
 ### Web only, against a mocked API
 
 ```sh
-MOCK_API=1 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web
+API_URL=http://mock-api:8080 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web mock-api
 ```
 
-The web app runs with MSW answering every API call in-process (ADR-0009). No api or Postgres is needed. On the login page, "Continue (mock API)" stands in for the email. The part of the email before `@` picks the starting roles: `manager@…` is a Manager and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
+The web app runs as always, with the mock API (`web/mock-api/`, ADR-0033) at its `API_URL`. No api or Postgres is needed. The sign-in link is in the mock's log (`docker compose logs mock-api`). After changing the mock, add `--build`. The part of the email before `@` picks the starting roles: `manager@…` is a Manager and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
 
 ## Tests
 
@@ -43,7 +43,7 @@ Integration tests drive the API over HTTP against the real compose Postgres (the
 docker compose run --rm api-tests
 ```
 
-Frontend end-to-end tests run Playwright in a container against two production builds of the web app, one with the API mocked and one with the real API and Postgres. Accessibility checks (axe) run as part of them; Storybook's, below, cover every component in light and dark:
+Frontend end-to-end tests run Playwright in a container against the production build of the web app, once with the mock API behind it and once with the real API and Postgres. Accessibility checks (axe) run as part of them; Storybook's, below, cover every component in light and dark:
 
 ```sh
 docker compose --profile e2e run --rm e2e

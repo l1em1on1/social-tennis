@@ -22,6 +22,9 @@ const PUBLIC_PATH = /^\/(login|auth\/verify|health|privacy)(\/|$)/;
 export function proxy(request: NextRequest) {
   const https = secureCookies();
   const nonce = newNonce();
+  // The one place the app asks what it runs as: React's tools in `next dev`
+  // need `eval`, and a build fixes this to false (Next docs, "Content Security Policy").
+  // eslint-disable-next-line no-restricted-syntax -- a runtime setting could weaken the policy in production
   const csp = contentSecurityPolicy(nonce, { https, dev: process.env.NODE_ENV === "development" });
 
   let response: NextResponse;

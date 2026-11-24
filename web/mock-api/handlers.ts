@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { http as untypedHttp, passthrough } from "msw";
+import { HttpResponse } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import type { components, paths } from "@/lib/api/schema";
+import { isJoinCode } from "@/lib/join";
 import { DIVISION_SIZE, proposeDivisions, relegate } from "@/lib/league";
 import { checkScore, isMatchTiebreak, scoreFormat, type ScoreSet, type Side } from "@/lib/score";
 import { gamesOf, openTiesOf, standingsOf } from "./standings";
@@ -20,19 +21,20 @@ import {
 } from "./fixture";
 
 /**
- * Mocked API (ADR-0009), typed against the committed OpenAPI schema: a path,
- * body, or status the real API doesn't declare is a compile error here, so the
- * mocks can't drift from the contract silently.
+ * The mock API's answers (ADR-0009), typed against the committed OpenAPI
+ * schema: a path, body, or status the real API doesn't declare is a compile
+ * error here, so the mock can't drift from the contract silently. server.ts
+ * serves them.
  *
- * Mock auth has no inbox: any magic-link token redeems, and the session
- * remembers it — when the token is an email address, /auth/me reports that
- * email, and the email picks the starting roles (manager@…, admin@…).
+ * Mock auth has no inbox: the sign-in link goes to this server's log, any
+ * magic-link token redeems, and the session remembers it. When the token is an
+ * email address, /auth/me reports that email, and the email picks the starting
+ * roles (manager@…, admin@…).
  *
  * Players are kept in memory per session. Every sign-in is a new session and
  * so a new User with no Player, as a first sign-in is with the real API.
  */
-const http = createOpenApiHttp<paths>({ baseUrl: process.env.API_URL });
-const apiOrigin = new URL(process.env.API_URL ?? "http://api:8080").origin;
+const http = createOpenApiHttp<paths>();
 
 // Session tokens must survive a cookie round trip unencoded, like the real
 // API's base64url tokens do — so the remembered value is base64url too.
@@ -1701,7 +1703,16 @@ export const handlers = [
     return response(200).json({ leagues: list, page: wholeList(list.length) });
   }),
 
-  http.post("/auth/magic-link", ({ response }) => response(202).empty()),
+  // In place of an email, as the real API's Log provider does: whoever runs
+  // the mock opens the link from its log. The token is the address itself.
+  http.post("/auth/magic-link", async ({ request, response }) => {
+    const { email, join } = await request.json();
+    const link = new URL("/auth/verify", process.env.PUBLIC_BASE_URL ?? "http://localhost:3000");
+    link.searchParams.set("token", email);
+    if (isJoinCode(join)) link.searchParams.set("join", join);
+    console.info(`[mock-api] Sign-in link: ${link.href}`);
+    return response(202).empty();
+  }),
 
   http.post("/auth/sessions", async ({ request, response }) => {
     const { token } = await request.json();
@@ -1872,15 +1883,6 @@ export const handlers = [
     return response(204).empty();
   }),
 
-  // Last: only the API is mocked. Next.js also fetches its own origin
-  // server-side (a server action's redirect loads the target's RSC payload),
-  // and that must reach the real server. The predicate keeps this handler off
-  // the API origin entirely: a handler that *matches* and returns nothing
-  // counts as handled and lets the request through, so an API miss would
-  // silently reach the network. Unmatched, it hits `onUnhandledFrame: "error"`
-  // — a gap in the mocks (MSW docs, custom predicate).
-  untypedHttp.all(
-    ({ request }) => new URL(request.url).origin !== apiOrigin,
-    () => passthrough(),
-  ),
+  // Not in the OpenAPI contract: the real API's liveness check, which web's /health asks.
+  http.untyped.get("/health", () => HttpResponse.text("Healthy")),
 ];

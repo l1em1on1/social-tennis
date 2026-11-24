@@ -9,7 +9,7 @@ import {
   FIXTURE_LEAGUE_ID,
   FIXTURE_MANAGER,
   FIXTURE_STARTED_LEAGUE_ID,
-} from "../src/mocks/fixture";
+} from "../mock-api/fixture";
 import { logIn } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 
@@ -17,7 +17,7 @@ import { expectNoSeriousA11yViolations } from "./support/axe";
  * Snapshots of the Manager and Admin pages (#187). The specs that use these
  * pages run the Manager in a second browser context, which Chromatic doesn't
  * archive, over data the whole suite shares. Here the persona signs in on the
- * test's own page and reads the mock's fixed world (src/mocks/fixture.ts), so
+ * test's own page and reads the mock's fixed world (mock-api/fixture.ts), so
  * each snapshot is the same every run. It only looks, so a retry signs in with
  * the same address.
  */

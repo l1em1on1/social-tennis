@@ -12,4 +12,6 @@ playwright.config.ts
 **/__mocks__/
 storybook-static/
 storybook-tests/
+# Nor is the mock API (ADR-0033): a server of its own, with its own Dockerfile.
+mock-api/
 playwright.storybook.config.ts
