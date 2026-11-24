@@ -29,6 +29,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "chromatic": "18.14.3",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "msw": "3.0.5",
@@ -43,7 +44,7 @@
   "overrides": {
     "js-yaml": "^4.3.1",
     "storybook": "10.6.7",
-    "esbuild": "^0.28.1",
+    "esbuild": "$esbuild",
     "@typescript-eslint/typescript-estree": {
       "minimatch": "^11.0.1"
     }

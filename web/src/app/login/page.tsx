@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { buttonClasses } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
@@ -10,7 +9,6 @@ import { ErrorState } from "@/components/ui/states";
 import { api } from "@/lib/api/client";
 import { CLIENT_ADDRESS_HEADER, clientAddress } from "@/lib/client-address";
 import { isJoinCode } from "@/lib/join";
-import { mockApi } from "@/lib/mock-mode";
 import { BallMark } from "@/components/shell/ball-mark";
 
 export const dynamic = "force-dynamic";
@@ -97,20 +95,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             A sign-in link is on its way to <strong className="text-fg">{sentTo}</strong>. It works once and expires
             shortly.
           </p>
-          {mockApi ? (
-            // Mock mode has no inbox: the mocked API accepts the email itself as the link token.
-            <a
-              href={`/auth/verify?token=${encodeURIComponent(sentTo)}${join ? `&join=${join}` : ""}`}
-              className={`${buttonClasses("primary", true)} mt-4`}
-            >
-              Continue (mock API)
-            </a>
-          ) : (
-            // `next dev` only: there the API logs the email instead of sending it.
-            process.env.NODE_ENV !== "production" && (
-              <p className="mt-2 text-sm text-fg-muted">Local dev: the link is printed in the api container log.</p>
-            )
-          )}
         </Card>
       ) : (
         <form action={requestMagicLink} className="flex flex-col gap-4">

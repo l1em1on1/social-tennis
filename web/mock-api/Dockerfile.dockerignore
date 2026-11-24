@@ -1,0 +1,9 @@
+# Only what the bundle needs. This file replaces web/.dockerignore for the
+# mock's build (Docker docs, "Dockerfile-specific ignore files").
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!mock-api/
+!src/lib/
+src/lib/__mocks__/

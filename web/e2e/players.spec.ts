@@ -105,10 +105,6 @@ test("someone signed out opens a Club's join link, signs in, and is back on it t
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-  if (testInfo.project.name === "mock") {
-    // The mock's stand-in for the email keeps the code too.
-    await expect(page.getByRole("link", { name: "Continue (mock API)" })).toHaveAttribute("href", new RegExp(`&join=${code}$`));
-  }
 
   // The emailed link opens the join page once they're in: a name, then the button.
   await page.goto(await emailedLinkFor(testInfo, email, code));

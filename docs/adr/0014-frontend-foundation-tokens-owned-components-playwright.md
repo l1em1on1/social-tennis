@@ -42,3 +42,5 @@ Tap targets stay 44px at every width. A left sidebar was the other option; a top
 - **Considered:** serving `/dev/ui` in every environment to Admins only. It would put a page nobody needs in production.
 - **Considered:** Storybook's own test addons. Playwright and `@axe-core/playwright` are already here, and the e2e suite's check is reused as it is.
 - **Consequence:** a pairing that no story shows isn't checked in dark mode, so a new component comes with a story, and a new pairing on a card goes into `UI/On a card`.
+
+**Amended (2026-11-24): the mock API is a separate service (#233).** MSW no longer runs inside the app behind a flag. Both e2e projects run the production image; `web-mock`'s `API_URL` is the mock API (ADR-0033).

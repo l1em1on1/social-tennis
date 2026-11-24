@@ -3,9 +3,9 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Frontend E2E seam (ADR-0014). Runs inside the `e2e` compose service against
- * two production builds of the web app:
+ * the production build of the web app, twice; only its API_URL differs (ADR-0033):
  *
- *   mock — web-mock, API mocked in-process with MSW (ADR-0009); no api service
+ *   mock — web-mock, with the mock API (mock-api/) behind it; no api service
  *   real — web-e2e, the real api over the real Postgres
  *
  * Every spec runs in both projects unless it opts out with `test.skip`.

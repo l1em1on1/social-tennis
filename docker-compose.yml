@@ -84,9 +84,9 @@ services:
     command: dotnet test
 
   # ---- Frontend E2E (ADR-0014): docker compose --profile e2e run --rm e2e ----
-  # Two production builds of web, both served under their compose hostnames:
-  # web-e2e talks to the real api; web-mock has the MSW mocks baked in and no
-  # api at all. Neither publishes a port; only the e2e runner reaches them.
+  # The production build of web, twice, each under its compose hostname:
+  # web-e2e's API_URL is the real api, web-mock's is mock-api. Nothing else
+  # differs (ADR-0033). Neither publishes a port; only the e2e runner reaches them.
   web-e2e:
     build: ./web
     profiles: ["e2e"]
@@ -101,18 +101,36 @@ services:
     healthcheck: *web-healthcheck
 
   web-mock:
-    build:
-      context: ./web
-      args:
-        MOCK_API: "1"
+    build: ./web
     profiles: ["e2e"]
     environment:
-      # Never contacted: MSW answers every call to this origin in-process.
-      API_URL: http://api:8080
+      API_URL: http://mock-api:8080
       PUBLIC_BASE_URL: http://web-mock:3000
       # A fixed address for the privacy notice's e2e test (#51).
       PRIVACY_CONTACT_EMAIL: privacy@example.com
+    depends_on:
+      mock-api:
+        condition: service_healthy
     healthcheck: *web-healthcheck
+
+  # The mock API (ADR-0009, ADR-0033): a server of its own that answers as the
+  # real one does, from memory. Publishes no port and is never deployed. Web
+  # alone against it, in the dev overlay: see the README.
+  mock-api:
+    build:
+      context: ./web
+      dockerfile: mock-api/Dockerfile
+    profiles: ["e2e"]
+    environment:
+      # Where the sign-in links in its log point: web's published port.
+      PUBLIC_BASE_URL: http://localhost:3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
 
   # One-shot Playwright runner. The image tag must equal the @playwright/test
   # version in web/package.json (browsers are baked into the image).
