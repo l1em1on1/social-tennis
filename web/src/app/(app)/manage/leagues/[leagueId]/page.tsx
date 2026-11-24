@@ -407,7 +407,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         </Card>
       </div>
 
-      <ButtonLink href="/manage" variant="ghost" className="self-start">
+      <ButtonLink href="/manage" variant="ghost" className="md:self-start">
         Back to Manage
       </ButtonLink>
     </>
