@@ -30,12 +30,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: publish wireframes
+  upload:
+    name: assemble the wireframes
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Assemble the site
@@ -56,5 +53,19 @@ jobs:
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
           path: _site
+
+  # A job of its own, as GitHub's docs ask ("Using custom workflows with GitHub
+  # Pages"). As a step after the upload it looked for the artifact within half
+  # a second, and sometimes GitHub didn't list it yet: "No artifacts named
+  # github-pages were found". A new job takes seconds to start. If this one
+  # still fails, "Re-run failed jobs" deploys the artifact already uploaded.
+  deploy:
+    name: publish wireframes
+    needs: upload
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
