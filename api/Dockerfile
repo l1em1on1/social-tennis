@@ -2,7 +2,7 @@
 # digest makes the build reproducible and un-spoofable. Dependabot's docker
 # updates move both together; the bump procedure is in docs/architecture.md
 # ("Versions").
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:8c6edfb26c85153f236d26efebd9ad349aec403583f343f201ee67838b23658d AS build
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/SocialTennis.Api -c Release -o /app
@@ -10,7 +10,7 @@ RUN dotnet publish src/SocialTennis.Api -c Release -o /app
 # Ubuntu chiseled: no shell, no package manager, and a non-root user (`app`,
 # UID 1654) by default. The -extra variant adds ICU and tzdata, so strings
 # compare and time zones resolve as on a full image (ADR-0016's Club zones).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra@sha256:cae5b962bfb786606def03d250c6a645cc98839095c89e806e4bd8978a68115b
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra@sha256:c8dd08a50d8ffd19bd8da72edee05a7ac15b486a5b1869cf46fdb370bf1fbc76
 WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
