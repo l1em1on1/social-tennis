@@ -18,7 +18,8 @@ const variants: Record<ButtonVariant, string> = {
  */
 export function buttonClasses(variant: ButtonVariant = "primary", fullWidth = false): string {
   return cx(
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold",
+    // Pill-shaped (#226, Clay court); form fields stay rounded rectangles.
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-base font-semibold",
     "transition-colors disabled:cursor-not-allowed disabled:opacity-50",
     variants[variant],
     fullWidth && "w-full",

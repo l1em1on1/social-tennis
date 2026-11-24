@@ -9,10 +9,15 @@ interface CardProps extends Omit<ComponentProps<"section">, "title"> {
 
 export function Card({ title, aside, className, children, ...props }: CardProps) {
   return (
-    <section className={cx("rounded-2xl border border-border bg-surface p-4", className)} {...props}>
+    <section className={cx("rounded-3xl border border-border bg-surface p-4 shadow-card", className)} {...props}>
       {(title || aside) && (
         <header className="mb-3 flex items-center justify-between gap-3">
-          {title && <h2 className="text-base font-semibold">{title}</h2>}
+          {/* A serif title with a small terracotta mark (#226). */}
+          {title && (
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold before:h-[1.1em] before:w-1 before:shrink-0 before:rounded-full before:bg-accent before:content-['']">
+              {title}
+            </h2>
+          )}
           {aside}
         </header>
       )}

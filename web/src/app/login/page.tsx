@@ -11,6 +11,7 @@ import { api } from "@/lib/api/client";
 import { CLIENT_ADDRESS_HEADER, clientAddress } from "@/lib/client-address";
 import { isJoinCode } from "@/lib/join";
 import { mockApi } from "@/lib/mock-mode";
+import { BallMark } from "@/components/shell/ball-mark";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-8">
-      <h1 className="text-3xl font-bold">Hits & Giggles</h1>
+      <h1 className="flex items-center gap-3 text-3xl font-bold text-accent">
+        <BallMark className="size-9" />
+        Hits & Giggles
+      </h1>
 
       {sentTo ? (
         <Card title="Check your email">

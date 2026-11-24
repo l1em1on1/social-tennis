@@ -29,3 +29,10 @@ Every Phase 1 ticket carries UI acceptance criteria and is done only when its sc
 - **Narrow pages:** forms, the Match screen, Profiles and the join page stay a centred `max-w-2xl` column (`PageColumn`).
 
 Tap targets stay 44px at every width. A left sidebar was the other option; a top bar was chosen because there are only three to five entries, and it leaves the width to lists and tables.
+
+**Amended (2026-11-24): the Clay court look (#226).** The owner wanted colour and a livelier design. Three directions were tried on the real screens, with the same fixed data, in light and dark: Tennis-ball lime, Clay court and Grass-court purple (branch `prototype/design-directions`). The owner picked Clay court.
+
+- **Tokens.** A cream page, terracotta for the brand and every action (`accent`), warm neutrals, and a warm `shadow-card`. Dark mode uses deep brown with a lighter terracotta. The status colours are unchanged. Every text pairing in use is at least 4.5:1, and `border-strong` at least 3:1, in both themes (the figures are in `globals.css`).
+- **Type.** Page titles (`h1`) and card titles are in Fraunces, a warm variable serif loaded through `next/font`. Everything else stays in Geist.
+- **Shape and depth.** Buttons and icon buttons are pills; form fields stay rounded rectangles. Cards are rounder, with a soft shadow and a small terracotta mark before the title. Empty states sit on a muted fill with a terracotta dashed edge.
+- **Brand.** The header is ruled in terracotta and carries a ball mark in the brand colour, as do the login and sign-in pages and the app icon. The current tab has a terracotta bar on a phone and a pill from `md`.

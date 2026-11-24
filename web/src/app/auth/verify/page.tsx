@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { api } from "@/lib/api/client";
 import { isJoinCode, joinPath } from "@/lib/join";
 import { cookieOptions, sessionCookie } from "@/lib/session";
+import { BallMark } from "@/components/shell/ball-mark";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,10 @@ export default async function VerifyPage({ searchParams }: PageProps<"/auth/veri
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-8">
-      <h1 className="text-3xl font-bold">Hits & Giggles</h1>
+      <h1 className="flex items-center gap-3 text-3xl font-bold text-accent">
+        <BallMark className="size-9" />
+        Hits & Giggles
+      </h1>
       <Card title="Finish signing in">
         <p className="text-fg-muted">Press the button to sign in on this device.</p>
         <form action={signIn} className="mt-4">
