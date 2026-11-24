@@ -20,12 +20,18 @@
  * check borders, so that one is on us.
  *
  * The look is Clay court (#226, ADR-0014 as amended): a cream page, terracotta
- * for the brand and every action, warm neutrals, serif headings. Checked by
- * hand, both themes: fg 13:1 on every surface; fg-muted ≥ 5.7:1 on bg,
- * surface, surface-muted and accent-muted; accent 5.0:1 (light) and 6.2:1
- * (dark) on surface-muted, its lowest; accent-fg on accent ≥ 6.1:1; the
- * status colours on their muted fills and on surface ≥ 4.5:1; border-strong
- * ≥ 3:1 on bg and surface.
+ * for the brand and every action, warm neutrals, serif titles. Each token's
+ * lowest contrast among the pairings in use, computed (light / dark):
+ *
+ *   fg            13.0 / 11.7   on accent-muted
+ *   fg-muted       5.7 /  6.7   on accent-muted
+ *   accent         4.8 /  5.5   on accent-muted (Badge, the current tab from md, a checked option)
+ *   accent-fg      6.1 /  7.2   on accent
+ *   success        5.6 /  8.2   on success-muted
+ *   warning        5.9 /  8.4   on warning-muted
+ *   danger         5.5 /  7.3   on danger-muted
+ *   info           6.7 /  7.4   on info-muted
+ *   border-strong  4.0 /  3.8   on bg / on surface
  */
 
 :root {
@@ -44,7 +50,6 @@
 
   /* A soft, warm lift under cards. */
   --st-shadow-card: 0 2px 10px -4px rgb(120 60 30 / 0.18);
-  --st-font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
 
   --st-success: #1d6a40;
   --st-success-muted: #dcf2e5;
@@ -121,7 +126,8 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--st-font-display);
+  /* Here rather than on :root, where var(--font-fraunces) would resolve: Storybook sets it lower down (#230 review). */
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
 
   --shadow-card: var(--st-shadow-card);
 }
@@ -133,7 +139,7 @@
 
   /* Page titles in the display serif (#226); everything else stays in Geist. */
   h1 {
-    font-family: var(--st-font-display);
+    @apply font-display;
   }
 
   /* One visible focus style for every interactive element. */
