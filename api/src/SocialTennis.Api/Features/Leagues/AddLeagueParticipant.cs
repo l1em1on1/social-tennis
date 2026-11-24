@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Membership;
 
 namespace SocialTennis.Api.Features.Leagues;
 
@@ -28,7 +29,19 @@ public static class AddLeagueParticipant
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await LeagueEntry.LockLeagueAsync(db, leagueId, cancellationToken);
+        // The Player's admission lock first, as deleting their User takes it (#116), then the League's:
+        // an add made while they're being deleted waits, then finds them in no Club (#228 review).
+        var email = await db.Players
+            .Where(p => p.Id == playerId && p.User != null)
+            .Select(p => p.User!.Email)
+            .SingleOrDefaultAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (email is not null)
+        {
+            await ClubAdmission.TakeEmailLockAsync(db, email, cancellationToken);
+        }
+
+        await LeagueEntry.TakeLeagueLockAsync(db, leagueId, cancellationToken);
         var league = await db.Leagues.SingleOrDefaultAsync(l => l.Id == leagueId, cancellationToken);
         if (league is null || !await db.Players.AnyAsync(p => p.Id == playerId, cancellationToken))
         {

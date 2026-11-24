@@ -149,12 +149,14 @@ public partial class ScoreTests
         return await asking;
     }
 
-    private async Task<bool> AnyRequestOfAsync(Guid playerId)
+    /// <summary>Whether anything still lets the Player in: a membership, a League request, or a place in a League.</summary>
+    private async Task<bool> AnyEntryOfAsync(Guid playerId)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
         return await db.ClubMemberships.AnyAsync(m => m.PlayerId == playerId)
-            || await db.LeagueJoinRequests.AnyAsync(r => r.PlayerId == playerId);
+            || await db.LeagueJoinRequests.AnyAsync(r => r.PlayerId == playerId)
+            || await db.LeagueParticipants.AnyAsync(p => p.PlayerId == playerId);
     }
 
     [Fact]
@@ -169,7 +171,7 @@ public partial class ScoreTests
         var asked = await AskWhileDeletingAsync(email, playerId, () => client.PutAsync($"/join-links/{code}/members/{playerId}", null));
 
         Assert.Equal(HttpStatusCode.NotFound, asked.StatusCode);
-        Assert.False(await AnyRequestOfAsync(playerId));
+        Assert.False(await AnyEntryOfAsync(playerId));
     }
 
     [Fact]
@@ -184,7 +186,22 @@ public partial class ScoreTests
             email, ann.PlayerId, () => ann.Client.PostAsJsonAsync($"/leagues/{leagueId}/join-requests", new { playerId = ann.PlayerId }));
 
         Assert.Equal(HttpStatusCode.NotFound, asked.StatusCode);
-        Assert.False(await AnyRequestOfAsync(ann.PlayerId));
+        Assert.False(await AnyEntryOfAsync(ann.PlayerId));
+    }
+
+    [Fact]
+    public async Task A_Manager_adding_a_Player_to_a_League_while_their_User_is_deleted_adds_no_Former_player()
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6);
+        var ann = await MemberAsync(manager, clubId, "Ann");
+        var email = (await ann.Client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Email;
+
+        var added = await AskWhileDeletingAsync(email, ann.PlayerId, () => manager.PutAsync($"/leagues/{leagueId}/participants/{ann.PlayerId}", null));
+
+        // In no Club once deleted, so not addable (#228 review).
+        Assert.Equal(HttpStatusCode.Conflict, added.StatusCode);
+        Assert.False(await AnyEntryOfAsync(ann.PlayerId));
     }
 
     [Fact]
