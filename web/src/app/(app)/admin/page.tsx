@@ -155,9 +155,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             // Nobody removes themselves, an Admin by configuration, or the last Admin (#116).
             const removable = !you && !user.adminBySetting && !user.lastAdmin;
             return (
-              // One line per User (#116): who, their roles, and two icons for what can change.
+              // One line per User (#116): who, their roles, and two icons for what can change. From md,
+              // the email and the Players sit side by side, like a table's columns (#225).
               <li key={user.id} className="flex items-center gap-2 py-1.5">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 md:grid md:grid-cols-2 md:items-center md:gap-4">
                   <p className="truncate font-medium">
                     <span>{user.email}</span>
                     {you && <span className="font-normal text-fg-muted"> (you)</span>}

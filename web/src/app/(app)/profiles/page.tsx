@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { leaveClub, logout, switchActingPlayer } from "@/lib/actions";
 import { getViewer } from "@/lib/viewer";
+import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Profiles" };
 
@@ -15,7 +16,7 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
   const [viewer, { error }] = await Promise.all([getViewer(), searchParams]);
 
   return (
-    <>
+    <PageColumn>
       <h1 className="text-2xl font-bold">Profiles</h1>
 
       {error === "name" && (
@@ -158,6 +159,6 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
           </SubmitButton>
         </form>
       </Card>
-    </>
+    </PageColumn>
   );
 }

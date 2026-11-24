@@ -154,3 +154,49 @@ test("Admin, from fixed data", async ({ page }, testInfo) => {
   await expect(page.getByText("Users (9)")).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
+
+/**
+ * The same fixed world on a desktop screen (#225): Chromatic snapshots each
+ * test at its own viewport, so these review the wide layouts, where the nav is
+ * a top bar and the pages lay out in columns.
+ */
+test.describe("on a desktop screen", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
+
+  test("Manage, from fixed data, on a desktop", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+    await logIn(page, testInfo, FIXTURE_MANAGER);
+    await page.goto("/manage");
+
+    await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Players of alex.morgan@example.com" })).toBeVisible();
+    await expectNoSeriousA11yViolations(page);
+  });
+
+  test("a started League's Manager page, from fixed data, on a desktop", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+    await logIn(page, testInfo, FIXTURE_MANAGER);
+    await page.goto(`/manage/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+
+    await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
+    await expectNoSeriousA11yViolations(page);
+  });
+
+  test("a started League's ladder, from fixed data, on a desktop", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+    await logIn(page, testInfo, FIXTURE_MANAGER);
+    await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+
+    await expect(page.getByRole("table", { name: "Division 1 standings" })).toBeVisible();
+    await expectNoSeriousA11yViolations(page);
+  });
+
+  test("Admin, from fixed data, on a desktop", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
+    await logIn(page, testInfo, FIXTURE_ADMIN);
+    await page.goto("/admin");
+
+    await expect(page.getByText("Users (9)")).toBeVisible();
+    await expectNoSeriousA11yViolations(page);
+  });
+});
