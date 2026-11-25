@@ -367,7 +367,7 @@ test("the guides' screenshots", async ({ browser }) => {
 
   // ---- League manager: what is left, and closing the Stage.
   await jo.goto(leaguePath);
-  const settle = jo.getByRole("list", { name: "Games with no score" }).getByRole("link", { name: "Settle" }).first();
+  const settle = jo.getByRole("list", { name: "Games with no score" }).getByText("Settle", { exact: true }).first();
   await shot(jo, "league-11-todo", { top: card(jo, "To do before the Stage closes"), ring: settle });
   await jo.goto(`/games/${gameOf(nia, ella).id}`);
   const record = jo.getByRole("link", { name: "Record the score (manager)" });

@@ -5,6 +5,7 @@ import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
+import { expectButtonsApart } from "./support/spacing";
 import { addClubPlayer, createLeague } from "./support/league";
 
 /**
@@ -864,9 +865,14 @@ test("a Manager settles Games nobody scored from the to-do list: records one, ma
   await expectNoSeriousA11yViolations(page);
 
   // Ada v Ben: the Manager records it.
-  await toDo.getByRole("listitem").first().getByRole("link", { name: "Settle" }).click();
+  // The whole row opens the game, its Division read out (#255).
+  const first = toDo.getByRole("listitem").first();
+  await first.getByRole("link", { name: `Division 1 ${ada.name} v ${ben.name} Settle`, exact: true }).click({ position: { x: 5, y: 5 } });
+  await expect(page.getByRole("button", { name: "Mark not played (manager)" })).toBeVisible();
+  await expectButtonsApart(page, "the Match screen, for its manager");
   await page.getByRole("link", { name: "Record the score (manager)" }).click();
   await expect(page.getByRole("heading", { name: "Record the score", level: 1 })).toBeVisible();
+  await expectButtonsApart(page, "score entry");
   const more = page.getByRole("group", { name: `Set, ${ada.name}` }).getByRole("button", { name: "One more" });
   for (let i = 0; i < 6; i++) await more.click();
   await page.getByRole("button", { name: "Save score" }).click();

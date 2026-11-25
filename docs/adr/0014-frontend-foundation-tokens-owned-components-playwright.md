@@ -44,3 +44,11 @@ Tap targets stay 44px at every width. A left sidebar was the other option; a top
 - **Consequence:** a pairing that no story shows isn't checked in dark mode, so a new component comes with a story, and a new pairing on a card goes into `UI/On a card`.
 
 **Amended (2026-11-24): the mock API is a separate service (#233).** MSW no longer runs inside the app behind a flag. Both e2e projects run the production image; `web-mock`'s `API_URL` is the mock API (ADR-0033).
+
+**Amended (2026-11-25): a word under an icon, Division marks, and space between buttons (#255).** The owner asked for icons in place of row buttons such as Leave out and Settle, for a smaller way to show a Division beside names, and for more space between stacked buttons.
+
+- **An icon with a small word**, on one 44px button, where the icon isn't plain alone: a phone has no tooltip, and a person with a minus could be Leave out or Remove. Arrows are icons only. Every one is as high as the pill it replaces and narrower.
+- **Words only** on a page's main action, and where a slip can't be undone by whoever it's about: a League's Approve and Reject.
+- **A row that only opens something is the link**, with a chevron: Settle opens the Match screen.
+- **A Division beside names** is its number in a ring, read out as "Division 1". Titles, sentences and lists of options keep the words. Considered: letters (A, B, C). Divisions are numbered in the API and on every screen, so that would be a change of its own.
+- **16px between buttons, one above another**, and 8px from a button to its own hint. `e2e/support/spacing.ts` checks it at 360px.

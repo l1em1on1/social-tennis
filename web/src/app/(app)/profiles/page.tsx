@@ -51,7 +51,24 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                           .join(" · ") || "Level and gender not set"}
                       </p>
                     </div>
-                    {acting && <Badge tone="accent">Playing as</Badge>}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {acting && <Badge tone="accent">Playing as</Badge>}
+                      <Sheet
+                        title={`Edit ${player.name}`}
+                        triggerIcon="pencil"
+                        triggerWord="Edit"
+                        trigger={`Edit ${player.name}`}
+                      >
+                        <PlayerForm
+                          id={`player-${player.id}`}
+                          label="Name"
+                          submitLabel="Save"
+                          from="/profiles"
+                          details
+                          player={player}
+                        />
+                      </Sheet>
+                    </div>
                   </div>
                   {player.clubs.length === 0 ? (
                     <p className="text-sm text-fg-muted">Not in a club yet</p>
@@ -66,11 +83,9 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                             // Behind a sheet: coming back means asking a Manager again.
                             <Sheet
                               title={`Leave ${club.name}?`}
-                              trigger={
-                                <>
-                                  Leave<span className="sr-only"> {club.name}</span>
-                                </>
-                              }
+                              triggerIcon="leave"
+                              triggerWord="Leave"
+                              trigger={`Leave ${club.name}`}
                             >
                               <p className="text-fg-muted">
                                 {player.name} will no longer be a member of {club.name}. Joining again may need a
@@ -101,31 +116,12 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                       ))}
                     </ul>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    {!acting && (
-                      <form action={switchActingPlayer}>
-                        <input type="hidden" name="playerId" value={player.id} />
-                        <SubmitButton variant="secondary">Play as {player.name.split(" ")[0]}</SubmitButton>
-                      </form>
-                    )}
-                    <Sheet
-                      title={`Edit ${player.name}`}
-                      trigger={
-                        <>
-                          Edit<span className="sr-only"> {player.name}</span>
-                        </>
-                      }
-                    >
-                      <PlayerForm
-                        id={`player-${player.id}`}
-                        label="Name"
-                        submitLabel="Save"
-                        from="/profiles"
-                        details
-                        player={player}
-                      />
-                    </Sheet>
-                  </div>
+                  {!acting && (
+                    <form action={switchActingPlayer}>
+                      <input type="hidden" name="playerId" value={player.id} />
+                      <SubmitButton variant="secondary">Play as {player.name.split(" ")[0]}</SubmitButton>
+                    </form>
+                  )}
                 </li>
               );
             })}

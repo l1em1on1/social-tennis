@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { startLeague } from "@/lib/actions";
 import { formatDates, gamesIn } from "@/lib/league";
@@ -174,40 +175,33 @@ export function LeagueStartForm({
                 const index = starts[division] + offset;
                 const name = nameOf(teamId);
                 return (
-                  <li key={teamId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <li key={teamId} className="flex items-center justify-between gap-2 py-1">
                     <p className="min-w-0 flex-1 font-medium break-words">
                       <span className="text-fg-muted">{index + 1}.</span> {name}
                     </p>
-                    <div className="flex gap-1">
-                      <Button
+                    <div className="flex">
+                      <IconButton
                         id={`move-up-${teamId}`}
-                        variant="secondary"
-                        aria-label={`Move ${name} up`}
+                        icon="up"
+                        label={`Move ${name} up`}
                         disabled={index === 0}
                         onClick={() => move(index, "up")}
-                        className="px-3"
-                      >
-                        ▲
-                      </Button>
-                      <Button
+                      />
+                      <IconButton
                         id={`move-down-${teamId}`}
-                        variant="secondary"
-                        aria-label={`Move ${name} down`}
+                        icon="down"
+                        label={`Move ${name} down`}
                         disabled={index === ladder.length - 1}
                         onClick={() => move(index, "down")}
-                        className="px-3"
-                      >
-                        ▼
-                      </Button>
-                      <Button
+                      />
+                      <IconButton
                         id={`leave-out-${teamId}`}
-                        variant="ghost"
-                        aria-label={`Leave out ${name}`}
+                        icon="personMinus"
+                        word="Leave out"
+                        className="w-16"
+                        label={`Leave out ${name}`}
                         onClick={() => leaveOut(teamId)}
-                        className="w-28 whitespace-nowrap"
-                      >
-                        Leave out
-                      </Button>
+                      />
                     </div>
                   </li>
                 );
@@ -216,29 +210,23 @@ export function LeagueStartForm({
             {division < sizes.length - 1 && (
               // The line between two Divisions, on one row: arrows move it, as they move a Team,
               // in the Teams' arrow column, with its label where their Leave out sits.
-              <div className="flex items-center gap-1 pt-1">
-                <span aria-hidden="true" className="mr-1 flex-1 border-t border-dashed border-border-strong" />
-                <Button
+              <div className="flex items-center">
+                <span aria-hidden="true" className="mr-2 flex-1 border-t border-dashed border-border-strong" />
+                <IconButton
                   id={`line-up-${division + 1}`}
-                  variant="secondary"
-                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} up`}
+                  icon="up"
+                  label={`Move the line between Division ${division + 1} and ${division + 2} up`}
                   disabled={size <= 2}
                   onClick={() => moveLine(division + 1, "up")}
-                  className="px-3"
-                >
-                  ▲
-                </Button>
-                <Button
+                />
+                <IconButton
                   id={`line-down-${division + 1}`}
-                  variant="secondary"
-                  aria-label={`Move the line between Division ${division + 1} and ${division + 2} down`}
+                  icon="down"
+                  label={`Move the line between Division ${division + 1} and ${division + 2} down`}
                   disabled={sizes[division + 1] <= 2}
                   onClick={() => moveLine(division + 1, "down")}
-                  className="px-3"
-                >
-                  ▼
-                </Button>
-                <span className="w-28 text-center text-sm whitespace-nowrap text-fg-muted">Move line</span>
+                />
+                <span className="w-16 text-center text-[0.6875rem] whitespace-nowrap text-fg-muted">Move line</span>
               </div>
             )}
           </section>
@@ -252,16 +240,15 @@ export function LeagueStartForm({
             </h3>
             <ol aria-label="On the ladder" className="divide-y divide-border">
               {ladder.map((teamId) => (
-                <li key={teamId} className="flex items-center justify-between gap-2 py-2">
+                <li key={teamId} className="flex items-center justify-between gap-2 py-1">
                   <p className="min-w-0 flex-1 font-medium break-words">{nameOf(teamId)}</p>
-                  <Button
+                  <IconButton
                     id={`leave-out-${teamId}`}
-                    variant="ghost"
-                    aria-label={`Leave out ${nameOf(teamId)}`}
+                    icon="personMinus"
+                    word="Leave out"
+                    label={`Leave out ${nameOf(teamId)}`}
                     onClick={() => leaveOut(teamId)}
-                  >
-                    Leave out
-                  </Button>
+                  />
                 </li>
               ))}
             </ol>
@@ -275,16 +262,15 @@ export function LeagueStartForm({
             </h3>
             <ul aria-label="Left out" className="divide-y divide-border">
               {leftOut.map((teamId) => (
-                <li key={teamId} className="flex items-center justify-between gap-2 py-2 text-fg-muted">
+                <li key={teamId} className="flex items-center justify-between gap-2 py-1 text-fg-muted">
                   <p className="min-w-0 flex-1 break-words">{nameOf(teamId)}</p>
-                  <Button
+                  <IconButton
                     id={`put-back-${teamId}`}
-                    variant="ghost"
-                    aria-label={`Put back ${nameOf(teamId)}`}
+                    icon="personPlus"
+                    word="Put back"
+                    label={`Put back ${nameOf(teamId)}`}
                     onClick={() => putBack(teamId)}
-                  >
-                    Put back
-                  </Button>
+                  />
                 </li>
               ))}
             </ul>

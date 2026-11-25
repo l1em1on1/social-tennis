@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { DivisionMark } from "@/components/division-mark";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { IconButton } from "@/components/ui/icon-button";
 import { ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { closeStage, type CloseStageState } from "@/lib/actions";
@@ -38,10 +39,15 @@ export interface StageCloseFormProps {
   nextStage: { startDate: string; endDate: string } | null;
 }
 
-/** Where a Team goes next Stage, beside its arrow in words. */
+/** Where a Team goes next Stage, beside its arrow in words, with the Division's mark to save the row's space (#255). */
 function destination(from: number, to: number) {
-  if (to < from) return <span className="font-semibold whitespace-nowrap text-success">▲ to Division {to}</span>;
-  if (to > from) return <span className="font-semibold whitespace-nowrap text-danger">▼ to Division {to}</span>;
+  if (to !== from) {
+    return (
+      <span className={cx("inline-flex items-center gap-1 font-semibold whitespace-nowrap", to < from ? "text-success" : "text-danger")}>
+        {to < from ? "▲" : "▼"} to <DivisionMark division={to} />
+      </span>
+    );
+  }
   return <span className="whitespace-nowrap text-fg-muted">stays</span>;
 }
 
@@ -116,24 +122,8 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
                           {next && destination(division.number, divisionOf(teamId))}
                           {tie && (
                             <>
-                              <Button
-                                variant="secondary"
-                                className="px-3"
-                                aria-label={`Move ${team.name} up`}
-                                disabled={!canUp}
-                                onClick={() => swap(d, at, -1)}
-                              >
-                                ▲
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                className="px-3"
-                                aria-label={`Move ${team.name} down`}
-                                disabled={!canDown}
-                                onClick={() => swap(d, at, 1)}
-                              >
-                                ▼
-                              </Button>
+                              <IconButton icon="up" label={`Move ${team.name} up`} disabled={!canUp} onClick={() => swap(d, at, -1)} />
+                              <IconButton icon="down" label={`Move ${team.name} down`} disabled={!canDown} onClick={() => swap(d, at, 1)} />
                             </>
                           )}
                         </span>

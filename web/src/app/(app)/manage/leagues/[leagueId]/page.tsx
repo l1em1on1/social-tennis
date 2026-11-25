@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DivisionMark } from "@/components/division-mark";
+import { GamesToSettle } from "@/components/games-to-settle";
 import { TeamPairingForm } from "@/components/team-pairing-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { ButtonRow } from "@/components/ui/button-stack";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { SubmitIconButton } from "@/components/ui/icon-button";
@@ -111,7 +114,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     if (!stage) return null;
     const team = teamOf(teamId);
     if (team?.position == null) return <Badge>Not on the ladder</Badge>;
-    return <Badge tone="accent">{`Division ${team.division}`}</Badge>;
+    return <DivisionMark division={Number(team.division)} />;
   };
 
   return (
@@ -124,14 +127,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             {league.clubName} · {typeLabel(league.type)}
           </p>
         </div>
-        <Sheet
-          title={`Rename ${league.name}`}
-          trigger={
-            <>
-              Rename<span className="sr-only"> {league.name}</span>
-            </>
-          }
-        >
+        <Sheet title={`Rename ${league.name}`} triggerIcon="pencil" triggerWord="Rename" trigger={`Rename ${league.name}`}>
           <form action={renameLeague} className="flex flex-col gap-4">
             <input type="hidden" name="leagueId" value={league.id} />
             <Field id="league-name" label="League name" hint="Only the name changes: players, requests and format stay.">
@@ -154,7 +150,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       </div>
 
       {stage ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
           <p className="text-sm">
             <Badge tone="success">Started</Badge>{" "}
             <span className="text-fg-muted">
@@ -167,7 +163,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             </ButtonLink>
           </div>
           {/* From md, side by side (#225): what holds the close up, and moving a Team. */}
-          <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:items-start md:gap-4">
+          <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:items-start">
             {ladder && <ToDo ladder={ladder} />}
             {ladder && !ladder.ended && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
           </div>
@@ -267,7 +263,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <ButtonRow>
                     <form action={approveLeagueJoinRequest}>
                       <input type="hidden" name="leagueId" value={league.id} />
                       <input type="hidden" name="playerId" value={request.playerId} />
@@ -282,7 +278,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                         Reject
                       </SubmitButton>
                     </form>
-                  </div>
+                  </ButtonRow>
                 </li>
               ))}
             </ul>
@@ -311,22 +307,21 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             <ul aria-label="Players in the league" className="divide-y divide-border">
               {league.participants.map((participant) => (
                 <li key={participant.playerId} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                  <div>
-                    <p className="font-medium">{participant.name}</p>
-                    <p className="text-sm text-fg-muted">
-                      Joined {formatDate(participant.joinedAt.slice(0, 10))} {placeBadge(participant.teamId)}
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">
+                      {participant.name} {placeBadge(participant.teamId)}
                     </p>
+                    <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     {/* Behind a sheet: removing is one tap away from a name in a list. On the ladder, leaving is a Withdrawal (#21). */}
                     {!onLadder(participant.teamId) && (
                     <Sheet
                       title={`Remove ${participant.name}?`}
-                      trigger={
-                        <>
-                          Remove<span className="sr-only"> {participant.name}</span>
-                        </>
-                      }
+                      triggerIcon="trash"
+                      triggerTone="danger"
+                      triggerWord="Remove"
+                      trigger={`Remove ${participant.name}`}
                     >
                       <p className="text-fg-muted">
                         {participant.name} will no longer be in {league.name}.{" "}
@@ -367,9 +362,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                         <form action={unpairTeam}>
                           <input type="hidden" name="leagueId" value={league.id} />
                           <input type="hidden" name="teamId" value={team.id} />
-                          <SubmitButton variant="secondary" pendingLabel="Unpairing…" aria-label={`Unpair ${names}`}>
-                            Unpair
-                          </SubmitButton>
+                          <SubmitIconButton icon="unlink" word="Unpair" label={`Unpair ${names}`} />
                         </form>
                       )}
                     </li>
@@ -530,28 +523,29 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
         <div className="flex flex-col gap-3 text-sm">
           {unscored.length > 0 && (
             <div className="flex flex-col gap-1">
-              <h3 className="font-semibold">Games with no score</h3>
-              <ul aria-label="Games with no score" className="divide-y divide-border">
-                {unscored.map(({ game, division }) => (
-                  <li key={game.id} className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="min-w-0 break-words">
-                      {name(game.firstTeamId)} v {name(game.secondTeamId)} <span className="text-fg-muted">· Division {division}</span>
-                    </span>
-                    <ButtonLink href={`/games/${game.id}`} variant="secondary" className="shrink-0">
-                      Settle
-                    </ButtonLink>
-                  </li>
-                ))}
-              </ul>
+              <h3 className="font-semibold">
+                Games with no score <span className="font-normal text-fg-muted">· by Division</span>
+              </h3>
+              <GamesToSettle
+                games={unscored.map(({ game, division }) => ({
+                  id: game.id,
+                  division,
+                  label: `${name(game.firstTeamId)} v ${name(game.secondTeamId)}`,
+                }))}
+              />
             </div>
           )}
           {ties.length > 0 && (
             <div className="flex flex-col gap-1">
               <h3 className="font-semibold">Ties that decide who moves</h3>
-              <ul aria-label="Ties that decide who moves" className="list-disc pl-5">
+              <ul aria-label="Ties that decide who moves" className="flex flex-col gap-2">
                 {ties.map((tie) => (
-                  <li key={`${Number(tie.division)}:${tie.teamIds.join()}`}>
-                    Division {Number(tie.division)}: {tie.teamIds.map(name).join(", ")}
+                  <li key={`${Number(tie.division)}:${tie.teamIds.join()}`} className="flex items-center gap-2">
+                    <span>
+                      <DivisionMark division={Number(tie.division)} />
+                      <span className="sr-only">:</span>
+                    </span>{" "}
+                    <span className="min-w-0 break-words">{tie.teamIds.map(name).join(", ")}</span>
                   </li>
                 ))}
               </ul>
@@ -560,7 +554,7 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
           )}
         </div>
       )}
-      <div className="mt-3">
+      <div className="mt-4">
         <ButtonLink href={`/manage/leagues/${ladder.id}/close`} variant={ladder.heldUp ? "primary" : "secondary"}>
           Close Stage {Number(ladder.stage?.number)}
         </ButtonLink>
