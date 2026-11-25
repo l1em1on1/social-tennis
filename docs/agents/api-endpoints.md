@@ -97,7 +97,7 @@ The endpoints class owns the prefix. Map the group root with the empty pattern: 
 The API denies by default (ADR-0017): every route needs a signed-in User, and its 401 is added to the OpenAPI document for you, with a 403 if it names a policy.
 
 - **A public route** says `.AllowAnonymous()` in the routing table and is added to `AnonymousOperations` in `OpenApiContractTests`, the reviewed list of what is public.
-- **A route that needs a role** names a policy in the routing table (`Authentication/Policies.cs`). A manager policy is about what the route names, so its route has that id: `{clubId}`, `{leagueId}`, `{gameId}` or `{playerId}`.
+- **A route that needs a role** names a policy in the routing table (`Authentication/Policies.cs`). A manager policy is about what the route names, so its route has that id: `{clubId}`, `{leagueId}`, `{gameId}` or `{playerId}`. It answers 403 to a caller who can see the thing and 404 to one who can't (ADR-0017, ADR-0034); both are declared for you.
 - **A route for Players and managers both** asks `Access/ManagerAccess` in its handler, beside the Player's own check; never a role claim.
 - **Every new operation** is added to the table in `ManagerAccessTests`, which says who may call it.
 - **A status the `Results<>` union doesn't describe** is declared with `.Produces(...)`, as `RedeemMagicLink` does for 401.

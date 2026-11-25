@@ -56,7 +56,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
   const sides = game.sides.map((side) => side.players.map((player) => player.name).join(" & ")) as [string, string];
   const acting = viewer.actingPlayer;
   const playing = acting ? game.yourPlayerIds.includes(acting.id) : false;
-  const manager = viewer.roles.includes("Manager");
+  const manager = game.canManage;
   const { score, stage } = game;
   const stageName = `Stage ${stage.number}`;
   const refusals: Record<string, string> = {

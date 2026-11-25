@@ -146,17 +146,27 @@ public class AuthTestFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// A client signed in as a fresh User whom the Admin has made a Manager,
-    /// through the API as it happens for real.
+    /// A client signed in as a fresh User whom the Admin has made a manager,
+    /// through the API as it happens for real: of these Clubs, or of the
+    /// factory's one (<see cref="AClubIdAsync"/>).
     /// </summary>
-    public async Task<HttpClient> CreateManagerClientAsync()
+    public async Task<HttpClient> CreateManagerClientAsync(params Guid[] clubs)
     {
         var client = await CreateSignedInClientAsync($"manager-{Guid.NewGuid():N}@example.test");
-        var me = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
+        foreach (var club in clubs.Length > 0 ? clubs : [await AClubIdAsync()])
+        {
+            await MakeManagerAsync(client, club);
+        }
 
-        var admin = await AdminClientAsync();
-        (await admin.PutAsync($"/users/{me!.UserId}/roles/Manager", null)).EnsureSuccessStatusCode();
         return client;
+    }
+
+    /// <summary>The Admin makes this client's User a manager of the Club.</summary>
+    public async Task MakeManagerAsync(HttpClient client, Guid club)
+    {
+        var me = await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
+        var admin = await AdminClientAsync();
+        (await admin.PutAsync($"/clubs/{club}/managers/{me!.UserId}", null)).EnsureSuccessStatusCode();
     }
 
     /// <summary>

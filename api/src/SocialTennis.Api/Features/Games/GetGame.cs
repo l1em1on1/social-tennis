@@ -80,7 +80,8 @@ public static class GetGame
             })
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
-        if (game is null || !(game.InLeague || await access.RunsLeagueAsync(user, game.LeagueId, cancellationToken)))
+        var manages = game is not null && await access.RunsLeagueAsync(user, game.LeagueId, cancellationToken);
+        if (game is null || !(game.InLeague || manages))
         {
             return TypedResults.NotFound();
         }
@@ -123,6 +124,7 @@ public static class GetGame
             game.NotPlayed,
             history,
             game.Yours,
+            manages,
             game.TimeZone,
             ClubCalendar.Today(game.TimeZone, clock)));
     }

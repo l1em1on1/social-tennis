@@ -32,12 +32,18 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
         scoreFormat = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false },
     };
 
-    private async Task<Guid> NewClubAsync()
+    private async Task<Guid> NewClubAsync(params HttpClient[] managers)
     {
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Teams Club {Guid.NewGuid():N}" });
         created.EnsureSuccessStatusCode();
-        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        foreach (var manager in managers)
+        {
+            await factory.MakeManagerAsync(manager, id);
+        }
+
+        return id;
     }
 
     private static async Task<Guid> CreateLeagueAsync(HttpClient manager, Guid clubId, string type)
@@ -86,7 +92,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_singles_participant_is_a_Team_of_one_whether_approved_or_added()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "SinglesMixed");
         var (asker, askerId) = await MemberAsync(manager, clubId, "Asker");
         (await asker.PostAsJsonAsync($"/leagues/{leagueId}/join-requests", new { playerId = askerId })).EnsureSuccessStatusCode();
@@ -104,7 +110,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_doubles_participant_starts_without_a_partner()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         await ParticipantAsync(manager, clubId, leagueId, "Alex");
 
@@ -118,7 +124,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_Foursomes_League_has_no_Teams_and_its_Players_are_not_paired()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "Foursomes");
         var (_, first) = await ParticipantAsync(manager, clubId, leagueId, "First");
         var (_, second) = await ParticipantAsync(manager, clubId, leagueId, "Second");
@@ -135,7 +141,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task The_Manager_pairs_two_Players_and_each_sees_the_other_as_partner()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (alex, alexId) = await ParticipantAsync(manager, clubId, leagueId, "Alex");
         var (jo, joId) = await ParticipantAsync(manager, clubId, leagueId, "Jo");
@@ -157,7 +163,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task Two_Players_of_one_login_can_be_paired()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (parent, parentId) = await ParticipantAsync(manager, clubId, leagueId, "Parent");
         var child = await parent.PostAsJsonAsync("/players", new { name = "Child" });
@@ -174,7 +180,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_Teams_Rating_is_the_average_of_its_Players_Ratings_on_read()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMen");
         var (_, first) = await ParticipantAsync(manager, clubId, leagueId, "First");
         var (_, second) = await ParticipantAsync(manager, clubId, leagueId, "Second");
@@ -191,7 +197,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_Player_with_a_partner_or_outside_the_League_is_not_paired()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesWomen");
         var (_, first) = await ParticipantAsync(manager, clubId, leagueId, "First");
         var (_, second) = await ParticipantAsync(manager, clubId, leagueId, "Second");
@@ -208,7 +214,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_Player_is_not_paired_with_themselves()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (_, playerId) = await ParticipantAsync(manager, clubId, leagueId, "Alone");
 
@@ -224,7 +230,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_singles_Leagues_Teams_are_not_paired_or_broken_up_by_the_Manager()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "SinglesMen");
         var (_, first) = await ParticipantAsync(manager, clubId, leagueId, "First");
         var (_, second) = await ParticipantAsync(manager, clubId, leagueId, "Second");
@@ -249,7 +255,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task Unpairing_leaves_both_Players_in_the_League_ready_to_be_paired_again()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (alex, alexId) = await ParticipantAsync(manager, clubId, leagueId, "Alex");
         var (_, joId) = await ParticipantAsync(manager, clubId, leagueId, "Jo");
@@ -273,7 +279,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task Removing_a_paired_Player_leaves_their_partner_unpaired()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (_, alexId) = await ParticipantAsync(manager, clubId, leagueId, "Alex");
         var (jo, joId) = await ParticipantAsync(manager, clubId, leagueId, "Jo");
@@ -291,7 +297,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task Removing_a_singles_Player_takes_their_Team_of_one_too()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "SinglesWomen");
         var (_, leavingId) = await ParticipantAsync(manager, clubId, leagueId, "Leaving");
         var (_, stayingId) = await ParticipantAsync(manager, clubId, leagueId, "Staying");
@@ -306,7 +312,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     {
         using var manager = await factory.CreateManagerClientAsync();
         using var other = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager, other);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (_, shared) = await ParticipantAsync(manager, clubId, leagueId, "Shared");
         var (_, first) = await ParticipantAsync(manager, clubId, leagueId, "First");
@@ -322,7 +328,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task A_participant_cant_be_put_in_another_Leagues_Team()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var singlesId = await CreateLeagueAsync(manager, clubId, "SinglesMixed");
         var doublesId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         await ParticipantAsync(manager, clubId, singlesId, "Singles");
@@ -348,7 +354,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     public async Task The_migration_gives_each_singles_participant_a_Team_of_one()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var singlesId = await CreateLeagueAsync(manager, clubId, "SinglesMen");
         var doublesId = await CreateLeagueAsync(manager, clubId, "DoublesMen");
         var foursomesId = await CreateLeagueAsync(manager, clubId, "Foursomes");

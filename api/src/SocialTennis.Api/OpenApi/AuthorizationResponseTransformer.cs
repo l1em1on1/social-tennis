@@ -3,13 +3,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
+using SocialTennis.Api.Access;
 
 namespace SocialTennis.Api.OpenApi;
 
 /// <summary>
 /// Declares what authorization answers on every operation, so it reaches the
-/// generated TS client (ADR-0017): the 401 unless it is anonymous, and the 403
-/// if its route names a policy.
+/// generated TS client (ADR-0017): the 401 unless it is anonymous, the 403 if
+/// its route names a policy, and the 404 if that policy hides what the route
+/// names from those who can't see it.
 /// </summary>
 /// <remarks>
 /// The API denies by default: the fallback policy requires a signed-in User
@@ -49,6 +51,11 @@ internal sealed class AuthorizationResponseTransformer : IOpenApiOperationTransf
         if (metadata.OfType<IAuthorizeData>().Any(authorize => authorize.Policy is not null))
         {
             Declare(operation, document, StatusCodes.Status403Forbidden, "Forbidden");
+        }
+
+        if (metadata.OfType<IAuthorizeData>().Any(authorize => AccessServiceCollectionExtensions.Hides(authorize.Policy)))
+        {
+            Declare(operation, document, StatusCodes.Status404NotFound, "Not Found");
         }
     }
 

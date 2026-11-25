@@ -84,6 +84,12 @@ public static class GetUsers
                 u.Id,
                 u.Email,
                 u.Roles,
+                Clubs = db.ClubRoles
+                    .Where(r => r.UserId == u.Id)
+                    .OrderBy(r => r.Club.Name)
+                    .ThenBy(r => r.ClubId)
+                    .Select(r => new UserClubRole(r.ClubId, r.Club.Name, r.Kind))
+                    .ToList(),
                 Players = db.Players
                     .Where(p => p.UserId == u.Id)
                     .OrderBy(p => p.CreatedAt)
@@ -105,7 +111,7 @@ public static class GetUsers
                 return new UserSummary(
                     u.Id,
                     u.Email,
-                    Manager: u.Roles.HasFlag(UserRoles.Manager),
+                    u.Clubs,
                     Admin: granted || bySetting,
                     AdminBySetting: bySetting,
                     LastAdmin: granted && refusal == AdminRoleRules.Refusal.LastAdmin,

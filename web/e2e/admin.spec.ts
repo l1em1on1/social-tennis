@@ -14,6 +14,10 @@ const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 const userRow = (page: Page, email: string) =>
   page.getByRole("listitem").filter({ has: page.getByText(email, { exact: true }) });
 
+/** A Club's row, by its Rename button: every User's roles sheet names the Clubs too (#110). */
+const clubRow = (page: Page, name: string) =>
+  page.getByRole("listitem").filter({ has: page.getByRole("button", { name: `Rename ${name}`, exact: true }) });
+
 /** Opens a User's roles sheet from their row (#116) and returns it. Named by their email: these Users hold no Player. */
 async function rolesOf(page: Page, email: string) {
   await userRow(page, email).getByRole("button", { name: `Roles for ${email}` }).click();
@@ -76,14 +80,14 @@ test("an Admin creates a Club and renames it; on Manage its join link is turned 
   await expectNoSeriousA11yViolations(page);
   await create.getByLabel("Club name").fill(name);
   await create.getByRole("button", { name: "Create club" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: name })).toBeVisible();
+  await expect(clubRow(page, name)).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.getByRole("button", { name: `Rename ${name}` }).click();
   const rename = page.getByRole("dialog", { name: `Rename ${name}` });
   await rename.getByLabel("Club name").fill(renamed);
   await rename.getByRole("button", { name: "Save name" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: renamed })).toBeVisible();
+  await expect(clubRow(page, renamed)).toBeVisible();
   await expect(page.getByText(name, { exact: true })).toHaveCount(0);
 
   // Managers see it, under its new name, with its join link off (#222). Players don't list Clubs.
@@ -122,28 +126,46 @@ test("a club name of only spaces is refused with a message", async ({ page }, te
   await expect(page.getByText("That club name didn't work")).toBeVisible();
 });
 
-test("an Admin makes a User a Manager, and it takes effect without signing in again", async ({
+test("an Admin makes a User a manager of one Club, and it takes effect without signing in again", async ({
   page,
   browser,
 }, testInfo) => {
   const email = personaEmail(testInfo, "promoted");
+  const other = uniqueName(testInfo, "Zz Elsewhere Tennis Club");
   await logIn(page, testInfo, email);
   await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles"]);
 
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   await logIn(admin, testInfo, personaEmail(testInfo, "admin"));
+  // Another Club, so there is one they aren't made a manager of (#110).
+  await admin.goto("/admin");
+  await admin.getByRole("button", { name: "Create a club" }).click();
+  const create = admin.getByRole("dialog", { name: "Create a club" });
+  await create.getByLabel("Club name").fill(other);
+  await create.getByRole("button", { name: "Create club" }).click();
+  await expect(clubRow(admin, other)).toBeVisible();
+
   const row = await findUser(admin, email);
   await expect(admin.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
-  await (await rolesOf(admin, email)).getByRole("button", { name: `Make manager of ${email}` }).click();
+  // One line per Club. This one is the suite's, the first listed, as a manager persona's is (join.ts).
+  const sheet = await rolesOf(admin, email);
+  await expect(sheet.getByRole("button", { name: `Make manager of ${other} (${email})` })).toBeVisible();
+  await expectNoSeriousA11yViolations(admin);
+  await sheet.getByRole("button", { name: `Make manager of Riverside Tennis Club (${email})` }).click();
   await expect(row.getByText("Manager", { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(mainNav(page).getByRole("link")).toHaveText(["Home", "Leagues", "Profiles", "Manage"]);
   await mainNav(page).getByRole("link", { name: "Manage" }).click();
   await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
+  // Their Club alone, whatever others there are.
+  await expect(page.getByRole("heading", { name: "Riverside Tennis Club", level: 2, exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Join link" })).toHaveCount(1);
 
-  await (await rolesOf(admin, email)).getByRole("button", { name: `Remove manager from ${email}` }).click();
+  await (await rolesOf(admin, email))
+    .getByRole("button", { name: `Remove as manager of Riverside Tennis Club (${email})` })
+    .click();
   await expect(row.getByText("Manager", { exact: true })).toHaveCount(0);
   await adminContext.close();
 
@@ -164,7 +186,7 @@ test("an Admin makes another User an Admin from their roles sheet, and can take 
   const row = await findUser(admin, email);
   // The sheet says what an Admin can do: opening it is the step that asks first.
   const sheet = await rolesOf(admin, email);
-  await expect(sheet).toContainText("An Admin can also create clubs and change anyone's roles");
+  await expect(sheet).toContainText("An Admin manages every club, can create clubs, and can change anyone's roles");
   await expectNoSeriousA11yViolations(admin);
   await sheet.getByRole("button", { name: `Make admin of ${email}` }).click();
   await expect(row.getByText("Admin", { exact: true })).toBeVisible();

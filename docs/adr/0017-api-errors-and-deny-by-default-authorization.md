@@ -37,3 +37,5 @@ Integration tests sign in before calling anything but the anonymous routes. Rule
 - **`ManagerAccessTests` lists every operation with who may call it**, and checks each kind of caller against the table, stopping each request once authorization has answered. A new operation fails it until it is listed. This replaces "a test that lists protected endpoints can be forgotten" as the worry: the list is complete or the test fails.
 - The 403 of a policy reaches the contract from the same metadata as the 401.
 - **Considered:** endpoint filters on the route groups. They run after model binding, and outside the place where the API already denies by default.
+
+**Amended (2026-11-25, with ADR-0034): a manager policy's refusal is a 403 or a 404 by what the caller can see.** A member of the Club, a participant in the League, or anyone with a role there gets 403; anyone else gets 404, as for a thing they may not know exists. `Access/HidingAuthorizationResultHandler` turns the refusal into the status, and both statuses reach the contract from the policies. `Policies.Manager` is gone: every manager policy is now about what the route names.

@@ -9,8 +9,8 @@ using SocialTennis.Api.Roles;
 namespace SocialTennis.Api.Features.Users;
 
 /// <summary>
-/// An Admin takes the Manager or Admin role from a User, effective on that
-/// User's next request. Removing a role not held changes nothing.
+/// An Admin takes the Admin role from a User, effective on that User's next
+/// request. Removing a role not held changes nothing.
 /// </summary>
 /// <remarks>
 /// Removing Admin is refused with 409 when it could not take effect (the email

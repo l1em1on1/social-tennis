@@ -132,7 +132,7 @@ public static class AccountDeletion
 
         await db.MagicLinkTokens.Where(t => t.Email == user.Email).ExecuteDeleteAsync(cancellationToken);
         await db.ClubInvites.Where(i => i.Email == user.Email).ExecuteDeleteAsync(cancellationToken);
-        // Sessions and external logins go with the User (cascade).
+        // Sessions, external logins and roles in Clubs go with the User (cascade).
         await db.Users.Where(u => u.Id == userId).ExecuteDeleteAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);

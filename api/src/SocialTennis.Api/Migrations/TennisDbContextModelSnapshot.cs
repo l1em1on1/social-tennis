@@ -101,6 +101,27 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("ClubMemberships");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.ClubRole", b =>
+                {
+                    b.Property<Guid>("ClubId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ClubId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ClubRoles");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.ExternalLogin", b =>
                 {
                     b.Property<Guid>("Id")
@@ -696,6 +717,25 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("Club");
 
                     b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.ClubRole", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Club", "Club")
+                        .WithMany()
+                        .HasForeignKey("ClubId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Club");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.ExternalLogin", b =>

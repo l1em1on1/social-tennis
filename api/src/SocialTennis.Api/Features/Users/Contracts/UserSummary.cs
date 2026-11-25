@@ -1,7 +1,7 @@
 namespace SocialTennis.Api.Features.Users.Contracts;
 
 /// <summary>A User as an Admin sees them: who they are and what they may do.</summary>
-/// <param name="Manager">Granted the Manager role. An Admin can manage whether or not this is set.</param>
+/// <param name="Clubs">Their roles in Clubs, by Club name. An Admin can manage every Club without one.</param>
 /// <param name="Admin">An Admin, by grant or because their email is in Auth:AdminEmails.</param>
 /// <param name="AdminBySetting">
 /// Their email is in Auth:AdminEmails. That can only be changed where the app is deployed,
@@ -14,7 +14,7 @@ namespace SocialTennis.Api.Features.Users.Contracts;
 public record UserSummary(
     Guid Id,
     string Email,
-    bool Manager,
+    IReadOnlyList<UserClubRole> Clubs,
     bool Admin,
     bool AdminBySetting,
     bool LastAdmin,

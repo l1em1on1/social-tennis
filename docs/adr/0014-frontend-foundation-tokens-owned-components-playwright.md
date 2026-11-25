@@ -20,7 +20,7 @@ Library specifics (package names, Next.js 16 instrumentation hooks for MSW, Play
 
 Every Phase 1 ticket carries UI acceptance criteria and is done only when its screen and its E2E happy path ship. Mobile wireframes for the Phase 1 screens are produced first so screens are designed rather than improvised. CI gains an E2E job in `web.yml`.
 
-**Amended (2026-11-20): real-API sign-in without an inbox.** The E2E stack sends no email, so a test signs in by submitting the real login form, then replacing the newest unused sign-in link's stored hash with the hash of a token it knows, and redeeming that. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that one helper, `e2e/support/auth.ts`, knows two table names.
+**Amended (2026-11-20): real-API sign-in without an inbox.** The E2E stack sends no email, so a test signs in by submitting the real login form, then replacing the newest unused sign-in link's stored hash with the hash of a token it knows, and redeeming that. Everything but delivery runs for real, and the app has no test-only endpoint. The cost is that one helper, `e2e/support/auth.ts`, knows two table names (one since 2026-11-25: roles are granted through the API, as an Admin would, rather than written to `Users`; #110).
 
 **Amended (2026-11-24): responsive from `md` (#225).** The owner wants a better desktop version. Mobile-first stays: below Tailwind's `md` breakpoint (48rem, 768px) every screen is as it was. From `md` up:
 

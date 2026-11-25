@@ -27,12 +27,18 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
         scoreFormat = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false },
     };
 
-    private async Task<Guid> NewClubAsync()
+    private async Task<Guid> NewClubAsync(params HttpClient[] managers)
     {
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Pairs Club {Guid.NewGuid():N}" });
         created.EnsureSuccessStatusCode();
-        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        foreach (var manager in managers)
+        {
+            await factory.MakeManagerAsync(manager, id);
+        }
+
+        return id;
     }
 
     private static async Task<Guid> CreateLeagueAsync(HttpClient manager, Guid clubId, string type = "DoublesMix")
@@ -89,7 +95,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task A_pair_asks_together_and_approval_puts_both_in_as_a_Team()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex", "Female");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo", "Male");
@@ -122,7 +128,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Two_Players_of_one_User_can_ask_as_a_pair()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (parent, parentId) = await MemberAsync(manager, clubId, "Parent");
         var childId = await PlayerInClubAsync(parent, manager, clubId, "Child");
@@ -138,7 +144,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task A_Manager_adding_the_Player_who_asked_brings_their_partner_in_with_them()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -155,7 +161,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task A_partner_already_in_without_a_partner_is_paired_and_keeps_their_join_time()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -176,7 +182,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Approval_is_refused_when_the_partner_has_been_paired_with_someone_else_meanwhile()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -201,7 +207,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Approval_is_refused_when_the_partner_has_left_the_Club()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -216,7 +222,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task A_rejection_stops_only_the_Player_who_asked()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -234,7 +240,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task The_partner_can_take_the_request_back_and_the_Player_who_asked_may_ask_again()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -252,7 +258,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task The_Player_who_asked_can_take_the_request_back_alone_or_with_a_partner()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -269,7 +275,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Only_the_pair_can_take_a_request_back_and_only_while_it_waits()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -288,7 +294,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task A_Player_is_in_at_most_one_waiting_request()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -312,12 +318,12 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Naming_a_partner_is_refused_who_is_paired_outside_the_Club_or_oneself()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
         var (_, samId) = await MemberAsync(manager, clubId, "Sam");
-        var (_, outsiderId) = await MemberAsync(manager, await NewClubAsync(), "Outsider");
+        var (_, outsiderId) = await MemberAsync(manager, await NewClubAsync(manager), "Outsider");
         (await manager.PutAsync($"/leagues/{leagueId}/participants/{joId}", null)).EnsureSuccessStatusCode();
         (await manager.PutAsync($"/leagues/{leagueId}/participants/{samId}", null)).EnsureSuccessStatusCode();
         (await manager.PostAsJsonAsync($"/leagues/{leagueId}/teams", new { firstPlayerId = joId, secondPlayerId = samId }))
@@ -337,7 +343,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Only_a_doubles_League_takes_a_partner(string type)
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, type);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");
@@ -350,7 +356,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task The_partners_are_the_Club_members_free_to_pair_by_name_only()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, unpairedId) = await MemberAsync(manager, clubId, "Unpaired");
@@ -360,7 +366,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
         var (_, namedId) = await MemberAsync(manager, clubId, "Named");
         var (_, freeId) = await MemberAsync(manager, clubId, "Free");
         await MemberAsync(manager, clubId, "Member");
-        await MemberAsync(manager, await NewClubAsync(), "Elsewhere");
+        await MemberAsync(manager, await NewClubAsync(manager), "Elsewhere");
         foreach (var id in new[] { unpairedId, pairedId, otherPairedId })
         {
             (await manager.PutAsync($"/leagues/{leagueId}/participants/{id}", null)).EnsureSuccessStatusCode();
@@ -387,7 +393,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Another_Users_Player_has_no_partner_list()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (_, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (jo, _) = await MemberAsync(manager, clubId, "Jo");
@@ -399,7 +405,7 @@ public class JoinAsTeamTests(AuthTestFactory factory) : IClassFixture<AuthTestFa
     public async Task Removing_the_Player_who_asked_leaves_their_partner_unpaired_and_free_to_ask()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (alex, alexId) = await MemberAsync(manager, clubId, "Alex");
         var (_, joId) = await MemberAsync(manager, clubId, "Jo");

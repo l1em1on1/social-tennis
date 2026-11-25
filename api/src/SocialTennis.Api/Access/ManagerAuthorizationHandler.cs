@@ -19,21 +19,26 @@ public sealed class ManagerAuthorizationHandler(ManagerAccess access) : Authoriz
 
         var user = context.User;
         var cancelled = http.RequestAborted;
-        var allowed = requirement.Standing switch
+        var answer = requirement.Standing switch
         {
-            ManagerStanding.Any => await access.RunsAnythingAsync(user, cancelled),
-            ManagerStanding.ClubManager => await access.RunsClubAsync(user, Id(http, "clubId"), cancelled),
-            ManagerStanding.ClubStaff => await access.HasStandingInClubAsync(user, Id(http, "clubId"), cancelled),
-            ManagerStanding.LeagueCreator => await access.CreatesLeaguesInClubAsync(user, Id(http, "clubId"), cancelled),
+            ManagerStanding.Any => await access.RunsAnythingAsync(user, cancelled) ? ManagerAnswer.Allowed : ManagerAnswer.Refused,
+            ManagerStanding.ClubManager => await access.ClubManagerAsync(user, Id(http, "clubId"), cancelled),
+            ManagerStanding.ClubStaff => await access.ClubStaffAsync(user, Id(http, "clubId"), cancelled),
+            ManagerStanding.LeagueCreator => await access.LeagueCreatorAsync(user, Id(http, "clubId"), cancelled),
             ManagerStanding.LeagueManager => http.Request.RouteValues.ContainsKey("leagueId")
-                ? await access.RunsLeagueAsync(user, Id(http, "leagueId"), cancelled)
-                : await access.RunsLeagueOfGameAsync(user, Id(http, "gameId"), cancelled),
-            ManagerStanding.PlayerManager => await access.RunsAClubOfPlayerAsync(user, Id(http, "playerId"), cancelled),
+                ? await access.LeagueManagerAsync(user, Id(http, "leagueId"), cancelled)
+                : await access.LeagueManagerOfGameAsync(user, Id(http, "gameId"), cancelled),
+            ManagerStanding.PlayerManager => await access.PlayerManagerAsync(user, Id(http, "playerId"), cancelled),
             _ => throw new InvalidOperationException($"No rule for {requirement.Standing}."),
         };
-        if (allowed)
+        // Refused leaves the requirement unmet, which is a 403.
+        if (answer == ManagerAnswer.Allowed)
         {
             context.Succeed(requirement);
+        }
+        else if (answer == ManagerAnswer.Hidden)
+        {
+            context.Fail(new HiddenFailureReason(this));
         }
     }
 

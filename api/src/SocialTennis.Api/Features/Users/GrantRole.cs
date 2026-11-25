@@ -7,9 +7,9 @@ using SocialTennis.Api.Roles;
 namespace SocialTennis.Api.Features.Users;
 
 /// <summary>
-/// An Admin makes a User a Manager or an Admin. It takes effect on that User's
-/// next request: roles are read per request, not at sign-in. Granting a role
-/// already held changes nothing.
+/// An Admin makes a User an Admin. It takes effect on that User's next request:
+/// roles are read per request, not at sign-in. Granting a role already held
+/// changes nothing. Managers are made per Club (MakeClubManager).
 /// </summary>
 public static class GrantRole
 {

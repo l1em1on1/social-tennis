@@ -112,12 +112,14 @@ const validLevel = (level: unknown): level is number | null | undefined =>
 /**
  * Users by email, made the first time an email signs in. Roles start from the
  * email, so a test picks one by who it signs in as ("manager" in the local
- * part is a Manager, "admin" an Admin), and an Admin can then change them.
+ * part is a manager of the shared Club, "admin" an Admin), and an Admin can
+ * then change them.
  * `admin@example.com` plays the Admin set in configuration: it can't be demoted.
  */
 interface MockUser {
   id: string;
-  manager: boolean;
+  /** The Clubs they are a manager of (#110). An Admin manages every one. */
+  clubs: Set<string>;
   admin: boolean;
 }
 
@@ -130,7 +132,7 @@ function userOf(email: string): MockUser {
     const local = email.split("@")[0].split("+")[0];
     user = {
       id: FIXTURE_USER_IDS[email] ?? `00000000-0000-4000-8000-2${String(usersByEmail.size + 1).padStart(11, "0")}`,
-      manager: local.includes("manager"),
+      clubs: new Set(local.includes("manager") ? [MOCK_CLUB.id] : []),
       admin: local.includes("admin"),
     };
     usersByEmail.set(email, user);
@@ -140,6 +142,12 @@ function userOf(email: string): MockUser {
 
 /** Signed in as a fixture persona (fixture.ts): the Admin and Manager pages read the fixed world. */
 const inFixture = (request: Request) => [FIXTURE_MANAGER, FIXTURE_ADMIN].includes(emailOf(request));
+
+/** Whether the caller runs this Club, as the API's ManagerAccess says it (#110). Every mock League is the shared Club's. */
+function runsClub(request: Request, clubId: string) {
+  const user = userOf(emailOf(request));
+  return user.admin || user.clubs.has(clubId);
+}
 
 const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
 
@@ -166,6 +174,10 @@ function clubOfJoinCode(code: string) {
  */
 const clubsBySession = new Map<string, { id: string; name: string }[]>();
 let clubsMade = 0;
+
+/** A Club's name, whichever session made it: an Admin lists what anyone manages (#110). */
+const clubNameOf = (clubId: string) =>
+  [MOCK_CLUB, ...[...clubsBySession.values()].flat()].find((club) => club.id === clubId)?.name ?? "";
 
 function clubsOf(request: Request) {
   const session = sessionOf(request) ?? "";
@@ -617,7 +629,7 @@ export const handlers = [
     if (inFixture(request)) {
       return response(200).json(fixtureClubs);
     }
-    const clubs = [MOCK_CLUB, ...clubsOf(request)];
+    const clubs = [MOCK_CLUB, ...clubsOf(request)].filter((club) => runsClub(request, club.id));
     return response(200).json({ clubs, page: wholeList(clubs.length) });
   }),
 
@@ -1122,11 +1134,10 @@ export const handlers = [
       return response(200).json(fixed);
     }
     const league = leagueById(params.leagueId);
-    const user = userOf(emailOf(request));
     const yourPlayerIds = playersOf(request)
       .filter((player) => league?.participants.some((participant) => participant.playerId === player.id))
       .map((player) => player.id);
-    if (!league || !(yourPlayerIds.length > 0 || user.manager || user.admin)) {
+    if (!league || !(yourPlayerIds.length > 0 || runsClub(request, MOCK_CLUB.id))) {
       return response(404).empty();
     }
     const facts = { id: league.id, name: league.name, clubName: MOCK_CLUB.name, type: league.type, yourPlayerIds };
@@ -1142,10 +1153,9 @@ export const handlers = [
 
   // As the API's MoveTeam (#10): a Team on the ladder to another Division, mid-Stage.
   http.post("/leagues/{leagueId}/moves", async ({ request, params, response }) => {
-    const user = userOf(emailOf(request));
     const league = leagueById(params.leagueId);
     const { teamId, toDivision } = await request.json();
-    if (!(user.manager || user.admin) || !league?.stage || !league.teams.some((team) => team.id === teamId)) {
+    if (!runsClub(request, MOCK_CLUB.id) || !league?.stage || !league.teams.some((team) => team.id === teamId)) {
       return response(404).empty();
     }
     if (league.stageClosed) {
@@ -1182,9 +1192,8 @@ export const handlers = [
 
   // Closing the current Stage (#10): as the API's GetStageClose and CloseStage.
   http.get("/leagues/{leagueId}/close", ({ request, params, response }) => {
-    const user = userOf(emailOf(request));
     const league = leagueById(params.leagueId);
-    if (!(user.manager || user.admin) || !league?.stage) {
+    if (!runsClub(request, MOCK_CLUB.id) || !league?.stage) {
       return response(404).empty();
     }
     if (league.stageClosed) {
@@ -1204,9 +1213,8 @@ export const handlers = [
   }),
 
   http.post("/leagues/{leagueId}/close", async ({ request, params, response }) => {
-    const user = userOf(emailOf(request));
     const league = leagueById(params.leagueId);
-    if (!(user.manager || user.admin) || !league?.stage) {
+    if (!runsClub(request, MOCK_CLUB.id) || !league?.stage) {
       return response(404).empty();
     }
     if (league.stageClosed) {
@@ -1273,9 +1281,9 @@ export const handlers = [
       return response(200).json(fixed);
     }
     const game = gameById(params.gameId);
-    const user = userOf(emailOf(request));
+    const canManage = runsClub(request, MOCK_CLUB.id);
     const mine = playersOf(request);
-    if (!game || !(mine.some((player) => game.league.participants.some((p) => p.playerId === player.id)) || user.manager || user.admin)) {
+    if (!game || !(mine.some((player) => game.league.participants.some((p) => p.playerId === player.id)) || canManage)) {
       return response(404).empty();
     }
     const { league } = game;
@@ -1319,6 +1327,7 @@ export const handlers = [
         .filter((player) => sides.some((side) => side.players.some((p) => p.playerId === player.id)))
         .map((player) => player.id),
       today: clubToday(),
+      canManage,
     });
   }),
 
@@ -1327,13 +1336,12 @@ export const handlers = [
     const { playerId, playedOn, sets, retirementWinner } = await request.json();
     const player = playersOf(request).find((candidate) => candidate.id === playerId);
     const game = gameById(params.gameId);
-    const user = userOf(emailOf(request));
     if (!player || !game) {
       return response(404).empty();
     }
     const { league } = game;
     const inLeague = playersOf(request).some((mine) => league.participants.some((p) => p.playerId === mine.id));
-    if (!(inLeague || user.manager || user.admin)) {
+    if (!(inLeague || runsClub(request, MOCK_CLUB.id))) {
       return response(404).empty();
     }
     const team = league.participants.find((participant) => participant.playerId === player.id)?.teamId;
@@ -1368,8 +1376,7 @@ export const handlers = [
   // As the API's RecordScore (#10): a Manager, for a Game nobody scored.
   http.post("/games/{gameId}/score/record", async ({ request, params, response }) => {
     const body = await request.json();
-    const user = userOf(emailOf(request));
-    if (!(user.manager || user.admin)) {
+    if (!runsClub(request, MOCK_CLUB.id)) {
       return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
     }
     const game = gameById(params.gameId);
@@ -1404,8 +1411,7 @@ export const handlers = [
 
   // As the API's VoidGame and UnvoidGame (#10): Managers only; a scored Game was played.
   http.put("/games/{gameId}/not-played", ({ request, params, response }) => {
-    const user = userOf(emailOf(request));
-    if (!(user.manager || user.admin)) {
+    if (!runsClub(request, MOCK_CLUB.id)) {
       return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
     }
     const game = gameById(params.gameId);
@@ -1423,8 +1429,7 @@ export const handlers = [
   }),
 
   http.delete("/games/{gameId}/not-played", ({ request, params, response }) => {
-    const user = userOf(emailOf(request));
-    if (!(user.manager || user.admin)) {
+    if (!runsClub(request, MOCK_CLUB.id)) {
       return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
     }
     const game = gameById(params.gameId);
@@ -1443,13 +1448,12 @@ export const handlers = [
     const body = await request.json();
     const player = playersOf(request).find((candidate) => candidate.id === body.playerId);
     const game = gameById(params.gameId);
-    const user = userOf(emailOf(request));
     if (!player || !game) {
       return response(404).empty();
     }
     const { league } = game;
     const inLeague = playersOf(request).some((mine) => league.participants.some((p) => p.playerId === mine.id));
-    if (!(inLeague || user.manager || user.admin)) {
+    if (!(inLeague || runsClub(request, MOCK_CLUB.id))) {
       return response(404).empty();
     }
     const team = league.participants.find((participant) => participant.playerId === player.id)?.teamId;
@@ -1476,8 +1480,7 @@ export const handlers = [
   // As the API's OverrideScore (#38): Managers only, open Stage or closed.
   http.put("/games/{gameId}/score/override", async ({ request, params, response }) => {
     const body = await request.json();
-    const user = userOf(emailOf(request));
-    if (!(user.manager || user.admin)) {
+    if (!runsClub(request, MOCK_CLUB.id)) {
       return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
     }
     const game = gameById(params.gameId);
@@ -1729,9 +1732,8 @@ export const handlers = [
     }
     const email = emailOf(request);
     const user = userOf(email);
-    // An Admin is a Manager too, as with the real API.
-    const roles = user.admin ? ["Admin", "Manager"] : user.manager ? ["Manager"] : [];
-    return response(200).json({ userId: user.id, email, roles });
+    // An Admin manages every Club, as with the real API.
+    return response(200).json({ userId: user.id, email, admin: user.admin, manages: user.admin || user.clubs.size > 0 });
   }),
 
   // An Admin's side. The mock doesn't check the role: the pages do.
@@ -1759,7 +1761,11 @@ export const handlers = [
     const users = matching.slice(offset, offset + limit).map(([email, user]) => ({
       id: user.id,
       email,
-      manager: user.manager,
+      clubs: [...user.clubs].map((clubId) => ({
+        clubId,
+        clubName: clubNameOf(clubId),
+        role: "Manager" as const,
+      })),
       admin: user.admin,
       adminBySetting: email === CONFIGURED_ADMIN,
       // Never: the configured Admin can always sign in.
@@ -1774,8 +1780,7 @@ export const handlers = [
     if (!user) {
       return response(404).empty();
     }
-    if (params.role === "Admin") user.admin = true;
-    else user.manager = true;
+    user.admin = true;
     return response(204).empty();
   }),
 
@@ -1784,14 +1789,29 @@ export const handlers = [
     if (!user) {
       return response(404).empty();
     }
-    if (params.role === "Admin") {
-      if (usersByEmail.get(CONFIGURED_ADMIN) === user) {
-        return response(409).json({ title: "The Admin role can't be removed from this User.", status: 409 }, problemJson);
-      }
-      user.admin = false;
-    } else {
-      user.manager = false;
+    if (usersByEmail.get(CONFIGURED_ADMIN) === user) {
+      return response(409).json({ title: "The Admin role can't be removed from this User.", status: 409 }, problemJson);
     }
+    user.admin = false;
+    return response(204).empty();
+  }),
+
+  // Who manages a Club (#110).
+  http.put("/clubs/{clubId}/managers/{userId}", ({ params, response }) => {
+    const user = userById(params.userId);
+    if (!user) {
+      return response(404).empty();
+    }
+    user.clubs.add(params.clubId);
+    return response(204).empty();
+  }),
+
+  http.delete("/clubs/{clubId}/managers/{userId}", ({ params, response }) => {
+    const user = userById(params.userId);
+    if (!user) {
+      return response(404).empty();
+    }
+    user.clubs.delete(params.clubId);
     return response(204).empty();
   }),
 

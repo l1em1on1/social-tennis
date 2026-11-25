@@ -43,12 +43,13 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     params,
     searchParams,
   ]);
-  if (!viewer.roles.includes("Manager") || !isId(leagueId)) {
+  if (!viewer.manages || !isId(leagueId)) {
     notFound();
   }
 
   const { data: league, response } = await api.GET("/leagues/{leagueId}", { params: { path: { leagueId } } });
-  if (response.status === 404) {
+  // 403: a League they can see, but don't run (#110).
+  if (response.status === 404 || response.status === 403) {
     notFound();
   }
   if (!league) {

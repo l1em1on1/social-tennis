@@ -16,7 +16,7 @@ function todayAtTheClub(): string {
 /** League setup (wireframe M2), for the Club named in `?club=`. */
 export default async function NewLeaguePage({ searchParams }: PageProps<"/manage/leagues/new">) {
   const [viewer, api, { club: clubId }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
-  if (!viewer.roles.includes("Manager")) {
+  if (!viewer.manages) {
     notFound();
   }
 

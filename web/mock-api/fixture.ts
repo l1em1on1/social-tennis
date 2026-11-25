@@ -324,7 +324,7 @@ const user = (
 ): Schemas["UserSummary"] => ({
   id: FIXTURE_USER_IDS[email] ?? id("a", n),
   email,
-  manager: false,
+  clubs: [],
   admin: false,
   adminBySetting: false,
   lastAdmin: false,
@@ -345,7 +345,7 @@ export const fixtureUsers: Schemas["GetUsersResponse"] = {
     user(5, chris.email, [chris]),
     user(6, jo.email, [jo]),
     user(7, alex.email, [alex, sam]),
-    user(0, FIXTURE_MANAGER, [], { manager: true }),
+    user(0, FIXTURE_MANAGER, [], { clubs: fixtureClubs.clubs.map(({ id, name }) => ({ clubId: id, clubName: name, role: "Manager" as const })) }),
     user(0, FIXTURE_ADMIN, [], { admin: true, adminBySetting: true }),
   ],
   page: { total: 9, offset: 0, limit: 50 },
@@ -369,6 +369,7 @@ const autumnGame = (gameId: string, first: Schemas["ClubMember"], second: Schema
   yourPlayerIds: [],
   timeZone: "Europe/London",
   today: "2026-11-02",
+  canManage: true,
 });
 
 const snapshot = (score: Schemas["LadderGameScore"], playedOn: string) => ({ ...score, playedOn });

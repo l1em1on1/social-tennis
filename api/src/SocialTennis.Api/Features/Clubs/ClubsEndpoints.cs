@@ -12,7 +12,7 @@ public static class ClubsEndpoints
 
         // Empty pattern, not "/": the group prefix is the whole route, and "/"
         // would combine to "/clubs/".
-        // Managers' and Admins' only: a Player gets into a Club through its join link (#222).
+        // The caller's own Clubs, managers' and Admins': a Player gets into a Club through its join link (#222).
         group.MapGet("", GetClubs.HandleAsync)
             .RequireAuthorization(Policies.AnyManager)
             .WithName(nameof(GetClubs));
@@ -26,6 +26,15 @@ public static class ClubsEndpoints
             .RequireAuthorization(Policies.Admin)
             .ValidatesBody<RenameClubRequest, RenameClubRequest.Validator>()
             .WithName(nameof(RenameClub));
+
+        // Who manages the Club (#110): an Admin's to say.
+        group.MapPut("/{clubId:guid}/managers/{userId:guid}", MakeClubManager.HandleAsync)
+            .RequireAuthorization(Policies.Admin)
+            .WithName(nameof(MakeClubManager));
+
+        group.MapDelete("/{clubId:guid}/managers/{userId:guid}", RemoveClubManager.HandleAsync)
+            .RequireAuthorization(Policies.Admin)
+            .WithName(nameof(RemoveClubManager));
 
         // A Manager's side of membership.
         group.MapGet("/{clubId:guid}/members", GetClubMembers.HandleAsync)

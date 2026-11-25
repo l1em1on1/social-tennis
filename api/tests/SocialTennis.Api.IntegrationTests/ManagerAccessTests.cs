@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Leagues.Contracts;
@@ -40,6 +41,8 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         ["GET /clubs"] = Policies.AnyManager,
         ["POST /clubs"] = Policies.Admin,
         ["PUT /clubs/{clubId}"] = Policies.Admin,
+        ["PUT /clubs/{clubId}/managers/{userId}"] = Policies.Admin,
+        ["DELETE /clubs/{clubId}/managers/{userId}"] = Policies.Admin,
         ["GET /clubs/{clubId}/members"] = Policies.ClubManager,
         ["PUT /clubs/{clubId}/members/{playerId}/approval"] = Policies.ClubManager,
         ["DELETE /clubs/{clubId}/members/{playerId}"] = Policies.ClubManager,
@@ -139,17 +142,16 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         using var document = JsonDocument.Parse(await client.GetStringAsync("/openapi/v1.json"));
         var paths = document.RootElement.GetProperty("paths");
 
-        var undeclared = Operations
-            .Where(o => o.Value is not (Anonymous or SignedIn))
-            .Select(o => o.Key)
-            .Where(operation =>
-            {
-                var parts = operation.Split(' ');
-                return !paths.GetProperty(parts[1]).GetProperty(parts[0].ToLowerInvariant())
-                    .GetProperty("responses").TryGetProperty("403", out _);
-            });
+        bool Declares(string operation, string status)
+        {
+            var parts = operation.Split(' ');
+            return paths.GetProperty(parts[1]).GetProperty(parts[0].ToLowerInvariant())
+                .GetProperty("responses").TryGetProperty(status, out _);
+        }
 
-        Assert.Empty(undeclared);
+        var guarded = Operations.Where(o => o.Value is not (Anonymous or SignedIn)).ToList();
+        Assert.DoesNotContain(guarded, o => !Declares(o.Key, "403"));
+        Assert.DoesNotContain(guarded, o => o.Value is not (Policies.Admin or Policies.AnyManager) && !Declares(o.Key, "404"));
     }
 
     private static HttpStatusCode Expected(string policy, string who) => (policy, who) switch
@@ -157,9 +159,29 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         (_, "nobody") => HttpStatusCode.Unauthorized,
         (_, "an Admin") => Allowed,
         (Policies.Admin, _) => HttpStatusCode.Forbidden,
-        (_, "a Manager") => Allowed,
-        _ => HttpStatusCode.Forbidden,
+        (_, "the Club's manager") => Allowed,
+        (Policies.AnyManager, "another Club's manager") => Allowed,
+        // Nothing to hide: the route names nothing.
+        (Policies.AnyManager, _) => HttpStatusCode.Forbidden,
+        // They can see what they asked about, or they can't (ADR-0017).
+        (_, "a member") => HttpStatusCode.Forbidden,
+        (Policies.LeagueManager, "a participant who left the Club") => HttpStatusCode.Forbidden,
+        _ => HttpStatusCode.NotFound,
     };
+
+    [Fact]
+    public async Task What_isnt_there_answers_as_what_is_hidden_does()
+    {
+        var world = await WorldAsync();
+        var gone = world.Ids.Keys.Where(k => k != "role").ToDictionary(k => k, _ => Guid.NewGuid().ToString());
+        foreach (var (operation, policy) in Operations.Where(o => o.Value is not (Anonymous or SignedIn or Policies.Admin or Policies.AnyManager)))
+        {
+            foreach (var who in new[] { "the Club's manager", "a member", "an outsider" })
+            {
+                Assert.Equal((operation, who, HttpStatusCode.NotFound), (operation, who, await AskAsync(world.Callers[who], operation, gone)));
+            }
+        }
+    }
 
     private static readonly int[] OneDivisionOfTwo = [2];
 
@@ -170,9 +192,11 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
     {
         var admin = await factory.AdminClientAsync();
         var clubId = await factory.AClubIdAsync();
-        var manager = await factory.CreateManagerClientAsync();
+        var manager = await factory.CreateManagerClientAsync(clubId);
+        var elsewhere = await admin.PostAsJsonAsync("/clubs", new { name = $"Elsewhere {Guid.NewGuid():N}" });
+        var elsewhereId = (await elsewhere.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
         var (player, playerId) = await MemberAsync(manager, clubId, "Access One");
-        var (_, otherId) = await MemberAsync(manager, clubId, "Access Two");
+        var (gone, goneId) = await MemberAsync(manager, clubId, "Access Two");
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var created = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
@@ -188,7 +212,7 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         });
         created.EnsureSuccessStatusCode();
         var leagueId = (await created.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
-        foreach (var id in new[] { playerId, otherId })
+        foreach (var id in new[] { playerId, goneId })
         {
             (await manager.PutAsync($"/leagues/{leagueId}/participants/{id}", null)).EnsureSuccessStatusCode();
         }
@@ -202,14 +226,17 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
             removed = Array.Empty<Guid>(),
         })).EnsureSuccessStatusCode();
         var ladder = (await player.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
+        (await gone.DeleteAsync($"/players/{goneId}/clubs/{clubId}")).EnsureSuccessStatusCode();
 
         return new World(
             new Dictionary<string, HttpClient>
             {
                 ["nobody"] = factory.CreateClient(),
                 ["an Admin"] = admin,
-                ["a Manager"] = manager,
-                ["a Player"] = player,
+                ["the Club's manager"] = manager,
+                ["another Club's manager"] = await factory.CreateManagerClientAsync(elsewhereId),
+                ["a member"] = player,
+                ["a participant who left the Club"] = gone,
                 ["an outsider"] = await factory.CreateSignedInClientAsync(),
             },
             new Dictionary<string, string>
@@ -292,7 +319,7 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
             {
                 services.RemoveAll<IAuthorizationMiddlewareResultHandler>();
                 services.AddSingleton<IAuthorizationMiddlewareResultHandler>(
-                    new StopAfterAuthorization(new AuthorizationMiddlewareResultHandler()));
+                    new StopAfterAuthorization(new HidingAuthorizationResultHandler()));
             });
         }
     }
