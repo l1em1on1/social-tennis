@@ -34,7 +34,9 @@ public static class GetClubMembers
                 m.Player.Name,
                 // Held by a User: a Former player (#116) is a member of no Club.
                 m.Player.User!.Email,
-                db.SessionTokens.Any(s => s.UserId == m.Player.UserId),
+                // The sessions are for a User who hasn't signed in since LastSignedInAt was added (#117):
+                // on their own they forget, as the nightly purge deletes ended ones.
+                m.Player.User!.LastSignedInAt != null || db.SessionTokens.Any(s => s.UserId == m.Player.UserId),
                 m.Status == ClubMembershipStatus.Active,
                 m.Player.Gender,
                 m.Player.Level,
