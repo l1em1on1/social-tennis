@@ -1,12 +1,12 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using SocialTennis.Api;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Email;
@@ -55,7 +55,7 @@ var connectionString = new NpgsqlConnectionStringBuilder(builder.Configuration.G
     GssEncryptionMode = GssEncryptionMode.Disable,
 }.ConnectionString;
 builder.Services.AddDbContext<TennisDbContext>(options => options.UseNpgsql(connectionString));
-builder.Services.AddOpenApi(options => options.AddOperationTransformer<UnauthorizedResponseTransformer>());
+builder.Services.AddOpenApi(options => options.AddOperationTransformer<AuthorizationResponseTransformer>());
 
 // One clock for the whole app. Nothing reads DateTimeOffset.UtcNow directly, so
 // a test can replace this and stand either side of a deadline (ADR-0016).
@@ -79,13 +79,7 @@ builder.Services
     .AddScheme<AuthenticationSchemeOptions, SessionTokenAuthenticationHandler>(
         SessionTokenAuthenticationHandler.SchemeName, null);
 
-// Deny by default (ADR-0017): an endpoint that declares nothing requires a
-// signed-in User. Anonymous routes opt out with AllowAnonymous(), so a
-// forgotten declaration fails closed (ASP.NET Core docs, "fallback policy").
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-    .AddPolicy(Policies.Manager, policy => policy.RequireRole(Policies.Manager))
-    .AddPolicy(Policies.Admin, policy => policy.RequireRole(Policies.Admin));
+builder.Services.AddAccess();
 
 // Magic-link requests are limited per client (#108): the BFF reports the
 // browser's address in a header (Authentication/ClientAddress.cs), and each

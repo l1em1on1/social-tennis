@@ -8,7 +8,7 @@ public static class LeaguesEndpoints
 {
     /// <summary>
     /// Leagues (issue #5). Creating, adding Players and deciding Join Requests
-    /// are a Manager's, club-wide in v1 (ADR-0003). Asking to join, taking a
+    /// are a Manager's, by the policy each route names (ADR-0017). Asking to join, taking a
     /// request back, listing partners and listing a Player's Leagues are the
     /// Player holder's.
     /// </summary>
@@ -19,73 +19,73 @@ public static class LeaguesEndpoints
         var club = app.MapGroup("/clubs/{clubId:guid}/leagues");
 
         club.MapGet("", GetClubLeagues.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.ClubStaff)
             .WithName(nameof(GetClubLeagues));
 
         club.MapPost("", CreateLeague.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueCreator)
             .ValidatesBody<CreateLeagueRequest, CreateLeagueRequest.Validator>()
             .WithName(nameof(CreateLeague));
 
         var league = app.MapGroup("/leagues/{leagueId:guid}");
 
         league.MapGet("", GetLeague.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .WithName(nameof(GetLeague));
 
         league.MapPut("", RenameLeague.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<RenameLeagueRequest, RenameLeagueRequest.Validator>()
             .WithName(nameof(RenameLeague));
 
         league.MapPut("/participants/{playerId:guid}", AddLeagueParticipant.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(AddLeagueParticipant));
 
         league.MapDelete("/participants/{playerId:guid}", RemoveLeagueParticipant.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(RemoveLeagueParticipant));
 
         league.MapPost("/teams", PairTeam.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<PairTeamRequest, PairTeamRequest.Validator>()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(PairTeam));
 
         league.MapDelete("/teams/{teamId:guid}", UnpairTeam.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(UnpairTeam));
 
         // Starting a Divisional League (#7): the proposal, then the Manager's confirmed ladder.
         league.MapGet("/start", GetLeagueStart.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(GetLeagueStart));
 
         league.MapPost("/start", StartLeague.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<StartLeagueRequest, StartLeagueRequest.Validator>()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(StartLeague));
 
         // Closing the current Stage (#10): its screen, and the close.
         league.MapGet("/close", GetStageClose.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(GetStageClose));
 
         league.MapPost("/close", CloseStage.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<CloseStageRequest, CloseStageRequest.Validator>()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(CloseStage));
 
         // A Manager's mid-Stage move of a Team to another Division (#10): not Relegation's path.
         league.MapPost("/moves", MoveTeam.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<MoveTeamRequest, MoveTeamRequest.Validator>()
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(MoveTeam));
@@ -111,12 +111,12 @@ public static class LeaguesEndpoints
             .WithName(nameof(GetLeaguePartners));
 
         league.MapPut("/join-requests/{playerId:guid}/approval", ApproveLeagueJoinRequest.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(ApproveLeagueJoinRequest));
 
         league.MapPut("/join-requests/{playerId:guid}/rejection", RejectLeagueJoinRequest.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(RejectLeagueJoinRequest));
 

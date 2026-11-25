@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -35,6 +36,7 @@ public static class SubmitScore
         SubmitScoreRequest request,
         ClaimsPrincipal user,
         TennisDbContext db,
+        ManagerAccess access,
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
@@ -66,7 +68,7 @@ public static class SubmitScore
                 Voided = g.VoidedAt != null,
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (game is null || !(game.InLeague || user.IsInRole(Policies.Manager)))
+        if (game is null || !(game.InLeague || await access.RunsLeagueAsync(user, game.LeagueId, cancellationToken)))
         {
             return TypedResults.NotFound();
         }

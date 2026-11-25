@@ -31,31 +31,26 @@ public static class GamesEndpoints
 
         // Overridden by a Manager, open Stage or closed.
         game.MapPut("/score/override", OverrideScore.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<OverrideScoreRequest, OverrideScoreRequest.Validator>()
-            // The policy's refusal of anyone else, declared so the client knows it.
-            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(OverrideScore));
 
         // Settling what holds up a Stage's close (#10): a Manager records a Score
         // nobody entered, or marks the Game not played, and can undo that.
         game.MapPost("/score/record", RecordScore.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.LeagueManager)
             .ValidatesBody<RecordScoreRequest, RecordScoreRequest.Validator>()
-            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(RecordScore));
 
         game.MapPut("/not-played", VoidGame.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(VoidGame));
 
         game.MapDelete("/not-played", UnvoidGame.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(UnvoidGame));
 

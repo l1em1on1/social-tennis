@@ -30,9 +30,9 @@ public static class PlayersEndpoints
             .WithName(nameof(UpdatePlayer));
 
         // The one route here that isn't the holder's: Rating is a Manager's to
-        // set, for any Player (roles are club-wide in v1, ADR-0003).
+        // set, for a Player in a Club they run.
         group.MapPut("/{playerId:guid}/rating", SetPlayerRating.HandleAsync)
-            .RequireAuthorization(Policies.Manager)
+            .RequireAuthorization(Policies.PlayerManager)
             .ValidatesBody<SetPlayerRatingRequest, SetPlayerRatingRequest.Validator>()
             .WithName(nameof(SetPlayerRating));
 

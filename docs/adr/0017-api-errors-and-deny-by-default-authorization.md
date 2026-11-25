@@ -29,3 +29,11 @@ A 409 carries a stable machine-readable `type` (e.g. `stage-queue-not-empty`), s
 Integration tests sign in before calling anything but the anonymous routes. Rules validated against the database (Score format against the League, #38) answer 400 with the same `errors` dictionary shape as the validation filter, so a form handles both the same way.
 
 **Accepted (2026-11-19):** built in #57 (fallback policy, ProblemDetails, the anonymous-call check in `OpenApiContractTests`), with the first stable 409 `type`s in #102. The fallback policy and that check enforce it.
+
+**Amended (2026-11-25): one rule for managers, about what the route names (#110).** "Roles are named policies, never an `if` inside a handler" left out routes that are for a League's Players and for its managers: four handlers checked the Manager claim themselves. There is now one rule, `Access/ManagerAccess`, for what a User may do as a manager with a Club, League, Game or Player.
+
+- **The named policies ask it**, each about the id in its route, through one authorization handler. A policy on a route without that id throws, rather than refusing or letting in.
+- **A handler whose route is for Players too asks the same rule**, never a role.
+- **`ManagerAccessTests` lists every operation with who may call it**, and checks each kind of caller against the table, stopping each request once authorization has answered. A new operation fails it until it is listed. This replaces "a test that lists protected endpoints can be forgotten" as the worry: the list is complete or the test fails.
+- The 403 of a policy reaches the contract from the same metadata as the 401.
+- **Considered:** endpoint filters on the route groups. They run after model binding, and outside the place where the API already denies by default.

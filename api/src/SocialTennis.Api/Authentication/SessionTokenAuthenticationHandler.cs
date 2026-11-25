@@ -60,12 +60,12 @@ public class SessionTokenAuthenticationHandler(
         if (roles.HasFlag(UserRoles.Admin))
         {
             // An Admin can do everything a Manager can.
-            claims.Add(new Claim(ClaimTypes.Role, Policies.Admin));
-            claims.Add(new Claim(ClaimTypes.Role, Policies.Manager));
+            claims.Add(new Claim(ClaimTypes.Role, SessionRoles.Admin));
+            claims.Add(new Claim(ClaimTypes.Role, SessionRoles.Manager));
         }
         else if (roles.HasFlag(UserRoles.Manager))
         {
-            claims.Add(new Claim(ClaimTypes.Role, Policies.Manager));
+            claims.Add(new Claim(ClaimTypes.Role, SessionRoles.Manager));
         }
 
         var identity = new ClaimsIdentity(claims, SchemeName);
