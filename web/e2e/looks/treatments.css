@@ -1,0 +1,100 @@
+/* PROTOTYPE (#254), throwaway: each look's type, shape and header. Tokens come from palettes.py. */
+html[data-look] body { font-family: var(--body), system-ui, sans-serif; background: var(--st-bg); }
+html[data-look] :is(h1, h2, header.sticky span.font-display) { font-family: var(--title), system-ui, sans-serif; }
+html[data-look] header.sticky { background: var(--head); color: var(--st-fg); border-bottom: 0; }
+html[data-look] header.sticky .font-display { color: var(--brand); }
+html[data-look] main section.rounded-3xl > header h2::before { display: none; }
+html[data-look] :is(a, button).min-h-11.rounded-full.px-5.bg-accent { background: var(--btn); color: var(--btn-fg); }
+html[data-look] main section.rounded-3xl.border-l-4 { border-left-width: 1px; }
+html[data-look] td.font-mono { font-family: var(--title), monospace; }
+/* Their hero: a picture beside Home's title, and nowhere a long title could run into it. */
+html[data-look][data-screen="home"] main { background-repeat: no-repeat; background-position: right 10px top 4px; }
+
+/* The new spacing (#255), in every look but today's. */
+html[data-look] dialog ul.flex.flex-col.gap-2 { gap: 1rem; }
+html[data-look] main section > div.flex.flex-col.gap-3 { gap: 1rem; }
+html[data-look] main section form.flex.flex-col.gap-1 { gap: .5rem; }
+html[data-look] main > div.flex.flex-col.gap-2 { gap: 1rem; }
+
+html[data-look] main section li.flex.flex-col.gap-2.py-3 { gap: 1rem; }
+html[data-look] main section .flex.flex-wrap.gap-2 { gap: 1rem; }
+html[data-look] dialog h2 { font-size: 1.35rem; font-weight: var(--heavy, 400); }
+html[data-look="court"] { --heavy: 800; } html[data-look="berry"], html[data-look="board"] { --heavy: 700; }
+
+/* Hard court: blue court, white lines, ball-yellow actions, tall scoreboard type. */
+html[data-look="court"] { --title: "Big Shoulders Display"; --body: "Figtree"; }
+html[data-look="court"] header.sticky { box-shadow: inset 0 -4px 0 var(--head), inset 0 -7px 0 #fff; }
+html[data-look="court"] header.sticky span.font-display { font-size: 1.5rem; font-weight: 900; letter-spacing: .01em; text-transform: uppercase; }
+/* Titles as typed: names and "v" read badly in capitals. */
+html[data-look="court"] main h1 { font-size: 2.35rem; line-height: 1.02; font-weight: 900; }
+html[data-look="court"] main section.rounded-3xl { border-radius: 6px; border: 0; box-shadow: 0 1px 0 var(--st-border), 0 8px 18px -12px rgb(5 40 90 / .5); overflow: hidden; }
+html[data-look="court"] main section.rounded-3xl > header { margin: -1rem -1rem .9rem; padding: .55rem 1rem; background: var(--head); box-shadow: inset 0 -3px 0 #fff, 0 3px 0 var(--head); }
+html[data-look="court"] main section.rounded-3xl > header h2 { color: #fff; font-size: 1.45rem; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
+html[data-look="court"] main form > div.rounded-2xl.border { border-radius: 6px; border: 0; overflow: hidden; box-shadow: 0 1px 0 var(--st-border), 0 8px 18px -12px rgb(5 40 90 / .5); }
+html[data-look="court"] main form > div.rounded-2xl.border > div:first-child { margin: -1rem -1rem 0; padding: .55rem 1rem .65rem; background: var(--head); color: #fff; box-shadow: inset 0 -3px 0 #fff, 0 3px 0 var(--head); }
+html[data-look="court"] main form > div.rounded-2xl.border > div:first-child :is(h2, button) { color: #fff !important; background: transparent !important; border-color: #fff !important; }
+html[data-look="court"] main :is(p, div, input, select, a, label, fieldset):is(.rounded-xl, .rounded-2xl, .rounded-3xl) { border-radius: 6px; }
+html[data-look="court"] main > p.rounded-2xl { border-width: 2px; }
+html[data-look="court"] dialog { border-radius: 10px 10px 0 0; border: 0; border-top: 8px solid var(--head); }
+@media (min-width: 640px) { html[data-look="court"] dialog { border-radius: 10px; } }
+html[data-look="court"] nav[aria-label="Main"] a { border-radius: 6px; }
+html[data-look="court"] main form > div.rounded-2xl.border h2 { font-size: 1.45rem; font-weight: 800; text-transform: uppercase; }
+html[data-look="court"] :is(a, button).min-h-11.rounded-full.px-5 { border-radius: 6px; }
+html[data-look="court"] :is(a, button).min-h-11.rounded-full.px-5.bg-accent { box-shadow: inset 0 -3px 0 rgb(11 31 58 / .28); }
+html[data-look="court"] :is(a, button).min-h-11.rounded-full.px-5.border { border: 2px solid var(--st-accent); color: var(--st-accent); }
+html[data-look="court"] td.font-mono { font-size: 1.9rem; font-weight: 900; }
+html[data-look="court"][data-screen="home"] main { background-size: 108px 55px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 76'%3E%3Cpath d='M4 70Q40 -10 74 66Q104 10 128 36' fill='none' stroke='%235b7aa1' stroke-width='2.5' stroke-dasharray='1 8' stroke-linecap='round'/%3E%3Ccircle cx='130' cy='38' r='17' fill='%23dff04a' stroke='%230b1f3a' stroke-width='2.5'/%3E%3Cpath d='M118 26q10 12 0 24M142 26q-10 12 0 24' fill='none' stroke='%230b1f3a' stroke-width='2.5'/%3E%3C/svg%3E"); }
+
+/* Sticker: thick outlines, hard shadows, coral, sun yellow and teal, chunky type. */
+html[data-look="sticker"] { --title: "Lilita One"; --body: "Rubik"; --ink: var(--st-border); --drop: #1d1a2b; }
+@media (prefers-color-scheme: dark) { html[data-look="sticker"] { --drop: #2ec4b6; } }
+html[data-look="sticker"] header.sticky { border-bottom: 3px solid #1d1a2b; }
+html[data-look="sticker"] header.sticky span.font-display { font-weight: 400; font-size: 1.4rem; }
+html[data-look="sticker"] main h1 { font-size: 2.1rem; font-weight: 400; line-height: 1.1; }
+html[data-look="sticker"] main section.rounded-3xl > header h2, html[data-look="sticker"] main form h2 { font-size: 1.35rem; font-weight: 400; }
+html[data-look="sticker"] :is(main section.rounded-3xl, main form > div.rounded-2xl.border) { border: 3px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--drop); }
+html[data-look="sticker"] :is(a, button).min-h-11.rounded-full.px-5:not(:disabled) { border: 3px solid var(--ink); border-radius: 14px; box-shadow: 3px 3px 0 var(--drop); }
+html[data-look="sticker"] :is(header.sticky > div > button.min-h-11, dialog button[aria-label="Close"]) { border: 0 !important; box-shadow: none !important; }
+html[data-look="sticker"] span.rounded-full.text-xs { border: 2px solid currentColor; }
+html[data-look="sticker"] td.font-mono { font-size: 1.6rem; }
+html[data-look="sticker"] .divide-y > * + *, html[data-look="sticker"] tbody tr { border-color: color-mix(in srgb, var(--st-fg) 22%, transparent); }
+html[data-look="sticker"] main p[role="status"] { border: 3px solid var(--ink); background: #2ec4b6; color: #1d1a2b; }
+html[data-look="sticker"][data-screen="home"] main { background-size: 104px 84px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 104 84'%3E%3Cg transform='rotate(9 56 42)' stroke='%231d1a2b' stroke-width='3.5' stroke-linecap='round'%3E%3Ccircle cx='58' cy='44' r='34' fill='%23d8ef3f'/%3E%3Cpath d='M33 22q15 22 0 45M83 22q-15 22 0 45' fill='none' stroke='%23fff' stroke-width='4'/%3E%3Cpath d='M44 50q14 18 28 0z' fill='%23ff7666'/%3E%3Cpath d='M48 34v6M68 34v6' /%3E%3C/g%3E%3C/svg%3E"); }
+
+/* Strawberries: mown-grass stripes, strawberry red actions, soft round type. */
+html[data-look="berry"] { --title: "Baloo 2"; --body: "Nunito"; }
+html[data-look="berry"] header.sticky { background: repeating-linear-gradient(90deg, var(--head) 0 28px, var(--head2) 28px 56px); }
+html[data-look="berry"] header.sticky span.font-display { font-size: 1.4rem; font-weight: 800; }
+html[data-look="berry"] main h1 { font-size: 2.1rem; font-weight: 800; line-height: 1.1; }
+html[data-look="berry"] :is(main section.rounded-3xl, main form > div.rounded-2xl.border) { border: 0; border-radius: 28px; box-shadow: 0 10px 24px -14px rgb(28 116 50 / .55); }
+html[data-look="berry"] :is(main section.rounded-3xl > header h2, main form h2) { font-size: 1.35rem; font-weight: 700; }
+html[data-look="berry"] main section.rounded-3xl > header h2::before { display: block; width: 15px; height: 17px; border-radius: 0; background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 22'%3E%3Cpath d='M10 22C4 18 0 12 2 7q3-4 8-2 5-2 8 2c2 5-2 11-8 15z' fill='%23e0294f'/%3E%3Cpath d='M4 5q6-6 12 0-3 2-6 0-3 2-6 0z' fill='%232f9a4c'/%3E%3C/svg%3E"); }
+html[data-look="berry"] :is(a, button).min-h-11.rounded-full.px-5.border { border: 0; background: var(--st-accent-muted); color: var(--st-accent); }
+html[data-look="berry"] td.font-mono { font-size: 1.6rem; font-weight: 800; }
+html[data-look="berry"][data-screen="home"] main { background-size: 118px 80px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 118 80'%3E%3Cg transform='rotate(-12 40 44)'%3E%3Cpath d='M40 76C22 64 10 46 16 30q9-12 24-6 15-6 24 6c6 16-6 34-24 46z' fill='%23e0294f'/%3E%3Cpath d='M22 25q18-18 36 0-9 6-18 0-9 6-18 0z' fill='%232f9a4c'/%3E%3Cpath d='M30 40v4M40 36v4M50 40v4M34 52v4M46 52v4M40 62v4' stroke='%23ffe9a8' stroke-width='3' stroke-linecap='round'/%3E%3C/g%3E%3Ccircle cx='92' cy='54' r='19' fill='%23d8ef3f'/%3E%3Cpath d='M78 42q11 12 0 25M106 42q-11 12 0 25' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E"); }
+
+/* Seventies: headband stripes, fat rounded display type. */
+html[data-look="seventies"] { --title: "Titan One"; --body: "Outfit"; }
+html[data-look="seventies"] header.sticky { padding-bottom: 18px; background: linear-gradient(#f58a2a 0 6px, #f7bd2b 6px 12px, #1fa39c 12px) bottom / 100% 18px no-repeat, var(--head); }
+html[data-look="seventies"] header.sticky span.font-display { font-weight: 400; font-size: 1.15rem; }
+html[data-look="seventies"] main h1 { font-size: 1.95rem; font-weight: 400; line-height: 1.15; color: var(--st-accent); }
+html[data-look="seventies"] main section.rounded-3xl > header h2, html[data-look="seventies"] main form h2 { font-size: 1.15rem; font-weight: 400; }
+html[data-look="seventies"] :is(main section.rounded-3xl, main form > div.rounded-2xl.border) { border: 0; border-radius: 22px; padding-top: 1.6rem; background: linear-gradient(#f58a2a 0 5px, #f7bd2b 5px 10px, #1fa39c 10px 15px, transparent 15px) no-repeat, var(--st-surface); overflow: hidden; }
+html[data-look="seventies"] :is(a, button).min-h-11.rounded-full.px-5.border { border: 2px solid var(--st-accent); color: var(--st-accent); }
+html[data-look="seventies"] td.font-mono { font-size: 1.5rem; }
+html[data-look="seventies"][data-screen="home"] main { background-size: 132px 72px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 132 72'%3E%3Cg fill='none' stroke-width='11'%3E%3Cpath d='M8 72a56 56 0 0 1 112 0' stroke='%23f58a2a'/%3E%3Cpath d='M20 72a44 44 0 0 1 88 0' stroke='%23f7bd2b'/%3E%3Cpath d='M32 72a32 32 0 0 1 64 0' stroke='%231fa39c'/%3E%3C/g%3E%3Ccircle cx='64' cy='56' r='15' fill='%23d8ef3f'/%3E%3Cpath d='M53 46q9 10 0 20M75 46q-9 10 0 20' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3C/svg%3E"); }
+
+/* Scoreboard: painted boards, white lettering, scores as flip tiles. */
+html[data-look="board"] { --title: "Barlow Condensed"; --body: "Barlow"; }
+html[data-look="board"] header.sticky span.font-display { font-size: 1.45rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+html[data-look="board"] main h1 { font-size: 2.2rem; font-weight: 700; line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; }
+html[data-look="board"] :is(main section.rounded-3xl, main form > div.rounded-2xl.border) { border: 3px solid #fff; outline: 4px solid var(--st-surface); border-radius: 4px; margin: 4px; background: var(--st-surface); box-shadow: 0 12px 20px -10px rgb(0 30 15 / .6); }
+html[data-look="board"] main section.rounded-3xl > header h2, html[data-look="board"] main form h2 { font-size: 1.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+html[data-look="board"] :is(a, button).min-h-11.rounded-full.px-5 { border-radius: 5px; }
+html[data-look="board"] :is(a, button).min-h-11.rounded-full.px-5.border { border: 2px solid currentColor; background: transparent; }
+html[data-look="board"] main section td:is(.font-mono, .tabular-nums.text-center) { font-family: "Barlow Condensed"; font-weight: 700; color: #ffd23f; background: linear-gradient(#111 48%, #000 48% 52%, #1c1c1c 52%) center / calc(100% - 6px) calc(100% - 8px) no-repeat; }
+html[data-look="board"] main section td.font-mono { font-size: 2rem; }
+html[data-look="board"][data-screen="home"] main { background-size: 112px 62px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 112 62'%3E%3Crect x='2' y='10' width='108' height='48' rx='4' fill='%23124a33' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M28 10V0M84 10V0' stroke='%23587080' stroke-width='3'/%3E%3Cg fill='%23111'%3E%3Crect x='14' y='18' width='24' height='32' rx='3'/%3E%3Crect x='44' y='18' width='24' height='32' rx='3'/%3E%3Crect x='74' y='18' width='24' height='32' rx='3'/%3E%3C/g%3E%3Cg fill='%23ffd23f' font-family='Arial' font-weight='700' font-size='26' text-anchor='middle'%3E%3Ctext x='26' y='43'%3E6%3C/text%3E%3Ctext x='56' y='43'%3E4%3C/text%3E%3Ctext x='86' y='43'%3E7%3C/text%3E%3C/g%3E%3C/svg%3E"); }
+
+/* So axe and the pictures see the settled colours, not a transition between two looks. */
+*, *::before, *::after { transition: none !important; }
