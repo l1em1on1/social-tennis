@@ -144,30 +144,40 @@ test("giving a League to someone who has just left the Club says so, and gives n
   // Meanwhile another of the Club's managers takes them out of it.
   const other = await (await browser.newContext()).newPage();
   await logIn(other, testInfo, personaEmail(testInfo, "manager"));
-  await other.goto("/manage");
-  await other.getByRole("button", { name: `Remove ${name}`, exact: true }).click();
-  await other.getByRole("dialog", { name: `Remove ${name}?` }).getByRole("button", { name: "Remove from club" }).click();
-  await expect(other.getByRole("button", { name: `Remove ${name}`, exact: true })).toHaveCount(0);
+  const takeOut = async (who: string) => {
+    await other.goto("/manage");
+    await other.getByRole("button", { name: `Remove ${who}`, exact: true }).click();
+    await other.getByRole("dialog", { name: `Remove ${who}?` }).getByRole("button", { name: "Remove from club" }).click();
+    await expect(other.getByRole("button", { name: `Remove ${who}`, exact: true })).toHaveCount(0);
+  };
+  await takeOut(name);
 
   await page.getByRole("button", { name: "Make league manager" }).click();
   await expect(page.getByText("That wasn't given")).toBeVisible();
   await expect(page.getByText("Run by the club's managers.")).toBeVisible();
 
-  // Given to one who then leaves: they have no Player to be named by, and the button that takes it back says whose.
-  const moe = uniqueName(testInfo, "Moe Leaving");
+  // Given to someone who then leaves: they have no Player to be named by, and the button that takes it back says whose.
+  const ladder = `/leagues/${leaguePath.split("/").at(-1)}`;
+  const giveTo = async (who: string, address: string) => {
+    await addClubPlayer(page, who, address);
+    await page.goto(leaguePath);
+    await page.getByLabel("Give this league to").selectOption({ label: `${who} (${address})` });
+    await page.getByRole("button", { name: "Make league manager" }).click();
+    await expect(page.getByRole("button", { name: `Remove ${who} as a manager of ${league}` })).toBeVisible();
+    await takeOut(who);
+  };
   const moeEmail = personaEmail(testInfo, "moe");
-  await addClubPlayer(page, moe, moeEmail);
-  await page.goto(leaguePath);
-  await page.getByLabel("Give this league to").selectOption({ label: `${moe} (${moeEmail})` });
-  await page.getByRole("button", { name: "Make league manager" }).click();
-  await expect(page.getByRole("button", { name: `Remove ${moe} as a manager of ${league}` })).toBeVisible();
-  await other.goto("/manage");
-  await other.getByRole("button", { name: `Remove ${moe}`, exact: true }).click();
-  await other.getByRole("dialog", { name: `Remove ${moe}?` }).getByRole("button", { name: "Remove from club" }).click();
-  await expect(other.getByRole("button", { name: `Remove ${moe}`, exact: true })).toHaveCount(0);
+  await giveTo(uniqueName(testInfo, "Moe Leaving"), moeEmail);
   await page.goto(leaguePath);
   await expect(page.getByRole("list", { name: "Managers of this league" })).toContainText("A manager");
   await expect(page.getByRole("button", { name: `Remove ${moeEmail} as a manager of ${league}` })).toBeVisible();
+  await page.goto(ladder);
+  await expect(page.getByText("Run by a manager", { exact: true })).toBeVisible();
+
+  // Two of them are counted, not repeated.
+  await giveTo(uniqueName(testInfo, "Ned Leaving"), personaEmail(testInfo, "ned"));
+  await page.goto(ladder);
+  await expect(page.getByText("Run by 2 managers", { exact: true })).toBeVisible();
 });
 
 test("a League manager who isn't in the Club is told how to get in, not to pre-approve themselves", async ({ page }, testInfo) => {
