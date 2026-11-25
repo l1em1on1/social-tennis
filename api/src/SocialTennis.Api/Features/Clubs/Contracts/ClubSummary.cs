@@ -10,4 +10,6 @@ namespace SocialTennis.Api.Features.Clubs.Contracts;
 /// own independent record rather than reusing this one (ADR-0012). Enriching the
 /// detail view must never silently widen every row of a list.
 /// </remarks>
-public record ClubSummary(Guid Id, string Name);
+/// <param name="CanManage">The caller runs this Club: its members, its Leagues and who manages those.</param>
+/// <param name="CanCreateLeagues">The caller may create Leagues in it.</param>
+public record ClubSummary(Guid Id, string Name, bool CanManage, bool CanCreateLeagues);

@@ -11,6 +11,7 @@ const viewer = (players: PlayerSummary[], acting: PlayerSummary): Viewer => ({
   email: "pat@example.com",
   admin: false,
   manages: false,
+  managesClub: false,
   players,
   actingPlayer: acting,
 });

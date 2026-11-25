@@ -38,6 +38,21 @@ public static class LeaguesEndpoints
             .ValidatesBody<RenameLeagueRequest, RenameLeagueRequest.Validator>()
             .WithName(nameof(RenameLeague));
 
+        // Who runs it (#220): a manager of its Club to say.
+        league.MapPut("/managers/{userId:guid}", AssignLeagueManager.HandleAsync)
+            .RequireAuthorization(Policies.LeagueClubManager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(AssignLeagueManager));
+
+        league.MapDelete("/managers/{userId:guid}", UnassignLeagueManager.HandleAsync)
+            .RequireAuthorization(Policies.LeagueClubManager)
+            .WithName(nameof(UnassignLeagueManager));
+
+        // Who could be added (#220): the Club's members, by name.
+        league.MapGet("/addable-players", GetAddablePlayers.HandleAsync)
+            .RequireAuthorization(Policies.LeagueManager)
+            .WithName(nameof(GetAddablePlayers));
+
         league.MapPut("/participants/{playerId:guid}", AddLeagueParticipant.HandleAsync)
             .RequireAuthorization(Policies.LeagueManager)
             .ProducesProblem(StatusCodes.Status409Conflict)

@@ -10,7 +10,7 @@ namespace SocialTennis.Api.Features.Clubs;
 /// <summary>
 /// A Manager's view of a Club: requests waiting for approval first (oldest
 /// first), then members by name, and the emails invited ahead of time that
-/// haven't let anyone in yet.
+/// haven't let anyone in yet, and who holds which role there (#220).
 /// </summary>
 public static class GetClubMembers
 {
@@ -31,6 +31,7 @@ public static class GetClubMembers
             .ThenBy(m => m.Player.Name)
             .Select(m => new ClubMember(
                 m.PlayerId,
+                m.Player.UserId!.Value,
                 m.Player.Name,
                 // Held by a User: a Former player (#116) is a member of no Club.
                 m.Player.User!.Email,
@@ -50,6 +51,14 @@ public static class GetClubMembers
             .Select(i => new ClubInviteSummary(i.Id, i.Email, i.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(new GetClubMembersResponse(members, invites, new PageInfo(members.Count)));
+        // Its managers first, then its League managers.
+        var roles = await db.ClubRoles
+            .Where(r => r.ClubId == clubId)
+            .OrderBy(r => r.Kind)
+            .ThenBy(r => r.User.Email)
+            .Select(r => new ClubRoleSummary(r.UserId, r.User.Email, r.Kind))
+            .ToListAsync(cancellationToken);
+
+        return TypedResults.Ok(new GetClubMembersResponse(members, invites, roles, new PageInfo(members.Count)));
     }
 }

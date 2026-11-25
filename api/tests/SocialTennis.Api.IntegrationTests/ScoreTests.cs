@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
+using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Games.Contracts;
 using SocialTennis.Api.Features.Leagues;
@@ -345,6 +346,24 @@ public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<Cloc
         var (_, elsewhere) = await ClubAsync();
         await factory.MakeManagerAsync(game.Una.Client, elsewhere);
         Assert.False((await GameAsync(game.Una.Client, game.GameId)).CanManage);
+    }
+
+    [Fact]
+    public async Task A_Game_names_who_runs_its_League_and_lets_them_settle_it()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        Assert.Empty((await GameAsync(game.Vic.Client, game.GameId)).Managers);
+
+        // Una runs the League (#220): plays in it too, so may both enter a Score and override one.
+        var una = (await game.Una.Client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!;
+        (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/managers/{una.UserId}", null)).EnsureSuccessStatusCode();
+
+        Assert.True((await GameAsync(game.Una.Client, game.GameId)).CanManage);
+        Assert.Equal(["Una"], (await GameAsync(game.Vic.Client, game.GameId)).Managers.Select(m => m.Name));
+        Assert.False((await GameAsync(game.Vic.Client, game.GameId)).CanManage);
+        var recorded = await game.Una.Client.PostAsJsonAsync(
+            $"/games/{game.GameId}/score/record", new { playedOn = Today, sets = new[] { Set(6, 1) }, retirementWinner = (int?)null });
+        Assert.Equal(HttpStatusCode.NoContent, recorded.StatusCode);
     }
 
     [Fact]

@@ -8,7 +8,8 @@ namespace SocialTennis.Api.Features.Clubs;
 
 /// <summary>
 /// An Admin makes a User a manager of this Club (#110), on that User's next
-/// request. Any User: a manager needn't play. Making one again changes nothing.
+/// request. Any User: a manager needn't play. Making one again changes nothing,
+/// and a League manager becomes a manager.
 /// </summary>
 public static class MakeClubManager
 {
@@ -27,7 +28,8 @@ public static class MakeClubManager
             return TypedResults.NotFound();
         }
 
-        if (!await db.ClubRoles.AnyAsync(r => r.ClubId == clubId && r.UserId == userId, cancellationToken))
+        var role = await db.ClubRoles.SingleOrDefaultAsync(r => r.ClubId == clubId && r.UserId == userId, cancellationToken);
+        if (role is null)
         {
             db.ClubRoles.Add(new ClubRole
             {
@@ -36,8 +38,13 @@ public static class MakeClubManager
                 Kind = ClubRoleKind.Manager,
                 GrantedAt = clock.GetUtcNow(),
             });
-            await db.SaveChangesAsync(cancellationToken);
         }
+        else if (role.Kind != ClubRoleKind.Manager)
+        {
+            (role.Kind, role.GrantedAt) = (ClubRoleKind.Manager, clock.GetUtcNow());
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

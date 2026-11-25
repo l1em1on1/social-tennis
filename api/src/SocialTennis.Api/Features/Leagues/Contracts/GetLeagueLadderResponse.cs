@@ -1,3 +1,4 @@
+using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Domain;
 
 namespace SocialTennis.Api.Features.Leagues.Contracts;
@@ -20,6 +21,8 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// same rule that lets them see it. A User may hold several Players, and the
 /// Acting Player may not be one of these.
 /// </param>
+/// <param name="Managers">Who runs it (#220), by name; none if its Club's managers do.</param>
+/// <param name="CanManage">The signed-in User runs it.</param>
 public record GetLeagueLadderResponse(
     Guid Id,
     string Name,
@@ -30,4 +33,6 @@ public record GetLeagueLadderResponse(
     bool HeldUp,
     LadderAwaiting Awaiting,
     bool Ended,
-    IReadOnlyList<Guid> YourPlayerIds);
+    IReadOnlyList<Guid> YourPlayerIds,
+    IReadOnlyList<LeagueManagerName> Managers,
+    bool CanManage);

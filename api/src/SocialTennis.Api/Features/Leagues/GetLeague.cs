@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Leagues.Contracts;
@@ -11,7 +13,9 @@ public static class GetLeague
 {
     public static async Task<Results<Ok<GetLeagueResponse>, NotFound>> HandleAsync(
         Guid leagueId,
+        ClaimsPrincipal user,
         TennisDbContext db,
+        ManagerAccess access,
         CancellationToken cancellationToken)
     {
         var league = await db.Leagues
@@ -67,13 +71,24 @@ public static class GetLeague
                 l.Stages
                     .OrderByDescending(s => s.Number)
                     .Select(s => new LeagueStageSummary(s.Number, s.StartDate, s.EndDate))
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                // Filled in below, as they depend on who asks.
+                Array.Empty<LeagueManagerSummary>(),
+                false))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
         if (league is null)
         {
             return TypedResults.NotFound();
         }
+
+        var runsClub = await access.RunsClubAsync(user, league.ClubId, cancellationToken);
+        var managers = await LeagueManagerList.OfAsync(db, leagueId, cancellationToken);
+        league = league with
+        {
+            Managers = [.. managers.Select(m => new LeagueManagerSummary(m.UserId, m.Name, runsClub ? m.Email : null))],
+            CanAssignManagers = runsClub,
+        };
 
         if (league.Stage is null)
         {

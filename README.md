@@ -33,7 +33,7 @@ Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app
 API_URL=http://mock-api:8080 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web mock-api
 ```
 
-The web app runs as always, with the mock API (`web/mock-api/`, ADR-0033) at its `API_URL`. No api or Postgres is needed. The sign-in link is in the mock's log (`docker compose logs mock-api`). After changing the mock, add `--build`. The part of the email before `@` picks the starting roles: `manager@…` is a manager of the shared Club and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
+The web app runs as always, with the mock API (`web/mock-api/`, ADR-0033) at its `API_URL`. No api or Postgres is needed. The sign-in link is in the mock's log (`docker compose logs mock-api`). After changing the mock, add `--build`. The part of the email before `@` picks the starting roles: `manager@…` is a manager of the shared Club, `league-manager@…` a League manager there and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
 
 ## Tests
 

@@ -9,6 +9,8 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// </summary>
 /// <param name="DivisionSize">Teams per Division, for a Divisional League of Teams (ADR-0031); null otherwise.</param>
 /// <param name="Stage">The current Stage; null until the League starts (#7).</param>
+/// <param name="Managers">Who it was assigned to (#220); none if its Club's managers run it.</param>
+/// <param name="CanAssignManagers">The caller runs its Club, so says who runs it.</param>
 public record GetLeagueResponse(
     Guid Id,
     Guid ClubId,
@@ -25,4 +27,6 @@ public record GetLeagueResponse(
     IReadOnlyList<LeagueParticipantSummary> Participants,
     IReadOnlyList<LeagueJoinRequestSummary> JoinRequests,
     IReadOnlyList<LeagueTeamSummary> Teams,
-    LeagueStageSummary? Stage);
+    LeagueStageSummary? Stage,
+    IReadOnlyList<LeagueManagerSummary> Managers,
+    bool CanAssignManagers);

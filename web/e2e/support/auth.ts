@@ -4,9 +4,10 @@ import { Client } from "pg";
 
 /**
  * The email a test logs in with. The local part picks the roles: "manager" is
- * a manager of the shared Club and "admin" an Admin; anything else has none.
- * The mocked API reads them from the email; against the real API `logIn` has
- * the suite's Admin grant them (#110).
+ * a manager of the shared Club, "league-manager" a League manager there (#220)
+ * and "admin" an Admin; anything else has none. The mocked API reads them from
+ * the email; against the real API `logIn` has the suite's Admin grant "manager"
+ * and "admin" (#110).
  * Every login is a new User with no Player: see `addFirstPlayer`.
  *
  * real: a random `+tag` keeps tests from sharing a User in the one database.
@@ -150,7 +151,8 @@ export async function userIdOf(email: string): Promise<string> {
  */
 async function grantRolesNamedInEmail(email: string): Promise<boolean> {
   const local = email.split("@")[0].split("+")[0].toLowerCase();
-  const manager = local.includes("manager");
+  // A League manager (#220) needs a Player in the Club first, so is given the role by their own test.
+  const manager = local.includes("manager") && !local.includes("league-manager");
   const admin = local.includes("admin");
   if (!manager && !admin) return false;
 

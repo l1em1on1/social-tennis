@@ -36,6 +36,16 @@ public static class ClubsEndpoints
             .RequireAuthorization(Policies.Admin)
             .WithName(nameof(RemoveClubManager));
 
+        // Who may create Leagues there (#220): the Club's managers to say.
+        group.MapPut("/{clubId:guid}/league-managers/{userId:guid}", GrantLeagueManagerRole.HandleAsync)
+            .RequireAuthorization(Policies.ClubManager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(GrantLeagueManagerRole));
+
+        group.MapDelete("/{clubId:guid}/league-managers/{userId:guid}", RemoveLeagueManagerRole.HandleAsync)
+            .RequireAuthorization(Policies.ClubManager)
+            .WithName(nameof(RemoveLeagueManagerRole));
+
         // A Manager's side of membership.
         group.MapGet("/{clubId:guid}/members", GetClubMembers.HandleAsync)
             .RequireAuthorization(Policies.ClubManager)

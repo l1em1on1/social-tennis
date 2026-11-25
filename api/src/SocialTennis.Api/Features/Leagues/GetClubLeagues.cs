@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Contracts;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -7,12 +9,14 @@ using SocialTennis.Api.Features.Leagues.Contracts;
 
 namespace SocialTennis.Api.Features.Leagues;
 
-/// <summary>A Club's Leagues for its Managers, latest start first.</summary>
+/// <summary>The Leagues of a Club the caller runs, latest start first: all of them for its managers, and their own for a League manager (#220).</summary>
 public static class GetClubLeagues
 {
     public static async Task<Results<Ok<GetClubLeaguesResponse>, NotFound>> HandleAsync(
         Guid clubId,
+        ClaimsPrincipal user,
         TennisDbContext db,
+        ManagerAccess access,
         CancellationToken cancellationToken)
     {
         if (!await db.Clubs.AnyAsync(c => c.Id == clubId, cancellationToken))
@@ -20,8 +24,7 @@ public static class GetClubLeagues
             return TypedResults.NotFound();
         }
 
-        var leagues = await db.Leagues
-            .Where(l => l.ClubId == clubId)
+        var leagues = await access.LeaguesRunIn(user, clubId)
             .OrderByDescending(l => l.StartDate)
             .ThenBy(l => l.Name)
             .Select(l => new ClubLeague(

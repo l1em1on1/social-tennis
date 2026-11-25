@@ -63,8 +63,9 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
   if (!clubList) {
     throw new Error("GET /clubs failed");
   }
+  // A League manager's own Leagues come to this page next (#220): until then it is the Club's managers'.
   const clubs = await Promise.all(
-    clubList.clubs.map(async (club) => {
+    clubList.clubs.filter((club) => club.canManage).map(async (club) => {
       const params = { params: { path: { clubId: club.id } } };
       const [{ data }, { data: leagueList }, { data: joinLink }] = await Promise.all([
         api.GET("/clubs/{clubId}/members", params),
@@ -96,7 +97,13 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
         </p>
       )}
 
-      {clubs.length === 0 && <EmptyState title="No clubs yet" description="An Admin sets up the club." />}
+      {clubs.length === 0 &&
+        (clubList.clubs.length === 0 ? (
+          <EmptyState title="No clubs yet" description="An Admin sets up the club." />
+        ) : (
+          // A League manager, who runs no Club (#220): the Leagues they run show here next.
+          <EmptyState title="No club to manage" description="The leagues you run will show here." />
+        ))}
 
       {clubs.map((club) => {
         const waiting = club.members.filter((member) => !member.approved);

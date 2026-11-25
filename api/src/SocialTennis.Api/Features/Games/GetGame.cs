@@ -86,6 +86,7 @@ public static class GetGame
             return TypedResults.NotFound();
         }
 
+        var managers = await LeagueManagerList.NamesAsync(db, game.LeagueId, cancellationToken);
         var score = game.Score is { } s
             ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.RecordedByManager, s.SubmittedAt, s.Version)
             : null;
@@ -125,6 +126,7 @@ public static class GetGame
             history,
             game.Yours,
             manages,
+            managers,
             game.TimeZone,
             ClubCalendar.Today(game.TimeZone, clock)));
     }
