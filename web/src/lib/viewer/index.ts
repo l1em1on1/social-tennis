@@ -47,5 +47,5 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   const chosen = (await cookies()).get(ACTING_PLAYER_COOKIE)?.value;
   const actingPlayer = players.find((player) => player.id === chosen) ?? players[0] ?? null;
 
-  return { userId: me.userId, email: me.email, admin: me.admin, manages: me.manages, players, actingPlayer };
+  return { userId: me.userId, email: me.email, admin: me.admin, manages: me.manages, managesClub: me.managesClub, players, actingPlayer };
 });

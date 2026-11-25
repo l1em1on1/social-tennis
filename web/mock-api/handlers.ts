@@ -131,9 +131,14 @@ const usersByEmail = new Map<string, MockUser>();
 
 /** Each email's User id, made when first asked for: a Player a Manager added has one before anyone signs in with it. */
 const userIds = new Map<string, string>();
+let usersMade = 0;
 
 function userIdOf(email: string): string {
-  const id = FIXTURE_USER_IDS[email] ?? userIds.get(email) ?? `00000000-0000-4000-8000-2${String(userIds.size + 1).padStart(11, "0")}`;
+  let id = FIXTURE_USER_IDS[email] ?? userIds.get(email);
+  if (!id) {
+    // Counted, not sized: a deleted User's id is never given out again.
+    id = `00000000-0000-4000-8000-2${String((usersMade += 1)).padStart(11, "0")}`;
+  }
   userIds.set(email, id);
   return id;
 }
@@ -1025,7 +1030,6 @@ export const handlers = [
     });
   }),
 
-  // Renaming (#153): only the name changes.
   // Who could be added (#220): the Club's members who aren't in it, with emails only for its Club's managers.
   http.get("/leagues/{leagueId}/addable-players", ({ request, params, response }) => {
     const league = leagueById(params.leagueId);
@@ -1065,6 +1069,7 @@ export const handlers = [
     return response(204).empty();
   }),
 
+  // Renaming (#153): only the name changes.
   http.put("/leagues/{leagueId}", async ({ request, params, response }) => {
     const name = (await request.json()).name.trim();
     if (name.length === 0 || name.length > 200) {
@@ -1854,7 +1859,13 @@ export const handlers = [
     const email = emailOf(request);
     const user = userOf(email);
     // An Admin manages every Club, as with the real API.
-    return response(200).json({ userId: user.id, email, admin: user.admin, manages: user.admin || user.clubs.size > 0 || user.leagues.size > 0 });
+    return response(200).json({
+      userId: user.id,
+      email,
+      admin: user.admin,
+      manages: user.admin || user.clubs.size > 0 || user.leagues.size > 0,
+      managesClub: user.admin || [...user.clubs.values()].includes("Manager"),
+    });
   }),
 
   // An Admin's side. The mock doesn't check the role: the pages do.

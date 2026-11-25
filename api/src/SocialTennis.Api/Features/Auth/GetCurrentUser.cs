@@ -19,6 +19,7 @@ public static class GetCurrentUser
                 Guid.Parse(id),
                 email,
                 user.IsInRole(SessionRoles.Admin),
-                await access.RunsAnythingAsync(user, cancellationToken)));
+                await access.RunsAnythingAsync(user, cancellationToken),
+                await access.RunsAClubAsync(user, cancellationToken)));
     }
 }

@@ -27,10 +27,12 @@ export interface Viewer {
   /** An Admin (CONTEXT.md). */
   admin: boolean;
   /**
-   * Manages at least one Club, so Manage has something for them (#110). What they
-   * may do with a Club, League or Game, that Club, League or Game says.
+   * Manages a Club, or a League (#110, #220), so Manage has something for them.
+   * What they may do with a Club, League or Game, that Club, League or Game says.
    */
   manages: boolean;
+  /** Manages a Club, so can let people into one: a League manager can't. */
+  managesClub: boolean;
   players: PlayerSummary[];
   /** The Player the User is acting as; null for a User with no Player (just signed up, or a Manager-only account). */
   actingPlayer: PlayerSummary | null;

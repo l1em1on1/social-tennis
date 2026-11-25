@@ -38,6 +38,18 @@ public sealed class ManagerAccess(TennisDbContext db)
         return await StandingIn(user.UserId()).AnyAsync(cancellationToken);
     }
 
+    /// <summary>Whether they manage a Club, which is what lets them let people into one.</summary>
+    public async Task<bool> RunsAClubAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
+    {
+        if (user.IsInRole(SessionRoles.Admin))
+        {
+            return true;
+        }
+
+        var userId = user.UserId();
+        return await db.ClubRoles.AnyAsync(r => r.UserId == userId && r.Kind == ClubRoleKind.Manager, cancellationToken);
+    }
+
     /// <summary>The Clubs they have any standing in, by name, and what they may do in each: every Club for an Admin.</summary>
     public async Task<IReadOnlyList<ClubStanding>> ClubsAsync(ClaimsPrincipal user, CancellationToken cancellationToken)
     {

@@ -987,6 +987,7 @@ export interface components {
             email: string;
             admin: boolean;
             manages: boolean;
+            managesClub: boolean;
         };
         GetGameResponse: {
             /** Format: uuid */

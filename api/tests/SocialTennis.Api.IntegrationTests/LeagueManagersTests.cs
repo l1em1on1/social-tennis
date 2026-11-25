@@ -79,6 +79,9 @@ public class LeagueManagersTests(AuthTestFactory factory) : IClassFixture<AuthTe
     private static async Task<bool> ManagesAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Manages;
 
+    private static async Task<bool> ManagesClubAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.ManagesClub;
+
     private static async Task<string?> ProblemTypeAsync(HttpResponseMessage response, HttpStatusCode status)
     {
         Assert.Equal(status, response.StatusCode);
@@ -92,6 +95,9 @@ public class LeagueManagersTests(AuthTestFactory factory) : IClassFixture<AuthTe
         var theirs = await LeagueAsync(manager, clubId, "The Club's");
         var lee = await MemberAsync(manager, clubId, "Lee");
         await RoleAsync(manager, clubId, lee.UserId);
+        // They run something, and not a Club: nobody is let into one by them.
+        Assert.Equal((true, false), (await ManagesAsync(lee.Client), await ManagesClubAsync(lee.Client)));
+        Assert.Equal((true, true), (await ManagesAsync(manager), await ManagesClubAsync(manager)));
 
         var own = await LeagueAsync(lee.Client, clubId, "Lee's");
 

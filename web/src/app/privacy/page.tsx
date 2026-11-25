@@ -45,8 +45,8 @@ export default async function PrivacyPage() {
       <Section title="What we hold">
         <ul className="list-disc pl-5">
           <li>
-            Your email address, which is how you sign in, when you last signed in, which clubs you manage, and whether
-            you&apos;re an Admin.
+            Your email address, which is how you sign in, when you last signed in, which clubs and leagues you manage,
+            and whether you&apos;re an Admin.
           </li>
           <li>For each of your players: name, gender, level and rating.</li>
           <li>
@@ -94,7 +94,14 @@ export default async function PrivacyPage() {
         <ul className="list-disc pl-5">
           <li>Admins: everyone&apos;s email address and roles.</li>
           <li>Managers: their club&apos;s members with their email addresses, requests to join, and pre-approved addresses.</li>
-          <li>Other members: players&apos; names in clubs and leagues, and their games and scores.</li>
+          <li>
+            League managers: the names of the club&apos;s members, to add them to a league, and the email address, gender
+            and rating of players in their leagues or asking to join one.
+          </li>
+          <li>
+            Other members: players&apos; names in clubs and leagues, and their games and scores. A league says who runs it,
+            by name.
+          </li>
         </ul>
         <p>
           Outside the club, nobody: we don&apos;t sell or share it. The app runs on Microsoft Azure, which also sends the
