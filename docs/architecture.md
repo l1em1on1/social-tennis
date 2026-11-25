@@ -219,7 +219,7 @@ Statuses that come from middleware rather than a handler are put into the docume
 │   ├── agents/                 agent workflow docs (issue tracker, triage, domain, endpoints)
 │   ├── architecture.md         this file
 │   ├── phase-1-score-collection.md  non-technical overview of Phase 1: screens, features, user flows
-│   └── ui/                     Phase 1 clickable wireframes (one static HTML file, app tokens) — design, not app code; published to GitHub Pages
+│   └── ui/                     how-to guides for members, League managers and Club managers (#251), and the Phase 1 clickable wireframes; static files, published to GitHub Pages
 ├── docker-compose.yml          base stack: postgres + api + web (+ api-tests, e2e, storybook profiles)
 ├── docker-compose.dev.yml      dev overlay: bind mounts, dotnet watch, next dev
 ├── infra/                      Terraform for the PoC hosting (ADR-0019): toolbox image, root config, modules/
@@ -273,6 +273,7 @@ Statuses that come from middleware rather than a handler are put into the docume
     ├── next.config.ts          output: "standalone"; static security headers
     ├── playwright.config.ts    E2E projects: mock (web-mock) and real (web-e2e)
     ├── playwright.storybook.config.ts, storybook-tests/   Storybook's accessibility check (#232)
+    ├── playwright.guide.config.ts, e2e/guide/   takes the how-to guides' screenshots, by hand (#251, docs/ui/README.md)
     ├── .storybook/             Storybook (#46): main.ts, preview.tsx (globals.css, Geist, Fraunces), modes.ts (light/dark at 360px, desktop at 1280px)
     ├── mock-api/               the mock API (ADR-0033): server.ts, handlers.ts (openapi-msw), fixture.ts (the fixed world for page snapshots), its own Dockerfile
     ├── e2e/                    Playwright specs; support/ (login, axe, stack readiness, Chromatic's test with the nav in flow)
@@ -521,7 +522,7 @@ The test host runs the real `Program.cs` — including startup migration — aga
 
 ## CI
 
-Six GitHub Actions workflows: `api.yml` and `web.yml`, one per half of the repo (ADR-0002); `infra.yml` for Terraform; `review.yml`, Claude's review on request; `pages.yml` for the wireframes; and `deploy.yml`, the release flow above. In the three check workflows (`api`, `web`, `infra`) every step is a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner. They run on every PR and every push to `main`; a first `changed paths` job in each decides whether the others have anything to do:
+Six GitHub Actions workflows: `api.yml` and `web.yml`, one per half of the repo (ADR-0002); `infra.yml` for Terraform; `review.yml`, Claude's review on request; `pages.yml` for the how-to guides and wireframes; and `deploy.yml`, the release flow above. In the three check workflows (`api`, `web`, `infra`) every step is a `docker compose` invocation with the same images and commands as local dev — nothing runs bare on the runner. They run on every PR and every push to `main`; a first `changed paths` job in each decides whether the others have anything to do:
 
 ```mermaid
 flowchart LR
@@ -555,7 +556,7 @@ flowchart LR
 
 **Infrastructure.** `infra.yml` runs `terraform fmt -check` and `terraform validate` in the toolbox image when `infra/` changes, with the same always-reports structure as the other two.
 
-**Wireframes on GitHub Pages.** `pages.yml` publishes `docs/ui/*.html` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder. It copies static files and builds nothing: one job uploads them, and a second deploys them, since a deploy in the same job could look for the upload before GitHub listed it. It reports no check on pull requests.
+**How-to guides and wireframes on GitHub Pages.** `pages.yml` publishes `docs/ui/` to <https://l1em1on1.github.io/social-tennis/> on every push to `main` that changes that folder: the guides (#251) from the root, and the wireframes at `phase-1-wireframes.html`. It copies static files and builds nothing: one job uploads them, and a second deploys them, since a deploy in the same job could look for the upload before GitHub listed it. It reports no check on pull requests.
 
 **Code review.** `review.yml` has Claude (Opus at high effort, through `anthropics/claude-code-action`, pinned by commit SHA) review a pull request when someone with write access adds the `claude-review` label (the owner, or the agent when asked), and comment on it directly (ADR-0029). A finding on a line the PR changed is a comment on that line. Every other finding is listed with its `path:line` in the single summary comment. The job removes the label as it starts, so adding it again asks for a re-review. A step before the review writes the PR's earlier line comments (the bot's and collaborators') to `pr-context/`, so a re-review doesn't repeat open findings. It is advice, not a gate: its check should not be required, a run that fails (a usage limit, or a rejected token) ends green with a comment giving Claude's error and what to do about it, and it builds and runs nothing from the repository.
 

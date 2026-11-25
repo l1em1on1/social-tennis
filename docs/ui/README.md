@@ -1,14 +1,37 @@
-# Phase 1 wireframes
+# How-to guides and wireframes
+
+Published at <https://l1em1on1.github.io/social-tennis/> whenever this folder changes on `main` (`.github/workflows/pages.yml`). Static files, no build.
+
+## How-to guides
+
+For the people who use the app (#251): [`index.html`](index.html) leads to one guide each for [members](guide-member.html), [League managers](guide-league-manager.html) and [Club managers](guide-club-manager.html). Each reads as a page, and presents one step at a time: the button at the top, or `?present` in the address (`guide-member.html?present#score` starts at a step). Arrow keys, the buttons or a swipe move; Escape leaves.
+
+- **Words:** edit the HTML. Name buttons and headings exactly as the app does.
+- **Pictures** (`guide/img/`) are the real app's, telling one story with made-up people. Take them again when a screen changes. They need an empty database, so this drops the local `tennis` one:
+
+  ```sh
+  docker compose --profile e2e build api web-e2e
+  docker compose --profile e2e rm -sf api web-e2e
+  docker compose up -d --wait postgres
+  docker compose exec -T postgres psql -U tennis -d postgres -c 'DROP DATABASE IF EXISTS tennis'
+  docker compose --profile e2e up -d --wait api web-e2e
+  docker compose --profile e2e run --rm --no-deps -v "$PWD/docs/ui/guide/img:/guide" e2e \
+    npx playwright test --config playwright.guide.config.ts
+  ```
+
+  The story is `web/e2e/guide/screens.guide.ts`. It isn't a test and CI doesn't run it. It follows today's date, so update the date at the foot of the guides and any they mention, and drop pictures no guide uses.
+
+## Phase 1 wireframes
 
 Clickable mobile wireframes of every Phase 1 screen (issue #41), designed before the screens are built.
 
-**Open them at <https://l1em1on1.github.io/social-tennis/>**, or open [`phase-1-wireframes.html`](phase-1-wireframes.html) from a clone. It is one self-contained file: no build, no server, nothing to install. The published copy updates whenever this folder changes on `main` (`.github/workflows/pages.yml`). Pick a screen on the left, then flip its **State** and **Viewer** (Player, Parent, Manager, Admin). Everything inside the phone is clickable. The notes panel on the right gives each screen's decisions and the open questions for the walkthrough.
+**Open them at <https://l1em1on1.github.io/social-tennis/phase-1-wireframes.html>**, or open [`phase-1-wireframes.html`](phase-1-wireframes.html) from a clone. It is one self-contained file: no build, no server, nothing to install. Pick a screen on the left, then flip its **State** and **Viewer** (Player, Parent, Manager, Admin). Everything inside the phone is clickable. The notes panel on the right gives each screen's decisions and the open questions for the walkthrough.
 
 The colours are the app's own tokens from `web/src/app/globals.css` (ADR-0014), and the shell (header, "Playing as" switcher, bottom nav, primitives) mirrors what #40 shipped, so the wireframes look like the real app in both light and dark.
 
 Each screen has a deep link: `phase-1-wireframes.html#<screen>` or `#<screen>--<state>`, e.g. `#score--new`, `#home--held-up`, `#match--locked`. Use these from tickets. They work on the published site too: `https://l1em1on1.github.io/social-tennis/phase-1-wireframes.html#score--new`.
 
-## Screens
+### Screens
 
 | # | Screen | Link | States | Built in |
 | --- | --- | --- | --- | --- |
@@ -27,7 +50,7 @@ Each screen has a deep link: `phase-1-wireframes.html#<screen>` or `#<screen>--<
 | M6 | Close the month | `#close` | ready, held-up, closed | #10 |
 | A1 | Club and roles | `#admin` | default, no-club, error | #18 |
 
-## Score entry
+### Score entry
 
 The screen Players use most, so it gets three structurally different layouts to choose from. All three share one set of rules, written as plain functions in the file (`setResult`, `evaluate`) so #38 can port them as the client-side hints:
 
@@ -47,7 +70,7 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 
 **Superseded by ADR-0031 (2026-11-21):** the ladder (P5), Start (M4) and Close (M6) screens show Divisions of 2 with a Bye. Divisions now hold about 4 Teams, everyone in a Division plays everyone, and there is no Bye.
 
-## Decisions taken in the wireframes
+### Decisions taken in the wireframes
 
 - **The "Ladder" tab becomes "Leagues".** A Player can be in several Leagues, so the tab opens a list (mine, then joinable), and each League opens its ladder. This changes one nav entry from #40's shell when #5 lands.
 - **"Stage held up" is a banner**, on Home and on the ladder, that names what is blocking the close. Players see the same to-do items the Manager does, read-only.
@@ -55,7 +78,7 @@ Rules as wireframed (to confirm with the club, then enforced by the server in #3
 - **Month close is reached from the to-do list**, because it is blocked until that list is empty.
 - **The last Admin can't remove their own Admin role.**
 
-## Walkthrough feedback
+### Walkthrough feedback
 
 Feedback is ongoing: the wireframes are a living design, updated as screens are built and as the club reacts to them. Send people the published link and record what comes back in the table. The open questions are listed per screen in the notes panel; the main ones, still open:
 
