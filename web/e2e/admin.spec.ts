@@ -7,6 +7,7 @@ import type { Page } from "@playwright/test";
 import { Client } from "pg";
 import { logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
+import { addClubPlayer } from "./support/league";
 
 const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 
@@ -257,6 +258,62 @@ test("an Admin finds a User by searching, one page at a time", async ({ page }, 
   await expect(page.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Pages of users" })).toHaveCount(0);
   await takeSnapshot(page, "Users, searched for one address", testInfo);
+});
+
+test("an Admin lists a Club's Users, once there are two Clubs", async ({ page, browser }, testInfo) => {
+  // Several sign-ins and searches: over the default timeout on a busy real-API run.
+  test.slow();
+  const tag = `clubfilter-${randomBytes(4).toString("hex")}`;
+  const inside = `in-${tag}@example.com`;
+  const outside = `out-${tag}@example.com`;
+  const other = uniqueName(testInfo, "Zz Filter Tennis Club");
+
+  // One in the suite's Club, added by its manager, and one in none. Both have signed in, so both are Users.
+  const manager = await (await browser.newContext()).newPage();
+  await logIn(manager, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(manager, uniqueName(testInfo, "Ina Side"), inside);
+  for (const email of [inside, outside]) {
+    const signedIn = await (await browser.newContext()).newPage();
+    await logIn(signedIn, testInfo, email);
+  }
+
+  await logIn(page, testInfo, personaEmail(testInfo, "admin"));
+  await page.goto("/admin");
+  // Only the mock has a Club of its own: the real database has whatever the suite has made.
+  if (testInfo.project.name === "mock") {
+    await expect(page.getByLabel("Club", { exact: true })).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "Create a club" }).click();
+  const create = page.getByRole("dialog", { name: "Create a club" });
+  await create.getByLabel("Club name").fill(other);
+  await create.getByRole("button", { name: "Create club" }).click();
+  await expect(clubRow(page, other)).toBeVisible();
+
+  const search = async (club: string) => {
+    await page.getByLabel("Find a user").fill(tag);
+    await page.getByLabel("Club", { exact: true }).selectOption({ label: club });
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+  };
+  await expect(page.getByLabel("Club", { exact: true })).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
+
+  await search("Riverside Tennis Club");
+  await expect(page.getByText(`1–1 of 1 matching “${tag}” in Riverside Tennis Club, newest first.`)).toBeVisible();
+  await expect(userRow(page, inside)).toBeVisible();
+  await expect(userRow(page, outside)).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]club=/);
+
+  await search("All clubs");
+  await expect(page.getByText(`1–2 of 2 matching “${tag}”, newest first.`)).toBeVisible();
+  // A role there counts as well: the one in no Club is made this one's manager.
+  await search(other);
+  await expect(page.getByText(`No one matches “${tag}” in ${other}.`)).toBeVisible();
+  await search("All clubs");
+  await (await rolesOf(page, outside)).getByRole("button", { name: `Make manager of ${other} (${outside})` }).click();
+  await expect(userRow(page, outside).getByText("Manager", { exact: true })).toBeVisible();
+  await search(other);
+  await expect(page.getByText(`1–1 of 1 matching “${tag}” in ${other}, newest first.`)).toBeVisible();
+  await expect(userRow(page, outside)).toBeVisible();
 });
 
 test("an Admin pages through a search with Next and Previous", async ({ page }, testInfo) => {

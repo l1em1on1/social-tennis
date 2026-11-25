@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Auth.Contracts;
+using SocialTennis.Api.Features.Clubs.Contracts;
+using SocialTennis.Api.Features.Leagues.Contracts;
+using SocialTennis.Api.Features.Players.Contracts;
 using SocialTennis.Api.Features.Users.Contracts;
 
 namespace SocialTennis.Api.IntegrationTests;
@@ -114,6 +117,73 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         Assert.Empty(list.Users);
         Assert.Equal(0, list.Page.Total);
+    }
+
+    [Fact]
+    public async Task Users_of_a_Club_are_those_with_a_Player_there_or_asking_or_a_role_or_League_there()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var admin = await factory.AdminClientAsync();
+        async Task<Guid> ClubAsync() =>
+            (await (await admin.PostAsJsonAsync("/clubs", new { name = $"Club {Guid.NewGuid():N}" }))
+                .Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var (here, elsewhere) = (await ClubAsync(), await ClubAsync());
+        async Task<(HttpClient Client, Guid UserId, Guid PlayerId, string Email)> PersonAsync(string kind)
+        {
+            var email = $"{kind}-{token}@example.test";
+            var client = await factory.CreateSignedInClientAsync(email);
+            var created = await client.PostAsJsonAsync("/players", new { name = kind });
+            return (client, (await MeAsync(client)).UserId, (await created.Content.ReadFromJsonAsync<CreatePlayerResponse>())!.Id, email);
+        }
+
+        var manager = await factory.CreateManagerClientAsync(here);
+        var managerEmail = (await MeAsync(manager)).Email;
+        var member = await PersonAsync("member");
+        (await factory.AskToJoinAsync(member.Client, here, member.PlayerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/clubs/{here}/members/{member.PlayerId}/approval", null)).EnsureSuccessStatusCode();
+        var asking = await PersonAsync("asking");
+        (await factory.AskToJoinAsync(asking.Client, here, asking.PlayerId)).EnsureSuccessStatusCode();
+        var roleHolder = await PersonAsync("rolelee");
+        (await factory.AskToJoinAsync(roleHolder.Client, here, roleHolder.PlayerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/clubs/{here}/members/{roleHolder.PlayerId}/approval", null)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/clubs/{here}/league-managers/{roleHolder.UserId}", null)).EnsureSuccessStatusCode();
+        (await roleHolder.Client.DeleteAsync($"/players/{roleHolder.PlayerId}/clubs/{here}")).EnsureSuccessStatusCode();
+        var runner = await PersonAsync("runner");
+        (await factory.AskToJoinAsync(runner.Client, here, runner.PlayerId)).EnsureSuccessStatusCode();
+        (await manager.PutAsync($"/clubs/{here}/members/{runner.PlayerId}/approval", null)).EnsureSuccessStatusCode();
+        var league = await manager.PostAsJsonAsync($"/clubs/{here}/leagues", new
+        {
+            name = "Filter League",
+            type = "SinglesMixed",
+            structure = "Divisional",
+            startDate = "2030-12-01",
+            endDate = "2031-03-31",
+            stageLength = new { count = 1, unit = "Months" },
+            stageRoll = "Manual",
+            scoreFormat = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false },
+        });
+        var leagueId = (await league.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
+        (await manager.PutAsync($"/leagues/{leagueId}/managers/{runner.UserId}", null)).EnsureSuccessStatusCode();
+        (await runner.Client.DeleteAsync($"/players/{runner.PlayerId}/clubs/{here}")).EnsureSuccessStatusCode();
+        // In another Club, and in none.
+        var other = await PersonAsync("other");
+        (await factory.AskToJoinAsync(other.Client, elsewhere, other.PlayerId)).EnsureSuccessStatusCode();
+        var nobody = await PersonAsync("nobody");
+
+        async Task<IEnumerable<string>> EmailsAsync(string query) =>
+            (await admin.GetFromJsonAsync<GetUsersResponse>($"/users?limit=100&{query}"))!.Users.Select(u => u.Email);
+
+        Assert.Equal(
+            new[] { member.Email, asking.Email, roleHolder.Email, runner.Email }.Order(),
+            (await EmailsAsync($"clubId={here}&q={token}")).Order());
+        Assert.Contains(managerEmail, await EmailsAsync($"clubId={here}"));
+        Assert.Equal([other.Email], await EmailsAsync($"clubId={elsewhere}&q={token}"));
+        // With the search and paging as ever, and everyone without it.
+        var first = (await admin.GetFromJsonAsync<GetUsersResponse>($"/users?clubId={here}&q={token}&limit=1"))!;
+        Assert.Equal((1, 4), (first.Users.Count, first.Page.Total));
+        Assert.Equal(6, (await EmailsAsync($"q={token}")).Count());
+        // A Club that isn't there: an empty list, and no error.
+        Assert.Empty(await EmailsAsync($"clubId={Guid.NewGuid()}"));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Form from "next/form";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -12,6 +13,8 @@ interface SearchFormProps {
   /** The search now in force, shown in the box. */
   defaultValue?: string;
   maxLength?: number;
+  /** More fields of the same search, between the box and the button (#245). */
+  children?: ReactNode;
 }
 
 /**
@@ -22,7 +25,7 @@ interface SearchFormProps {
  * The button goes under the box, both full width, as in the app's other forms.
  * Beside it, on a phone, the button left an email address too little room.
  */
-export function SearchForm({ action, id, label, hint, defaultValue, maxLength }: SearchFormProps) {
+export function SearchForm({ action, id, label, hint, defaultValue, maxLength, children }: SearchFormProps) {
   return (
     <Form action={action} role="search" className="flex flex-col gap-4">
       <Field id={id} label={label} hint={hint}>
@@ -37,6 +40,7 @@ export function SearchForm({ action, id, label, hint, defaultValue, maxLength }:
           />
         )}
       </Field>
+      {children}
       <Button type="submit" variant="secondary" fullWidth>
         Search
       </Button>

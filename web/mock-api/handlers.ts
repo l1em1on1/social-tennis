@@ -1895,13 +1895,21 @@ export const handlers = [
       allPlayers()
         .filter((player) => player.email === email)
         .map((player) => ({ id: player.id, name: player.name }));
+    const clubId = query.get("clubId");
+    // In this Club (#245): a Player there or asking (only the shared Club takes members), a role, or a League of its.
+    const inClub = (email: string, user: MockUser) =>
+      !clubId ||
+      user.clubs.has(clubId) ||
+      leagues.some((league) => league.clubId === clubId && user.leagues.has(league.id)) ||
+      (clubId === MOCK_CLUB.id && allPlayers().some((player) => player.email === email && player.membership));
     const matching = [...usersByEmail]
       .reverse()
       .filter(
-        ([email]) =>
-          !search ||
-          email.includes(search) ||
-          names(email).some((player) => player.name.toLowerCase().includes(search)),
+        ([email, user]) =>
+          inClub(email, user) &&
+          (!search ||
+            email.includes(search) ||
+            names(email).some((player) => player.name.toLowerCase().includes(search))),
       )
       .sort(([a], [b]) => Number(b === search) - Number(a === search));
     const users = matching.slice(offset, offset + limit).map(([email, user]) => ({
