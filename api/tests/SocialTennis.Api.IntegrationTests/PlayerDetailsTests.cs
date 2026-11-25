@@ -280,12 +280,15 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
     [Fact]
     public async Task Only_a_Manager_adds_Players_and_only_to_a_Club_that_exists()
     {
-        using var player = await factory.CreateSignedInClientAsync();
+        using var outsider = await factory.CreateSignedInClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await factory.AClubIdAsync();
+        var (player, playerId, clubId) = await PlayerInAClubAsync();
+        using var _ = player;
+        (await manager.PutAsync($"/clubs/{clubId}/members/{playerId}/approval", null)).EnsureSuccessStatusCode();
         var body = new { name = "Sam", email = "someone@example.test" };
 
         Assert.Equal(HttpStatusCode.Forbidden, (await player.PostAsJsonAsync($"/clubs/{clubId}/players", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await outsider.PostAsJsonAsync($"/clubs/{clubId}/players", body)).StatusCode);
         Assert.Equal(
             HttpStatusCode.NotFound,
             (await manager.PostAsJsonAsync($"/clubs/{Guid.NewGuid()}/players", body)).StatusCode);

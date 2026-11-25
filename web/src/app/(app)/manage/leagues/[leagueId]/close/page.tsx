@@ -23,12 +23,13 @@ const typed = (value: string | string[] | undefined) => (typeof value === "strin
  */
 export default async function CloseStagePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]/close">) {
   const [viewer, api, { leagueId }, { error, start, end }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);
-  if (!viewer.roles.includes("Manager") || !isId(leagueId)) {
+  if (!viewer.manages || !isId(leagueId)) {
     notFound();
   }
 
   const { data: close, response } = await api.GET("/leagues/{leagueId}/close", { params: { path: { leagueId } } });
-  if (response.status === 404) {
+  // 403: a League they can see, but don't run (#110).
+  if (response.status === 404 || response.status === 403) {
     notFound();
   }
   if (response.status === 409) {

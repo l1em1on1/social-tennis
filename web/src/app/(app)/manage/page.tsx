@@ -55,7 +55,7 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
 export default async function ManagePage({ searchParams }: PageProps<"/manage">) {
   const [viewer, api, { error, invited, added }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
   const problem = typeof error === "string" ? errors[error] : undefined;
-  if (!viewer.roles.includes("Manager")) {
+  if (!viewer.manages) {
     notFound();
   }
 

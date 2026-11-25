@@ -15,11 +15,17 @@ namespace SocialTennis.Api.IntegrationTests;
 public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
 {
     /// <summary>A Club of its own, so resetting its link touches no other test's.</summary>
-    private async Task<Guid> NewClubAsync()
+    private async Task<Guid> NewClubAsync(params HttpClient[] managers)
     {
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Linked {Guid.NewGuid():N}" });
-        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        foreach (var manager in managers)
+        {
+            await factory.MakeManagerAsync(manager, id);
+        }
+
+        return id;
     }
 
     private static async Task<Guid> PlayerAsync(HttpClient client, string name) =>
@@ -53,7 +59,7 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task A_Player_asks_through_the_link_and_waits_for_a_Manager()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         // Every Club's link starts off.
         Assert.Null(await CodeAsync(manager, clubId));
         var code = await TurnOnAsync(manager, clubId);
@@ -78,7 +84,7 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task A_reset_link_stops_working_and_requests_made_through_it_stay()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var old = await TurnOnAsync(manager, clubId);
         using var client = await factory.CreateSignedInClientAsync();
         var asked = await PlayerAsync(client, "Asked before");
@@ -100,7 +106,7 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task A_link_turned_off_stops_working_and_turning_it_on_again_gives_a_new_one()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var old = await TurnOnAsync(manager, clubId);
 
         Assert.Equal(HttpStatusCode.NoContent, (await manager.DeleteAsync($"/clubs/{clubId}/join-link")).StatusCode);
@@ -119,7 +125,7 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task Managers_turning_a_link_on_at_once_get_one_link()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
 
         var codes = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => TurnOnAsync(manager, clubId)));
 
@@ -131,10 +137,10 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task A_link_off_reset_or_unknown_answers_the_same()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var resetClub = await NewClubAsync();
+        var resetClub = await NewClubAsync(manager);
         var reset = await TurnOnAsync(manager, resetClub);
         await ResetAsync(manager, resetClub);
-        var offClub = await NewClubAsync();
+        var offClub = await NewClubAsync(manager);
         var off = await TurnOnAsync(manager, offClub);
         (await manager.DeleteAsync($"/clubs/{offClub}/join-link")).EnsureSuccessStatusCode();
         using var client = await factory.CreateSignedInClientAsync();
@@ -155,13 +161,18 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task Only_a_Manager_reads_resets_or_turns_off_a_link()
     {
         var clubId = await NewClubAsync();
+        // Neither someone outside the Club nor another Club's manager may know it is there (#110).
         using var client = await factory.CreateSignedInClientAsync();
+        using var elsewhere = await factory.CreateManagerClientAsync();
+        foreach (var outsider in new[] { client, elsewhere })
+        {
+            Assert.Equal(HttpStatusCode.NotFound, (await outsider.GetAsync($"/clubs/{clubId}/join-link")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await outsider.PutAsync($"/clubs/{clubId}/join-link", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await outsider.PostAsync($"/clubs/{clubId}/join-link/reset", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await outsider.DeleteAsync($"/clubs/{clubId}/join-link")).StatusCode);
+        }
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/join-link")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsync($"/clubs/{clubId}/join-link", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/clubs/{clubId}/join-link/reset", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/clubs/{clubId}/join-link")).StatusCode);
-        using var manager = await factory.CreateManagerClientAsync();
+        using var manager = await factory.CreateManagerClientAsync(clubId);
         Assert.Null(await CodeAsync(manager, clubId));
         // A Club that doesn't exist has no link.
         Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"/clubs/{Guid.NewGuid()}/join-link")).StatusCode);
@@ -174,7 +185,7 @@ public class JoinLinkTests(AuthTestFactory factory) : IClassFixture<AuthTestFact
     public async Task A_join_link_needs_a_session()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var code = await TurnOnAsync(manager, await NewClubAsync());
+        var code = await TurnOnAsync(manager, await NewClubAsync(manager));
         using var anonymous = factory.CreateClient();
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"/join-links/{code}")).StatusCode);

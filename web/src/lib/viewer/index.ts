@@ -5,13 +5,14 @@ import { redirect } from "next/navigation";
 import { apiWithSession } from "@/lib/api/server";
 import { JOIN_CODE_HEADER, loginPath } from "@/lib/join";
 import { ACTING_PLAYER_COOKIE } from "@/lib/session";
-import type { Role, Viewer } from "./types";
+import type { Viewer } from "./types";
 
-export type { PlayerClub, PlayerGender, PlayerSummary, Role, Viewer } from "./types";
+export type { PlayerClub, PlayerGender, PlayerSummary, Viewer } from "./types";
 
 /**
- * The current User, their roles and Players, and the Player they're acting as.
- * Roles decide what the shell shows; the API checks them again on every call.
+ * The current User, their Players, and the Player they're acting as. Whether
+ * they're an Admin or manage anything decides what the shell shows; the API
+ * checks again on every call.
  *
  * proxy.ts only checks that a session cookie exists; this is the real validity
  * check — a revoked or expired session gets a 401 and lands back on /login,
@@ -37,8 +38,6 @@ export const getViewer = cache(async (): Promise<Viewer> => {
     throw new Error(`GET /players failed with ${playersResponse.status}`);
   }
 
-  // The API names roles as strings; anything this build doesn't know is dropped.
-  const roles = me.roles.filter((role): role is Role => role === "Manager" || role === "Admin");
   // Oldest first, so with no choice made the User acts as the first Player they added.
   // The generated type allows a level as text (how the API's schema describes an integer); it is always a number.
   const players = playerList.players.map((player) => ({
@@ -48,5 +47,5 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   const chosen = (await cookies()).get(ACTING_PLAYER_COOKIE)?.value;
   const actingPlayer = players.find((player) => player.id === chosen) ?? players[0] ?? null;
 
-  return { userId: me.userId, email: me.email, roles, players, actingPlayer };
+  return { userId: me.userId, email: me.email, admin: me.admin, manages: me.manages, players, actingPlayer };
 });

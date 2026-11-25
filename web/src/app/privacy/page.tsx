@@ -45,8 +45,8 @@ export default async function PrivacyPage() {
       <Section title="What we hold">
         <ul className="list-disc pl-5">
           <li>
-            Your email address, which is how you sign in, when you last signed in, and whether you&apos;re a Manager or
-            Admin.
+            Your email address, which is how you sign in, when you last signed in, which clubs you manage, and whether
+            you&apos;re an Admin.
           </li>
           <li>For each of your players: name, gender, level and rating.</li>
           <li>

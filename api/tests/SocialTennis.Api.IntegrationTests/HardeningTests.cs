@@ -128,22 +128,22 @@ public class HardeningTests(AuthTestFactory factory) : IClassFixture<AuthTestFac
         var me = await user.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me");
         var admin = await factory.AdminClientAsync();
 
-        var granted = await admin.PutAsync($"/users/{me!.UserId}/roles/manager", null);
+        var granted = await admin.PutAsync($"/users/{me!.UserId}/roles/admin", null);
         Assert.Equal(HttpStatusCode.NoContent, granted.StatusCode);
-        Assert.Contains("Manager", (await user.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles);
+        Assert.True((await user.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Admin);
 
-        var revoked = await admin.DeleteAsync($"/users/{me.UserId}/roles/MANAGER");
+        var revoked = await admin.DeleteAsync($"/users/{me.UserId}/roles/ADMIN");
         Assert.Equal(HttpStatusCode.NoContent, revoked.StatusCode);
-        Assert.DoesNotContain("Manager", (await user.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles);
+        Assert.False((await user.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Admin);
     }
 
     [Fact]
     public async Task A_Player_removed_from_a_Club_no_longer_sees_its_Leagues()
     {
-        using var manager = await factory.CreateManagerClientAsync();
         var admin = await factory.AdminClientAsync();
         var club = await admin.PostAsJsonAsync("/clubs", new { name = $"Hardening Club {Guid.NewGuid():N}" });
         var clubId = (await club.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        using var manager = await factory.CreateManagerClientAsync(clubId);
         var league = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
         {
             name = "Winter Singles",

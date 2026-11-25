@@ -3,10 +3,10 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { Client } from "pg";
 
 /**
- * The email a test logs in with. The local part picks the roles: "manager"
- * and "admin"; anything else has none. The mocked API reads them from the
- * email; against the real API `requestSignInLink` writes them to the database
- * (granting roles in the app is #18).
+ * The email a test logs in with. The local part picks the roles: "manager" is
+ * a manager of the shared Club and "admin" an Admin; anything else has none.
+ * The mocked API reads them from the email; against the real API `logIn` has
+ * the suite's Admin grant them (#110).
  * Every login is a new User with no Player: see `addFirstPlayer`.
  *
  * real: a random `+tag` keeps tests from sharing a User in the one database.
@@ -54,15 +54,22 @@ export async function emailedLinkFor(testInfo: TestInfo, email: string, join?: s
     return `/auth/verify?token=${encodeURIComponent(email)}${back}`;
   }
   const token = await takeNewestMagicLink(email);
-  await grantRolesNamedInEmail(email);
   return `/auth/verify?token=${encodeURIComponent(token)}${back}`;
 }
 
-/** Logs in: requests a link, opens it, and presses "Sign in" on the page it lands on. */
+/**
+ * Logs in: requests a link, opens it, and presses "Sign in" on the page it
+ * lands on. Against the real API it then grants the roles the email names,
+ * which take effect on the next page: the mock gave them already.
+ */
 export async function logIn(page: Page, testInfo: TestInfo, email: string) {
   await page.goto(await requestSignInLink(page, testInfo, email));
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  if (testInfo.project.name !== "mock" && (await grantRolesNamedInEmail(email))) {
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+  }
 }
 
 /**
@@ -109,26 +116,48 @@ export async function takeNewestMagicLink(email: string): Promise<string> {
 }
 
 /**
- * UserRoles in the API: Manager = 1, Admin = 2. Runs before the link is
- * redeemed, when the address has no User yet (#108), so it creates the User
- * the redemption will then find.
+ * Calls the real API as the suite's Admin, whose session global-setup.ts made,
+ * and returns its answer. Anything but a success throws, since a test uses it
+ * to set up or check what the pages then show.
  */
-async function grantRolesNamedInEmail(email: string) {
-  const local = email.split("@")[0].split("+")[0].toLowerCase();
-  const roles = (local.includes("manager") ? 1 : 0) | (local.includes("admin") ? 2 : 0);
-  if (roles === 0) return;
+export async function asAdmin(path: string, method = "GET", body?: object): Promise<Response> {
+  const response = await fetch(`${process.env.E2E_API_URL ?? "http://api:8080"}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${process.env.E2E_ADMIN_SESSION}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw new Error(`${method} ${path} as the suite's Admin failed: HTTP ${response.status}`);
+  return response;
+}
 
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  await client.connect();
-  try {
-    await client.query(
-      `INSERT INTO "Users" ("Id", "Email", "CreatedAt", "Roles") VALUES (gen_random_uuid(), $2, now(), $1)
-       ON CONFLICT ("Email") DO UPDATE SET "Roles" = EXCLUDED."Roles"`,
-      [roles, email.toLowerCase()],
-    );
-  } finally {
-    await client.end();
-  }
+/** The id of the User who signed in as `email`. Redeeming a link makes the User, so they exist by then. */
+export async function userIdOf(email: string): Promise<string> {
+  const found = (await (await asAdmin(`/users?q=${encodeURIComponent(email)}`)).json()) as {
+    users: { id: string; email: string }[];
+  };
+  const user = found.users.find((candidate) => candidate.email === email.toLowerCase());
+  if (!user) throw new Error(`No User for ${email}: did they sign in?`);
+  return user.id;
+}
+
+/**
+ * Against the real API, as an Admin would: the suite's Admin (global-setup.ts)
+ * makes this User a manager of the suite's Club, or an Admin, as their email's
+ * local part says. Returns whether it granted anything.
+ */
+async function grantRolesNamedInEmail(email: string): Promise<boolean> {
+  const local = email.split("@")[0].split("+")[0].toLowerCase();
+  const manager = local.includes("manager");
+  const admin = local.includes("admin");
+  if (!manager && !admin) return false;
+
+  const userId = await userIdOf(email);
+  if (manager) await asAdmin(`/clubs/${process.env.E2E_CLUB_ID}/managers/${userId}`, "PUT");
+  if (admin) await asAdmin(`/users/${userId}/roles/Admin`, "PUT");
+  return true;
 }
 
 async function replaceNewestMagicLinkToken(email: string, rawToken: string) {

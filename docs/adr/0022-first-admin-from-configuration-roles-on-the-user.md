@@ -2,7 +2,7 @@
 
 The app needs someone who can act before anyone has been given a role: create the Club, appoint Managers, approve who joins (#18). The first Admin is therefore **named in configuration**: `Auth:AdminEmails` is a comma-separated list of email addresses, and whoever signs in with one of them is an Admin for as long as it is listed. In production the list is the `ADMIN_EMAILS` GitHub secret, passed through Terraform into a Container Apps secret. There is no seeding step and nothing to do in the database.
 
-Everyone else's roles are **stored on the User** (`User.Roles`, a flags value: Manager, Admin) and granted or removed by an Admin on the Admin page. The session scheme turns both sources into role claims on every request, so a change takes effect at once, not at the next sign-in. An Admin always carries Manager too.
+Admins granted in the app are **stored on the User** (`User.Roles`, a flags value) and granted or removed by an Admin on the Admin page. The session scheme turns both sources into a role claim on every request, so a change takes effect at once, not at the next sign-in. (Managers were flags here too until ADR-0034, which replaced the Manager flag with a role per Club.)
 
 The app can't be left with no Admin:
 
@@ -14,8 +14,7 @@ The app can't be left with no Admin:
 - Losing access to every Admin account is recoverable without touching the database: add an address to `ADMIN_EMAILS` and deploy.
 - Whoever can change the deployment's configuration can make themselves an Admin. That is already true of anyone with that access, who could change the database too.
 - Removing an address from the list demotes that person only if they were never also granted Admin in the app.
-- Roles are club-wide, as ADR-0003 has them for v1. Per-Club roles later are a new table beside `User.Roles` (a role, a User, a Club), which adds to this and replaces nothing.
-- **Manager is global: a Manager manages every Club.** So per-Club Manager (#110) must be built before a second Club is created. Until then, only one Club should exist.
+- **Managers are per Club** (ADR-0034): the table beside `User.Roles` this ADR foresaw, `ClubRoles`. It replaced the Manager flag, rather than adding to it as foreseen, so that nothing could go on reading the flag.
 
 ## Considered
 

@@ -9,7 +9,8 @@ const sam: PlayerSummary = { id: "p3", name: "Sam Junior", gender: null, level: 
 const viewer = (players: PlayerSummary[], acting: PlayerSummary): Viewer => ({
   userId: "u1",
   email: "pat@example.com",
-  roles: [],
+  admin: false,
+  manages: false,
   players,
   actingPlayer: acting,
 });

@@ -36,6 +36,9 @@ async function waitFor(url: string, timeoutMs = 180_000) {
  *
  * Skipped when one exists already (the database outlives a run), and when
  * there is no database to sign in through (a mock-only run).
+ *
+ * The workers get the Admin's session and the Club's id, for granting the roles
+ * a test's email names (auth.ts): Playwright passes env set here to them.
  */
 async function ensureAClub() {
   if (!process.env.DATABASE_URL) return;
@@ -53,8 +56,13 @@ async function ensureAClub() {
   const authorized = { ...json, Authorization: `Bearer ${session.token}` };
 
   const listed = await fetch(`${api}/clubs`, { headers: authorized });
-  const { clubs } = (await listed.json()) as { clubs: unknown[] };
-  if (clubs.length > 0) return;
+  const { clubs } = (await listed.json()) as { clubs: { id: string }[] };
+  process.env.E2E_ADMIN_SESSION = session.token;
+  if (clubs.length > 0) {
+    // The first Club listed: what a manager persona manages (see join.ts).
+    process.env.E2E_CLUB_ID = clubs[0].id;
+    return;
+  }
 
   const created = await fetch(`${api}/clubs`, {
     method: "POST",
@@ -66,6 +74,7 @@ async function ensureAClub() {
       `Creating the suite's Club failed: HTTP ${created.status}. Is ${email} in the api's Auth__AdminEmails?`,
     );
   }
+  process.env.E2E_CLUB_ID = ((await created.json()) as { id: string }).id;
 }
 
 export default async function globalSetup() {

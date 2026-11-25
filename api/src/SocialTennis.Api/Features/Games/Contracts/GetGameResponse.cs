@@ -12,6 +12,7 @@ namespace SocialTennis.Api.Features.Games.Contracts;
 /// The signed-in User's Players who play in it, any of whom can enter its
 /// Score. The Acting Player may be another of them, or none.
 /// </param>
+/// <param name="CanManage">The signed-in User runs its League, so may record, override or set aside its Score.</param>
 /// <param name="History">Every change to its Score, the latest first; none before it's entered.</param>
 /// <param name="TimeZone">The Club's IANA time zone, which the history's times are shown in (ADR-0016).</param>
 /// <param name="Today">Today in the Club's time zone: a Game can't have been played after it.</param>
@@ -29,5 +30,6 @@ public record GetGameResponse(
     bool NotPlayed,
     IReadOnlyList<ScoreHistoryEntry> History,
     IReadOnlyList<Guid> YourPlayerIds,
+    bool CanManage,
     string TimeZone,
     DateOnly Today);

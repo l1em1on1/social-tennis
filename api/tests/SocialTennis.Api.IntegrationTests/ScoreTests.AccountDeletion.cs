@@ -58,7 +58,7 @@ public partial class ScoreTests
         var game = await SinglesAsync(OneSetOf6);
         (await SubmitAsync(game.Una.Client, game.GameId, game.Una.PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
         // A Manager with a Player of their own, so the override is named by it.
-        using var manager = await factory.CreateManagerClientAsync();
+        using var manager = await factory.CreateManagerClientAsync(game.ClubId);
         (await manager.PostAsJsonAsync("/players", new { name = "Morgan Manager" })).EnsureSuccessStatusCode();
         var version = (await GameAsync(manager, game.GameId)).Score!.Version;
         (await OverrideAsync(manager, game.GameId, version, [Set(2, 6)])).EnsureSuccessStatusCode();
@@ -78,7 +78,7 @@ public partial class ScoreTests
     {
         // The mark points at its Manager under a Restrict key: left in place, it would block the delete (#228 review).
         var game = await SinglesAsync(OneSetOf6);
-        using var manager = await factory.CreateManagerClientAsync();
+        using var manager = await factory.CreateManagerClientAsync(game.ClubId);
         (await VoidAsync(manager, game.GameId)).EnsureSuccessStatusCode();
 
         Assert.Equal(HttpStatusCode.NoContent, (await DeleteUserAsync(await UserIdAsync(manager))).StatusCode);
@@ -89,7 +89,6 @@ public partial class ScoreTests
     [Fact]
     public async Task A_deleted_email_signs_up_again_empty_and_its_old_links_and_invites_are_gone()
     {
-        var (manager, _) = await ClubAsync();
         var email = $"forgotten-{Guid.NewGuid():N}@example.test";
         using var client = await factory.CreateSignedInClientAsync(email);
         (await client.PostAsJsonAsync("/players", new { name = "Fran" })).EnsureSuccessStatusCode();
@@ -98,8 +97,8 @@ public partial class ScoreTests
         using var anonymous = factory.CreateClient();
         (await anonymous.PostAsJsonAsync("/auth/magic-link", new { email })).EnsureSuccessStatusCode();
         var unused = factory.Sender.TokenFor(email);
-        var (_, otherClub) = await ClubAsync();
-        await manager.PostAsJsonAsync($"/clubs/{otherClub}/invites", new { email });
+        var (manager, otherClub) = await ClubAsync();
+        (await manager.PostAsJsonAsync($"/clubs/{otherClub}/invites", new { email })).EnsureSuccessStatusCode();
 
         (await DeleteUserAsync(oldUser)).EnsureSuccessStatusCode();
 

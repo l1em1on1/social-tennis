@@ -331,36 +331,58 @@ export async function renameClub(formData: FormData) {
   redirect("/admin");
 }
 
-function userAndRole(formData: FormData): { userId: string; role: "Manager" | "Admin" } | null {
+/** An Admin makes a User a manager of a Club (#110). It takes effect on that User's next request. */
+export async function makeClubManager(formData: FormData) {
   const userId = formData.get("userId");
-  const role = formData.get("role");
-  return isId(userId) && (role === "Manager" || role === "Admin") ? { userId, role } : null;
-}
-
-/** An Admin makes a User a Manager or an Admin. It takes effect on that User's next request. */
-export async function grantRole(formData: FormData) {
-  const path = userAndRole(formData);
-  if (!path) return;
+  const clubId = formData.get("clubId");
+  if (!isId(userId) || !isId(clubId)) return;
 
   const api = await apiWithSession();
-  const { response } = await api.PUT("/users/{userId}/roles/{role}", { params: { path } });
+  const { response } = await api.PUT("/clubs/{clubId}/managers/{userId}", { params: { path: { clubId, userId } } });
   if (!response.ok) {
-    throw new Error(`Granting ${path.role} failed with ${response.status}`);
+    throw new Error(`Making a Club's manager failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** An Admin takes a User's role as manager of a Club (#110). */
+export async function removeClubManager(formData: FormData) {
+  const userId = formData.get("userId");
+  const clubId = formData.get("clubId");
+  if (!isId(userId) || !isId(clubId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/clubs/{clubId}/managers/{userId}", { params: { path: { clubId, userId } } });
+  if (!response.ok) {
+    throw new Error(`Removing a Club's manager failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** An Admin makes a User an Admin. It takes effect on that User's next request. */
+export async function grantAdmin(formData: FormData) {
+  const userId = formData.get("userId");
+  if (!isId(userId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/users/{userId}/roles/{role}", { params: { path: { userId, role: "Admin" } } });
+  if (!response.ok) {
+    throw new Error(`Granting Admin failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
 }
 
 /**
- * An Admin takes a role from a User. The API refuses (409) to remove Admin
+ * An Admin takes the Admin role from a User. The API refuses (409) to remove it
  * from the last one or from one set in configuration; the page disables those
  * buttons, so a refusal means the list changed underneath it.
  */
-export async function revokeRole(formData: FormData) {
-  const path = userAndRole(formData);
-  if (!path) return;
+export async function revokeAdmin(formData: FormData) {
+  const userId = formData.get("userId");
+  if (!isId(userId)) return;
 
   const api = await apiWithSession();
-  const { response } = await api.DELETE("/users/{userId}/roles/{role}", { params: { path } });
+  const { response } = await api.DELETE("/users/{userId}/roles/{role}", { params: { path: { userId, role: "Admin" } } });
   if (response.status === 409) {
     // Back to the search and page the Admin was on (#134), with the reason.
     const search = formData.get("q");
@@ -374,7 +396,7 @@ export async function revokeRole(formData: FormData) {
     );
   }
   if (!response.ok) {
-    throw new Error(`Removing ${path.role} failed with ${response.status}`);
+    throw new Error(`Removing Admin failed with ${response.status}`);
   }
   revalidatePath("/", "layout");
 }

@@ -21,8 +21,9 @@ public class User
     public DateTimeOffset? LastSignedInAt { get; set; }
 
     /// <summary>
-    /// Roles granted to this User. Addresses in Auth:AdminEmails are Admins on
-    /// top of whatever is stored here. Granting roles in the app is issue #18.
+    /// Roles granted to this User everywhere. Addresses in Auth:AdminEmails are
+    /// Admins on top of whatever is stored here. Roles in a Club are
+    /// <see cref="ClubRole"/>s.
     /// </summary>
     public UserRoles Roles { get; set; }
 

@@ -10,7 +10,7 @@ import { SearchForm } from "@/components/ui/search-form";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { deleteUser, grantRole, revokeRole } from "@/lib/actions";
+import { deleteUser, grantAdmin, makeClubManager, removeClubManager, revokeAdmin } from "@/lib/actions";
 import { adminHref } from "@/lib/admin-href";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
@@ -30,6 +30,52 @@ const errors: Record<string, { title: string; description: string }> = {
   },
 };
 
+/**
+ * One line per Club: make the User its manager, or take that back (#110). An
+ * Admin manages every Club anyway, so for them only the roles they hold are listed.
+ */
+function ClubManagerForms({
+  user,
+  who,
+  clubs,
+}: {
+  user: { id: string; admin: boolean; clubs: { clubId: string }[] };
+  who: string;
+  clubs: { id: string; name: string }[];
+}) {
+  if (clubs.length === 0) {
+    return <p className="text-sm text-fg-muted">Create a club first, then you can make someone its manager.</p>;
+  }
+  const manages = (club: { id: string }) => user.clubs.some((held) => held.clubId === club.id);
+  const listed = clubs.filter((club) => !user.admin || manages(club));
+  if (listed.length === 0) return null;
+  return (
+    <ul className="-my-2 divide-y divide-border">
+      {listed.map((club) => (
+        <li key={club.id} className="flex items-center justify-between gap-3 py-2">
+          <span className="min-w-0 break-words">{club.name}</span>
+          <form action={manages(club) ? removeClubManager : makeClubManager} className="shrink-0">
+            <input type="hidden" name="userId" value={user.id} />
+            <input type="hidden" name="clubId" value={club.id} />
+            {/* The spoken name starts with the visible text (WCAG 2.5.3), then says which Club and who. */}
+            <SubmitButton variant="secondary" pendingLabel="Saving…">
+              {manages(club) ? (
+                <>
+                  Remove<span className="sr-only"> as manager of {club.name} ({who})</span>
+                </>
+              ) : (
+                <>
+                  Make manager<span className="sr-only"> of {club.name} ({who})</span>
+                </>
+              )}
+            </SubmitButton>
+          </form>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Users per page (#134). The API allows up to 100. */
 const USERS_PER_PAGE = 50;
 
@@ -38,13 +84,13 @@ const MAX_OFFSET = 2_147_483_647;
 
 /**
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
- * Managers or Admins. Admins only — refused here as well as hidden from the
- * nav, and the API refuses each call by role. Users come a page at a time,
- * newest first, searchable by email or Player name (#134).
+ * managers of Clubs (#110) or Admins. Admins only — refused here as well as
+ * hidden from the nav, and the API refuses each call by role. Users come a page
+ * at a time, newest first, searchable by email or Player name (#134).
  */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const [viewer, api, { error, q, offset }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
-  if (!viewer.roles.includes("Admin")) {
+  if (!viewer.admin) {
     notFound();
   }
   const search = typeof q === "string" ? q.trim() : "";
@@ -117,9 +163,9 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
       <Card title={`Users (${total})`}>
         <p className="mb-3 text-sm text-fg-muted">
-          Managers approve who joins a club and run its leagues. Admins can also do everything on this page. A change
-          takes effect straight away. Removing someone deletes their account; their players stay in results as
-          &ldquo;Former player&rdquo;.
+          A club&apos;s managers approve who joins it and run its leagues. Admins manage every club, and can do everything
+          on this page. A change takes effect straight away. Removing someone deletes their account; their players stay
+          in results as &ldquo;Former player&rdquo;.
         </p>
         <div className="mb-3">
           <SearchForm
@@ -172,13 +218,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                   </p>
                 </div>
                 {user.admin && <Badge tone="accent">Admin</Badge>}
-                {user.manager && !user.admin && <Badge tone="accent">Manager</Badge>}
+                {user.clubs.length > 0 && !user.admin && <Badge tone="accent">Manager</Badge>}
                 {!user.adminBySetting && (
                   <Sheet title={`Roles for ${who}`} triggerIcon="more" trigger={`Roles for ${user.email}`}>
                     <p className="text-fg-muted">
-                      Managers approve who joins a club and run its leagues. An Admin can also create clubs and change
-                      anyone&apos;s roles, including yours.
+                      A club&apos;s managers approve who joins it and run its leagues. An Admin manages every club, can create
+                      clubs, and can change anyone&apos;s roles, including yours.
                     </p>
+                    <ClubManagerForms user={user} who={who} clubs={clubList.clubs} />
                     {user.admin ? (
                       user.lastAdmin ? (
                         <>
@@ -190,39 +237,21 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                           </p>
                         </>
                       ) : (
-                        <form action={revokeRole}>
+                        <form action={revokeAdmin}>
                           <input type="hidden" name="userId" value={user.id} />
-                          <input type="hidden" name="role" value="Admin" />
                           {keepView}
-                          {/* The spoken name starts with the visible text (WCAG 2.5.3) and adds who. */}
                           <SubmitButton variant="secondary" fullWidth pendingLabel="Removing…">
                             Remove admin<span className="sr-only"> from {who}</span>
                           </SubmitButton>
                         </form>
                       )
                     ) : (
-                      <>
-                        <form action={user.manager ? revokeRole : grantRole}>
-                          <input type="hidden" name="userId" value={user.id} />
-                          <input type="hidden" name="role" value="Manager" />
-                          {keepView}
-                          <SubmitButton variant="secondary" fullWidth pendingLabel="Saving…">
-                            {user.manager ? "Remove manager" : "Make manager"}
-                            <span className="sr-only">
-                              {user.manager ? " from " : " of "}
-                              {who}
-                            </span>
-                          </SubmitButton>
-                        </form>
-                        <form action={grantRole}>
-                          <input type="hidden" name="userId" value={user.id} />
-                          <input type="hidden" name="role" value="Admin" />
-                          {keepView}
-                          <SubmitButton fullWidth pendingLabel="Saving…">
-                            Make admin<span className="sr-only"> of {who}</span>
-                          </SubmitButton>
-                        </form>
-                      </>
+                      <form action={grantAdmin}>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <SubmitButton fullWidth pendingLabel="Saving…">
+                          Make admin<span className="sr-only"> of {who}</span>
+                        </SubmitButton>
+                      </form>
                     )}
                   </Sheet>
                 )}

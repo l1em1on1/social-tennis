@@ -48,12 +48,18 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     /// <summary>A second Club, for the rules that reach across Clubs.</summary>
-    private async Task<Guid> NewClubIdAsync()
+    private async Task<Guid> NewClubIdAsync(params HttpClient[] managers)
     {
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Other Club {Guid.NewGuid():N}" });
         created.EnsureSuccessStatusCode();
-        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        foreach (var manager in managers)
+        {
+            await factory.MakeManagerAsync(manager, id);
+        }
+
+        return id;
     }
 
     [Fact]
@@ -274,7 +280,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"sibling-{how}-{Guid.NewGuid():N}@example.test";
-        var clubId = await NewClubIdAsync();
+        var clubId = await NewClubIdAsync(manager);
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
         using var client = await factory.CreateSignedInClientAsync(email);
         var pat = await CreatePlayerAsync(client, "Pat");
@@ -478,12 +484,12 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
     }
 
     [Fact]
-    public async Task A_Player_a_Manager_adds_uses_the_emails_invites_up_and_joins_the_Users_Clubs()
+    public async Task A_Player_a_Manager_adds_joins_their_Club_and_any_that_invited_the_email_and_no_other()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var email = $"added-{Guid.NewGuid():N}@example.test";
         var clubId = await factory.AClubIdAsync();
-        var otherClubId = await NewClubIdAsync();
+        var otherClubId = await NewClubIdAsync(manager);
         await manager.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email });
 
         var added = await manager.PostAsJsonAsync($"/clubs/{otherClubId}/players", new { name = "Robin", email });
@@ -494,10 +500,15 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var robin = Assert.Single(await PlayersAsync(client));
         Assert.Equal(new[] { clubId, otherClubId }.Order(), robin.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
 
-        // Added again, now that Robin is in both: the new Player joins both too.
+        // Added again, now that Robin is in both and no invite waits: the new Player is in this Manager's Club only (#110).
         await manager.PostAsJsonAsync($"/clubs/{otherClubId}/players", new { name = "Robin Junior", email });
         var junior = (await PlayersAsync(client)).Single(p => p.Name == "Robin Junior");
-        Assert.Equal(new[] { clubId, otherClubId }.Order(), junior.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
+        Assert.Equal(otherClubId, Assert.Single(junior.Clubs).Id);
+
+        // One the User adds themselves still joins every Club they are in.
+        (await client.PostAsJsonAsync("/players", new { name = "Robin Senior" })).EnsureSuccessStatusCode();
+        var senior = (await PlayersAsync(client)).Single(p => p.Name == "Robin Senior");
+        Assert.Equal(new[] { clubId, otherClubId }.Order(), senior.Clubs.Where(c => c.Approved).Select(c => c.Id).Order());
     }
 
     [Fact]
@@ -507,7 +518,7 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var email = $"held-{Guid.NewGuid():N}@example.test";
         using var client = await factory.CreateSignedInClientAsync(email);
         var sam = await CreatePlayerAsync(client, "Sam Smith");
-        var clubId = await NewClubIdAsync();
+        var clubId = await NewClubIdAsync(manager);
 
         // Typed as the Manager hears it: any case, any spacing around.
         var added = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "  sam SMITH ", email });
@@ -739,18 +750,24 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         var clubId = await factory.AClubIdAsync();
         await factory.AskToJoinAsync(client, clubId, player.Id);
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
+        // Asking isn't being in: the Club is hidden until a manager approves (#110).
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
         Assert.Equal(
-            HttpStatusCode.Forbidden,
+            HttpStatusCode.NotFound,
             (await client.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/clubs/{clubId}/members/{player.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/clubs/{clubId}/members/{player.Id}")).StatusCode);
         Assert.Equal(
-            HttpStatusCode.Forbidden,
+            HttpStatusCode.NotFound,
             (await client.PostAsJsonAsync($"/clubs/{clubId}/invites", new { email = "friend@example.test" })).StatusCode);
         Assert.Equal(
-            HttpStatusCode.Forbidden,
+            HttpStatusCode.NotFound,
             (await client.DeleteAsync($"/clubs/{clubId}/invites/{Guid.NewGuid()}")).StatusCode);
         Assert.False(Assert.Single(Assert.Single(await PlayersAsync(client)).Clubs).Approved);
+
+        using var manager = await factory.CreateManagerClientAsync();
+        (await manager.PutAsync($"/clubs/{clubId}/members/{player.Id}/approval", null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/clubs/{clubId}/members/{player.Id}")).StatusCode);
     }
 
     [Fact]
@@ -761,13 +778,15 @@ public class PlayersAndMembershipTests(AuthTestFactory factory) : IClassFixture<
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await factory.AClubIdAsync();
 
-        var adminRoles = (await admin.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
-        var managerRoles = (await manager.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
-        var playerRoles = (await player.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!.Roles;
+        static async Task<(bool Admin, bool Manages)> MeAsync(HttpClient client)
+        {
+            var me = (await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!;
+            return (me.Admin, me.Manages);
+        }
 
-        Assert.Equal(["Admin", "Manager"], adminRoles.Order());
-        Assert.Equal(["Manager"], managerRoles);
-        Assert.Empty(playerRoles);
+        Assert.Equal((true, true), await MeAsync(admin));
+        Assert.Equal((false, true), await MeAsync(manager));
+        Assert.Equal((false, false), await MeAsync(player));
         Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/clubs/{clubId}/members")).StatusCode);
     }
 

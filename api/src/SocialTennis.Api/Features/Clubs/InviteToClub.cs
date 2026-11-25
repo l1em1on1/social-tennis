@@ -13,9 +13,10 @@ namespace SocialTennis.Api.Features.Clubs;
 /// User already holds Players, they become members now, including any whose
 /// request was waiting, and nothing is kept: the invite is used up at once.
 /// Otherwise the invite waits for the first Player, who joins as it is added
-/// (<see cref="ClubAdmission.AdmitNewPlayerAsync"/>), and later Players follow
-/// it in (#164). No email is sent: the person just signs in. Inviting the same
-/// address twice is the same as once.
+/// (<see cref="ClubAdmission.AdmitNewPlayerAsync"/>), and later Players the User
+/// adds follow it in (#164), though not one a Manager of another Club adds
+/// (#110). No email is sent: the person just signs in. Inviting the same address
+/// twice is the same as once.
 /// </summary>
 public static class InviteToClub
 {

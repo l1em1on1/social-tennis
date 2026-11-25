@@ -42,7 +42,7 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
   const acting = viewer.actingPlayer;
   const playing = acting !== null && game.yourPlayerIds.includes(acting.id);
   const { score, stage } = game;
-  const manager = viewer.roles.includes("Manager");
+  const manager = game.canManage;
   const open = !stage.closed && !game.notPlayed;
   const mode: ScoreEntryMode | null = score
     ? playing && !stage.closed

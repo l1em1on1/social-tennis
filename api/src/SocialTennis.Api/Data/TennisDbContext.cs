@@ -21,6 +21,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<ClubInvite> ClubInvites => Set<ClubInvite>();
 
+    public DbSet<ClubRole> ClubRoles => Set<ClubRole>();
+
     public DbSet<League> Leagues => Set<League>();
 
     public DbSet<LeagueParticipant> LeagueParticipants => Set<LeagueParticipant>();
@@ -100,6 +102,15 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             invite.HasIndex(i => new { i.ClubId, i.Email }).IsUnique();
             invite.HasIndex(i => i.Email);
             invite.HasOne(i => i.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClubRole>(role =>
+        {
+            role.HasKey(r => new { r.ClubId, r.UserId });
+            // Every request of a manager's looks up their Clubs.
+            role.HasIndex(r => r.UserId);
+            role.HasOne(r => r.Club).WithMany().OnDelete(DeleteBehavior.Cascade);
+            role.HasOne(r => r.User).WithMany().OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<League>(league =>

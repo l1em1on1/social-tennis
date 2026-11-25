@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Users.Contracts;
 
@@ -49,7 +50,9 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
         var me = await MeAsync(admin);
         var listed = await UserAsync(me.UserId);
 
-        Assert.Equal(["Admin", "Manager"], me.Roles.Order());
+        // An Admin manages every Club, with no role in any.
+        Assert.True(me is { Admin: true, Manages: true });
+        Assert.Empty(listed.Clubs);
         Assert.True(listed.Admin);
         Assert.True(listed.AdminBySetting);
         Assert.False(listed.LastAdmin);
@@ -67,7 +70,7 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         Assert.Equal(me.Email, listed.Email);
         Assert.Equal(["Pat Parent", "Alex Junior"], listed.Players.Select(player => player.Name));
-        Assert.False(listed.Manager);
+        Assert.Empty(listed.Clubs);
         Assert.False(listed.Admin);
     }
 
@@ -152,31 +155,35 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
     }
 
     [Fact]
-    public async Task Granting_and_removing_Manager_takes_effect_on_what_that_User_can_do_at_once()
+    public async Task Making_and_removing_a_Clubs_manager_takes_effect_on_what_that_User_can_do_at_once()
     {
         var admin = await factory.AdminClientAsync();
         using var client = await factory.CreateSignedInClientAsync();
         var me = await MeAsync(client);
         var clubId = await factory.AClubIdAsync();
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
 
-        var grant = await admin.PutAsync($"/users/{me.UserId}/roles/Manager", null);
-        var again = await admin.PutAsync($"/users/{me.UserId}/roles/Manager", null);
+        var grant = await admin.PutAsync($"/clubs/{clubId}/managers/{me.UserId}", null);
+        var again = await admin.PutAsync($"/clubs/{clubId}/managers/{me.UserId}", null);
 
         // The same session, no new sign-in.
         Assert.Equal(HttpStatusCode.NoContent, grant.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
-        Assert.Equal(["Manager"], (await MeAsync(client)).Roles);
-        Assert.True((await UserAsync(me.UserId)).Manager);
+        Assert.True(await MeAsync(client) is { Admin: false, Manages: true });
+        var role = Assert.Single((await UserAsync(me.UserId)).Clubs);
+        Assert.Equal((clubId, ClubRoleKind.Manager), (role.ClubId, role.Role));
         // A Manager is not an Admin.
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/users")).StatusCode);
 
-        var revoke = await admin.DeleteAsync($"/users/{me.UserId}/roles/Manager");
+        var revoke = await admin.DeleteAsync($"/clubs/{clubId}/managers/{me.UserId}");
+        var revokedAgain = await admin.DeleteAsync($"/clubs/{clubId}/managers/{me.UserId}");
 
         Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
-        Assert.Empty((await MeAsync(client)).Roles);
+        Assert.Equal(HttpStatusCode.NoContent, revokedAgain.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/clubs/{clubId}/members")).StatusCode);
+        Assert.False((await MeAsync(client)).Manages);
+        Assert.Empty((await UserAsync(me.UserId)).Clubs);
     }
 
     [Fact]
@@ -188,7 +195,7 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         await admin.PutAsync($"/users/{me.UserId}/roles/Admin", null);
 
-        Assert.Equal(["Admin", "Manager"], (await MeAsync(client)).Roles.Order());
+        Assert.True(await MeAsync(client) is { Admin: true, Manages: true });
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/users")).StatusCode);
         var listed = await UserAsync(me.UserId);
         Assert.True(listed.Admin);
@@ -222,8 +229,16 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/users/{me.UserId}/roles/Owner", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/users/{me.UserId}/roles/3", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/users/{Guid.NewGuid()}/roles/Manager", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"/users/{Guid.NewGuid()}/roles/Manager")).StatusCode);
+        // Managers belong to a Club: there is no such role everywhere (#110).
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/users/{me.UserId}/roles/Manager", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/users/{Guid.NewGuid()}/roles/Admin", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"/users/{Guid.NewGuid()}/roles/Admin")).StatusCode);
+
+        var clubId = await factory.AClubIdAsync();
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/clubs/{clubId}/managers/{Guid.NewGuid()}", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"/clubs/{clubId}/managers/{Guid.NewGuid()}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.PutAsync($"/clubs/{Guid.NewGuid()}/managers/{me.UserId}", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync($"/clubs/{Guid.NewGuid()}/managers/{me.UserId}")).StatusCode);
     }
 
     [Fact]
@@ -232,14 +247,17 @@ public class UsersAndRolesTests(AuthTestFactory factory) : IClassFixture<AuthTes
         using var player = await factory.CreateSignedInClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
         var target = (await MeAsync(player)).UserId;
+        var clubId = await factory.AClubIdAsync();
 
         foreach (var client in new[] { player, manager })
         {
             Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/users")).StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsync($"/users/{target}/roles/Admin", null)).StatusCode);
-            Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/users/{target}/roles/Manager")).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/users/{target}/roles/Admin")).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsync($"/clubs/{clubId}/managers/{target}", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/clubs/{clubId}/managers/{target}")).StatusCode);
         }
 
-        Assert.Empty((await MeAsync(player)).Roles);
+        Assert.True(await MeAsync(player) is { Admin: false, Manages: false });
     }
 }

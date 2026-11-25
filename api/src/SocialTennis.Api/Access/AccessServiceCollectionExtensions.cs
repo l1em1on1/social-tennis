@@ -16,6 +16,10 @@ public static class AccessServiceCollectionExtensions
         [Policies.PlayerManager] = ManagerStanding.PlayerManager,
     };
 
+    /// <summary>Whether this policy can answer 404, hiding what its route names.</summary>
+    public static bool Hides(string? policy) =>
+        policy is not null && ManagerPolicies.TryGetValue(policy, out var standing) && standing != ManagerStanding.Any;
+
     /// <summary>
     /// Deny by default (ADR-0017): an endpoint that declares nothing requires a
     /// signed-in User. Anonymous routes opt out with AllowAnonymous(), so a
@@ -27,6 +31,7 @@ public static class AccessServiceCollectionExtensions
         // Scoped: the rule reads the database.
         services.AddScoped<ManagerAccess>();
         services.AddScoped<IAuthorizationHandler, ManagerAuthorizationHandler>();
+        services.AddSingleton<IAuthorizationMiddlewareResultHandler, HidingAuthorizationResultHandler>();
 
         var authorization = services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())

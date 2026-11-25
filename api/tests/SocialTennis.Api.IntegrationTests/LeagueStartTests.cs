@@ -33,12 +33,18 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         scoreFormat = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false },
     };
 
-    private async Task<Guid> NewClubAsync()
+    private async Task<Guid> NewClubAsync(params HttpClient[] managers)
     {
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Ladder Club {Guid.NewGuid():N}" });
         created.EnsureSuccessStatusCode();
-        return (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        foreach (var manager in managers)
+        {
+            await factory.MakeManagerAsync(manager, id);
+        }
+
+        return id;
     }
 
     private static async Task<Guid> CreateLeagueAsync(
@@ -118,7 +124,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task The_proposal_is_by_Rating_then_earliest_join_and_starts_nothing()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (_, early) = await ParticipantAsync(manager, clubId, leagueId, "Early", rating: 3);
         var (_, best) = await ParticipantAsync(manager, clubId, leagueId, "Best", rating: 5);
@@ -141,7 +147,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_doubles_proposal_orders_Teams_by_their_average_and_names_who_would_be_removed()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var (_, a) = await ParticipantAsync(manager, clubId, leagueId, "A", rating: 4);
         var (_, b) = await ParticipantAsync(manager, clubId, leagueId, "B", rating: 2);
@@ -165,7 +171,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Starting_places_the_confirmed_order_in_the_Divisions_the_Manager_sized_and_every_pair_plays_once()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var ids = new List<Guid>();
         foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
@@ -198,7 +204,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task The_proposal_splits_by_the_Leagues_Division_size_with_no_Bye()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, divisionSize: 2);
         foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
         {
@@ -222,7 +228,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_Divisional_League_of_Teams_has_a_Division_size_4_unless_the_Manager_says(int? asked, int stored)
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
 
         var leagueId = await CreateLeagueAsync(manager, clubId, divisionSize: asked);
 
@@ -235,7 +241,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Knockout_and_Foursomes_Leagues_have_no_Division_size(string type, string structure)
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
 
         var leagueId = await CreateLeagueAsync(manager, clubId, type, structure);
 
@@ -246,7 +252,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Divisions_hold_the_whole_ladder_with_at_least_two_each()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         foreach (var name in new[] { "One", "Two", "Three", "Four" })
         {
@@ -268,7 +274,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_Competitor_left_out_stays_in_the_League_without_a_place()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         foreach (var name in new[] { "One", "Two", "Three" })
         {
@@ -294,7 +300,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Starting_a_doubles_League_removes_its_Players_without_a_partner_who_may_ask_again()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var players = new List<Guid>();
         foreach (var name in new[] { "A", "B", "C", "D" })
@@ -321,7 +327,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_start_that_no_longer_matches_the_League_is_refused_and_changes_nothing()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -340,7 +346,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_start_must_remove_exactly_the_Players_without_a_partner()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var players = new List<Guid>();
         foreach (var name in new[] { "A", "B", "C", "D", "Alone" })
@@ -360,7 +366,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_League_starts_once()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -377,7 +383,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     {
         using var manager = await factory.CreateManagerClientAsync();
         using var other = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager, other);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -395,7 +401,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Knockout_and_Foursomes_Leagues_cant_start_yet(string type, string structure, string refusal)
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, type, structure);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -408,7 +414,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_ladder_is_at_least_two_Competitors_each_once()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -431,7 +437,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Only_a_Manager_starts_a_League()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (player, _) = await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -446,7 +452,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task After_the_start_a_Team_on_the_ladder_is_fixed_and_anyone_else_can_still_come_and_go()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var players = new List<Guid>();
         foreach (var name in new[] { "A", "B", "C", "D", "E", "F" })
@@ -487,7 +493,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_Player_sees_their_Division_and_everyone_they_play_in_it()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (first, firstId) = await ParticipantAsync(manager, clubId, leagueId, "First");
         await ParticipantAsync(manager, clubId, leagueId, "Second");
@@ -514,7 +520,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task The_migration_gives_old_Leagues_a_Division_size_and_old_places_their_Divisions()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var knockoutId = await CreateLeagueAsync(manager, clubId, structure: "Knockout");
         foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
@@ -550,7 +556,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task The_ladder_shows_each_Division_from_the_top_with_its_Teams_and_every_Game_between_them()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in new[] { "One", "Two", "Three", "Four", "Five" })
@@ -582,7 +588,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_doubles_ladder_names_both_Players_of_each_Team()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId, "DoublesMix");
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in new[] { "A", "B", "C", "D" })
@@ -601,11 +607,11 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     }
 
     [Fact]
-    public async Task Everyone_in_the_League_sees_the_ladder_even_off_it_and_Managers_do_too()
+    public async Task Everyone_in_the_League_sees_the_ladder_even_off_it_and_its_Clubs_managers_do_too()
     {
         using var manager = await factory.CreateManagerClientAsync();
         using var otherManager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager, otherManager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -626,7 +632,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task Before_the_start_the_ladder_is_empty()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (player, _) = await ParticipantAsync(manager, clubId, leagueId, "Waiting");
 
@@ -640,7 +646,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task A_Player_not_in_the_League_cant_see_its_ladder()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
@@ -655,7 +661,7 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
     public async Task The_ladder_says_which_of_the_Users_Players_are_in_the_League_even_one_who_left_the_Club()
     {
         using var manager = await factory.CreateManagerClientAsync();
-        var clubId = await NewClubAsync();
+        var clubId = await NewClubAsync(manager);
         var leagueId = await CreateLeagueAsync(manager, clubId);
         var (parent, parentId) = await ParticipantAsync(manager, clubId, leagueId, "Parent");
         await ParticipantAsync(manager, clubId, leagueId, "Other");

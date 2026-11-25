@@ -16,10 +16,10 @@ public static class UsersEndpoints
         group.MapGet("", GetUsers.HandleAsync)
             .WithName(nameof(GetUsers));
 
-        group.MapPut("/{userId:guid}/roles/{role:regex(^(Manager|Admin)$)}", GrantRole.HandleAsync)
+        group.MapPut("/{userId:guid}/roles/{role:regex(^Admin$)}", GrantRole.HandleAsync)
             .WithName(nameof(GrantRole));
 
-        group.MapDelete("/{userId:guid}/roles/{role:regex(^(Manager|Admin)$)}", RevokeRole.HandleAsync)
+        group.MapDelete("/{userId:guid}/roles/{role:regex(^Admin$)}", RevokeRole.HandleAsync)
             // Declared by hand: a ProblemHttpResult in a Results<> union
             // carries no status of its own for the OpenAPI document.
             .ProducesProblem(StatusCodes.Status409Conflict)

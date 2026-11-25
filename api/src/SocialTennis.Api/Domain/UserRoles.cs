@@ -1,13 +1,13 @@
 namespace SocialTennis.Api.Domain;
 
 /// <summary>
-/// Permission roles held by a User (see CONTEXT.md). Club-wide in v1; per-Club
-/// scoping is deferred (ADR-0003). An Admin can do everything a Manager can.
+/// Permission roles a User holds everywhere (see CONTEXT.md). Managers aren't
+/// here: they belong to a Club (<see cref="ClubRole"/>, #110).
 /// </summary>
+/// <remarks>1 was Manager, for every Club, until #110's migration.</remarks>
 [Flags]
 public enum UserRoles
 {
     None = 0,
-    Manager = 1,
     Admin = 2,
 }

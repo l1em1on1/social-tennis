@@ -42,7 +42,8 @@ public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<Cloc
         var admin = await factory.AdminClientAsync();
         var created = await admin.PostAsJsonAsync("/clubs", new { name = $"Score Club {Guid.NewGuid():N}" });
         created.EnsureSuccessStatusCode();
-        return (await factory.CreateManagerClientAsync(), (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id);
+        var clubId = (await created.Content.ReadFromJsonAsync<CreateClubResponse>())!.Id;
+        return (await factory.CreateManagerClientAsync(clubId), clubId);
     }
 
     private static async Task<Guid> LeagueAsync(
@@ -330,6 +331,20 @@ public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<Cloc
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
         Assert.Equal(1, await db.ScoreChanges.CountAsync(c => c.GameId == game.GameId));
+    }
+
+    [Fact]
+    public async Task A_Game_says_who_may_manage_it()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+
+        Assert.True((await GameAsync(game.Manager, game.GameId)).CanManage);
+        Assert.True((await GameAsync(await factory.AdminClientAsync(), game.GameId)).CanManage);
+        Assert.False((await GameAsync(game.Una.Client, game.GameId)).CanManage);
+        // Managing another Club gives a Player of this one nothing here (#110).
+        var (_, elsewhere) = await ClubAsync();
+        await factory.MakeManagerAsync(game.Una.Client, elsewhere);
+        Assert.False((await GameAsync(game.Una.Client, game.GameId)).CanManage);
     }
 
     [Fact]

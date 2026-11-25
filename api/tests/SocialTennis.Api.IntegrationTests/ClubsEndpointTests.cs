@@ -41,10 +41,11 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
     }
 
     [Fact]
-    public async Task An_Admin_creates_a_Club_and_Managers_see_it_but_Players_dont_list_Clubs()
+    public async Task An_Admin_creates_a_Club_and_its_managers_see_it_but_no_others_and_Players_dont_list_Clubs()
     {
         var admin = await factory.AdminClientAsync();
         using var manager = await factory.CreateManagerClientAsync();
+        using var elsewhere = await factory.CreateManagerClientAsync();
         using var player = await factory.CreateSignedInClientAsync();
         var name = $"Riverside {Guid.NewGuid():N}";
 
@@ -53,7 +54,11 @@ public class ClubsEndpointTests(AuthTestFactory factory) : IClassFixture<AuthTes
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<CreateClubResponse>();
         Assert.Equal(name, created!.Name);
+        await factory.MakeManagerAsync(manager, created.Id);
         Assert.Contains(await ClubsAsync(manager), club => club.Id == created.Id && club.Name == name);
+        Assert.Contains(await ClubsAsync(admin), club => club.Id == created.Id);
+        // A Club's managers only (#110).
+        Assert.DoesNotContain(await ClubsAsync(elsewhere), club => club.Id == created.Id);
         // A Player gets into a Club through its join link, not a list of every Club (#222).
         Assert.Equal(HttpStatusCode.Forbidden, (await player.GetAsync("/clubs")).StatusCode);
     }

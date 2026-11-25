@@ -15,15 +15,15 @@ export const dynamic = "force-dynamic";
  * reading order: on a phone it is the bar of tabs at the bottom, and from the
  * `md` breakpoint a top bar in the header (#225). Content is a phone's width
  * below `md` and up to `max-w-5xl` above it, where pages lay out in columns.
- * Manage and Admin entries appear only for Users holding those roles — the
- * pages themselves check again.
+ * Manage and Admin entries appear only for Users who manage a Club or are an
+ * Admin — the pages themselves check again.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const viewer = await getViewer();
 
   const nav: NavKey[] = ["home", "leagues", "profiles"];
-  if (viewer.roles.includes("Manager")) nav.push("manage");
-  if (viewer.roles.includes("Admin")) nav.push("admin");
+  if (viewer.manages) nav.push("manage");
+  if (viewer.admin) nav.push("admin");
 
   return (
     <div className="flex min-h-dvh flex-col">

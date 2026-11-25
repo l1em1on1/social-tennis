@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/clubs/{clubId}/managers/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["MakeClubManager"];
+        post?: never;
+        delete: operations["RemoveClubManager"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/clubs/{clubId}/members": {
         parameters: {
             query?: never;
@@ -792,6 +808,8 @@ export interface components {
             /** Format: date-time */
             requestedAt: string;
         };
+        /** @enum {unknown} */
+        ClubRoleKind: "Manager";
         ClubSummary: {
             /** Format: uuid */
             id: string;
@@ -898,7 +916,8 @@ export interface components {
             /** Format: uuid */
             userId: string;
             email: string;
-            roles: string[];
+            admin: boolean;
+            manages: boolean;
         };
         GetGameResponse: {
             /** Format: uuid */
@@ -917,6 +936,7 @@ export interface components {
             notPlayed: boolean;
             history: components["schemas"]["ScoreHistoryEntry"][];
             yourPlayerIds: string[];
+            canManage: boolean;
             timeZone: string;
             /** Format: date */
             today: string;
@@ -1404,6 +1424,12 @@ export interface components {
             /** Format: int32 */
             level?: null | number | string;
         };
+        UserClubRole: {
+            /** Format: uuid */
+            clubId: string;
+            clubName: string;
+            role: components["schemas"]["ClubRoleKind"];
+        };
         UserPlayer: {
             /** Format: uuid */
             id: string;
@@ -1413,7 +1439,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             email: string;
-            manager: boolean;
+            clubs: components["schemas"]["UserClubRole"][];
             admin: boolean;
             adminBySetting: boolean;
             lastAdmin: boolean;
@@ -1651,6 +1677,98 @@ export interface operations {
             };
         };
     };
+    MakeClubManager: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RemoveClubManager: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GetClubMembers: {
         parameters: {
             query?: never;
@@ -1774,6 +1892,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1940,6 +2067,15 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
