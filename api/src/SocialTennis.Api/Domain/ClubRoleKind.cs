@@ -8,4 +8,7 @@ public enum ClubRoleKind
 {
     /// <summary>Runs the Club: its members, its Leagues and who manages those.</summary>
     Manager = 1,
+
+    /// <summary>Creates Leagues there, and runs those they create or are assigned (#220).</summary>
+    LeagueManager = 2,
 }

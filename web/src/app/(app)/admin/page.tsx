@@ -39,14 +39,15 @@ function ClubManagerForms({
   who,
   clubs,
 }: {
-  user: { id: string; admin: boolean; clubs: { clubId: string }[] };
+  user: { id: string; admin: boolean; clubs: { clubId: string; role: string }[] };
   who: string;
   clubs: { id: string; name: string }[];
 }) {
   if (clubs.length === 0) {
     return <p className="text-sm text-fg-muted">Create a club first, then you can make someone its manager.</p>;
   }
-  const manages = (club: { id: string }) => user.clubs.some((held) => held.clubId === club.id);
+  // A League manager (#220) isn't a manager of the Club.
+  const manages = (club: { id: string }) => user.clubs.some((held) => held.clubId === club.id && held.role === "Manager");
   const listed = clubs.filter((club) => !user.admin || manages(club));
   if (listed.length === 0) return null;
   return (
@@ -218,7 +219,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                   </p>
                 </div>
                 {user.admin && <Badge tone="accent">Admin</Badge>}
-                {user.clubs.length > 0 && !user.admin && <Badge tone="accent">Manager</Badge>}
+                {user.clubs.some((held) => held.role === "Manager") && !user.admin && <Badge tone="accent">Manager</Badge>}
                 {!user.adminBySetting && (
                   <Sheet title={`Roles for ${who}`} triggerIcon="more" trigger={`Roles for ${user.email}`}>
                     <p className="text-fg-muted">

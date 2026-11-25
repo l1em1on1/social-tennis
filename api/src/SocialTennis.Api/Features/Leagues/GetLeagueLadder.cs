@@ -44,15 +44,18 @@ public static class GetLeagueLadder
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null }).FirstOrDefault(),
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (league is null || !(league.Yours.Count > 0 || await access.RunsLeagueAsync(user, leagueId, cancellationToken)))
+        var manages = league is not null && await access.RunsLeagueAsync(user, leagueId, cancellationToken);
+        if (league is null || !(league.Yours.Count > 0 || manages))
         {
             return TypedResults.NotFound();
         }
 
+        var managers = await LeagueManagerList.NamesAsync(db, leagueId, cancellationToken);
+
         if (league.Stage is null)
         {
             return TypedResults.Ok(new GetLeagueLadderResponse(
-                leagueId, league.Name, league.ClubName, league.Type, null, [], false, new LadderAwaiting([], []), false, league.Yours));
+                leagueId, league.Name, league.ClubName, league.Type, null, [], false, new LadderAwaiting([], []), false, league.Yours, managers, manages));
         }
 
         var (divisions, awaiting) = await StageLadder.BuildAsync(db, league.Stage.Id, league.ScoreFormat, cancellationToken);
@@ -71,6 +74,8 @@ public static class GetLeagueLadder
             !league.Stage.Closed && StageDates.DeadlinePassed(league.Stage.EndDate, league.TimeZone, clock),
             awaiting,
             league.Stage.Closed,
-            league.Yours));
+            league.Yours,
+            managers,
+            manages));
     }
 }

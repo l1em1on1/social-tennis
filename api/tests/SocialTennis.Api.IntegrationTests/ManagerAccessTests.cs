@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SocialTennis.Api.Access;
 using SocialTennis.Api.Authentication;
+using SocialTennis.Api.Features.Auth.Contracts;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Leagues.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
@@ -43,6 +44,8 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         ["PUT /clubs/{clubId}"] = Policies.Admin,
         ["PUT /clubs/{clubId}/managers/{userId}"] = Policies.Admin,
         ["DELETE /clubs/{clubId}/managers/{userId}"] = Policies.Admin,
+        ["PUT /clubs/{clubId}/league-managers/{userId}"] = Policies.ClubManager,
+        ["DELETE /clubs/{clubId}/league-managers/{userId}"] = Policies.ClubManager,
         ["GET /clubs/{clubId}/members"] = Policies.ClubManager,
         ["PUT /clubs/{clubId}/members/{playerId}/approval"] = Policies.ClubManager,
         ["DELETE /clubs/{clubId}/members/{playerId}"] = Policies.ClubManager,
@@ -73,6 +76,9 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         ["POST /clubs/{clubId}/leagues"] = Policies.LeagueCreator,
         ["GET /leagues/{leagueId}"] = Policies.LeagueManager,
         ["PUT /leagues/{leagueId}"] = Policies.LeagueManager,
+        ["PUT /leagues/{leagueId}/managers/{userId}"] = Policies.LeagueClubManager,
+        ["DELETE /leagues/{leagueId}/managers/{userId}"] = Policies.LeagueClubManager,
+        ["GET /leagues/{leagueId}/addable-players"] = Policies.LeagueManager,
         ["PUT /leagues/{leagueId}/participants/{playerId}"] = Policies.LeagueManager,
         ["DELETE /leagues/{leagueId}/participants/{playerId}"] = Policies.LeagueManager,
         ["POST /leagues/{leagueId}/teams"] = Policies.LeagueManager,
@@ -160,14 +166,22 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         (_, "an Admin") => Allowed,
         (Policies.Admin, _) => HttpStatusCode.Forbidden,
         (_, "the Club's manager") => Allowed,
-        (Policies.AnyManager, "another Club's manager") => Allowed,
+        (Policies.AnyManager, "another Club's manager" or TheLeaguesManager or AnotherLeaguesManager or RoleHolder) => Allowed,
         // Nothing to hide: the route names nothing.
         (Policies.AnyManager, _) => HttpStatusCode.Forbidden,
+        (Policies.ClubStaff, TheLeaguesManager or AnotherLeaguesManager or RoleHolder) => Allowed,
+        (Policies.LeagueCreator, RoleHolder) => Allowed,
+        (Policies.LeagueManager, TheLeaguesManager) => Allowed,
         // They can see what they asked about, or they can't (ADR-0017).
-        (_, "a member") => HttpStatusCode.Forbidden,
-        (Policies.LeagueManager, "a participant who left the Club") => HttpStatusCode.Forbidden,
+        (_, "a member" or TheLeaguesManager or AnotherLeaguesManager or RoleHolder) => HttpStatusCode.Forbidden,
+        (Policies.LeagueManager or Policies.LeagueClubManager, "a participant who left the Club") => HttpStatusCode.Forbidden,
         _ => HttpStatusCode.NotFound,
     };
+
+    // Each has left the Club since, so it's the assignment or the role alone that counts.
+    private const string TheLeaguesManager = "the League's manager";
+    private const string AnotherLeaguesManager = "another League's manager";
+    private const string RoleHolder = "a League manager with no League";
 
     [Fact]
     public async Task What_isnt_there_answers_as_what_is_hidden_does()
@@ -176,7 +190,7 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         var gone = world.Ids.Keys.Where(k => k != "role").ToDictionary(k => k, _ => Guid.NewGuid().ToString());
         foreach (var (operation, policy) in Operations.Where(o => o.Value is not (Anonymous or SignedIn or Policies.Admin or Policies.AnyManager)))
         {
-            foreach (var who in new[] { "the Club's manager", "a member", "an outsider" })
+            foreach (var who in new[] { "the Club's manager", TheLeaguesManager, RoleHolder, "a member", "an outsider" })
             {
                 Assert.Equal((operation, who, HttpStatusCode.NotFound), (operation, who, await AskAsync(world.Callers[who], operation, gone)));
             }
@@ -228,6 +242,23 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         var ladder = (await player.GetFromJsonAsync<GetLeagueLadderResponse>($"/leagues/{leagueId}/ladder"))!;
         (await gone.DeleteAsync($"/players/{goneId}/clubs/{clubId}")).EnsureSuccessStatusCode();
 
+        var other = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
+        {
+            name = "Another Access League",
+            type = "SinglesMixed",
+            structure = "Divisional",
+            startDate = today,
+            endDate = today.AddMonths(3),
+            stageLength = new { count = 1, unit = "Months" },
+            stageRoll = "Manual",
+            scoreFormat = new { gamesPerSet = 6, setsPerGame = 1, matchTiebreakDecider = false },
+        });
+        other.EnsureSuccessStatusCode();
+        var otherLeagueId = (await other.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
+        var leaguesManager = await LeftTheClubAsync(manager, clubId, "League Boss", id => manager.PutAsync($"/leagues/{leagueId}/managers/{id}", null));
+        var othersManager = await LeftTheClubAsync(manager, clubId, "Other Boss", id => manager.PutAsync($"/leagues/{otherLeagueId}/managers/{id}", null));
+        var roleHolder = await LeftTheClubAsync(manager, clubId, "Role Holder", id => manager.PutAsync($"/clubs/{clubId}/league-managers/{id}", null));
+
         return new World(
             new Dictionary<string, HttpClient>
             {
@@ -236,6 +267,9 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
                 ["the Club's manager"] = manager,
                 ["another Club's manager"] = await factory.CreateManagerClientAsync(elsewhereId),
                 ["a member"] = player,
+                [TheLeaguesManager] = leaguesManager,
+                [AnotherLeaguesManager] = othersManager,
+                [RoleHolder] = roleHolder,
                 ["a participant who left the Club"] = gone,
                 ["an outsider"] = await factory.CreateSignedInClientAsync(),
             },
@@ -247,6 +281,16 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
                 ["playerId"] = playerId.ToString(),
                 ["role"] = "Admin",
             });
+    }
+
+    /// <summary>A member who is given something to run, and then leaves the Club: it stays theirs until it's taken (ADR-0034).</summary>
+    private async Task<HttpClient> LeftTheClubAsync(HttpClient manager, Guid clubId, string name, Func<Guid, Task<HttpResponseMessage>> give)
+    {
+        var (client, playerId) = await MemberAsync(manager, clubId, name);
+        var me = (await client.GetFromJsonAsync<GetCurrentUserResponse>("/auth/me"))!;
+        (await give(me.UserId)).EnsureSuccessStatusCode();
+        (await client.DeleteAsync($"/players/{playerId}/clubs/{clubId}")).EnsureSuccessStatusCode();
+        return client;
     }
 
     private async Task<(HttpClient Client, Guid PlayerId)> MemberAsync(HttpClient manager, Guid clubId, string name)

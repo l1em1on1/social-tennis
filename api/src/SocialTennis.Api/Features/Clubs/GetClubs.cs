@@ -6,7 +6,7 @@ using SocialTennis.Api.Features.Clubs.Contracts;
 
 namespace SocialTennis.Api.Features.Clubs;
 
-/// <summary>The Clubs the caller has a role in; every Club, for an Admin.</summary>
+/// <summary>The Clubs the caller has any standing in, and what they may do in each; every Club, for an Admin (ADR-0034).</summary>
 public static class GetClubs
 {
     public static async Task<GetClubsResponse> HandleAsync(
@@ -14,13 +14,9 @@ public static class GetClubs
         ManagerAccess access,
         CancellationToken cancellationToken)
     {
-        // Project before materialising: EF translates the Select into the SELECT
-        // list, so only the published columns leave Postgres and nothing is
-        // change-tracked (EF Core docs, "Efficient querying" / "Tracking").
-        var clubs = await access.ClubsOf(user)
-            .OrderBy(c => c.Name)
-            .Select(c => new ClubSummary(c.Id, c.Name))
-            .ToListAsync(cancellationToken);
+        var clubs = (await access.ClubsAsync(user, cancellationToken))
+            .Select(c => new ClubSummary(c.ClubId, c.Name, c.CanManage, c.CanCreateLeagues))
+            .ToList();
 
         // Unwindowed, so the count is the whole matching set — which is what
         // PageInfo.Total means. Once paging lands this becomes its own

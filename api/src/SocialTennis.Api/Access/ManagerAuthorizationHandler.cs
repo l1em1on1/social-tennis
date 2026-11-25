@@ -28,6 +28,7 @@ public sealed class ManagerAuthorizationHandler(ManagerAccess access) : Authoriz
             ManagerStanding.LeagueManager => http.Request.RouteValues.ContainsKey("leagueId")
                 ? await access.LeagueManagerAsync(user, Id(http, "leagueId"), cancelled)
                 : await access.LeagueManagerOfGameAsync(user, Id(http, "gameId"), cancelled),
+            ManagerStanding.LeagueClubManager => await access.LeagueClubManagerAsync(user, Id(http, "leagueId"), cancelled),
             ManagerStanding.PlayerManager => await access.PlayerManagerAsync(user, Id(http, "playerId"), cancelled),
             _ => throw new InvalidOperationException($"No rule for {requirement.Standing}."),
         };

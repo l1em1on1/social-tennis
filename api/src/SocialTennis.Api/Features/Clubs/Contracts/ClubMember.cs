@@ -3,7 +3,8 @@ using SocialTennis.Api.Domain;
 namespace SocialTennis.Api.Features.Clubs.Contracts;
 
 /// <summary>A Player in a Club, or asking to be, as a Manager sees them.</summary>
-/// <param name="Email">The email of the User holding the Player.</param>
+/// <param name="UserId">The User holding the Player: who a role is given to (#220).</param>
+/// <param name="Email">The email of that User.</param>
 /// <param name="SignedIn">
 /// Whether that User has ever signed in. False for a Player a Manager added for
 /// someone who hasn't arrived yet.
@@ -13,6 +14,7 @@ namespace SocialTennis.Api.Features.Clubs.Contracts;
 /// <param name="RequestedAt">When the Player asked to join, or was let in or added by a Manager.</param>
 public record ClubMember(
     Guid PlayerId,
+    Guid UserId,
     string Name,
     string Email,
     bool SignedIn,

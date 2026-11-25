@@ -63,8 +63,9 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
   if (!clubList) {
     throw new Error("GET /clubs failed");
   }
+  // A League manager's own Leagues come to this page next (#220): until then it is the Club's managers'.
   const clubs = await Promise.all(
-    clubList.clubs.map(async (club) => {
+    clubList.clubs.filter((club) => club.canManage).map(async (club) => {
       const params = { params: { path: { clubId: club.id } } };
       const [{ data }, { data: leagueList }, { data: joinLink }] = await Promise.all([
         api.GET("/clubs/{clubId}/members", params),

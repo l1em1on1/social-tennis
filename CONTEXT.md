@@ -113,7 +113,10 @@ The player composition a League runs: `SinglesMen`, `SinglesWomen`, `SinglesMixe
 The top permissions role, held by a User — not a separate entity. An Admin creates Clubs, makes Users managers of Clubs, and makes other Admins. An Admin manages every Club. The first Admin is named in the deployment's configuration (ADR-0022), and the last Admin can't be demoted, so the system is never admin-less.
 
 **Manager**:
-A permissions role a User holds in a Club (a **Club manager**), granted by an Admin for that Club, in one Club or several — not a separate entity. A Manager runs the Club: its members, invites and join link, and every League in it (Socials when they exist). It stays until removed, even when their last Player leaves the Club. A Manager will usually also hold a Player profile, but the role is the User's and doesn't require one (ADR-0034).
+A permissions role a User holds in a Club (a **Club manager**), granted by an Admin for that Club, in one Club or several — not a separate entity. A Manager runs the Club: its members, invites and join link, and every League in it (Socials when they exist), and says who else runs a League. It stays until removed, even when their last Player leaves the Club. A Manager will usually also hold a Player profile, but the role is the User's and doesn't require one (ADR-0034).
+
+**League manager**:
+Someone who runs a League, which a Club can have as well as its Manager (#220, ADR-0034). Either an **assignment** to one League, which lets them run that League fully (its Join Requests, Teams, Stages and Scores) and nothing else in the Club, or the **League manager role** in a Club, whose holder creates Leagues there and runs those they create. A Manager of the Club grants both, to anyone with a Player in it. A League with no manager of its own is run by its Club's Managers. Its Players see a League manager's name, never an email.
 
 **RSVP**:
 A Player signalling they want to play in a specific Social. Ordered first-come-first-served; allocation into Games is capped by the number of courts the manager makes available for that date (4 Players per court). Renamed from the model's original "Vote" — no voting/choosing is involved, it's a sign-up queue.

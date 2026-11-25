@@ -19,6 +19,14 @@ const id = (kind: string, n: number) => `00000000-0000-4000-8000-f${kind}${Strin
 export const FIXTURE_USER_IDS: Record<string, string> = {
   [FIXTURE_MANAGER]: id("a", 1),
   [FIXTURE_ADMIN]: id("a", 2),
+  // The Users who hold the Players below.
+  "tom.okafor@example.com": id("a", 3),
+  "priya.shah@example.com": id("a", 4),
+  "chris.lee@example.com": id("a", 5),
+  "jo.bennett@example.com": id("a", 6),
+  "alex.morgan@example.com": id("a", 7),
+  "ella.grant@example.com": id("a", 8),
+  "nia.brooks@example.com": id("a", 9),
 };
 
 const RIVERSIDE = { id: id("c", 1), name: "Riverside Tennis Club" };
@@ -32,8 +40,11 @@ export const FIXTURE_GAME_IDS = { played: id("9", 1), retirement: id("9", 2), no
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
-/** By name, as the API lists them. */
-export const fixtureClubs: Schemas["GetClubsResponse"] = { clubs: [HILLSIDE, RIVERSIDE], page: whole(2) };
+/** By name, as the API lists them. Both are the fixture Manager's to run. */
+export const fixtureClubs: Schemas["GetClubsResponse"] = {
+  clubs: [HILLSIDE, RIVERSIDE].map((club) => ({ ...club, canManage: true, canCreateLeagues: true })),
+  page: whole(2),
+};
 
 const member = (
   n: number,
@@ -42,6 +53,7 @@ const member = (
   rest: Partial<Schemas["ClubMember"]> = {},
 ): Schemas["ClubMember"] => ({
   playerId: id("b", n),
+  userId: FIXTURE_USER_IDS[email],
   name,
   email,
   signedIn: true,
@@ -73,9 +85,15 @@ export const fixtureMembers: Record<string, Schemas["GetClubMembersResponse"]> =
       { id: id("d", 1), email: "dana.price@example.com", invitedAt: "2026-11-10T12:00:00Z" },
       { id: id("d", 2), email: "morgan.ellis@example.com", invitedAt: "2026-11-16T10:30:00Z" },
     ],
+    roles: [{ userId: FIXTURE_USER_IDS[FIXTURE_MANAGER], email: FIXTURE_MANAGER, role: "Manager" }],
     page: whole(8),
   },
-  [HILLSIDE.id]: { members: [], invites: [], page: whole(0) },
+  [HILLSIDE.id]: {
+    members: [],
+    invites: [],
+    roles: [{ userId: FIXTURE_USER_IDS[FIXTURE_MANAGER], email: FIXTURE_MANAGER, role: "Manager" }],
+    page: whole(0),
+  },
 };
 
 const winterSingles = {
@@ -200,6 +218,8 @@ const winterSinglesPage: Schemas["GetLeagueResponse"] = {
   ],
   teams: [team(1, [alex]), team(2, [jo])],
   stage: null,
+  managers: [],
+  canAssignManagers: true,
 };
 
 /**
@@ -220,6 +240,8 @@ const springDoublesPage: Schemas["GetLeagueResponse"] = {
   joinRequests: [asked(nia, "Pending", "2026-11-15T19:00:00Z", null, ella)],
   teams: [team(3, [alex, jo])],
   stage: null,
+  managers: [],
+  canAssignManagers: true,
 };
 
 /**
@@ -240,6 +262,8 @@ const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
   joinRequests: [],
   teams: [team(5, [alex], 2, 1), team(4, [jo], 1, 1), team(6, [chris], 3, 1), team(7, [sam])],
   stage: autumnStage,
+  managers: [],
+  canAssignManagers: true,
 };
 
 /** Autumn Singles' ladder (#7), as its Players and Managers see it. */
@@ -268,6 +292,8 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     heldUp: false,
     awaiting: { unscoredGameIds: [], ties: [] },
     ended: false,
+    managers: [],
+    canManage: true,
     divisions: [
       {
         number: 1,
@@ -370,6 +396,7 @@ const autumnGame = (gameId: string, first: Schemas["ClubMember"], second: Schema
   timeZone: "Europe/London",
   today: "2026-11-02",
   canManage: true,
+  managers: [],
 });
 
 const snapshot = (score: Schemas["LadderGameScore"], playedOn: string) => ({ ...score, playedOn });

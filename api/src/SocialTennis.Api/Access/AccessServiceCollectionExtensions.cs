@@ -13,6 +13,7 @@ public static class AccessServiceCollectionExtensions
         [Policies.ClubStaff] = ManagerStanding.ClubStaff,
         [Policies.LeagueCreator] = ManagerStanding.LeagueCreator,
         [Policies.LeagueManager] = ManagerStanding.LeagueManager,
+        [Policies.LeagueClubManager] = ManagerStanding.LeagueClubManager,
         [Policies.PlayerManager] = ManagerStanding.PlayerManager,
     };
 
