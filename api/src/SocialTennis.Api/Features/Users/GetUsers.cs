@@ -15,7 +15,7 @@ namespace SocialTennis.Api.Features.Users;
 /// <summary>
 /// Users with their roles and Players, for an Admin granting roles: newest
 /// first, one page at a time, optionally searched by email or Player name
-/// (#134). Every User used to come back in one response, which grew with the
+/// (#134) and limited to a Club (#245). Every User used to come back in one response, which grew with the
 /// Club until the Admin page was too slow to use.
 /// </summary>
 public static class GetUsers
@@ -29,12 +29,17 @@ public static class GetUsers
     /// <param name="q">Part of an email or of a Player's name, any case. Empty: everyone.</param>
     /// <param name="offset">How many matching Users to skip.</param>
     /// <param name="limit">How many to return, 1 to <see cref="MaxLimit"/>.</param>
+    /// <param name="clubId">
+    /// Only Users of this Club: with a Player in it or asking to be, a role there, or a League of its they
+    /// run. One that isn't there matches nobody.
+    /// </param>
     public static async Task<Results<Ok<GetUsersResponse>, ValidationProblem>> HandleAsync(
         TennisDbContext db,
         IOptions<AuthOptions> authOptions,
         [FromQuery] string? q = null,
         [FromQuery] int offset = 0,
         [FromQuery] int limit = DefaultLimit,
+        [FromQuery] Guid? clubId = null,
         CancellationToken cancellationToken = default)
     {
         var errors = new Dictionary<string, string[]>();
@@ -65,6 +70,14 @@ public static class GetUsers
             matching = matching.Where(u =>
                 EF.Functions.ILike(u.Email, pattern, LikeEscape)
                 || db.Players.Any(p => p.UserId == u.Id && EF.Functions.ILike(p.Name, pattern, LikeEscape)));
+        }
+
+        if (clubId is { } club)
+        {
+            matching = matching.Where(u =>
+                db.ClubMemberships.Any(m => m.ClubId == club && m.Player.UserId == u.Id)
+                || db.ClubRoles.Any(r => r.ClubId == club && r.UserId == u.Id)
+                || db.LeagueManagers.Any(m => m.League.ClubId == club && m.UserId == u.Id));
         }
 
         var total = await matching.CountAsync(cancellationToken);

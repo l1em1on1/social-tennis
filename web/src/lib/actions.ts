@@ -442,6 +442,18 @@ export async function grantAdmin(formData: FormData) {
   revalidatePath("/", "layout");
 }
 
+/** The search, Club and page of the Users list an Admin's form was on (#134, #245), to come back to with a refusal. */
+function adminView(formData: FormData): { search: string; club: string; offset: number } {
+  const search = formData.get("q");
+  const club = formData.get("club");
+  const offset = formData.get("offset");
+  return {
+    search: typeof search === "string" ? search.trim() : "",
+    club: isId(club) ? club : "",
+    offset: typeof offset === "string" ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0,
+  };
+}
+
 /**
  * An Admin takes the Admin role from a User. The API refuses (409) to remove it
  * from the last one or from one set in configuration; the page disables those
@@ -455,13 +467,10 @@ export async function revokeAdmin(formData: FormData) {
   const { response } = await api.DELETE("/users/{userId}/roles/{role}", { params: { path: { userId, role: "Admin" } } });
   if (response.status === 409) {
     // Back to the search and page the Admin was on (#134), with the reason.
-    const search = formData.get("q");
-    const offset = formData.get("offset");
     redirect(
       adminHref({
+        ...adminView(formData),
         error: "admin-kept",
-        search: typeof search === "string" ? search.trim() : "",
-        offset: typeof offset === "string" ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0,
       }),
     );
   }
@@ -484,13 +493,10 @@ export async function deleteUser(formData: FormData) {
   const api = await apiWithSession();
   const { response } = await api.DELETE("/users/{userId}", { params: { path: { userId } } });
   if (response.status === 409) {
-    const search = formData.get("q");
-    const offset = formData.get("offset");
     redirect(
       adminHref({
+        ...adminView(formData),
         error: "user-kept",
-        search: typeof search === "string" ? search.trim() : "",
-        offset: typeof offset === "string" ? Math.max(0, Number.parseInt(offset, 10) || 0) : 0,
       }),
     );
   }

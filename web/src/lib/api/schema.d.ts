@@ -2899,6 +2899,7 @@ export interface operations {
                 q?: string;
                 offset?: number | string;
                 limit?: number | string;
+                clubId?: string;
             };
             header?: never;
             path?: never;

@@ -5,8 +5,10 @@ import { ClubNameForm } from "@/components/club-name-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Pager, pageRange } from "@/components/ui/pager";
 import { SearchForm } from "@/components/ui/search-form";
+import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -87,10 +89,11 @@ const MAX_OFFSET = 2_147_483_647;
  * Clubs and roles (#18): an Admin creates and renames Clubs, and makes Users
  * managers of Clubs (#110) or Admins. Admins only — refused here as well as
  * hidden from the nav, and the API refuses each call by role. Users come a page
- * at a time, newest first, searchable by email or Player name (#134).
+ * at a time, newest first, searchable by email or Player name (#134), and by
+ * Club once there are two (#245).
  */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
-  const [viewer, api, { error, q, offset }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
+  const [viewer, api, { error, q, club, offset }] = await Promise.all([getViewer(), apiWithSession(), searchParams]);
   if (!viewer.admin) {
     notFound();
   }
@@ -100,10 +103,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0),
   );
 
-  const [{ data: clubList }, { data: userList, response: usersResponse }] = await Promise.all([
-    api.GET("/clubs"),
-    api.GET("/users", { params: { query: { q: search || undefined, offset: start, limit: USERS_PER_PAGE } } }),
-  ]);
+  // The Clubs first: only a Club that is listed filters, so what the page says of the filter is what the API was asked.
+  const { data: clubList } = await api.GET("/clubs");
+  // An id in any case, as a link may have it.
+  const chosenClub = typeof club === "string" ? clubList?.clubs.find((candidate) => candidate.id === club.toLowerCase()) : undefined;
+  const clubId = chosenClub?.id;
+  const { data: userList, response: usersResponse } = await api.GET("/users", {
+    params: { query: { q: search || undefined, clubId, offset: start, limit: USERS_PER_PAGE } },
+  });
   // A 400 is a search the API won't run (a control character, say): say so, list no one.
   // The offset is kept in range above, so without a search a 400 is a fault, not a refusal.
   const searchRefused = search !== "" && usersResponse.status === 400;
@@ -116,10 +123,12 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   // Where the last page starts. From past the end (a hand-typed offset), Previous goes there.
   const lastPageStart = Math.max(0, Math.floor((total - 1) / USERS_PER_PAGE) * USERS_PER_PAGE);
   const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
-  // A refused role change redirects with its error; these bring it back to this search and page.
+  const inClub = chosenClub ? ` in ${chosenClub.name}` : "";
+  // A refused role change redirects with its error; these bring it back to this search, Club and page.
   const keepView = (
     <>
       <input type="hidden" name="q" value={search} />
+      <input type="hidden" name="club" value={clubId ?? ""} />
       <input type="hidden" name="offset" value={start} />
     </>
   );
@@ -176,17 +185,35 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             hint="Part of an email address or a player's name."
             defaultValue={search}
             maxLength={320}
-          />
+          >
+            {/* One Club is everyone's (#245). */}
+            {clubList.clubs.length > 1 && (
+              <Field id="user-club" label="Club" hint="Its players, those asking to join, and whoever manages it.">
+                {(control) => (
+                  <Select {...control} name="club" defaultValue={clubId ?? ""}>
+                    <option value="">All clubs</option>
+                    {clubList.clubs.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            )}
+          </SearchForm>
         </div>
         <p role="status" className="mb-2 text-sm text-fg-muted">
           {users.length > 0
-            ? `${pageRange(start, users.length, total)}${search ? ` matching “${search}”` : ""}, newest first.`
+            ? `${pageRange(start, users.length, total)}${search ? ` matching “${search}”` : ""}${inClub}, newest first.`
             : total > 0
               ? "No users on this page."
               : search
-                ? `No one matches “${search}”.`
-                : "No users yet."}
-          {search && (
+                ? `No one matches “${search}”${inClub}.`
+                : inClub
+                  ? `No users${inClub}.`
+                  : "No users yet."}
+          {(search || clubId) && (
             <>
               {" "}
               <Link href="/admin" className="underline">
@@ -281,10 +308,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             label="users"
             previousHref={
               start > 0
-                ? adminHref({ search, offset: Math.max(0, Math.min(start - USERS_PER_PAGE, lastPageStart)) })
+                ? adminHref({ search, club: clubId, offset: Math.max(0, Math.min(start - USERS_PER_PAGE, lastPageStart)) })
                 : undefined
             }
-            nextHref={start + users.length < total ? adminHref({ search, offset: start + USERS_PER_PAGE }) : undefined}
+            nextHref={start + users.length < total ? adminHref({ search, club: clubId, offset: start + USERS_PER_PAGE }) : undefined}
           />
         </div>
       </Card>
