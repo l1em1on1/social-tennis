@@ -256,6 +256,76 @@ export async function addToClub(formData: FormData) {
   redirect(`/manage?added=${encodeURIComponent(data.name)}`);
 }
 
+/** The Club and User a role form names, for a page that gives and takes League manager roles (#220). */
+function clubAndUser(formData: FormData) {
+  const clubId = formData.get("clubId");
+  const userId = formData.get("userId");
+  return isId(clubId) && isId(userId) ? { clubId, userId } : null;
+}
+
+/** A Club's manager lets a member of it create Leagues there (#220), and run those they create. */
+export async function grantLeagueManagerRole(formData: FormData) {
+  const path = clubAndUser(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/clubs/{clubId}/league-managers/{userId}", { params: { path } });
+  // 409: their last player left the Club meanwhile. The refreshed list shows that.
+  if (!response.ok && response.status !== 409 && response.status !== 404) {
+    throw new Error(`Making a League manager failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A Club's manager takes the League manager role (#220). Leagues they run stay theirs. */
+export async function removeLeagueManagerRole(formData: FormData) {
+  const path = clubAndUser(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/clubs/{clubId}/league-managers/{userId}", { params: { path } });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Removing a League manager failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** The League and User a form names, for who runs a League (#220). */
+function leagueAndUser(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const userId = formData.get("userId");
+  return isId(leagueId) && isId(userId) ? { leagueId, userId } : null;
+}
+
+/** A manager of the League's Club gives someone in the Club this League to run (#220). */
+export async function assignLeagueManager(formData: FormData) {
+  const path = leagueAndUser(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/leagues/{leagueId}/managers/{userId}", { params: { path } });
+  if (response.status === 409) {
+    redirect(`/manage/leagues/${path.leagueId}?error=not-in-club`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Assigning a League failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A manager of the League's Club takes a League back from someone who runs it (#220). */
+export async function unassignLeagueManager(formData: FormData) {
+  const path = leagueAndUser(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/leagues/{leagueId}/managers/{userId}", { params: { path } });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Taking a League back failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
 /** A Manager takes back an invite. Players it already let in stay members. */
 export async function withdrawClubInvite(formData: FormData) {
   const clubId = formData.get("clubId");

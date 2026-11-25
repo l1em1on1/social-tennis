@@ -85,7 +85,11 @@ export const fixtureMembers: Record<string, Schemas["GetClubMembersResponse"]> =
       { id: id("d", 1), email: "dana.price@example.com", invitedAt: "2026-11-10T12:00:00Z" },
       { id: id("d", 2), email: "morgan.ellis@example.com", invitedAt: "2026-11-16T10:30:00Z" },
     ],
-    roles: [{ userId: FIXTURE_USER_IDS[FIXTURE_MANAGER], email: FIXTURE_MANAGER, role: "Manager" }],
+    roles: [
+      { userId: FIXTURE_USER_IDS[FIXTURE_MANAGER], email: FIXTURE_MANAGER, role: "Manager" },
+      // Jo creates leagues, and runs Autumn Singles (#220).
+      { userId: FIXTURE_USER_IDS[jo.email], email: jo.email, role: "LeagueManager" },
+    ],
     page: whole(8),
   },
   [HILLSIDE.id]: {
@@ -262,7 +266,7 @@ const autumnSinglesPage: Schemas["GetLeagueResponse"] = {
   joinRequests: [],
   teams: [team(5, [alex], 2, 1), team(4, [jo], 1, 1), team(6, [chris], 3, 1), team(7, [sam])],
   stage: autumnStage,
-  managers: [],
+  managers: [{ userId: FIXTURE_USER_IDS[jo.email], name: jo.name, email: jo.email }],
   canAssignManagers: true,
 };
 
@@ -292,7 +296,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     heldUp: false,
     awaiting: { unscoredGameIds: [], ties: [] },
     ended: false,
-    managers: [],
+    managers: [{ name: jo.name }],
     canManage: true,
     divisions: [
       {
@@ -396,7 +400,7 @@ const autumnGame = (gameId: string, first: Schemas["ClubMember"], second: Schema
   timeZone: "Europe/London",
   today: "2026-11-02",
   canManage: true,
-  managers: [],
+  managers: [{ name: jo.name }],
 });
 
 const snapshot = (score: Schemas["LadderGameScore"], playedOn: string) => ({ ...score, playedOn });

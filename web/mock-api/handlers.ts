@@ -198,6 +198,9 @@ function managersOf(league: MockLeague) {
 /** Whether a User has a Player in the shared Club, as the API asks of anyone given a role or a League there (#220). */
 const playsInTheClub = (email: string) => allPlayers().some((player) => player.email === email && player.membership?.approved);
 
+/** The email of this User, who may not have signed in yet: a Player a Manager added has one. */
+const emailOfUser = (id: string) => [...userIds].find(([, userId]) => userId === id)?.[0];
+
 const userById = (id: string) => [...usersByEmail.values()].find((user) => user.id === id);
 
 /**
@@ -974,6 +977,10 @@ export const handlers = [
     if (!league) {
       return response(404).empty();
     }
+    // As the API: who runs it (#220), and someone who can only see it is refused.
+    if (!runsLeague(request, league)) {
+      return response(403).json({ title: "Forbidden", status: 403 }, problemJson);
+    }
     const player = (id: string) => allPlayers().find((candidate) => candidate.id === id)!;
     const clubName =
       league.clubId === MOCK_CLUB.id
@@ -1032,6 +1039,14 @@ export const handlers = [
 
   // Who could be added (#220): the Club's members who aren't in it, with emails only for its Club's managers.
   http.get("/leagues/{leagueId}/addable-players", ({ request, params, response }) => {
+    const fixed = fixtureLeaguePages[params.leagueId];
+    if (fixed) {
+      const inLeague = new Set(fixed.participants.map((participant) => participant.playerId));
+      const players = fixtureMembers[fixed.clubId].members
+        .filter((member) => member.approved && !inLeague.has(member.playerId))
+        .map(({ playerId, name, email }) => ({ playerId, name, email }));
+      return response(200).json({ players, page: wholeList(players.length) });
+    }
     const league = leagueById(params.leagueId);
     if (!league || !runsLeague(request, league)) {
       return response(404).empty();
@@ -1047,15 +1062,14 @@ export const handlers = [
   // Who runs a League (#220): its Club's managers assign and take back.
   http.put("/leagues/{leagueId}/managers/{userId}", ({ request, params, response }) => {
     const league = leagueById(params.leagueId);
-    const entry = [...usersByEmail].find(([, user]) => user.id === params.userId);
-    if (!league || !runsClub(request, league.clubId) || !entry) {
+    const email = emailOfUser(params.userId);
+    if (!league || !runsClub(request, league.clubId) || !email) {
       return response(404).empty();
     }
-    const [email, user] = entry;
     if (!playsInTheClub(email)) {
       return response(409).json(notInClub, problemJson);
     }
-    user.leagues.add(league.id);
+    userOf(email).leagues.add(league.id);
     return response(204).empty();
   }),
 
@@ -1946,14 +1960,14 @@ export const handlers = [
 
   // Who may create Leagues in a Club (#220): its managers give and take the role.
   http.put("/clubs/{clubId}/league-managers/{userId}", ({ request, params, response }) => {
-    const entry = [...usersByEmail].find(([, user]) => user.id === params.userId);
-    if (!runsClub(request, params.clubId) || !entry) {
+    const email = emailOfUser(params.userId);
+    if (!runsClub(request, params.clubId) || !email) {
       return response(404).empty();
     }
-    const [email, user] = entry;
     if (!playsInTheClub(email)) {
       return response(409).json(notInClub, problemJson);
     }
+    const user = userOf(email);
     if (!user.clubs.has(params.clubId)) user.clubs.set(params.clubId, "LeagueManager");
     return response(204).empty();
   }),

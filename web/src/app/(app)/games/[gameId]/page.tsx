@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { unvoidGame, voidGame } from "@/lib/actions";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
-import { describeScoreFormat, formatDate } from "@/lib/league";
+import { describeManagers, describeScoreFormat, formatDate } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
 import { PageColumn } from "@/components/shell/page-column";
 
@@ -79,6 +79,8 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           {game.leagueName} · Division {game.division} · {stageName}
           {stage.closed ? " (closed)" : ""}
         </p>
+        {/* Who runs its League (#220), by name: never an email. */}
+        <p className="text-sm text-fg-muted">{describeManagers(game.managers)}</p>
       </div>
 
       {savedMessage && (

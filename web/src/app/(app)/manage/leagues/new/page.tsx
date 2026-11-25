@@ -24,8 +24,9 @@ export default async function NewLeaguePage({ searchParams }: PageProps<"/manage
   if (!clubList) {
     throw new Error("GET /clubs failed");
   }
+  // Someone who only runs a League there can't create another (#220): the API would refuse the form.
   const club = clubList.clubs.find((candidate) => candidate.id === clubId);
-  if (!club) {
+  if (!club?.canCreateLeagues) {
     notFound();
   }
 

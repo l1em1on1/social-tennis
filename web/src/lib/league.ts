@@ -19,6 +19,20 @@ export const LEAGUE_TYPES: { value: LeagueType; label: string }[] = [
 
 export const typeLabel = (type: LeagueType) => LEAGUE_TYPES.find((option) => option.value === type)?.label ?? type;
 
+/**
+ * Who runs a League, to its Players (#220): "Run by Ada and Bo", or "Run by the
+ * club's managers" when it has no manager of its own. A manager with no Player
+ * in the Club is "a manager": names, never emails.
+ */
+export function describeManagers(managers: { name: string | null }[]): string {
+  if (managers.length === 0) return "Run by the club's managers";
+  const names = managers.map((manager) => manager.name ?? "a manager");
+  // Two without a Player read the same: say how many rather than repeat it.
+  const unnamed = names.filter((name) => name === "a manager").length;
+  const listed = unnamed > 1 ? [...names.filter((name) => name !== "a manager"), `${unnamed} managers`] : names;
+  return `Run by ${new Intl.ListFormat("en-GB").format(listed)}`;
+}
+
 /** Foursomes is a Division-of-4 rotation, meaningless in a Bracket: the API refuses the pair too. */
 export const isValidCombination = (type: LeagueType, structure: LeagueStructure) =>
   !(type === "Foursomes" && structure === "Knockout");

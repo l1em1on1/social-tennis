@@ -12,7 +12,7 @@ import { apiWithSession } from "@/lib/api/server";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { isId } from "@/lib/ids";
-import { formatDate, formatDates, typeLabel } from "@/lib/league";
+import { describeManagers, formatDate, formatDates, typeLabel } from "@/lib/league";
 import { formatSets } from "@/lib/score";
 import { getViewer } from "@/lib/viewer";
 
@@ -29,8 +29,8 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
  * entered and a link to its Match screen (#38). Past its deadline and still
  * open, it says what holds the Stage up (#10). The Acting
  * Player's Division is marked, with who they play, or it says they aren't on
- * the ladder. Only the League's Players and Managers see it: anyone else gets
- * a 404.
+ * the ladder. Only the League's Players and managers see it: anyone else gets
+ * a 404. It names who runs it, and whoever does has a way to its Manager page (#220).
  */
 export default async function LadderPage({ params }: PageProps<"/leagues/[leagueId]">) {
   const [viewer, api, { leagueId }] = await Promise.all([getViewer(), apiWithSession(), params]);
@@ -59,6 +59,15 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
       <p className="text-fg-muted">
         {ladder.clubName} · {typeLabel(ladder.type)}
       </p>
+      {/* Who runs it (#220), by name: never an email. */}
+      <p className="text-sm text-fg-muted">{describeManagers(ladder.managers)}</p>
+      {ladder.canManage && (
+        <div className="mt-1">
+          <ButtonLink href={`/manage/leagues/${ladder.id}`} variant="secondary">
+            Manage this league
+          </ButtonLink>
+        </div>
+      )}
     </div>
   );
 
