@@ -5,6 +5,7 @@ import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
 import { addAnotherPlayer, addFirstPlayer, logIn, personaEmail } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
+import { expectButtonsApart } from "./support/spacing";
 
 const mainNav = (page: Page) => page.getByRole("navigation", { name: "Main" });
 
@@ -112,10 +113,12 @@ test("switching the acting Player survives navigation", async ({ page }, testInf
   await addAnotherPlayer(page, "Sam Junior");
   const acting = page.getByTestId("acting-player");
   await expect(acting).toHaveText("Pat Parent");
+  await expectButtonsApart(page, "Profiles");
 
   await page.getByRole("button", { name: /switch player/ }).click();
   const sheet = page.getByRole("dialog", { name: "Play as" });
   await expect(sheet).toBeVisible();
+  await expectButtonsApart(page, "Play as");
   await expectNoSeriousA11yViolations(page);
   await sheet.getByRole("button", { name: "Alex Junior" }).click();
   await expect(acting).toHaveText("Alex Junior");

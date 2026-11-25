@@ -12,6 +12,7 @@ import {
 } from "../mock-api/fixture";
 import { logIn } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
+import { expectButtonsApart, expectWordsWhole } from "./support/spacing";
 
 /**
  * Snapshots of the Manager and Admin pages (#187). The specs that use these
@@ -30,6 +31,7 @@ test("Manage, from fixed data", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Manage", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: "Winter Singles" })).toBeVisible();
   await expect(page.getByText("Nobody is waiting.")).toBeVisible();
+  await expectButtonsApart(page, "Manage");
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -40,6 +42,7 @@ test("a League's Manager page, from fixed data", async ({ page }, testInfo) => {
 
   await expect(page.getByRole("heading", { name: "Winter Singles", level: 1 })).toBeVisible();
   await expect(page.getByRole("list", { name: "Players in the league" }).getByRole("listitem")).toHaveCount(2);
+  await expectButtonsApart(page, "a League's Manager page");
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -54,6 +57,7 @@ test("a doubles League's Manager page, from fixed data", async ({ page }, testIn
   // A pair asking together (#6), both women in mixed doubles: a warning, not a refusal.
   await expect(page.getByRole("button", { name: "Approve Nia Brooks with Ella Grant" })).toBeVisible();
   await expect(page.getByText(/Both are the same gender/)).toBeVisible();
+  await expectButtonsApart(page, "a doubles League's Manager page");
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -67,6 +71,12 @@ test("starting a League, from fixed data", async ({ page }, testInfo) => {
   await expect(page.getByText("1 join request is still waiting.", { exact: false })).toBeVisible();
   // Every Rating is 1, so the proposal is the order they joined, and the screen says so.
   await expect(page.getByText("Proposed in the order players joined", { exact: false })).toBeVisible();
+  await expectButtonsApart(page, "the Start page");
+  // Names have the row's space: no word is broken, and Leave out is as high as before and narrower (#255).
+  await expectWordsWhole(page.getByRole("list", { name: "Division 1" }).getByRole("listitem").locator("p"));
+  const leaveOut = (await page.getByRole("button", { name: /^Leave out/ }).first().boundingBox())!;
+  expect(leaveOut.height).toBe(44);
+  expect(leaveOut.width).toBeLessThanOrEqual(64);
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -83,6 +93,7 @@ test("a started League's Manager page, from fixed data", async ({ page }, testIn
   // On the ladder, leaving is a Withdrawal (#21): only Sam, left out, can be removed.
   await expect(players.getByRole("button", { name: /^Remove/ })).toHaveCount(1);
   await expect(players.getByRole("listitem").filter({ hasText: "Sam Morgan" })).toContainText("Not on the ladder");
+  await expectButtonsApart(page, "a started League's Manager page");
   await expectNoSeriousA11yViolations(page);
 });
 

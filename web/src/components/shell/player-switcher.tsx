@@ -44,7 +44,7 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
       triggerVariant="ghost"
       triggerClassName="min-w-0 px-2 text-sm"
     >
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-4">
         {players.map((player) => {
           const current = player.id === actingPlayer.id;
           return (

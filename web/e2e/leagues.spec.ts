@@ -5,6 +5,7 @@ import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
+import { expectButtonsApart } from "./support/spacing";
 import { addClubPlayer, createLeague } from "./support/league";
 
 /**
@@ -749,7 +750,7 @@ test.describe("with a Player whose name is one long word", () => {
     expect.soft(overflow, `sideways scroll on ${where} at 360px`).toBeLessThanOrEqual(0);
   }
 
-  test("Home, the ladder, score entry and the Match screen keep to a phone's width", async ({ page, browser }, testInfo) => {
+  test("Home, the ladder, score entry, the Match screen, Profiles and a League's Manager pages keep to a phone's width", async ({ page, browser }, testInfo) => {
     test.slow();
     const league = uniqueName(testInfo, "Narrow Ladder");
     const una = { name: uniqueName(testInfo, "Una Narrow"), email: personaEmail(testInfo, "narrow-una") };
@@ -769,9 +770,13 @@ test.describe("with a Player whose name is one long word", () => {
       await manager.getByRole("button", { name: "Add to league" }).click();
       await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
     }
+    await expectNoSidewaysScroll(manager, "a League's Manager page");
     await manager.getByRole("link", { name: "Start the league" }).click();
+    await expect(manager.getByRole("button", { name: `Leave out ${long.name}` })).toBeVisible();
+    await expectNoSidewaysScroll(manager, "the Start page");
     await manager.getByRole("button", { name: "Confirm and start" }).click();
     await expect(manager.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+    await expectNoSidewaysScroll(manager, "a started League's Manager page");
     await managerContext.close();
 
     // Home: her Game's opponent wraps inside the card, so nothing is wider than the screen.
@@ -822,6 +827,14 @@ test.describe("with a Player whose name is one long word", () => {
     await expect(longPage.getByRole("region", { name: "Score" })).toContainText(`${long.name} won`);
     await expect(longPage.getByRole("list", { name: "Changes to the score" })).toContainText(`${long.name} entered it`);
     await expectNoSidewaysScroll(longPage, "the Match screen with a score");
+
+    // Profiles: Edit, beside the name (#255), stays on the card.
+    await longPage.goto("/profiles");
+    const editButton = longPage.getByRole("button", { name: `Edit ${long.name}` });
+    const edit = (await editButton.boundingBox())!;
+    const card = (await longPage.locator("section").filter({ has: editButton }).boundingBox())!;
+    expect(edit.x + edit.width).toBeLessThanOrEqual(card.x + card.width);
+    await expectNoSidewaysScroll(longPage, "Profiles");
     await longContext.close();
 
     // The ladder again, with its standings filled in.
@@ -864,9 +877,14 @@ test("a Manager settles Games nobody scored from the to-do list: records one, ma
   await expectNoSeriousA11yViolations(page);
 
   // Ada v Ben: the Manager records it.
-  await toDo.getByRole("listitem").first().getByRole("link", { name: "Settle" }).click();
+  // The whole row opens the game, its Division read out (#255).
+  const first = toDo.getByRole("listitem").first();
+  await first.getByRole("link", { name: `Division 1 ${ada.name} v ${ben.name} Settle`, exact: true }).click({ position: { x: 5, y: 5 } });
+  await expect(page.getByRole("button", { name: "Mark not played (manager)" })).toBeVisible();
+  await expectButtonsApart(page, "the Match screen, for its manager");
   await page.getByRole("link", { name: "Record the score (manager)" }).click();
   await expect(page.getByRole("heading", { name: "Record the score", level: 1 })).toBeVisible();
+  await expectButtonsApart(page, "score entry");
   const more = page.getByRole("group", { name: `Set, ${ada.name}` }).getByRole("button", { name: "One more" });
   for (let i = 0; i < 6; i++) await more.click();
   await page.getByRole("button", { name: "Save score" }).click();

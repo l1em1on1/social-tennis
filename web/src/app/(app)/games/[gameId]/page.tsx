@@ -4,6 +4,7 @@ import { ResultStatusBadge } from "@/components/result-status-badge";
 import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
 import { ButtonLink } from "@/components/ui/button";
+import { ButtonStack } from "@/components/ui/button-stack";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { unvoidGame, voidGame } from "@/lib/actions";
@@ -104,7 +105,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
               ? `recorded by ${score.submittedBy ? `${score.submittedBy} (manager)` : "a manager"}`
               : `entered by ${score.submittedBy ?? "a player"}`}
           </p>
-          <div className="mt-3 flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-2">
             {playing && !stage.closed ? (
               <ButtonLink href={`/games/${game.id}/score`} variant="secondary" fullWidth>
                 Correct the score
@@ -144,7 +145,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
         </Card>
       ) : (
         <Card title="No score yet" aria-label="No score yet" aside={<ResultStatusBadge status="pending" />}>
-          <div className="flex flex-col gap-3">
+          <ButtonStack>
             {stage.closed ? (
               <p className="text-sm">{stageName} has closed without a score for this game: the manager settles it.</p>
             ) : (
@@ -167,7 +168,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
               )
             )}
             {manager && !stage.closed && (
-              <form action={voidGame} className="flex flex-col gap-1">
+              <form action={voidGame} className="flex flex-col gap-2">
                 <input type="hidden" name="gameId" value={game.id} />
                 <SubmitButton variant="secondary" fullWidth pendingLabel="Marking…">
                   Mark not played (manager)
@@ -175,7 +176,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
                 <p className="text-xs text-fg-muted">It then counts for nothing, for either side. You can undo it while the Stage is open.</p>
               </form>
             )}
-          </div>
+          </ButtonStack>
         </Card>
       )}
 

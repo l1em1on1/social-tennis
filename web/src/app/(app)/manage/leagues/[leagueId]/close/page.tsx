@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { GamesToSettle } from "@/components/games-to-settle";
 import { StageCloseForm } from "@/components/stage-close-form";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,7 +46,13 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
   const competitors = close.divisions.flatMap((division) => division.competitors);
   const teamName = (teamId: string) => name(competitors.find((competitor) => competitor.teamId === teamId)?.players ?? []);
   const unscored = close.divisions.flatMap((division) =>
-    division.games.filter((game) => close.awaiting.unscoredGameIds.includes(game.id)),
+    division.games
+      .filter((game) => close.awaiting.unscoredGameIds.includes(game.id))
+      .map((game) => ({
+        id: game.id,
+        division: Number(division.number),
+        label: `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}`,
+      })),
   );
 
   return (
@@ -71,18 +78,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
           <p className="mb-2 text-sm text-fg-muted">
             A Stage closes only when every game has a score or is marked not played, so nobody moves on a missing result.
           </p>
-          <ul aria-label="Games with no score" className="divide-y divide-border text-sm">
-            {unscored.map((game) => (
-              <li key={game.id} className="flex items-center justify-between gap-2 py-1.5">
-                <span className="min-w-0 break-words">
-                  {teamName(game.firstTeamId)} v {teamName(game.secondTeamId)}
-                </span>
-                <ButtonLink href={`/games/${game.id}`} variant="secondary" className="shrink-0">
-                  Settle
-                </ButtonLink>
-              </li>
-            ))}
-          </ul>
+          <GamesToSettle games={unscored} />
         </Card>
       ) : (
         <StageCloseForm

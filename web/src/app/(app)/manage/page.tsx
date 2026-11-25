@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CopyField } from "@/components/copy-field";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { ButtonRow } from "@/components/ui/button-stack";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
 import { SubmitIconButton } from "@/components/ui/icon-button";
@@ -227,7 +228,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                         hint="Share it in the club's chat or by email. Whoever opens it can ask to join, and you approve them below."
                         value={publicUrl(joinPath(club.joinCode))}
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <ButtonRow>
                         <form action={resetJoinLink}>
                           <input type="hidden" name="clubId" value={club.id} />
                           <SubmitButton variant="secondary" pendingLabel="Resetting…">
@@ -240,7 +241,7 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                             Turn off
                           </SubmitButton>
                         </form>
-                      </div>
+                      </ButtonRow>
                       <p className="text-sm text-fg-muted">Resetting makes a new link, and the old one stops working.</p>
                     </>
                   ) : (

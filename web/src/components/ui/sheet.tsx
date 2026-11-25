@@ -3,8 +3,8 @@
 import { useId, useRef, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 import { buttonClasses, type ButtonVariant } from "./button";
-import { iconButtonClasses, type IconButtonTone } from "./icon-button";
-import { Icon, type IconName } from "./icons";
+import { IconButtonContent, iconButtonClasses, type IconButtonTone } from "./icon-button";
+import type { IconName } from "./icons";
 
 type SheetProps = {
   title: string;
@@ -21,6 +21,8 @@ type SheetProps = {
       /** An icon button opens it instead (#224), named by `trigger`: "Remove Anna Smith". */
       triggerIcon: IconName;
       trigger: string;
+      /** A word under the icon (#255); `trigger` starts with it. */
+      triggerWord?: string;
       triggerTone?: IconButtonTone;
     }
 );
@@ -45,10 +47,10 @@ export function Sheet(props: SheetProps) {
           aria-haspopup="dialog"
           aria-label={props.trigger}
           title={props.trigger}
-          className={cx(iconButtonClasses(props.triggerTone), triggerClassName)}
+          className={cx(iconButtonClasses(props.triggerTone, Boolean(props.triggerWord)), triggerClassName)}
           onClick={open}
         >
-          <Icon name={props.triggerIcon} />
+          <IconButtonContent icon={props.triggerIcon} word={props.triggerWord} />
         </button>
       ) : (
         <button

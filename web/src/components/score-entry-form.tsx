@@ -161,7 +161,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
             key={index}
             aria-label={title}
             className={cx(
-              "flex flex-col gap-3 rounded-2xl border bg-surface p-4",
+              "flex flex-col gap-4 rounded-2xl border bg-surface p-4",
               result.state === "won" && !serverError ? "border-success" : result.state === "impossible" || serverError ? "border-danger" : "border-border",
             )}
           >
@@ -182,7 +182,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
               </div>
             ))}
             {atTiebreak(format, entry, index) && (
-              <div className="flex flex-col gap-3 rounded-xl bg-surface-muted p-3">
+              <div className="flex flex-col gap-4 rounded-xl bg-surface-muted p-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   Tiebreak points <Badge tone="accent">{`at ${format.gamesPerSet - 1}–${format.gamesPerSet - 1}`}</Badge>
                 </p>

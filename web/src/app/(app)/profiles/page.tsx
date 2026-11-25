@@ -43,15 +43,32 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                   className="flex flex-col gap-2 py-3"
                 >
                   <div className="flex min-h-11 items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{player.name}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium break-words">{player.name}</p>
                       <p className="text-sm text-fg-muted">
                         {[player.gender, player.level === null ? null : `Level ${player.level}`]
                           .filter(Boolean)
                           .join(" · ") || "Level and gender not set"}
                       </p>
                     </div>
-                    {acting && <Badge tone="accent">Playing as</Badge>}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {acting && <Badge tone="accent">Playing as</Badge>}
+                      <Sheet
+                        title={`Edit ${player.name}`}
+                        triggerIcon="pencil"
+                        triggerWord="Edit"
+                        trigger={`Edit ${player.name}`}
+                      >
+                        <PlayerForm
+                          id={`player-${player.id}`}
+                          label="Name"
+                          submitLabel="Save"
+                          from="/profiles"
+                          details
+                          player={player}
+                        />
+                      </Sheet>
+                    </div>
                   </div>
                   {player.clubs.length === 0 ? (
                     <p className="text-sm text-fg-muted">Not in a club yet</p>
@@ -59,18 +76,16 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                     <ul aria-label={`${player.name}'s clubs`} className="flex flex-col gap-2">
                       {player.clubs.map((club) => (
                         <li key={club.id} className="flex min-h-11 items-center justify-between gap-3">
-                          <span className="text-sm text-fg-muted">
+                          <span className="min-w-0 text-sm break-words text-fg-muted">
                             {club.approved ? `Member of ${club.name}` : `Waiting for approval at ${club.name}`}
                           </span>
                           {club.approved ? (
                             // Behind a sheet: coming back means asking a Manager again.
                             <Sheet
                               title={`Leave ${club.name}?`}
-                              trigger={
-                                <>
-                                  Leave<span className="sr-only"> {club.name}</span>
-                                </>
-                              }
+                              triggerIcon="leave"
+                              triggerWord="Leave"
+                              trigger={`Leave ${club.name}`}
                             >
                               <p className="text-fg-muted">
                                 {player.name} will no longer be a member of {club.name}. Joining again may need a
@@ -101,31 +116,12 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                       ))}
                     </ul>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    {!acting && (
-                      <form action={switchActingPlayer}>
-                        <input type="hidden" name="playerId" value={player.id} />
-                        <SubmitButton variant="secondary">Play as {player.name.split(" ")[0]}</SubmitButton>
-                      </form>
-                    )}
-                    <Sheet
-                      title={`Edit ${player.name}`}
-                      trigger={
-                        <>
-                          Edit<span className="sr-only"> {player.name}</span>
-                        </>
-                      }
-                    >
-                      <PlayerForm
-                        id={`player-${player.id}`}
-                        label="Name"
-                        submitLabel="Save"
-                        from="/profiles"
-                        details
-                        player={player}
-                      />
-                    </Sheet>
-                  </div>
+                  {!acting && (
+                    <form action={switchActingPlayer}>
+                      <input type="hidden" name="playerId" value={player.id} />
+                      <SubmitButton variant="secondary">Play as {player.name.split(" ")[0]}</SubmitButton>
+                    </form>
+                  )}
                 </li>
               );
             })}
