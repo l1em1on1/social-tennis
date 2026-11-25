@@ -6,7 +6,6 @@ using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
-using SocialTennis.Api.Jobs;
 
 namespace SocialTennis.Api.IntegrationTests;
 
@@ -198,7 +197,15 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
 
         using var member = await factory.CreateSignedInClientAsync(email);
         (await member.DeleteAsync("/auth/sessions/current")).EnsureSuccessStatusCode();
-        Assert.Equal(JobRunner.Succeeded, await JobRunner.RunAsync(factory.Services, "purge-tokens", CancellationToken.None));
+        // What the nightly purge does, for this member only: the job itself clears the whole database,
+        // which JobsTests is counting rows in at the same time.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            Assert.Equal(1, await db.SessionTokens
+                .Where(t => t.User.Email == email && t.RevokedAt != null)
+                .ExecuteDeleteAsync());
+        }
 
         Assert.True((await MemberAsync(manager, clubId, added.PlayerId)).SignedIn);
     }
