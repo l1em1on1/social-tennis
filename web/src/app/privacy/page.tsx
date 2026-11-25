@@ -44,7 +44,10 @@ export default async function PrivacyPage() {
 
       <Section title="What we hold">
         <ul className="list-disc pl-5">
-          <li>Your email address, which is how you sign in, and whether you&apos;re a Manager or Admin.</li>
+          <li>
+            Your email address, which is how you sign in, when you last signed in, and whether you&apos;re a Manager or
+            Admin.
+          </li>
           <li>For each of your players: name, gender, level and rating.</li>
           <li>
             Which clubs and leagues each player is in or has asked to join, the answers, and their games and scores.
@@ -101,8 +104,8 @@ export default async function PrivacyPage() {
 
       <Section title="How long we keep it">
         <p>
-          While you use the app. Accounts with no sign-in for 24 months are to be deleted; that starts once the app
-          records sign-ins, which is being added. Backups of the database are kept for up to three weeks.
+          While you use the app. Accounts with no sign-in for 24 months are to be deleted: we record when you last signed
+          in for that, and the deletion is being added. Backups of the database are kept for up to three weeks.
         </p>
       </Section>
 

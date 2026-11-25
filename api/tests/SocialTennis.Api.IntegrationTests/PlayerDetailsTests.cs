@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
 using SocialTennis.Api.Features.Clubs.Contracts;
 using SocialTennis.Api.Features.Players.Contracts;
@@ -180,6 +183,53 @@ public class PlayerDetailsTests(AuthTestFactory factory) : IClassFixture<AuthTes
         // And from then on they are theirs to edit, like any other.
         var edit = await parent.PutAsJsonAsync($"/players/{added.PlayerId}", new { name = "Alex J", level = 2 });
         Assert.Equal(HttpStatusCode.NoContent, edit.StatusCode);
+    }
+
+    // #243 review: the nightly purge deletes ended sessions, and then a member read "Not signed in yet" again.
+    [Fact]
+    public async Task A_member_who_signed_out_has_still_signed_in_after_the_nightly_purge()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await factory.AClubIdAsync();
+        var email = $"signed-out-{Guid.NewGuid():N}@example.test";
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Out Again", email });
+        var added = (await response.Content.ReadFromJsonAsync<AddClubPlayerResponse>())!;
+
+        using var member = await factory.CreateSignedInClientAsync(email);
+        (await member.DeleteAsync("/auth/sessions/current")).EnsureSuccessStatusCode();
+        // What the nightly purge does, for this member only: the job itself clears the whole database,
+        // which JobsTests is counting rows in at the same time.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            Assert.Equal(1, await db.SessionTokens
+                .Where(t => t.User.Email == email && t.RevokedAt != null)
+                .ExecuteDeleteAsync());
+        }
+
+        Assert.True((await MemberAsync(manager, clubId, added.PlayerId)).SignedIn);
+    }
+
+    // Signed in before LastSignedInAt was recorded (#117): the session says so.
+    [Fact]
+    public async Task A_member_signed_in_since_before_it_was_recorded_has_signed_in()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await factory.AClubIdAsync();
+        var email = $"earlier-{Guid.NewGuid():N}@example.test";
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/players", new { name = "Here Before", email });
+        var added = (await response.Content.ReadFromJsonAsync<AddClubPlayerResponse>())!;
+
+        using var member = await factory.CreateSignedInClientAsync(email);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            await db.Users
+                .Where(u => u.Email == email)
+                .ExecuteUpdateAsync(set => set.SetProperty(u => u.LastSignedInAt, (DateTimeOffset?)null));
+        }
+
+        Assert.True((await MemberAsync(manager, clubId, added.PlayerId)).SignedIn);
     }
 
     [Fact]
