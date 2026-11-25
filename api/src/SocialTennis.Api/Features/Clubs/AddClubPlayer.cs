@@ -13,9 +13,9 @@ namespace SocialTennis.Api.Features.Clubs;
 /// person has ever signed in. This is how a League is filled before its
 /// players use the app (issue #4, ADR-0008 phasing). The Player is a member at
 /// once, and is held by whoever signs in with that email: all of them, if a
-/// parent was given several children's Players under one address. Like a
-/// Player the User adds, it also joins the Clubs that invited the email or that
-/// the User is already in, and uses those invites up (#164).
+/// parent was given several children's Players under one address. It also joins
+/// any Club that invited the email, and uses that invite up, as a Player the
+/// User adds does (#164), but no other Club the User is already in (#110).
 /// </summary>
 /// <remarks>
 /// Unlike an invite it makes the Player now, so it can be put in a League
