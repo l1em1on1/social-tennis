@@ -73,7 +73,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold break-words">
+        <h1 className="text-4xl leading-none font-black break-words">
           {sides[0]} v {sides[1]}
         </h1>
         <p className="text-fg-muted">
@@ -85,12 +85,12 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
       </div>
 
       {savedMessage && (
-        <p role="status" className="rounded-2xl border border-success bg-success-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-success bg-success-muted px-4 py-3 text-sm">
           {savedMessage}
         </p>
       )}
       {refusal && (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           {refusal}
         </p>
       )}
@@ -121,7 +121,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
               </>
             ) : (
               playing && (
-                <p role="note" className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm">
+                <p role="note" className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm">
                   <strong>🔒 {stageName} is closed.</strong> This score can&apos;t be changed any more. If it&apos;s wrong, ask the
                   manager to override it.
                 </p>

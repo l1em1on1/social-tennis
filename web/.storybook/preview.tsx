@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/nextjs-vite";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { Big_Shoulders, Figtree, Geist_Mono } from "next/font/google";
 import { sb } from "storybook/test";
 import "../src/app/globals.css";
 import { allModes } from "./modes";
@@ -10,9 +10,9 @@ sb.mock("../src/lib/actions.ts");
 
 // As in the root layout, which stories don't render: the font variables
 // globals.css reads, on an element that also sets the page's font and colours.
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"] });
+const bigShoulders = Big_Shoulders({ variable: "--font-big-shoulders", subsets: ["latin"], axes: ["opsz"] });
 
 const preview: Preview = {
   parameters: {
@@ -23,7 +23,7 @@ const preview: Preview = {
   },
   decorators: [
     (Story) => (
-      <div className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} bg-bg p-4 font-sans text-fg antialiased`}>
+      <div className={`${figtree.variable} ${geistMono.variable} ${bigShoulders.variable} bg-bg p-4 font-sans text-fg antialiased`}>
         <Story />
       </div>
     ),

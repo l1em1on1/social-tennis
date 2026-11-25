@@ -33,7 +33,7 @@ export default async function NewLeaguePage({ searchParams }: PageProps<"/manage
   return (
     <PageColumn>
       <div>
-        <h1 className="text-2xl font-bold">New league</h1>
+        <h1 className="text-4xl leading-none font-black">New league</h1>
         <p className="text-fg-muted">{club.name}</p>
       </div>
       <LeagueSetupForm clubId={club.id} today={todayAtTheClub()} />

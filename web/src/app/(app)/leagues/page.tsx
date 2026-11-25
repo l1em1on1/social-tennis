@@ -194,7 +194,7 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
   if (!actingPlayer) {
     return (
       <>
-        <h1 className="text-2xl font-bold">Leagues</h1>
+        <h1 className="text-4xl leading-none font-black">Leagues</h1>
         <EmptyState title="Say who you are first" description="Save your name on Home, then join a club and its leagues." />
       </>
     );
@@ -204,7 +204,7 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
   if (!data) {
     return (
       <>
-        <h1 className="text-2xl font-bold">Leagues</h1>
+        <h1 className="text-4xl leading-none font-black">Leagues</h1>
         <ErrorState title="Leagues didn't load" description="The server isn't reachable right now. Try again shortly." />
       </>
     );
@@ -230,7 +230,7 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
 
   return (
     <>
-      <h1 className="text-2xl font-bold">Leagues</h1>
+      <h1 className="text-4xl leading-none font-black">Leagues</h1>
 
       {refusal && <ErrorState title="That request didn't go through" description={refusal} />}
 

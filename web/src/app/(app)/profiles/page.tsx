@@ -17,7 +17,7 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
 
   return (
     <PageColumn>
-      <h1 className="text-2xl font-bold">Profiles</h1>
+      <h1 className="text-4xl leading-none font-black">Profiles</h1>
 
       {error === "name" && (
         <ErrorState title="That didn't save" description="Enter a name of up to 100 characters, and choose a level and gender from the lists." />

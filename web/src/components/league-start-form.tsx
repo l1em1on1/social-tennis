@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { startLeague } from "@/lib/actions";
@@ -132,10 +133,11 @@ export function LeagueStartForm({
         <input key={player.playerId} type="hidden" name="removed" value={player.playerId} />
       ))}
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">Starting ladder</h2>
-          <div className="flex items-center gap-1">
+      {/* A card, its title on the court with the number of Divisions beside it (#254). */}
+      <Card
+        title="Starting ladder"
+        aside={
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               id="divisions-fewer"
               variant="secondary"
@@ -160,8 +162,9 @@ export function LeagueStartForm({
               +
             </Button>
           </div>
-        </div>
-
+        }
+      >
+        <div className="flex flex-col gap-3">
         {sizes.map((size, division) => (
           <section key={division} aria-labelledby={`division-${division + 1}`} className="flex flex-col gap-1">
             <h3 id={`division-${division + 1}`} className="text-sm font-semibold">
@@ -279,7 +282,8 @@ export function LeagueStartForm({
         <p role="status" className="sr-only">
           {announcement}
         </p>
-      </div>
+        </div>
+      </Card>
 
       <ul className="flex flex-col gap-2 text-sm">
         <li>

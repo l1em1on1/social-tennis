@@ -44,7 +44,7 @@ export function ScoreTable({ sides, sets, winner }: { sides: [string, string]; s
                 {name} {won && <span aria-label="won">✓</span>}
               </th>
               {sets.map((set, index) => (
-                <td key={index} className="w-14 py-2 text-center font-mono text-lg tabular-nums">
+                <td key={index} className="w-14 py-2 text-center font-display text-3xl leading-none font-black tabular-nums">
                   {cell(set, side as 0 | 1)}
                 </td>
               ))}

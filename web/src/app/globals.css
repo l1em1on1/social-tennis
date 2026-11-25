@@ -19,37 +19,52 @@
  * both `surface` and `bg` (WCAG 1.4.11, non-text contrast) — axe doesn't
  * check borders, so that one is on us.
  *
- * The look is Clay court (#226, ADR-0014 as amended): a cream page, terracotta
- * for the brand and every action, warm neutrals, serif titles. Each token's
- * lowest contrast among the pairings in use, computed (light / dark):
+ * The look is Hard court (#254, ADR-0014 as amended): a blue court, white
+ * lines, and ball yellow for the main action. The header and every card's
+ * title sit on the court's blue (`court`), ruled with a white line; titles are
+ * in Big Shoulders Display, everything else in Figtree. Each token's lowest
+ * contrast among the pairings in use, computed (light / dark):
  *
- *   fg            13.0 / 11.7   on accent-muted
+ *   fg            13.1 / 11.2   on accent-muted
  *   fg-muted       5.7 /  6.7   on accent-muted
- *   accent         4.8 /  5.5   on accent-muted (Badge, the current tab from md, a checked option)
- *   accent-fg      6.1 /  7.2   on accent
+ *   accent         5.7 /  6.8   on bg (links, secondary buttons, the current tab, marks)
+ *   accent-fg      7.1 /  9.9   on accent-hover
+ *   ball-fg       11.3 / 11.3   on ball-hover (primary buttons)
+ *   court-fg       7.1 / 11.3   on court (the header, card titles)
+ *   court-muted    5.8 /  7.9   on court ("Playing as", the header's tabs)
+ *   ball           5.7 /  9.0   on court (the app's name, the header's current tab)
  *   success        5.6 /  8.2   on success-muted
- *   warning        5.9 /  8.4   on warning-muted
+ *   warning        5.9 /  8.5   on warning-muted
  *   danger         5.5 /  7.3   on danger-muted
- *   info           6.7 /  7.4   on info-muted
- *   border-strong  4.0 /  3.8   on bg / on surface
+ *   info           6.8 /  7.5   on info-muted
+ *   border-strong  3.8 /  4.8   on bg
  */
 
 :root {
-  --st-bg: #fbf4ea;
-  --st-surface: #fffdf8;
-  --st-surface-muted: #f2e7d8;
-  --st-fg: #2a1c14;
-  --st-fg-muted: #6a5244;
-  --st-border: #e8d7c2;
-  --st-border-strong: #8e735f; /* 4.3:1 on surface, 4.0:1 on bg */
+  --st-bg: #e6f0fa;
+  --st-surface: #ffffff;
+  --st-surface-muted: #d9e7f5;
+  --st-fg: #0b1f3a;
+  --st-fg-muted: #43587a;
+  --st-border: #b9cfe6;
+  --st-border-strong: #5b7aa1; /* 3.8:1 on bg, 4.5:1 on surface */
 
-  --st-accent: #a9401f;
-  --st-accent-hover: #8c3418;
+  --st-accent: #0b57a8;
+  --st-accent-hover: #094a8f;
   --st-accent-fg: #ffffff;
-  --st-accent-muted: #f9e0d3;
+  --st-accent-muted: #d8e8fb;
 
-  /* A soft, warm lift under cards. */
-  --st-shadow-card: 0 2px 10px -4px rgb(120 60 30 / 0.18);
+  /* The court: the header and the cards' titles. */
+  --st-court: #0b57a8;
+  --st-court-fg: #ffffff;
+  --st-court-muted: #dbe9f9;
+  /* The ball: the main action on a page. The same in both themes. */
+  --st-ball: #dff04a;
+  --st-ball-hover: #cfe035;
+  --st-ball-fg: #0b1f3a;
+
+  /* A card's edge, and its lift off the page. */
+  --st-shadow-card: 0 1px 0 #b9cfe6, 0 8px 18px -12px rgb(5 40 90 / 0.5);
 
   --st-success: #1d6a40;
   --st-success-muted: #dcf2e5;
@@ -66,20 +81,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --st-bg: #18110c;
-    --st-surface: #221812;
-    --st-surface-muted: #31231a;
-    --st-fg: #f7ede4;
-    --st-fg-muted: #c9b3a2;
-    --st-border: #4a3629;
-    --st-border-strong: #8e715c; /* 3.9:1 on surface, 4.2:1 on bg */
+    --st-bg: #071426;
+    --st-surface: #0f2139;
+    --st-surface-muted: #18314f;
+    --st-fg: #eaf2fc;
+    --st-fg-muted: #a9bfdb;
+    --st-border: #274569;
+    --st-border-strong: #6f8fb7; /* 4.8:1 on bg, 4.3:1 on surface */
 
-    --st-accent: #f28a62;
-    --st-accent-hover: #f6a585;
-    --st-accent-fg: #2a1208;
-    --st-accent-muted: #4a2416;
+    --st-accent: #8cc2ff;
+    --st-accent-hover: #add4ff;
+    --st-accent-fg: #071426;
+    --st-accent-muted: #123459;
 
-    --st-shadow-card: 0 6px 18px -8px rgb(0 0 0 / 0.6);
+    --st-court: #0a3a73;
+    --st-court-fg: #ffffff;
+    --st-court-muted: #c5daf3;
+
+    --st-shadow-card: 0 1px 0 #274569, 0 10px 20px -12px rgb(0 0 0 / 0.7);
 
     --st-success: #7fd8a2;
     --st-success-muted: #153122;
@@ -114,6 +133,13 @@
   --color-accent-fg: var(--st-accent-fg);
   --color-accent-muted: var(--st-accent-muted);
 
+  --color-court: var(--st-court);
+  --color-court-fg: var(--st-court-fg);
+  --color-court-muted: var(--st-court-muted);
+  --color-ball: var(--st-ball);
+  --color-ball-hover: var(--st-ball-hover);
+  --color-ball-fg: var(--st-ball-fg);
+
   --color-success: var(--st-success);
   --color-success-muted: var(--st-success-muted);
   --color-warning: var(--st-warning);
@@ -124,10 +150,10 @@
   --color-info: var(--st-info);
   --color-info-muted: var(--st-info-muted);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  /* Here rather than on :root, where var(--font-fraunces) would resolve: Storybook sets it lower down (#230 review). */
-  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  /* Here rather than on :root, where the font's variable would resolve: Storybook sets it lower down (#230 review). */
+  --font-display: var(--font-big-shoulders), "Arial Narrow", ui-sans-serif, sans-serif;
 
   --shadow-card: var(--st-shadow-card);
 }
@@ -138,7 +164,7 @@
     @apply bg-bg font-sans wrap-break-word text-fg;
   }
 
-  /* Page titles in the display serif (#226); everything else stays in Geist. */
+  /* Page titles in the display face (#254); everything else in Figtree. Names keep their own capitals. */
   h1 {
     @apply font-display;
   }
@@ -148,3 +174,20 @@
     @apply outline-2 outline-offset-2 outline-accent;
   }
 }
+
+/*
+ * On the court (#254): the header's parts that sit on its blue take the
+ * court's colours through the same tokens, so the shared components (the
+ * "Playing as" switcher, the tabs from md) need nothing of their own. Only
+ * what's on the court: a sheet the switcher opens keeps the page's colours.
+ */
+@utility on-court {
+  --st-surface: var(--st-court);
+  --st-surface-muted: rgb(0 0 0 / 0.15);
+  --st-fg: var(--st-court-fg);
+  --st-fg-muted: var(--st-court-muted);
+  --st-accent: var(--st-ball);
+  --st-accent-muted: rgb(0 0 0 / 0.25);
+  color: var(--st-fg);
+}
+

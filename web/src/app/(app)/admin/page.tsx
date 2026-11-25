@@ -135,7 +135,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold">Admin</h1>
+      <h1 className="text-4xl leading-none font-black">Admin</h1>
 
       {problem && <ErrorState title={problem.title} description={problem.description} />}
 

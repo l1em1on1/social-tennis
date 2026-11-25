@@ -52,3 +52,11 @@ Tap targets stay 44px at every width. A left sidebar was the other option; a top
 - **A row that only opens something is the link**, with a chevron: Settle opens the Match screen.
 - **A Division beside names** is its number in a ring, read out as "Division 1". Titles, sentences and lists of options keep the words. Considered: letters (A, B, C). Divisions are numbered in the API and on every screen, so that would be a change of its own.
 - **16px between buttons, one above another**, and 8px from a button to its own hint. `e2e/support/spacing.ts` checks it at 360px.
+
+**Amended (2026-11-25): the Hard court look (#254), replacing Clay court.** The owner found Clay court "too much like the financial institution website": serif titles on cream, one muted accent and hairline outlines. Five new looks were tried over the real app, each changing type, shape, colour and header together: Hard court, Sticker, Strawberries, Seventies and Scoreboard (branch `prototype/looks-2`). The owner picked Hard court.
+
+- **Tokens.** A pale blue page, the court's blue (`court`) for the header and every card's title, ball yellow (`ball`) for the main action on a page, and blue (`accent`) for links, secondary buttons and marks. Dark mode is a night court: deep navy, the same yellow, a lighter blue. The status colours are unchanged. Every text pairing in use is at least 4.5:1, and `border-strong` at least 3:1, in both themes (the figures are in `globals.css`).
+- **Type.** Big Shoulders, tall like a scoreboard's, for the app's name, page titles, card titles and a Game's score; Figtree for everything else. Page titles and names keep their own capitals: "CHRIS LEE V ALEX CARTER" reads badly. Card titles and the app's name are in capitals.
+- **Shape.** A card's title sits on a band of court blue ruled with a white line, as the header is. Corners are squared off; badges and round icon buttons stay round. Primary buttons are yellow with a shadow under their edge; secondary ones are outlined in blue.
+- **On the court.** The header's own parts (the switcher, the tabs from `md`) take the court's colours through an `on-court` utility that redefines the tokens, so the shared components need nothing of their own.
+

@@ -29,7 +29,7 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
   );
 
   if (players.length === 1) {
-    return <div className="min-w-0 text-sm font-semibold">{label}</div>;
+    return <div className="min-w-0 text-sm font-semibold on-court">{label}</div>;
   }
 
   return (
@@ -42,7 +42,8 @@ export function PlayerSwitcher({ viewer }: { viewer: Viewer }) {
         </>
       }
       triggerVariant="ghost"
-      triggerClassName="min-w-0 px-2 text-sm"
+      // On the court: the sheet it opens keeps the page's colours (#254).
+      triggerClassName="min-w-0 px-2 text-sm on-court"
     >
       <ul className="flex flex-col gap-4">
         {players.map((player) => {

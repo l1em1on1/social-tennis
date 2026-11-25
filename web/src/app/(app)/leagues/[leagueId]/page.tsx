@@ -55,7 +55,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
   );
   const heading = (
     <div className="flex flex-col gap-1">
-      <h1 className="text-2xl font-bold break-words">{ladder.name}</h1>
+      <h1 className="text-4xl leading-none font-black break-words">{ladder.name}</h1>
       <p className="text-fg-muted">
         {ladder.clubName} · {typeLabel(ladder.type)}
       </p>
@@ -111,7 +111,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
       </p>
 
       {ladder.ended && (
-        <p role="note" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           The League has ended: this is how its last Stage finished.
         </p>
       )}
@@ -133,18 +133,18 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
       )}
 
       {mine ? (
-        <p role="status" className="rounded-2xl border border-accent bg-accent-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-accent bg-accent-muted px-4 py-3 text-sm">
           You&apos;re in <strong>Division {mine.number}</strong>. You play <strong>{list}</strong> by {formatDate(stage.endDate)}:
           arrange each game between you.
         </p>
       ) : actingInLeague ? (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           {viewer.actingPlayer?.name} isn&apos;t on the ladder this Stage. Ask the manager if that&apos;s a mistake.
         </p>
       ) : (
         // Not in this League: another of the login's Players is, or a Manager is looking.
         viewer.actingPlayer && (
-          <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+          <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
             {viewer.actingPlayer.name} isn&apos;t in this league.{" "}
             <Link href="/leagues" className="font-medium text-accent underline">
               See {viewer.actingPlayer.name}&apos;s leagues

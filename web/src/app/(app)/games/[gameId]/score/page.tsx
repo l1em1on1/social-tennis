@@ -74,7 +74,7 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">{HEADINGS[mode]}</h1>
+        <h1 className="text-4xl leading-none font-black">{HEADINGS[mode]}</h1>
         <p className="text-fg-muted break-words">
           {sides[0]} v {sides[1]} · {describeScoreFormat(game.scoreFormat)}
         </p>
@@ -89,7 +89,7 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
         )}
       </div>
       {changed === "1" && (
-        <p role="note" className="rounded-2xl border border-warning bg-warning-muted px-4 py-3 text-sm">
+        <p role="note" className="rounded-md border border-warning bg-warning-muted px-4 py-3 text-sm">
           <strong>Someone changed this score while you had it open.</strong> This is it now: make your change again.
         </p>
       )}

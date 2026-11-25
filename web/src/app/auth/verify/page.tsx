@@ -58,7 +58,7 @@ export default async function VerifyPage({ searchParams }: PageProps<"/auth/veri
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-8">
-      <h1 className="flex items-center gap-3 text-3xl font-bold text-accent">
+      <h1 className="flex items-center gap-3 font-display text-4xl leading-none font-black text-accent uppercase">
         <BallMark className="size-9" />
         Hits & Giggles
       </h1>

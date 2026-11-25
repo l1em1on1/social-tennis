@@ -41,7 +41,7 @@ export function HeldUpNotice({ league }: { league: League }) {
   return (
     <section
       aria-label={`${league.leagueName}: Stage held up`}
-      className="flex flex-col gap-1 rounded-2xl border border-warning bg-warning-muted px-4 py-3 text-sm"
+      className="flex flex-col gap-1 rounded-md border border-warning bg-warning-muted px-4 py-3 text-sm"
     >
       <p className="font-semibold">
         {league.leagueName}: Stage {Number(stage.number)} ended on {formatDate(stage.endDate)} and is held up

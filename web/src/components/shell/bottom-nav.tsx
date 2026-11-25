@@ -42,7 +42,8 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
       aria-label="Main"
       className={cx(
         "fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]",
-        "md:static md:z-auto md:flex-1 md:border-t-0 md:bg-transparent md:pb-0",
+        // From md it is in the header, on the court (#254).
+        "md:static md:z-auto md:flex-1 md:border-t-0 md:bg-transparent md:pb-0 md:on-court",
       )}
     >
       <ul className="mx-auto flex max-w-md md:max-w-none md:justify-center md:gap-1">
@@ -56,8 +57,8 @@ export function BottomNav({ keys }: { keys: NavKey[] }) {
                 aria-current={active ? "page" : undefined}
                 className={cx(
                   "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium",
-                  "md:min-h-11 md:flex-row md:gap-2 md:rounded-full md:px-4 md:text-sm",
-                  // The current tab: a terracotta bar above it on a phone, a pill from md (#226).
+                  "md:min-h-11 md:flex-row md:gap-2 md:rounded-md md:px-4 md:text-sm",
+                  // The current tab: a bar above it on a phone, a darker patch of court from md (#254).
                   active
                     ? "text-accent max-md:shadow-[inset_0_3px_0_var(--st-accent)] md:bg-accent-muted"
                     : "text-fg-muted hover:text-fg md:hover:bg-surface-muted",
