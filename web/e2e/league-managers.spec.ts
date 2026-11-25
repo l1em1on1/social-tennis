@@ -130,6 +130,46 @@ test("a League given to a member names them to its Players, and is theirs to run
   await expect(runnerPage.getByRole("link", { name: league })).toBeVisible();
 });
 
+test("giving a League to someone who has just left the Club says so, and gives nothing", async ({ page, browser }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Contested League");
+  const name = uniqueName(testInfo, "Lena Leaving");
+  const email = personaEmail(testInfo, "lena");
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  await addClubPlayer(page, name, email);
+  await createLeague(page, league, undefined, dates);
+  const leaguePath = pathOf(page);
+  await page.getByLabel("Give this league to").selectOption({ label: `${name} (${email})` });
+
+  // Meanwhile another of the Club's managers takes them out of it.
+  const other = await (await browser.newContext()).newPage();
+  await logIn(other, testInfo, personaEmail(testInfo, "manager"));
+  await other.goto("/manage");
+  await other.getByRole("button", { name: `Remove ${name}`, exact: true }).click();
+  await other.getByRole("dialog", { name: `Remove ${name}?` }).getByRole("button", { name: "Remove from club" }).click();
+  await expect(other.getByRole("button", { name: `Remove ${name}`, exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Make league manager" }).click();
+  await expect(page.getByText("That wasn't given")).toBeVisible();
+  await expect(page.getByText("Run by the club's managers.")).toBeVisible();
+
+  // Given to one who then leaves: they have no Player to be named by, and the button that takes it back says whose.
+  const moe = uniqueName(testInfo, "Moe Leaving");
+  const moeEmail = personaEmail(testInfo, "moe");
+  await addClubPlayer(page, moe, moeEmail);
+  await page.goto(leaguePath);
+  await page.getByLabel("Give this league to").selectOption({ label: `${moe} (${moeEmail})` });
+  await page.getByRole("button", { name: "Make league manager" }).click();
+  await expect(page.getByRole("button", { name: `Remove ${moe} as a manager of ${league}` })).toBeVisible();
+  await other.goto("/manage");
+  await other.getByRole("button", { name: `Remove ${moe}`, exact: true }).click();
+  await other.getByRole("dialog", { name: `Remove ${moe}?` }).getByRole("button", { name: "Remove from club" }).click();
+  await expect(other.getByRole("button", { name: `Remove ${moe}`, exact: true })).toHaveCount(0);
+  await page.goto(leaguePath);
+  await expect(page.getByRole("list", { name: "Managers of this league" })).toContainText("A manager");
+  await expect(page.getByRole("button", { name: `Remove ${moeEmail} as a manager of ${league}` })).toBeVisible();
+});
+
 test("a League manager who isn't in the Club is told how to get in, not to pre-approve themselves", async ({ page }, testInfo) => {
   // The mock's persona has the role already; the real API gives it to someone with a Player in the Club, who then leaves.
   const email = personaEmail(testInfo, "league-manager");

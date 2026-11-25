@@ -444,6 +444,8 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
             <ul aria-label="Managers of this league" className="mt-2 divide-y divide-border">
               {league.managers.map((manager) => {
                 const who = manager.name ?? "A manager";
+                // Two with no Player in the Club are told apart by email: whoever may take the League back sees it.
+                const told = manager.name ?? manager.email ?? "a manager";
                 return (
                   <li key={manager.userId} className="flex min-h-12 items-center gap-2 py-1.5">
                     <div className="min-w-0 flex-1">
@@ -454,7 +456,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                       <form action={unassignLeagueManager}>
                         <input type="hidden" name="leagueId" value={league.id} />
                         <input type="hidden" name="userId" value={manager.userId} />
-                        <SubmitIconButton icon="cross" tone="danger" label={`Remove ${who} as a manager of ${league.name}`} />
+                        <SubmitIconButton icon="cross" tone="danger" label={`Remove ${told} as a manager of ${league.name}`} />
                       </form>
                     )}
                   </li>
