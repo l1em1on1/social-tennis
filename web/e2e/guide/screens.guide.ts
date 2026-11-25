@@ -222,7 +222,6 @@ test("the guides' screenshots", async ({ browser }) => {
   // ---- Member: in the club.
   await alex.goto("/");
   await expect(alex.getByText("No games yet")).toBeVisible();
-  await shot(alex, "member-07-home");
   await alex.goto("/profiles");
   await alex.getByRole("button", { name: `Edit ${people.alex.name}` }).click();
   const edit = alex.getByRole("dialog", { name: `Edit ${people.alex.name}` });

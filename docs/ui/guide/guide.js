@@ -81,12 +81,16 @@
     if (!document.fullscreenElement && presenting()) stop();
   });
 
-  let touchX = null;
-  document.addEventListener("touchstart", (event) => { touchX = event.changedTouches[0].clientX; }, { passive: true });
+  // A swipe goes mostly sideways: a tall step is scrolled, and a scroll drifts.
+  let from = null;
+  document.addEventListener("touchstart", (event) => {
+    from = event.touches.length > 1 ? null : event.changedTouches[0];
+  }, { passive: true });
   document.addEventListener("touchend", (event) => {
-    if (!presenting() || touchX === null) return;
-    const moved = event.changedTouches[0].clientX - touchX;
-    if (Math.abs(moved) > 60) show(at + (moved < 0 ? 1 : -1));
+    if (!presenting() || !from) return;
+    const across = event.changedTouches[0].clientX - from.clientX;
+    const down = event.changedTouches[0].clientY - from.clientY;
+    if (Math.abs(across) > 60 && Math.abs(across) > 2 * Math.abs(down)) show(at + (across < 0 ? 1 : -1));
   }, { passive: true });
 
   if (new URLSearchParams(location.search).has("present")) {
