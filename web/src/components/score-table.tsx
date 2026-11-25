@@ -40,7 +40,7 @@ export function ScoreTable({ sides, sets, winner }: { sides: [string, string]; s
           const won = winner === side + 1;
           return (
             <tr key={side} className={cx("border-b border-border last:border-0", won ? "font-bold" : "text-fg-muted")}>
-              <th scope="row" className="py-2 pr-3 font-[inherit] break-words">
+              <th scope="row" className="py-2 pr-3 font-[weight:inherit] wrap-anywhere">
                 {name} {won && <span aria-label="won">✓</span>}
               </th>
               {sets.map((set, index) => (

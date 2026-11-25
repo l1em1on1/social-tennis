@@ -774,10 +774,18 @@ test("a Player enters a Game's score set by set, and the League sees it on the G
 });
 
 test.describe("with a Player whose name is one long word", () => {
-  // Not worth a visual review: the ladder's standings table still overflows with such a name.
+  // The name is the test's own; the pages have their snapshots elsewhere.
   test.use({ disableAutoSnapshot: true });
 
-  test("Home and the ladder's Divisions keep to a phone's width", async ({ page, browser }, testInfo) => {
+  /** Soft, so that one run names every page that is too wide. */
+  async function expectNoSidewaysScroll(page: Page, where: string) {
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect.soft(overflow, `sideways scroll on ${where} at 360px`).toBeLessThanOrEqual(0);
+  }
+
+  test("Home, the ladder, score entry and the Match screen keep to a phone's width", async ({ page, browser }, testInfo) => {
     test.slow();
     const league = uniqueName(testInfo, "Narrow Ladder");
     const una = { name: uniqueName(testInfo, "Una Narrow"), email: personaEmail(testInfo, "narrow-una") };
@@ -806,10 +814,7 @@ test.describe("with a Player whose name is one long word", () => {
     await logIn(page, testInfo, una.email);
     const home = page.getByRole("region", { name: league, exact: true });
     await expect(home).toContainText(long.name);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow, "horizontal scroll on Home at 360px").toBeLessThanOrEqual(0);
+    await expectNoSidewaysScroll(page, "Home");
 
     // The ladder: each Division's card is the column's width, not the longest word's.
     await home.getByRole("link", { name: "Ladder" }).click();
@@ -820,6 +825,45 @@ test.describe("with a Player whose name is one long word", () => {
       return main.clientWidth - Number.parseFloat(paddingLeft) - Number.parseFloat(paddingRight);
     });
     expect(division.width).toBeLessThanOrEqual(content + 1);
+    await expectNoSidewaysScroll(page, "the ladder");
+
+    const standings = page.getByRole("table", { name: "Division 1 standings" });
+    const ladderUrl = page.url();
+
+    // The Match screen, before a score and after the long name's own: it entered and won.
+    const longContext = await browser.newContext();
+    const longPage = await longContext.newPage();
+    await logIn(longPage, testInfo, long.email);
+    await longPage.goto(ladderUrl);
+    await longPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
+    await expect(longPage.getByRole("region", { name: "No score yet" })).toBeVisible();
+    await expectNoSidewaysScroll(longPage, "the Match screen without a score");
+    const matchUrl = longPage.url();
+    await longPage.goto(`${matchUrl}/score`);
+    const save = longPage.getByRole("button", { name: "Save score" });
+    for (const [side, games] of [[una.name, 3], [long.name, 6]] as const) {
+      const more = longPage.getByRole("group", { name: `Set, ${side}` }).getByRole("button", { name: "One more" });
+      for (let i = 0; i < games; i++) await more.click();
+    }
+    await expect(longPage.getByLabel("Score so far")).toHaveText(/^(3–6|6–3)$/);
+    await expectNoSidewaysScroll(longPage, "score entry");
+    // Stopped early: the two names side by side, to say who won.
+    const stopped = longPage.getByRole("switch", { name: /Stopped early/ });
+    await stopped.check();
+    await expect(longPage.getByRole("group", { name: "Who won?" })).toContainText(long.name);
+    await expectNoSidewaysScroll(longPage, "score entry for a retirement");
+    await stopped.uncheck();
+    await save.click();
+    await expect(longPage.getByRole("status").filter({ hasText: "Score saved" })).toBeVisible();
+    await expect(longPage.getByRole("region", { name: "Score" })).toContainText(`${long.name} won`);
+    await expect(longPage.getByRole("list", { name: "Changes to the score" })).toContainText(`${long.name} entered it`);
+    await expectNoSidewaysScroll(longPage, "the Match screen with a score");
+    await longContext.close();
+
+    // The ladder again, with its standings filled in.
+    await page.goto(ladderUrl);
+    await expect(standings.getByRole("row").filter({ hasText: long.name })).toContainText("stays");
+    await expectNoSidewaysScroll(page, "the ladder with a score");
   });
 });
 

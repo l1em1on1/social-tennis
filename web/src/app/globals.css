@@ -133,8 +133,9 @@
 }
 
 @layer base {
+  /* A name that is one long word breaks rather than widening the page. Inherited, so every line of text has it. */
   body {
-    @apply bg-bg font-sans text-fg;
+    @apply bg-bg font-sans wrap-break-word text-fg;
   }
 
   /* Page titles in the display serif (#226); everything else stays in Geist. */
