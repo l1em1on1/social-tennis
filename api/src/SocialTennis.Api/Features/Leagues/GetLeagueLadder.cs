@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using SocialTennis.Api.Access;
 using SocialTennis.Api.Authentication;
 using SocialTennis.Api.Data;
 using SocialTennis.Api.Domain;
@@ -25,6 +26,7 @@ public static class GetLeagueLadder
         Guid leagueId,
         ClaimsPrincipal user,
         TennisDbContext db,
+        ManagerAccess access,
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
@@ -42,7 +44,7 @@ public static class GetLeagueLadder
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null }).FirstOrDefault(),
             })
             .SingleOrDefaultAsync(cancellationToken);
-        if (league is null || !(league.Yours.Count > 0 || user.IsInRole(Policies.Manager)))
+        if (league is null || !(league.Yours.Count > 0 || await access.RunsLeagueAsync(user, leagueId, cancellationToken)))
         {
             return TypedResults.NotFound();
         }
