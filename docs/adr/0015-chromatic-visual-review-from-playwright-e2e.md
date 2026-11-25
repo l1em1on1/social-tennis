@@ -51,3 +51,8 @@ The override is a `<style>` with the page's CSP nonce (ADR-0027). The showcase n
 - **The nav in flow** (#182) now applies below `md` only. There, the nav lives in the header and is moved to the end of the shell for the capture. From `md` up it is a top bar, drawn where it is.
 
 **Amended (2026-11-24): the accessibility check comes before the Storybook upload (#232).** The `/dev/ui` showcase and its spec are gone; axe now runs on every story instead (ADR-0014). In CI it runs before the stories are uploaded, so a failure means Chromatic's required "UI Tests: social-tennis_storybook" check is never reported and the PR can't merge. Dependabot PRs get that check from a `web` job instead (#158), so that job now waits for the Storybook job to pass.
+
+**Amended (2026-11-25): the Leagues page is snapshotted with one League showing.** It lists every League of the Club, and in the mock the Club is shared by the whole suite, so seven tests that end there captured whatever other tests had made by then. Run twice on the same code, two of those pages came out different: a whole League card there or not, or a line of text on another. The tests now end by hiding every League card but their own (`showOnly` in `leagues.spec.ts`).
+
+- **Considered:** turning their snapshots off. The page would lose its visual review.
+- **Considered:** a fixed world for the Leagues page, as the Manager pages have (#187). It needs a Player's side in the fixed data; worth it if more Player pages need one.
