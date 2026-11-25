@@ -1,11 +1,12 @@
-# Publishes the clickable wireframes in docs/ui/ to GitHub Pages, so the club
-# can open them from a link: https://l1em1on1.github.io/social-tennis/
+# Publishes docs/ui/ to GitHub Pages, so the club can open it from a link:
+# the how-to guides (#251), at https://l1em1on1.github.io/social-tennis/, and
+# the clickable wireframes beside them.
 #
-# Runs only on main, and only when the wireframes change. It reports no check
-# on pull requests, so it is not something to require in the ruleset.
+# Runs only on main, and only when docs/ui/ changes. It reports no check on
+# pull requests, so it is not something to require in the ruleset.
 #
-# There is no build: the wireframes are static, self-contained HTML, so the
-# steps only copy files. Nothing here needs a toolchain (ADR-0005).
+# There is no build: these are static files, so the steps only copy them.
+# Nothing here needs a toolchain (ADR-0005).
 #
 # One-time setup, repository owner only: Settings → Pages → Source:
 # "GitHub Actions".
@@ -31,24 +32,18 @@ concurrency:
 
 jobs:
   upload:
-    name: assemble the wireframes
+    name: assemble the site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Assemble the site
         # Every HTML file in docs/ui/ is published under its own name, so the
         # deep links in the tickets (phase-1-wireframes.html#score--new) work
-        # unchanged. The site root redirects to the Phase 1 wireframes.
+        # unchanged. docs/ui/guide/ is the guides' pictures, style and script.
         run: |
           mkdir _site
           cp docs/ui/*.html _site/
-          cat > _site/index.html <<'HTML'
-          <!doctype html>
-          <meta charset="utf-8">
-          <title>Hits &amp; Giggles wireframes</title>
-          <meta http-equiv="refresh" content="0; url=phase-1-wireframes.html">
-          <a href="phase-1-wireframes.html">Phase 1 wireframes</a>
-          HTML
+          cp -r docs/ui/guide _site/guide
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:
@@ -60,7 +55,7 @@ jobs:
   # github-pages were found". A new job takes seconds to start. If this one
   # still fails, "Re-run failed jobs" deploys the artifact already uploaded.
   deploy:
-    name: publish wireframes
+    name: publish the site
     needs: upload
     runs-on: ubuntu-latest
     environment:
