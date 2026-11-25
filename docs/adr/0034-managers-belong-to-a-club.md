@@ -20,7 +20,7 @@ Manager was one role on the User, and whoever held it managed every Club (ADR-00
   - A Club's managers and Admins need neither. **A League with no manager of its own is run by its Club's managers**, and says so.
 - **A Club's managers and Admins grant both** (`PUT`/`DELETE /clubs/{clubId}/league-managers/{userId}` and `/leagues/{leagueId}/managers/{userId}`), **to anyone with a Player in that Club** (approved, not just asking), otherwise a 409 `no-player-in-club`. Either stays until it is taken, whatever happens to their Players. Taking the role keeps the assignments, which are taken on each League.
 - **A League manager sees their own Leagues, and names.** Their list is the Leagues they run. Adding someone to a League shows every Club member's name, and emails only to a Club's manager (`GET /leagues/{leagueId}/addable-players`), so two members with one name can't be told apart by a League manager. They see email, gender and rating for the Players in their Leagues or asking to join.
-- **Players see who runs their League, by name** (the ladder and a Game): the manager's Player in that Club, or "a manager" if they have none there. Never an email.
+- **Players see who runs their League, by name** (the ladder and a Game): the manager's Player in that Club, or "a manager" if they have none there. Never an email. Its Club's managers run it too, and the page names only those it was given to.
 
 ## Considered
 

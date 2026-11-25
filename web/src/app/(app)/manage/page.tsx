@@ -13,12 +13,15 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import {
   addToClub,
   approveClubMember,
+  grantLeagueManagerRole,
   removeClubMember,
+  removeLeagueManagerRole,
   resetJoinLink,
   turnOffJoinLink,
   turnOnJoinLink,
   withdrawClubInvite,
 } from "@/lib/actions";
+import type { components } from "@/lib/api/schema";
 import { apiWithSession } from "@/lib/api/server";
 import { joinPath } from "@/lib/join";
 import { describeStructure, formatDates, typeLabel } from "@/lib/league";
@@ -41,9 +44,94 @@ function groupByEmail<T extends { email: string }>(members: T[]): [string, T[]][
   return [...groups];
 }
 
+/** The Leagues of a Club the caller runs, each opening its own page (#5), and a new one for whoever may create it (#220). */
+function ClubLeagues({
+  club,
+}: {
+  club: { id: string; canManage: boolean; canCreateLeagues: boolean; leagues: components["schemas"]["ClubLeague"][] };
+}) {
+  return (
+    <section aria-labelledby={`leagues-${club.id}`} className="flex flex-col gap-2">
+      <h3 id={`leagues-${club.id}`} className="font-semibold">
+        Leagues ({club.leagues.length})
+      </h3>
+      {club.leagues.length === 0 ? (
+        <p className="text-sm text-fg-muted">
+          {club.canManage ? "No leagues yet." : "You don't run a league here yet."}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border">
+          {club.leagues.map((league) => (
+            <li key={league.id} className="flex flex-col gap-1 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
+                  {league.name}
+                </Link>
+                <div className="flex gap-1">
+                  {league.stage && <Badge tone="success">Started</Badge>}
+                  {Number(league.pendingRequestCount) > 0 && (
+                    <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-fg-muted">
+                {typeLabel(league.type)} · {describeStructure(league)}
+              </p>
+              <p className="text-sm text-fg-muted">
+                {formatDates(league.startDate, league.endDate)} · {league.participantCount} in
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {club.canCreateLeagues && (
+        <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
+          New league
+        </ButtonLink>
+      )}
+    </section>
+  );
+}
+
+/** Who has a role in a Club (#110, #220): its managers, whom an Admin chooses, and the League managers its managers choose. */
+function ClubManagers({ club }: { club: { id: string; roles: components["schemas"]["ClubRoleSummary"][] } }) {
+  return (
+    <section aria-labelledby={`managers-${club.id}`} className="mt-5 flex flex-col gap-2">
+      <h3 id={`managers-${club.id}`} className="font-semibold">
+        Managers ({club.roles.length})
+      </h3>
+      <p className="text-sm text-fg-muted">
+        Managers run the club, and an Admin chooses them. League managers create leagues, and run those they create or
+        are given.
+      </p>
+      <ul className="divide-y divide-border">
+        {club.roles.map((role) => (
+          <li key={role.userId} className="flex items-center gap-2 py-1.5">
+            {/* The email is all that says who they are: never cut short. */}
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+              <p className="text-sm break-all">{role.email}</p>
+              <Badge tone={role.role === "Manager" ? "accent" : undefined}>
+                {role.role === "Manager" ? "Manager" : "League manager"}
+              </Badge>
+            </div>
+            {role.role === "LeagueManager" && (
+              <form action={removeLeagueManagerRole}>
+                <input type="hidden" name="clubId" value={club.id} />
+                <input type="hidden" name="userId" value={role.userId} />
+                <SubmitIconButton icon="cross" tone="danger" label={`Remove ${role.email} as league manager`} />
+              </form>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * Manager area: each Club's Leagues (each opens its own page, #5), and who is
- * in the Club. The Club's join link is shared, reset and turned off here (#222),
+ * in the Club, for its managers; a League manager (#220) has only the Leagues
+ * they run. The Club's join link is shared, reset and turned off here (#222),
  * and the requests it brings approved or declined; someone is added by email,
  * with a name to add their Player now or without one to pre-approve the email
  * (#224), members removed, and a pre-approval taken back. Starting the ladder (#7), the to-do queue and month
@@ -63,10 +151,17 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
   if (!clubList) {
     throw new Error("GET /clubs failed");
   }
-  // A League manager's own Leagues come to this page next (#220): until then it is the Club's managers'.
   const clubs = await Promise.all(
-    clubList.clubs.filter((club) => club.canManage).map(async (club) => {
+    clubList.clubs.map(async (club) => {
       const params = { params: { path: { clubId: club.id } } };
+      // A League manager (#220) sees their own Leagues in a Club, and nothing of its members.
+      if (!club.canManage) {
+        const { data: leagueList } = await api.GET("/clubs/{clubId}/leagues", params);
+        if (!leagueList) {
+          throw new Error(`GET /clubs/${club.id}/leagues failed`);
+        }
+        return { ...club, leagues: leagueList.leagues, members: [], invites: [], roles: [], joinCode: null };
+      }
       const [{ data }, { data: leagueList }, { data: joinLink }] = await Promise.all([
         api.GET("/clubs/{clubId}/members", params),
         api.GET("/clubs/{clubId}/leagues", params),
@@ -97,58 +192,27 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
         </p>
       )}
 
-      {clubs.length === 0 &&
-        (clubList.clubs.length === 0 ? (
-          <EmptyState title="No clubs yet" description="An Admin sets up the club." />
-        ) : (
-          // A League manager, who runs no Club (#220): the Leagues they run show here next.
-          <EmptyState title="No club to manage" description="The leagues you run will show here." />
-        ))}
+      {clubs.length === 0 && <EmptyState title="No clubs yet" description="An Admin sets up the club." />}
 
       {clubs.map((club) => {
         const waiting = club.members.filter((member) => !member.approved);
         const members = club.members.filter((member) => member.approved);
+
+        if (!club.canManage) {
+          return (
+            <Card key={club.id} title={club.name}>
+              <ClubLeagues club={club} />
+            </Card>
+          );
+        }
+        const roleOf = (userId: string) => club.roles.find((role) => role.userId === userId)?.role;
 
         return (
           <Card key={club.id} title={club.name}>
             {/* From md, two columns (#225): the Club's Leagues and link | who's in it. */}
             <div className="md:grid md:grid-cols-2 md:gap-x-8">
               <div>
-                <section aria-labelledby={`leagues-${club.id}`} className="flex flex-col gap-2">
-                  <h3 id={`leagues-${club.id}`} className="font-semibold">
-                    Leagues ({club.leagues.length})
-                  </h3>
-                  {club.leagues.length === 0 ? (
-                    <p className="text-sm text-fg-muted">No leagues yet.</p>
-                  ) : (
-                    <ul className="divide-y divide-border">
-                      {club.leagues.map((league) => (
-                        <li key={league.id} className="flex flex-col gap-1 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <Link href={`/manage/leagues/${league.id}`} className="font-medium text-accent underline">
-                              {league.name}
-                            </Link>
-                            <div className="flex gap-1">
-                              {league.stage && <Badge tone="success">Started</Badge>}
-                              {Number(league.pendingRequestCount) > 0 && (
-                                <Badge tone="warning">{`${league.pendingRequestCount} asking`}</Badge>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-sm text-fg-muted">
-                            {typeLabel(league.type)} · {describeStructure(league)}
-                          </p>
-                          <p className="text-sm text-fg-muted">
-                            {formatDates(league.startDate, league.endDate)} · {league.participantCount} in
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <ButtonLink href={`/manage/leagues/new?club=${club.id}`} variant="secondary">
-                    New league
-                  </ButtonLink>
-                </section>
+                <ClubLeagues club={club} />
 
                 {/* One shared link per Club (#222, ADR-0032): opening it lets someone ask to join, approved below. */}
                 <section aria-labelledby={`join-link-${club.id}`} className="mt-5 flex flex-col gap-2">
@@ -237,9 +301,31 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                     <ul className="divide-y divide-border">
                       {groupByEmail(members).map(([email, held]) => (
                         <li key={email} className="flex flex-col py-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="min-w-0 truncate text-sm text-fg-muted">{email}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 truncate text-sm text-fg-muted">{email}</p>
                             {!held[0].signedIn && <Badge>Not signed in yet</Badge>}
+                            {roleOf(held[0].userId) === "Manager" && <Badge tone="accent">Manager</Badge>}
+                            {roleOf(held[0].userId) === "LeagueManager" && <Badge>League manager</Badge>}
+                            {!roleOf(held[0].userId) && (
+                              <Sheet
+                                title={`Role for ${held.map((member) => member.name).join(", ")}`}
+                                triggerIcon="more"
+                                trigger={`Role for ${email}`}
+                              >
+                                <p className="text-fg-muted">
+                                  A league manager creates leagues at {club.name}, and runs those they create or are given.
+                                  They don&apos;t manage the club or its members.
+                                </p>
+                                <form action={grantLeagueManagerRole}>
+                                  <input type="hidden" name="clubId" value={club.id} />
+                                  <input type="hidden" name="userId" value={held[0].userId} />
+                                  <SubmitButton fullWidth pendingLabel="Saving…">
+                                    Make league manager
+                                    <span className="sr-only"> of {club.name} ({email})</span>
+                                  </SubmitButton>
+                                </form>
+                              </Sheet>
+                            )}
                           </div>
                           <ul aria-label={`Players of ${email}`} className="flex flex-col">
                             {held.map((member) => (
@@ -275,6 +361,8 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
                     </ul>
                   )}
                 </section>
+
+                <ClubManagers club={club} />
 
                 {/* One form for both ways in (#224): a name adds that Player now, none pre-approves the email. */}
                 <section aria-labelledby={`add-${club.id}`} className="mt-5 flex flex-col gap-3">

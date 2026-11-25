@@ -5,17 +5,20 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { SubmitIconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   addLeagueParticipant,
+  assignLeagueManager,
   moveTeam,
   approveLeagueJoinRequest,
   rejectLeagueJoinRequest,
   removeLeagueParticipant,
   renameLeague,
+  unassignLeagueManager,
   unpairTeam,
 } from "@/lib/actions";
 import type { components } from "@/lib/api/schema";
@@ -34,7 +37,8 @@ const NAME_MAX_LENGTH = 200;
  * can change (#153); starting it, or its current Stage once started (#7);
  * Join Requests to approve or reject; then who is in, by join time, with each
  * one's Division once started; in a doubles League, its Teams and the Players
- * without a partner, to pair (#6); then adding a Club member straight in.
+ * without a partner, to pair (#6); then adding a Club member straight in. A
+ * manager of its Club also says who else runs it (#220).
  */
 export default async function LeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]">) {
   const [viewer, api, { leagueId }, { created, error, started: justStarted, closed: justClosed, moved, moveRefused }] = await Promise.all([
@@ -59,20 +63,32 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   const { data: ladder } = league.stage
     ? await api.GET("/leagues/{leagueId}/ladder", { params: { path: { leagueId } } })
     : { data: undefined };
-  const { data: members } = await api.GET("/clubs/{clubId}/members", {
-    params: { path: { clubId: league.clubId } },
-  });
-  if (!members) {
+  const { data: addableList } = await api.GET("/leagues/{leagueId}/addable-players", { params: { path: { leagueId } } });
+  if (!addableList) {
+    throw new Error(`GET /leagues/${leagueId}/addable-players failed`);
+  }
+  // Who could be given the League to run: only a manager of its Club sees its members, and says so (#220).
+  const { data: members } = league.canAssignManagers
+    ? await api.GET("/clubs/{clubId}/members", { params: { path: { clubId: league.clubId } } })
+    : { data: undefined };
+  if (league.canAssignManagers && !members) {
     throw new Error(`GET /clubs/${league.clubId}/members failed`);
   }
 
   const pending = league.joinRequests.filter((request) => request.status === "Pending");
   const decided = league.joinRequests.filter((request) => request.status !== "Pending");
-  const inLeague = new Set(league.participants.map((participant) => participant.playerId));
   // Removal keeps a rejected request, and the API refuses a second ask (409), so
   // a Player who was turned down can only be added back.
   const turnedDown = new Set(decided.filter((request) => request.status === "Rejected").map((request) => request.playerId));
-  const addable = members.members.filter((member) => member.approved && !inLeague.has(member.playerId));
+  const addable = addableList.players;
+  // One per login: each Player they hold in the Club, and not those who run it already.
+  const managerIds = new Set(league.managers.map((manager) => manager.userId));
+  const couldManage = new Map<string, { names: string[]; email: string }>();
+  for (const member of members?.members ?? []) {
+    if (!member.approved || managerIds.has(member.userId)) continue;
+    const login = couldManage.get(member.userId) ?? { names: [], email: member.email };
+    couldManage.set(member.userId, { ...login, names: [...login.names, member.name] });
+  }
   // Doubles: the Manager pairs Players into Teams (#6). Singles Teams of one,
   // and Foursomes' lack of Teams, need nothing on this page.
   const doubles = ["DoublesMen", "DoublesWomen", "DoublesMix"].includes(league.type);
@@ -205,6 +221,12 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         <ErrorState
           title="They're on the ladder"
           description="Once the league has started, a team on its ladder stays together and in the league. Leaving it is a withdrawal, which isn't built yet."
+        />
+      )}
+      {error === "not-in-club" && (
+        <ErrorState
+          title="That wasn't given"
+          description="Only someone with a player in the club can run one of its leagues, and they may have left it since."
         />
       )}
       {error === "conflict" && (
@@ -381,7 +403,10 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         <Card title="Add a club member">
           {addable.length === 0 ? (
             <p className="text-sm text-fg-muted">
-              Every member of {league.clubName} is in this league. Add new players to the club on Manage first.
+              Every member of {league.clubName} is in this league.{" "}
+              {league.canAssignManagers
+                ? "Add new players to the club on Manage first."
+                : "A manager of the club adds new players to it."}
             </p>
           ) : (
             <form action={addLeagueParticipant} className="flex flex-col gap-3">
@@ -394,7 +419,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                     </option>
                     {addable.map((member) => (
                       <option key={member.playerId} value={member.playerId}>
-                        {member.name} ({member.email})
+                        {member.email ? `${member.name} (${member.email})` : member.name}
                       </option>
                     ))}
                   </Select>
@@ -405,6 +430,63 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
               </SubmitButton>
             </form>
           )}
+        </Card>
+
+        <Card title={`Managers (${league.managers.length})`}>
+          <p className="text-sm text-fg-muted">
+            {league.managers.length === 0
+              ? "Run by the club's managers."
+              : league.canAssignManagers
+                ? "They run this league. The club's managers run it too."
+                : "Those who run this league, beside the club's managers."}
+          </p>
+          {league.managers.length > 0 && (
+            <ul aria-label="Managers of this league" className="mt-2 divide-y divide-border">
+              {league.managers.map((manager) => {
+                const who = manager.name ?? "A manager";
+                return (
+                  <li key={manager.userId} className="flex min-h-12 items-center gap-2 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{who}</p>
+                      {manager.email && <p className="truncate text-sm text-fg-muted">{manager.email}</p>}
+                    </div>
+                    {league.canAssignManagers && (
+                      <form action={unassignLeagueManager}>
+                        <input type="hidden" name="leagueId" value={league.id} />
+                        <input type="hidden" name="userId" value={manager.userId} />
+                        <SubmitIconButton icon="cross" tone="danger" label={`Remove ${who} as a manager of ${league.name}`} />
+                      </form>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {league.canAssignManagers &&
+            (couldManage.size === 0 ? (
+              <p className="mt-3 text-sm text-fg-muted">Everyone with a player in {league.clubName} runs this league.</p>
+            ) : (
+              <form action={assignLeagueManager} className="mt-3 flex flex-col gap-3">
+                <input type="hidden" name="leagueId" value={league.id} />
+                <Field id="add-manager" label="Give this league to" hint="Anyone with a player in the club. They run this league, and nothing else in the club.">
+                  {(control) => (
+                    <Select {...control} name="userId" required defaultValue="">
+                      <option value="" disabled>
+                        Pick a member…
+                      </option>
+                      {[...couldManage].map(([userId, login]) => (
+                        <option key={userId} value={userId}>
+                          {login.names.join(", ")} ({login.email})
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+                <SubmitButton variant="secondary" pendingLabel="Saving…">
+                  Make league manager
+                </SubmitButton>
+              </form>
+            ))}
         </Card>
       </div>
 
