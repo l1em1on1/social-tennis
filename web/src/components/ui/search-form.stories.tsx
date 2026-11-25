@@ -18,7 +18,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
 
-/** A long address must fit the box at 360px (#167). */
 /** With another field, as the Users list has for a Club (#245). */
 export const WithAnotherField: Story = {
   args: {
@@ -35,4 +34,5 @@ export const WithAnotherField: Story = {
   },
 };
 
+/** A long address must fit the box at 360px (#167). */
 export const WithSearch: Story = { args: { defaultValue: "search-admin@example.com" } };

@@ -302,6 +302,14 @@ test("an Admin lists a Club's Users, once there are two Clubs", async ({ page, b
   await expect(userRow(page, inside)).toBeVisible();
   await expect(userRow(page, outside)).toHaveCount(0);
   await expect(page).toHaveURL(/[?&]club=/);
+  const riverside = new URL(page.url()).searchParams.get("club")!;
+  // The id in any case, as a link may have it; and a Club that isn't there filters nothing, and says so.
+  await page.goto(`/admin?q=${tag}&club=${riverside.toUpperCase()}`);
+  await expect(page.getByText(`1–1 of 1 matching “${tag}” in Riverside Tennis Club, newest first.`)).toBeVisible();
+  await expect(page.getByLabel("Club", { exact: true })).toHaveValue(riverside);
+  await page.goto(`/admin?q=${tag}&club=00000000-0000-4000-8000-000000000000`);
+  await expect(page.getByText(`1–2 of 2 matching “${tag}”, newest first.`)).toBeVisible();
+  await expect(page.getByLabel("Club", { exact: true })).toHaveValue("");
 
   await search("All clubs");
   await expect(page.getByText(`1–2 of 2 matching “${tag}”, newest first.`)).toBeVisible();

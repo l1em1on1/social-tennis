@@ -14,7 +14,6 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { deleteUser, grantAdmin, makeClubManager, removeClubManager, revokeAdmin } from "@/lib/actions";
 import { adminHref } from "@/lib/admin-href";
-import { isId } from "@/lib/ids";
 import { apiWithSession } from "@/lib/api/server";
 import { getViewer } from "@/lib/viewer";
 
@@ -99,16 +98,19 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     notFound();
   }
   const search = typeof q === "string" ? q.trim() : "";
-  const clubId = isId(club) ? club : undefined;
   const start = Math.min(
     MAX_OFFSET,
     Math.max(0, Number.parseInt(typeof offset === "string" ? offset : "", 10) || 0),
   );
 
-  const [{ data: clubList }, { data: userList, response: usersResponse }] = await Promise.all([
-    api.GET("/clubs"),
-    api.GET("/users", { params: { query: { q: search || undefined, clubId, offset: start, limit: USERS_PER_PAGE } } }),
-  ]);
+  // The Clubs first: only a Club that is listed filters, so what the page says of the filter is what the API was asked.
+  const { data: clubList } = await api.GET("/clubs");
+  // An id in any case, as a link may have it.
+  const chosenClub = typeof club === "string" ? clubList?.clubs.find((candidate) => candidate.id === club.toLowerCase()) : undefined;
+  const clubId = chosenClub?.id;
+  const { data: userList, response: usersResponse } = await api.GET("/users", {
+    params: { query: { q: search || undefined, clubId, offset: start, limit: USERS_PER_PAGE } },
+  });
   // A 400 is a search the API won't run (a control character, say): say so, list no one.
   // The offset is kept in range above, so without a search a 400 is a fault, not a refusal.
   const searchRefused = search !== "" && usersResponse.status === 400;
@@ -121,8 +123,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   // Where the last page starts. From past the end (a hand-typed offset), Previous goes there.
   const lastPageStart = Math.max(0, Math.floor((total - 1) / USERS_PER_PAGE) * USERS_PER_PAGE);
   const problem = searchRefused ? errors.search : typeof error === "string" ? errors[error] : undefined;
-  const clubName = clubList.clubs.find((candidate) => candidate.id === clubId)?.name;
-  const inClub = clubName ? ` in ${clubName}` : "";
+  const inClub = chosenClub ? ` in ${chosenClub.name}` : "";
   // A refused role change redirects with its error; these bring it back to this search, Club and page.
   const keepView = (
     <>
@@ -189,7 +190,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             {clubList.clubs.length > 1 && (
               <Field id="user-club" label="Club" hint="Its players, those asking to join, and whoever manages it.">
                 {(control) => (
-                  <Select {...control} name="club" defaultValue={clubName ? clubId : ""}>
+                  <Select {...control} name="club" defaultValue={clubId ?? ""}>
                     <option value="">All clubs</option>
                     {clubList.clubs.map((option) => (
                       <option key={option.id} value={option.id}>
