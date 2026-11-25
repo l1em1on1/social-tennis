@@ -19,14 +19,20 @@ async function addClubPlayer(manager: Page, name: string, email: string) {
  * Call it last in a test that ends on the Leagues page. The page lists every
  * League of the Club as it stands when it loads, other tests' too, so its
  * snapshot would change with the suite's timing. Leaves the test's own League
- * showing. A style rather than taking the others' cards out of the page, which
- * React could put back as it hydrates; it needs the page's nonce (ADR-0027).
+ * showing, and "You can join" only if it is in there: the section is otherwise
+ * empty or not by timing alone. A style rather than taking them out of the
+ * page, which React could put back as it hydrates; it needs the page's nonce
+ * (ADR-0027).
  */
 async function showOnly(page: Page, league: string) {
   await page.evaluate((name) => {
     const style = document.createElement("style");
     style.nonce = document.querySelector<HTMLElement>("[nonce]")?.nonce ?? "";
-    style.textContent = `main section[aria-label]:not([aria-label=${JSON.stringify(name)}]) { display: none; }`;
+    const card = `section[aria-label=${JSON.stringify(name)}]`;
+    style.textContent = `
+      main section[aria-label]:not(${card}) { display: none; }
+      main section[aria-labelledby="joinable"]:not(:has(${card})) { display: none; }
+    `;
     document.head.append(style);
   }, league);
   await expect(page.getByRole("main").locator("section[aria-label]").filter({ visible: true })).toHaveCount(1);
