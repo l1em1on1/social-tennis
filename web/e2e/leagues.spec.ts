@@ -750,7 +750,7 @@ test.describe("with a Player whose name is one long word", () => {
     expect.soft(overflow, `sideways scroll on ${where} at 360px`).toBeLessThanOrEqual(0);
   }
 
-  test("Home, the ladder, score entry and the Match screen keep to a phone's width", async ({ page, browser }, testInfo) => {
+  test("Home, the ladder, score entry, the Match screen, Profiles and a League's Manager pages keep to a phone's width", async ({ page, browser }, testInfo) => {
     test.slow();
     const league = uniqueName(testInfo, "Narrow Ladder");
     const una = { name: uniqueName(testInfo, "Una Narrow"), email: personaEmail(testInfo, "narrow-una") };
@@ -770,9 +770,13 @@ test.describe("with a Player whose name is one long word", () => {
       await manager.getByRole("button", { name: "Add to league" }).click();
       await expect(manager.getByRole("list", { name: "Players in the league" })).toContainText(name);
     }
+    await expectNoSidewaysScroll(manager, "a League's Manager page");
     await manager.getByRole("link", { name: "Start the league" }).click();
+    await expect(manager.getByRole("button", { name: `Leave out ${long.name}` })).toBeVisible();
+    await expectNoSidewaysScroll(manager, "the Start page");
     await manager.getByRole("button", { name: "Confirm and start" }).click();
     await expect(manager.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+    await expectNoSidewaysScroll(manager, "a started League's Manager page");
     await managerContext.close();
 
     // Home: her Game's opponent wraps inside the card, so nothing is wider than the screen.
@@ -823,6 +827,14 @@ test.describe("with a Player whose name is one long word", () => {
     await expect(longPage.getByRole("region", { name: "Score" })).toContainText(`${long.name} won`);
     await expect(longPage.getByRole("list", { name: "Changes to the score" })).toContainText(`${long.name} entered it`);
     await expectNoSidewaysScroll(longPage, "the Match screen with a score");
+
+    // Profiles: Edit, beside the name (#255), stays on the card.
+    await longPage.goto("/profiles");
+    const editButton = longPage.getByRole("button", { name: `Edit ${long.name}` });
+    const edit = (await editButton.boundingBox())!;
+    const card = (await longPage.locator("section").filter({ has: editButton }).boundingBox())!;
+    expect(edit.x + edit.width).toBeLessThanOrEqual(card.x + card.width);
+    await expectNoSidewaysScroll(longPage, "Profiles");
     await longContext.close();
 
     // The ladder again, with its standings filled in.

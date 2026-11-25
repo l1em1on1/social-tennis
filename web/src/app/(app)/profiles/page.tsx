@@ -43,8 +43,8 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                   className="flex flex-col gap-2 py-3"
                 >
                   <div className="flex min-h-11 items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{player.name}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium break-words">{player.name}</p>
                       <p className="text-sm text-fg-muted">
                         {[player.gender, player.level === null ? null : `Level ${player.level}`]
                           .filter(Boolean)
@@ -76,7 +76,7 @@ export default async function ProfilesPage({ searchParams }: PageProps<"/profile
                     <ul aria-label={`${player.name}'s clubs`} className="flex flex-col gap-2">
                       {player.clubs.map((club) => (
                         <li key={club.id} className="flex min-h-11 items-center justify-between gap-3">
-                          <span className="text-sm text-fg-muted">
+                          <span className="min-w-0 text-sm break-words text-fg-muted">
                             {club.approved ? `Member of ${club.name}` : `Waiting for approval at ${club.name}`}
                           </span>
                           {club.approved ? (

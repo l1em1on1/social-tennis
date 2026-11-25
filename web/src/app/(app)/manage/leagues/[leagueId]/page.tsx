@@ -355,7 +355,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                   const names = team.playerIds.map(nameOf).join(" & ");
                   return (
                     <li key={team.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                      <p className="font-medium">
+                      <p className="min-w-0 font-medium break-words">
                         {names} {placeBadge(team.id)}
                       </p>
                       {team.position == null && (
