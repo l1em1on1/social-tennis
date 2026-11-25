@@ -127,6 +127,12 @@ test("a League given to a member names them to its Players, and is theirs to run
   await expect(runnerPage.getByLabel("Give this league to")).toHaveCount(0);
   await runnerPage.goto("/manage");
   await expect(runnerPage.getByRole("link", { name: "New league" })).toHaveCount(0);
+  // Nor by typing its address: the role to create is another thing.
+  await manager.goto("/manage");
+  const newLeague = await manager.getByRole("link", { name: "New league" }).first().getAttribute("href");
+  await runnerPage.goto(newLeague!);
+  await expect(runnerPage.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await runnerPage.goto("/manage");
   await expect(runnerPage.getByRole("link", { name: league })).toBeVisible();
 });
 
