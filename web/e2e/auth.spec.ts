@@ -71,7 +71,6 @@ test("a sign-in address with no token goes back to the login page", async ({ pag
 });
 
 test("a link a mail scanner has already fetched still signs the User in", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mock", "the mocked API redeems any token any number of times");
   const link = await requestSignInLink(page, testInfo, personaEmail(testInfo, "player"));
 
   // A scanner follows the link with a GET, and doesn't press buttons.

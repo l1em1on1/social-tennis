@@ -17,3 +17,5 @@ Mocking is a development and test aid only: enabled by an explicit dev/test flag
 `web/` gains MSW as a dev dependency plus a handlers module colocated with the generated schema; a dev/test flag switches interception on (Node mode for the BFF's server-side fetches). Handlers are typed from `schema.d.ts`, so `npm run api:generate` breaking a handler is a feature — the mock is out of date. Production builds must not register MSW. Wiring this up is implementation work for when UI tickets start, not part of the walking skeleton.
 
 **Amended (2026-11-24): the mock is a server of its own (#233, ADR-0033).** The handlers are unchanged, and still typed by the generated schema. But MSW no longer runs inside the Next.js process behind a flag: `web/mock-api/` serves the handlers over HTTP through MSW's `getResponse`, and the app reaches them through `API_URL`. So the app holds no mocking code or flag at all, and the production build can't include any.
+
+**Amended (2026-11-26): fixed data only (#234, ADR-0033).** The handlers answer reads from a fixed world and change nothing. Behaviour is tested against the real API alone.

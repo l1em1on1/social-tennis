@@ -56,3 +56,5 @@ The override is a `<style>` with the page's CSP nonce (ADR-0027). The showcase n
 
 - **Considered:** turning their snapshots off. The page would lose its visual review.
 - **Considered:** a fixed world for the Leagues page, as the Manager pages have (#187). It needs a Player's side in the fixed data; worth it if more Player pages need one.
+
+**Amended (2026-11-26): every snapshot from fixed data (#234).** The flow specs run against the real API only, so they no longer snapshot. The mock project runs `screens.spec.ts` and `manager-pages.spec.ts`: each test signs in as one of the fixed world's people (`mock-api/fixture.ts`), opens one screen in one state, and ends there, on a phone or at desktop width. A snapshot no longer depends on which flow reached it, or on the order tests ran, so `showOnly` and the fixed persona emails are gone.

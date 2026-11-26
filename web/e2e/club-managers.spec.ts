@@ -7,11 +7,9 @@ import { asAdmin, logIn, personaEmail, uniqueName, userIdOf } from "./support/au
 // What these pages show is a refusal, the same for any Club, so there is nothing to review.
 test.use({ disableAutoSnapshot: true });
 
-// Real API only: the mock's Leagues all belong to its one shared Club.
 test("a manager of one Club can't open another Club's League, whether or not they can see it", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name === "mock", "Needs a second Club with managers of its own");
   // Sign-in and several API calls: over the default timeout on a busy real-API run.
   test.slow();
   const email = personaEmail(testInfo, "elsewhere");

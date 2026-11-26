@@ -5,21 +5,12 @@ import { Client } from "pg";
 /**
  * The email a test logs in with. The local part picks the roles: "manager" is
  * a manager of the shared Club, "league-manager" a League manager there (#220)
- * and "admin" an Admin; anything else has none. The mocked API reads them from
- * the email; against the real API `logIn` has the suite's Admin grant "manager"
- * and "admin" (#110).
- * Every login is a new User with no Player: see `addFirstPlayer`.
- *
- * real: a random `+tag` keeps tests from sharing a User in the one database.
- * mock: no tag on a first attempt. Chromatic snapshots the mock project, so
- *   every page that shows the email must render identically. A retry gets a
- *   tag: the mock remembers invites by email for the whole suite, and the
- *   failed attempt may have left one.
+ * and "admin" an Admin; anything else has none. `logIn` has the suite's Admin
+ * grant them (#110). Every login is a new User with no Player: see
+ * `addFirstPlayer`. A random `+tag` keeps tests from sharing a User in the one
+ * database. (The mock's fixed personas are fixed emails: mock-api/fixture.ts.)
  */
 export function personaEmail(testInfo: TestInfo, persona: string): string {
-  if (testInfo.project.name === "mock") {
-    return testInfo.retry === 0 ? `${persona}@example.com` : `${persona}+retry${testInfo.retry}@example.com`;
-  }
   return `${persona}+${randomBytes(4).toString("hex")}@example.com`;
 }
 
@@ -75,17 +66,10 @@ export async function logIn(page: Page, testInfo: TestInfo, email: string) {
 
 /**
  * A Player name no other test or retry shares. The Manage page lists every
- * request in the Club, and the stores outlive a test (the real database across
- * runs, the mock's memory across the whole suite), so a fixed name could match
- * a leftover from a failed attempt.
- *
- * mock: the base name on a first attempt, so Chromatic snapshots stay stable.
- * real: always a random suffix.
+ * request in the Club, and the database outlives a test, so a fixed name could
+ * match a leftover from a failed attempt: a random suffix.
  */
 export function uniqueName(testInfo: TestInfo, base: string): string {
-  if (testInfo.project.name === "mock") {
-    return testInfo.retry === 0 ? base : `${base} Retry${testInfo.retry}`;
-  }
   return `${base} ${randomBytes(3).toString("hex")}`;
 }
 

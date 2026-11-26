@@ -166,7 +166,7 @@ test("Admin, from fixed data", async ({ page }, testInfo) => {
   await page.goto("/admin");
 
   await expect(page.getByRole("heading", { name: "Admin", level: 1 })).toBeVisible();
-  await expect(page.getByText("Users (9)")).toBeVisible();
+  await expect(page.getByText("Users (11)")).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -211,7 +211,7 @@ test.describe("on a desktop screen", () => {
     await logIn(page, testInfo, FIXTURE_ADMIN);
     await page.goto("/admin");
 
-    await expect(page.getByText("Users (9)")).toBeVisible();
+    await expect(page.getByText("Users (11)")).toBeVisible();
     await expectNoSeriousA11yViolations(page);
   });
 });

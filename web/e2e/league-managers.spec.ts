@@ -3,7 +3,7 @@
 // @playwright/test.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
-import { addFirstPlayer, asAdmin, logIn, personaEmail, uniqueName, userIdOf } from "./support/auth";
+import { asAdmin, logIn, personaEmail, uniqueName, userIdOf } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 import { addClubPlayer, createLeague } from "./support/league";
 
@@ -187,20 +187,16 @@ test("giving a League to someone who has just left the Club says so, and gives n
 });
 
 test("a League manager who isn't in the Club is told how to get in, not to pre-approve themselves", async ({ page }, testInfo) => {
-  // The mock's persona has the role already; the real API gives it to someone with a Player in the Club, who then leaves.
+  // The API gives the role to someone with a Player in the Club, who then leaves.
   const email = personaEmail(testInfo, "league-manager");
   await logIn(page, testInfo, email);
-  if (testInfo.project.name === "mock") {
-    await addFirstPlayer(page, uniqueName(testInfo, "Lee Outside"));
-  } else {
-    const club = process.env.E2E_CLUB_ID;
-    const added = (await (
-      await asAdmin(`/clubs/${club}/players`, "POST", { name: uniqueName(testInfo, "Lee Outside"), email })
-    ).json()) as { playerId: string };
-    await asAdmin(`/clubs/${club}/league-managers/${await userIdOf(email)}`, "PUT");
-    await asAdmin(`/clubs/${club}/members/${added.playerId}`, "DELETE");
-    await page.reload();
-  }
+  const club = process.env.E2E_CLUB_ID;
+  const added = (await (
+    await asAdmin(`/clubs/${club}/players`, "POST", { name: uniqueName(testInfo, "Lee Outside"), email })
+  ).json()) as { playerId: string };
+  await asAdmin(`/clubs/${club}/league-managers/${await userIdOf(email)}`, "PUT");
+  await asAdmin(`/clubs/${club}/members/${added.playerId}`, "DELETE");
+  await page.reload();
 
   // They manage something, so Manage is there; but they can't let anyone into a Club, themselves included.
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Manage" })).toBeVisible();

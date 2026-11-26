@@ -4,8 +4,9 @@
 #           the same path `docker compose up --build` uses, proof that it
 #           holds no mock code (ADR-0033), and a scan that fails on a fixable
 #           critical vulnerability (#114).
-#   e2e   — Playwright against the mocked and the real stack (ADR-0014),
-#           then the mock run's DOM snapshots go to Chromatic for visual
+#   e2e   — Playwright: what the app does against the real stack, and each
+#           screen against the mock's fixed data (ADR-0014, #234); the
+#           screens' DOM snapshots go to Chromatic for visual
 #           review (ADR-0015). Skipped while CHROMATIC_PROJECT_TOKEN is unset.
 #
 #   lint  — ESLint. `next build` stopped linting in Next.js 16, so nothing

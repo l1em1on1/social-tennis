@@ -27,13 +27,13 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 Source is bind-mounted: the API restarts on change (`dotnet watch`), the web app hot-reloads (`next dev`).
 
-### Web only, against a mocked API
+### Web only, to look at, against the mock API
 
 ```sh
 API_URL=http://mock-api:8080 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --no-deps web mock-api
 ```
 
-The web app runs as always, with the mock API (`web/mock-api/`, ADR-0033) at its `API_URL`. No api or Postgres is needed. The sign-in link is in the mock's log (`docker compose logs mock-api`). After changing the mock, add `--build`. The part of the email before `@` picks the starting roles: `manager@…` is a manager of the shared Club, `league-manager@…` a League manager there and `admin@…` an Admin. Every sign-in is a new User with no Player and one Club to ask to join. Every primitive is shown in Storybook (see Tests).
+The web app runs as always, with the mock API (`web/mock-api/`, ADR-0033) at its `API_URL`. No api or Postgres is needed. The mock serves a fixed club and changes nothing (#234): every screen can be looked at, and anything that saves fails. To click through what the app does, run the whole stack above. The sign-in link is in the mock's log (`docker compose logs mock-api`); sign in as one of the people in `web/mock-api/fixture.ts`, such as `alex.morgan@example.com` (a member with a child), `jo.bennett@example.com` (a League manager), `snapshot-manager@example.com` or `snapshot-admin@example.com`. After changing the mock, add `--build`. Every primitive is shown in Storybook (see Tests).
 
 ## Tests
 
@@ -43,7 +43,7 @@ Integration tests drive the API over HTTP against the real compose Postgres (the
 docker compose run --rm api-tests
 ```
 
-Frontend end-to-end tests run Playwright in a container against the production build of the web app, once with the mock API behind it and once with the real API and Postgres. Accessibility checks (axe) run as part of them; Storybook's, below, cover every component in light and dark:
+Frontend end-to-end tests run Playwright in a container against the production build of the web app: what it does against the real API and Postgres, and how each screen looks against the mock API's fixed data. Accessibility checks (axe) run as part of them; Storybook's, below, cover every component in light and dark:
 
 ```sh
 docker compose --profile e2e run --rm e2e
@@ -51,7 +51,7 @@ docker compose --profile e2e run --rm e2e
 
 The HTML report lands in `web/playwright-report/`. Pass Playwright arguments after the service name, e.g. `docker compose --profile e2e run --rm e2e npx playwright test --project=mock`. After changing web code, rebuild the images first with `docker compose --profile e2e build`.
 
-The mocked run also leaves DOM snapshots in `web/test-results/chromatic-archives` for visual review in Chromatic (ADR-0015). CI publishes them when the `CHROMATIC_PROJECT_TOKEN` secret is set. To publish a local run:
+The screens' run (the `mock` project) also leaves DOM snapshots in `web/test-results/chromatic-archives` for visual review in Chromatic (ADR-0015). CI publishes them when the `CHROMATIC_PROJECT_TOKEN` secret is set. To publish a local run:
 
 ```sh
 CHROMATIC_PROJECT_TOKEN=<token> docker compose --profile e2e run --rm --no-deps chromatic

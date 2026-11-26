@@ -5,7 +5,8 @@ import { handlers } from "./handlers";
 /**
  * The mock API: the MSW handlers behind a plain HTTP server (ADR-0009,
  * ADR-0033). The web app reaches it through API_URL, as it reaches the real
- * API, and nothing in the app knows which one it has.
+ * API, and nothing in the app knows which one it has. It serves fixed data
+ * (#234): it answers reads, signs in and out, and refuses every other write.
  */
 const PORT = 8080;
 
@@ -27,7 +28,7 @@ async function toRequest(incoming: IncomingMessage): Promise<Request> {
 }
 
 /**
- * A request with no handler is a gap in the mock, and a handler that throws is
+ * A read with no handler is a gap in the mock, and a handler that throws is
  * a bug in it. Neither may look like an answer from the API, so the connection
  * is dropped: the page's fetch fails, and the log says why.
  */
@@ -40,6 +41,12 @@ function refuse(incoming: IncomingMessage, outgoing: ServerResponse, reason: unk
 const server = createServer(async (incoming, outgoing) => {
   try {
     const response = await getResponse(handlers, await toRequest(incoming), { baseUrl: ORIGIN });
+    if (!response && incoming.method !== "GET") {
+      // Fixed data (#234): nothing changes it. A test that tries is in the wrong project, and fails here.
+      outgoing.writeHead(501, { "Content-Type": "application/problem+json" });
+      outgoing.end(JSON.stringify({ type: "fixed-data", title: "The mock API has fixed data: it changes nothing.", status: 501 }));
+      return;
+    }
     if (!response) {
       refuse(incoming, outgoing, "no handler");
       return;

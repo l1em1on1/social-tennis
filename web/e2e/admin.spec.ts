@@ -2,7 +2,7 @@
 // see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
 // nav off a long page's content (#182). Otherwise identical to @playwright/test.
 import { randomBytes } from "node:crypto";
-import { expect, takeSnapshot, test } from "./support/chromatic";
+import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
 import { Client } from "pg";
 import { logIn, personaEmail, uniqueName } from "./support/auth";
@@ -238,7 +238,7 @@ test("an Admin can't remove themselves", async ({ page }, testInfo) => {
 
 test("the Admin set in the app's configuration can't be demoted here", async ({ page }, testInfo) => {
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
-  // admin@example.com: listed in the api's Auth__AdminEmails (docker-compose.yml), and the mock's equivalent.
+  // admin@example.com: listed in the api's Auth__AdminEmails (docker-compose.yml).
   // A whole email is listed first, whatever newer addresses contain it.
   const row = await findUser(page, "admin@example.com");
   await expect(row).toContainText("Admin in the app's configuration");
@@ -246,10 +246,7 @@ test("the Admin set in the app's configuration can't be demoted here", async ({ 
 });
 
 test("an Admin finds a User by searching, one page at a time", async ({ page }, testInfo) => {
-  // The view Chromatic reviews (#134). Mock only: only the mock project's
-  // archives are uploaded, and there an address with "admin" in it is an
-  // Admin. Nobody else's address contains this one, so it is always one row.
-  test.skip(testInfo.project.name !== "mock", "Visual review runs on the mock project");
+  // Nobody else's address contains this one, so it is always one row (#134).
   const email = personaEmail(testInfo, "search-admin");
   await logIn(page, testInfo, email);
 
@@ -257,7 +254,6 @@ test("an Admin finds a User by searching, one page at a time", async ({ page }, 
   await expect(row).toContainText("(you)");
   await expect(page.getByText(`1–1 of 1 matching “${email}”`)).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Pages of users" })).toHaveCount(0);
-  await takeSnapshot(page, "Users, searched for one address", testInfo);
 });
 
 test("an Admin lists a Club's Users, once there are two Clubs", async ({ page, browser }, testInfo) => {
@@ -279,10 +275,6 @@ test("an Admin lists a Club's Users, once there are two Clubs", async ({ page, b
 
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
   await page.goto("/admin");
-  // Only the mock has a Club of its own: the real database has whatever the suite has made.
-  if (testInfo.project.name === "mock") {
-    await expect(page.getByLabel("Club", { exact: true })).toHaveCount(0);
-  }
   await page.getByRole("button", { name: "Create a club" }).click();
   const create = page.getByRole("dialog", { name: "Create a club" });
   await create.getByLabel("Club name").fill(other);
@@ -325,9 +317,7 @@ test("an Admin lists a Club's Users, once there are two Clubs", async ({ page, b
 });
 
 test("an Admin pages through a search with Next and Previous", async ({ page }, testInfo) => {
-  // A page is 50 Users, so this needs 51 that match. Only the real database can
-  // be given them directly; the mock makes a User only when someone signs in.
-  test.skip(testInfo.project.name === "mock", "Needs 51 Users, added straight to the database");
+  // A page is 50 Users, so this needs 51 that match, added straight to the database.
   const tag = `pager-${randomBytes(4).toString("hex")}`;
   await addUsers(Array.from({ length: 51 }, (_, i) => `${tag}-${i}@example.com`));
   await logIn(page, testInfo, personaEmail(testInfo, "admin"));
