@@ -26,12 +26,13 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <para>
 /// A League starts once: a second start is a 409 <c>already-started</c>. The
 /// League's lock serialises two at once, and the unique Stage number backs it.
-/// Knockout (#12) and Foursomes (#14) Leagues can't start yet.
+/// Knockout (#12) Leagues can't start yet. A Foursomes ladder (#14) is
+/// Divisions of exactly 4 Players, with no Bye: any other size is a 400.
 /// </para>
 /// </remarks>
 public static class StartLeague
 {
-    public static async Task<Results<NoContent, NotFound, ProblemHttpResult>> HandleAsync(
+    public static async Task<Results<NoContent, NotFound, ValidationProblem, ProblemHttpResult>> HandleAsync(
         Guid leagueId,
         StartLeagueRequest request,
         TennisDbContext db,
@@ -51,6 +52,14 @@ public static class StartLeague
         if (await LeagueLadder.CannotStartAsync(db, leagueId, league.Structure, league.Type, cancellationToken) is { } refusal)
         {
             return refusal;
+        }
+
+        if (league.Type == LeagueType.Foursomes && request.Divisions.Any(size => size != League.FoursomesDivisionSize))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["divisions"] = [$"A Foursomes Division is always {League.FoursomesDivisionSize} Players: add Players, or leave some out, to make a multiple of {League.FoursomesDivisionSize}."],
+            });
         }
 
         var teams = await db.Teams.Where(t => t.LeagueId == leagueId).Select(t => t.Id).ToListAsync(cancellationToken);
@@ -90,7 +99,7 @@ public static class StartLeague
             position += size;
         }
 
-        StageLadder.Place(stage, leagueId, divisions);
+        StageLadder.Place(stage, leagueId, league.Type, divisions);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();

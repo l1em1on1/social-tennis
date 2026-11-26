@@ -121,7 +121,7 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
     }
 
     [Fact]
-    public async Task A_Foursomes_League_has_no_Teams_and_its_Players_are_not_paired()
+    public async Task A_Foursomes_Player_has_a_Team_of_one_and_is_never_paired()
     {
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await NewClubAsync(manager);
@@ -132,9 +132,10 @@ public class TeamsTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory
         var pair = await PairAsync(manager, leagueId, first, second);
 
         Assert.Equal("not-a-doubles-league", await ConflictTypeAsync(pair));
+        // Partners change every Game (#14), so each Player is a Team of one, which places them (ADR-0036).
         var league = await LeagueAsync(manager, leagueId);
-        Assert.Empty(league.Teams);
-        Assert.All(league.Participants, p => Assert.Null(p.TeamId));
+        Assert.Equal(2, league.Teams.Count);
+        Assert.All(league.Participants, p => Assert.Equal([p.PlayerId], league.Teams.Single(t => t.Id == p.TeamId).PlayerIds));
     }
 
     [Fact]

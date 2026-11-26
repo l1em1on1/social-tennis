@@ -1,9 +1,11 @@
 namespace SocialTennis.Api.Domain;
 
 /// <summary>
-/// One of a Game's two Sides (see CONTEXT.md, Side): a Team in the Team-based
-/// Types. Side 1 is the Competitor higher on the ladder. Foursomes (#14), whose
-/// Sides are a pair for one Game, will record Players instead.
+/// A Team on one of a Game's two Sides (see CONTEXT.md, Side). In the
+/// Team-based Types each Side is one Team, and Side 1 is the one higher on the
+/// ladder. In Foursomes (#14, ADR-0036) each Side is two Players' Teams of one,
+/// paired for this Game only, so a Side has two rows; Side 1 is the pair with
+/// the Division's first place.
 /// </summary>
 public class GameSide
 {

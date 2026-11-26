@@ -18,6 +18,9 @@ public class League
 
     public const int MaxDivisionSize = 8;
 
+    /// <summary>A Foursomes Division: always 4 Players, never a Bye (ADR-0013, #14).</summary>
+    public const int FoursomesDivisionSize = 4;
+
     public Guid Id { get; set; }
 
     public Guid ClubId { get; set; }

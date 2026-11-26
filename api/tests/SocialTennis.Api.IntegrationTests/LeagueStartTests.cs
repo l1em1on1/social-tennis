@@ -461,14 +461,13 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
         Assert.Single(await GamesAsync(leagueId));
     }
 
-    [Theory]
-    [InlineData("SinglesMixed", "Knockout", "knockout-not-yet")]
-    [InlineData("Foursomes", "Divisional", "foursomes-not-yet")]
-    public async Task Knockout_and_Foursomes_Leagues_cant_start_yet(string type, string structure, string refusal)
+    [Fact]
+    public async Task A_Knockout_League_cant_start_yet()
     {
+        const string refusal = "knockout-not-yet";
         using var manager = await factory.CreateManagerClientAsync();
         var clubId = await NewClubAsync(manager);
-        var leagueId = await CreateLeagueAsync(manager, clubId, type, structure);
+        var leagueId = await CreateLeagueAsync(manager, clubId, "SinglesMixed", "Knockout");
         await ParticipantAsync(manager, clubId, leagueId, "One");
         await ParticipantAsync(manager, clubId, leagueId, "Two");
 

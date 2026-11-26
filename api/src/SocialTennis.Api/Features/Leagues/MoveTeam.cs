@@ -24,6 +24,8 @@ namespace SocialTennis.Api.Features.Leagues;
 /// <list type="bullet">
 /// <item>Managers only, by the routing table's policy. No League, no Stage, or no such Team in it: 404.</item>
 /// <item>The League has ended: 409 <c>stage-closed</c>. A Team off the ladder: 409 <c>not-on-the-ladder</c>.</item>
+/// <item>A Foursomes League (#14): 409 <c>foursomes-fixed</c>. Its Divisions are always 4, and a Player's
+/// Games are a rotation of the four, so one Player can't move alone.</item>
 /// <item>A Score this Stage: 409 <c>team-has-results</c>. Leaving a Division of two: 409 <c>division-too-small</c>,
 /// since a Division keeps at least two Teams.</item>
 /// <item>A Division the ladder hasn't got, or the one it's in: 400 under <c>toDivision</c>.</item>
@@ -54,6 +56,15 @@ public static class MoveTeam
         if (stage.Closed)
         {
             return StageClose.AlreadyClosed();
+        }
+
+        if (await db.Leagues.AnyAsync(l => l.Id == leagueId && l.Type == LeagueType.Foursomes, cancellationToken))
+        {
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                type: "foursomes-fixed",
+                title: "A Foursomes Player can't move Division mid-Stage.",
+                detail: "A Foursomes Division is always 4 Players, who play their 3 Games together. Players move at the close.");
         }
 
         var places = await db.LadderPlaces

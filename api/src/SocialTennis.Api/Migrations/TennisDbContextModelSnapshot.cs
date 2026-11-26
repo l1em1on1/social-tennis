@@ -188,16 +188,18 @@ namespace SocialTennis.Api.Migrations
                     b.Property<Guid>("GameId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Side")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("LeagueId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TeamId")
-                        .HasColumnType("uuid");
+                    b.Property<int>("Side")
+                        .HasColumnType("integer");
 
-                    b.HasKey("GameId", "Side");
+                    b.HasKey("GameId", "TeamId");
+
+                    b.HasIndex("GameId", "Side");
 
                     b.HasIndex("LeagueId", "GameId");
 

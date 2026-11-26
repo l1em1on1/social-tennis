@@ -955,6 +955,8 @@ export interface components {
             /** Format: uuid */
             teamId: string;
             players: components["schemas"]["GamePlayer"][];
+            /** Format: uuid */
+            partnerTeamId?: null | string;
         };
         GameStage: {
             /** Format: int32 */
@@ -1141,6 +1143,10 @@ export interface components {
             secondTeamId: string;
             score: null | components["schemas"]["LadderGameScore"];
             notPlayed: boolean;
+            /** Format: uuid */
+            firstPartnerTeamId?: null | string;
+            /** Format: uuid */
+            secondPartnerTeamId?: null | string;
         };
         LadderGameScore: {
             /** Format: int32 */

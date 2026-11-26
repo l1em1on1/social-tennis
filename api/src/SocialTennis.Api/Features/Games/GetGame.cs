@@ -43,16 +43,19 @@ public static class GetGame
                 g.Division,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
                 NotPlayed = g.VoidedAt != null,
+                // A Side is one Team, or in Foursomes two Players' Teams of one (ADR-0036), grouped below.
                 Sides = g.Sides
-                    .OrderBy(s => s.Side)
-                    .Select(s => new GameSideSummary(
+                    .Select(s => new
+                    {
                         s.Side,
                         s.TeamId,
-                        s.Team.Members
+                        Place = db.LadderPlaces.Where(p => p.StageId == g.StageId && p.TeamId == s.TeamId).Select(p => p.Position).FirstOrDefault(),
+                        Players = s.Team.Members
                             .OrderBy(m => m.JoinedAt)
                             .ThenBy(m => m.PlayerId)
                             .Select(m => new GamePlayer(m.PlayerId, m.Player.Name))
-                            .ToList()))
+                            .ToList(),
+                    })
                     .ToList(),
                 Yours = g.Sides
                     .SelectMany(s => s.Team.Members)
@@ -120,7 +123,17 @@ public static class GetGame
             game.ScoreFormat,
             game.Stage,
             game.Division,
-            game.Sides,
+            [
+                .. game.Sides
+                    .GroupBy(s => s.Side)
+                    .OrderBy(side => side.Key)
+                    .Select(side => side.OrderBy(s => s.Place).ThenBy(s => s.TeamId).ToList())
+                    .Select(teams => new GameSideSummary(
+                        teams[0].Side,
+                        teams[0].TeamId,
+                        [.. teams.SelectMany(t => t.Players)],
+                        teams.Count > 1 ? teams[1].TeamId : null)),
+            ],
             score,
             game.NotPlayed,
             history,

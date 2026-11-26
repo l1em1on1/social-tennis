@@ -11,7 +11,7 @@ import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Start the league" };
 
-/** Why a League can't start, by the API's 409 type. */
+/** Why a League can't start, by the API's 409 type, and Foursomes until its screen is built (#14). */
 const CANT_START: Record<string, string> = {
   "already-started": "This league has already started.",
   "knockout-not-yet": "Starting a knockout league isn't built yet.",
@@ -44,19 +44,25 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
     </ButtonLink>
   );
 
+  const cantStart = (reason: string) => (
+    <PageColumn>
+      <h1 className="text-4xl leading-none font-black break-words">Start {league.name}</h1>
+      <ErrorState title="This league can't start" description={reason} />
+      <div>{back}</div>
+    </PageColumn>
+  );
+  // The API starts a Foursomes League (#14, part 1), but this screen's Divisions of 4 come in part 2.
+  if (league.type === "Foursomes") {
+    return cantStart(CANT_START["foursomes-not-yet"]);
+  }
+
   const start = await api.GET("/leagues/{leagueId}/start", { params: { path: { leagueId } } });
   if (!start.data) {
     const reason = start.response.status === 409 ? CANT_START[start.error?.type ?? ""] : undefined;
     if (!reason) {
       throw new Error(`GET /leagues/${leagueId}/start failed with ${start.response.status}`);
     }
-    return (
-      <PageColumn>
-        <h1 className="text-4xl leading-none font-black break-words">Start {league.name}</h1>
-        <ErrorState title="This league can't start" description={reason} />
-        <div>{back}</div>
-      </PageColumn>
-    );
+    return cantStart(reason);
   }
 
   const { competitors, divisions, divisionSize, unpaired, waitingRequestCount, firstStage } = start.data;

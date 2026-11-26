@@ -20,7 +20,7 @@ public class LeagueParticipant
     /// <summary>
     /// The participant's Team (<see cref="LeagueTypeTeams.TeamSize"/>): always
     /// one in a singles League; in a doubles one, none until they are paired;
-    /// never in <see cref="LeagueType.Foursomes"/>. With <see cref="LeagueId"/>
+    /// a Team of one in <see cref="LeagueType.Foursomes"/> (ADR-0036). With <see cref="LeagueId"/>
     /// it references the Team, so the Team is always of this League.
     /// </summary>
     public Guid? TeamId { get; set; }

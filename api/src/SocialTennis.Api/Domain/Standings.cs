@@ -150,6 +150,67 @@ public static class Standings
         ];
     }
 
+    /// <summary>
+    /// Ranks a Foursomes Division's Players (#14, ADR-0036), given in ladder
+    /// order, by the games they banked: the games their Side won in each of
+    /// their Games, a Match Tiebreak as one. Played, won and lost count the
+    /// Games their Side played, won and lost. Nothing else separates Players
+    /// level on games: they settle it themselves (owner, 2026-11-26), so they
+    /// share a rank, and where it decides a move it is an open tie. A Game not
+    /// played leaves the Division's moves to the Manager (owner, 2026-11-26):
+    /// every Player shares first.
+    /// </summary>
+    public static IReadOnlyList<Standing> RankFoursomes(IReadOnlyList<Guid> players, IReadOnlyList<PairsGame> games)
+    {
+        var rows = players.ToDictionary(player => player, _ => new Tally());
+        foreach (var game in games)
+        {
+            if (game.Result is not { } result)
+            {
+                continue;
+            }
+
+            foreach (var (side, pair) in new[] { (1, game.First), (2, game.Second) })
+            {
+                var (banked, conceded) = side == 1 ? (result.FirstGames, result.SecondGames) : (result.SecondGames, result.FirstGames);
+                foreach (var player in pair)
+                {
+                    rows[player].GamesFor += banked;
+                    rows[player].GamesAgainst += conceded;
+                    if (result.Winner == side)
+                    {
+                        rows[player].Won++;
+                    }
+                    else
+                    {
+                        rows[player].Lost++;
+                    }
+                }
+            }
+        }
+
+        var managerDecides = games.Any(game => game.NotPlayed);
+        var ladderOrder = players.Select((player, index) => (player, index)).ToDictionary(pair => pair.player, pair => pair.index);
+        var groups = players
+            .GroupBy(player => managerDecides ? 0 : rows[player].GamesFor)
+            .OrderByDescending(group => group.Key)
+            .Select(group => group.ToList())
+            .ToList();
+        var standings = new List<Standing>();
+        foreach (var group in groups)
+        {
+            var rank = standings.Count + 1;
+            standings.AddRange(group
+                // A Division the Manager orders still lists the most games first; Players level on games, in ladder order.
+                .OrderByDescending(player => rows[player].GamesFor)
+                .ThenBy(player => ladderOrder[player])
+                .Select(player => new Standing(
+                    player, rank, rows[player].Played, rows[player].Won, rows[player].Lost, rows[player].GamesFor, rows[player].GamesAgainst, group.Count > 1)));
+        }
+
+        return standings;
+    }
+
     /// <summary>Splits a group tied on wins and games difference by the Games among them, as far as they go.</summary>
     private static IEnumerable<List<Guid>> HeadToHead(List<Guid> group, IReadOnlyList<StandingsGame> games)
     {
@@ -207,6 +268,13 @@ public static class Standings
 
 /// <summary>A Division's Game, for its Standings: none if it has no Score.</summary>
 public sealed record StandingsGame(Guid FirstTeamId, Guid SecondTeamId, StandingsResult? Result);
+
+/// <summary>
+/// A Foursomes Game, for its Division's Standings (#14): the two Players on
+/// each Side, its result if it has a Score, and whether the Manager marked it
+/// not played.
+/// </summary>
+public sealed record PairsGame(IReadOnlyList<Guid> First, IReadOnlyList<Guid> Second, StandingsResult? Result, bool NotPlayed);
 
 /// <summary>A Game's result, for Standings: the winning Side, 1 or 2, and the games each Side won (<see cref="Standings.GamesOf"/>).</summary>
 public sealed record StandingsResult(int Winner, int FirstGames, int SecondGames);

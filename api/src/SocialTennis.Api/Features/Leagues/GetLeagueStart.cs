@@ -15,8 +15,9 @@ namespace SocialTennis.Api.Features.Leagues;
 /// Stage's dates. Nothing changes.
 /// </summary>
 /// <remarks>
-/// A League that has started, or can't start yet (Knockout, #12; Foursomes,
-/// #14), is a 409, as confirming would be.
+/// A League that has started, or can't start yet (Knockout, #12), is a 409,
+/// as confirming would be. A Foursomes ladder (#14) is proposed in as many
+/// Divisions of 4 as fit; the Manager leaves the rest out, or finds more.
 /// </remarks>
 public static class GetLeagueStart
 {
@@ -64,11 +65,14 @@ public static class GetLeagueStart
             .ToList();
 
         var (start, end) = StageDates.First(league.StartDate, league.EndDate, league.StageLength);
-        var size = league.DivisionSize ?? League.DefaultDivisionSize;
+        var foursomes = league.Type == LeagueType.Foursomes;
+        var size = foursomes ? League.FoursomesDivisionSize : league.DivisionSize ?? League.DefaultDivisionSize;
         return TypedResults.Ok(new GetLeagueStartResponse(
             competitors,
             size,
-            competitors.Count >= 2 ? Ladder.ProposeDivisions(competitors.Count, size) : [],
+            foursomes ? Ladder.ProposeFoursomes(competitors.Count)
+                : competitors.Count >= 2 ? Ladder.ProposeDivisions(competitors.Count, size)
+                : [],
             await LeagueLadder.UnpairedAsync(db, leagueId, league.Type, cancellationToken),
             await db.LeagueJoinRequests.CountAsync(
                 r => r.LeagueId == leagueId && r.Status == LeagueJoinRequestStatus.Pending, cancellationToken),

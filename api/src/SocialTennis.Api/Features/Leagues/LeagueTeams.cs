@@ -9,12 +9,14 @@ namespace SocialTennis.Api.Features.Leagues;
 /// holds the League's lock (<see cref="LeagueEntry.LockLeagueAsync"/>), so these
 /// hold together: a singles participant has a Team of one; a doubles Team has
 /// two Players, and a doubles participant is in one or is unpaired; a
-/// <see cref="LeagueType.Foursomes"/> participant has none.
+/// <see cref="LeagueType.Foursomes"/> participant has a Team of one too, never
+/// a partner, since partners change every Game (ADR-0036).
 /// </summary>
 internal static class LeagueTeams
 {
     /// <summary>
-    /// Adds a participant, with a Team of one in a singles League. In a doubles
+    /// Adds a participant, with a Team of one in a singles or a Foursomes League
+    /// (ADR-0036: in Foursomes it holds the Player's place and Sides). In a doubles
     /// League they start unpaired, for the Manager to pair; a pair joining
     /// together comes in through <see cref="EnterAsPairAsync"/>.
     /// </summary>
@@ -22,7 +24,7 @@ internal static class LeagueTeams
         TennisDbContext db, League league, Guid playerId, DateTimeOffset joinedAt, DateTimeOffset now)
     {
         var participant = new LeagueParticipant { LeagueId = league.Id, PlayerId = playerId, JoinedAt = joinedAt };
-        if (league.Type.TeamSize() == 1)
+        if (league.Type.HasTeamsOfOne())
         {
             var team = new Team { Id = Guid.NewGuid(), LeagueId = league.Id, CreatedAt = now };
             db.Teams.Add(team);
@@ -129,5 +131,5 @@ internal static class LeagueTeams
             statusCode: StatusCodes.Status409Conflict,
             type: "not-a-doubles-league",
             title: "Only a doubles League's Players have partners.",
-            detail: "In a singles League each Player is a Team of one; a Foursomes League has no Teams.");
+            detail: "In a singles League each Player is a Team of one. In Foursomes partners change every Game, so nobody is paired.");
 }
