@@ -241,7 +241,7 @@ test("the guides' screenshots", async ({ browser }) => {
   await jo.getByLabel("Starts").fill(starts);
   await jo.getByLabel("Ends").fill(ends);
   await shot(jo, "league-02-new");
-  await shot(jo, "league-03-format", { top: jo.getByText("When a Stage ends"), ring: jo.getByRole("button", { name: "Create League" }) });
+  await shot(jo, "league-03-format", { top: jo.getByRole("group", { name: "Standings" }), ring: jo.getByRole("button", { name: "Create League" }) });
   await jo.getByRole("button", { name: "Create League" }).click();
   await expect(jo.getByRole("heading", { name: LEAGUE, level: 1 })).toBeVisible();
   const leaguePath = new URL(jo.url()).pathname;

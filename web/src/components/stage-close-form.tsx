@@ -15,7 +15,7 @@ export interface CloseTeam {
   teamId: string;
   name: string;
   rank: number;
-  /** "2–1, +5": its record, for the Manager to judge a tie by. */
+  /** "2–1, +5", or "5 pts, 2–1, +5" where points rank (#214): its record, for the Manager to judge a tie by. */
   record: string;
 }
 

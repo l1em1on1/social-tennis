@@ -97,7 +97,8 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
                 teamId: standing.teamId,
                 name: teamName(standing.teamId),
                 rank: Number(standing.rank),
-                record: `${Number(standing.won)}–${Number(standing.lost)}, ${difference > 0 ? "+" : ""}${difference}`,
+                // Points first where they rank (#214): "5 pts, 2–0, +5".
+                record: `${standing.points != null ? `${Number(standing.points)} pts, ` : ""}${Number(standing.won)}–${Number(standing.lost)}, ${difference > 0 ? "+" : ""}${difference}`,
               };
             }),
             ties: close.awaiting.ties.filter((tie) => Number(tie.division) === Number(division.number)).map((tie) => tie.teamIds),

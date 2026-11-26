@@ -57,6 +57,20 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   await expect(joinable.getByRole("region", { name: league })).toHaveCount(0);
 });
 
+test("a Manager picks Bonus points for a League's Standings; a Foursomes League has no choice", async ({ page }, testInfo) => {
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  const league = uniqueName(testInfo, "Bonus Ladder");
+  await createLeague(page, league, undefined, { standings: "Bonus points" });
+  await expect(page.getByText("Divisional · Divisions of 4 · Bonus points · calendar month Stages · Manager closes")).toBeVisible();
+
+  // Foursomes always ranks by games won (#14), so the form doesn't ask.
+  await page.goto("/manage");
+  await page.getByRole("link", { name: "New league" }).first().click();
+  await expect(page.getByRole("radio", { name: "Standard" })).toBeChecked();
+  await page.getByLabel("Type").selectOption("Foursomes");
+  await expect(page.getByRole("group", { name: "Standings" })).toHaveCount(0);
+});
+
 test("a rejected Player sees the outcome; a Manager adds a club member straight in", async ({
   page,
   browser,

@@ -526,6 +526,9 @@ function leagueFromForm(formData: FormData) {
   // Only a Divisional League of Teams has a Division size (ADR-0031); the API refuses one otherwise.
   const divisionSize =
     structure === "Divisional" && type !== "Foursomes" && text("divisionSize") ? Number(text("divisionSize")) : null;
+  // The same Leagues choose how their Standings rank (#214); Foursomes always ranks by games won.
+  const standingsMode =
+    structure === "Divisional" && type !== "Foursomes" ? (text("standingsMode") === "BonusPoints" ? "BonusPoints" : "Standard") : null;
   if (
     name === null ||
     startDate === null ||
@@ -554,6 +557,7 @@ function leagueFromForm(formData: FormData) {
       matchTiebreakDecider: setsPerGame === 3 && formData.get("matchTiebreakDecider") === "on",
     },
     divisionSize,
+    standingsMode,
   } as const;
 }
 

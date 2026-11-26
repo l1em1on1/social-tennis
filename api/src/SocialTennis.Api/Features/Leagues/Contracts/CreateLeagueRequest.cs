@@ -15,6 +15,10 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// 2 to 8; 4 when left out (ADR-0031). Refused for Knockout, which has no
 /// Divisions, and Foursomes, whose Divisions are always 4 Players.
 /// </param>
+/// <param name="StandingsMode">
+/// How its Standings rank, for a Divisional League of the Team-based Types;
+/// Standard when left out (#214). Refused for Knockout and Foursomes.
+/// </param>
 /// <remarks>
 /// A start date in the past is allowed: a club already part-way through a
 /// League's month can put it in the app and carry on (phase 1, docs/phase-1-score-collection.md).
@@ -28,7 +32,8 @@ public record CreateLeagueRequest(
     StageLength StageLength,
     StageRoll? StageRoll,
     ScoreFormat ScoreFormat,
-    int? DivisionSize = null)
+    int? DivisionSize = null,
+    StandingsMode? StandingsMode = null)
 {
     public sealed class Validator : AbstractValidator<CreateLeagueRequest>
     {
@@ -97,6 +102,22 @@ public record CreateLeagueRequest(
                 .When(request => request.Type == LeagueType.Foursomes)
                 .WithMessage("A Foursomes Division is always 4 Players: leave this out.")
                 .OverridePropertyName("divisionSize");
+
+            RuleFor(request => request.StandingsMode)
+                .IsInEnum()
+                .When(request => request.StandingsMode is not null)
+                .WithMessage("The ladder ranks by matches won, or by bonus points.")
+                .OverridePropertyName("standingsMode");
+            RuleFor(request => request.StandingsMode)
+                .Null()
+                .When(request => request.Structure == LeagueStructure.Knockout)
+                .WithMessage("A Knockout League has no ladder to rank: leave this out.")
+                .OverridePropertyName("standingsMode");
+            RuleFor(request => request.StandingsMode)
+                .Null()
+                .When(request => request.Type == LeagueType.Foursomes)
+                .WithMessage("A Foursomes Division always ranks by games won: leave this out.")
+                .OverridePropertyName("standingsMode");
 
             RuleFor(request => request.ScoreFormat).NotNull()
                 .WithMessage("A Score format is required.")

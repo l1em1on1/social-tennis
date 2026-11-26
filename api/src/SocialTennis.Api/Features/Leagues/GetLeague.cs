@@ -33,6 +33,7 @@ public static class GetLeague
                 l.StageRoll,
                 l.ScoreFormat,
                 l.DivisionSize,
+                l.StandingsMode,
                 l.Participants
                     .OrderBy(p => p.JoinedAt)
                     .ThenBy(p => p.Player.Name)

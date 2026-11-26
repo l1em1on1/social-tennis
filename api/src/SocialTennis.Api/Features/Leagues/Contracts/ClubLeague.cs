@@ -4,6 +4,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 
 /// <summary>One of a Club's Leagues, as a Manager sees it in a list.</summary>
 /// <param name="DivisionSize">Teams per Division, for a Divisional League of Teams (ADR-0031); null otherwise.</param>
+/// <param name="StandingsMode">How its Standings rank (#214), for a Divisional League of Teams; null otherwise.</param>
 /// <param name="PendingRequestCount">Join Requests waiting for a Manager's decision.</param>
 /// <param name="Stage">The current Stage; null until the League starts (#7).</param>
 public record ClubLeague(
@@ -17,6 +18,7 @@ public record ClubLeague(
     StageRoll? StageRoll,
     ScoreFormat ScoreFormat,
     int? DivisionSize,
+    StandingsMode? StandingsMode,
     int ParticipantCount,
     int PendingRequestCount,
     LeagueStageSummary? Stage);

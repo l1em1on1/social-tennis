@@ -5,6 +5,7 @@ export type LeagueType = Schemas["LeagueType"];
 export type LeagueStructure = Schemas["LeagueStructure"];
 export type StageRoll = NonNullable<Schemas["StageRoll"]>;
 export type StageLengthUnit = Schemas["StageLengthUnit"];
+export type StandingsMode = NonNullable<Schemas["StandingsMode"]>;
 
 /** The seven League Types (CONTEXT: League Type), in the order the setup form lists them. */
 export const LEAGUE_TYPES: { value: LeagueType; label: string }[] = [
@@ -63,18 +64,33 @@ export function describeStageLength({ count, unit }: { count: number | string; u
   return n === 1 ? "1 week" : `${n} weeks`;
 }
 
-/** "Divisional, closes automatically" / "Knockout, 2 weeks a round". */
+/** "Divisional · … · closes automatically" / "Knockout · 2 weeks a round". Bonus points are said; Standard isn't (#214). */
 export function describeStructure(league: {
   structure: LeagueStructure;
   stageRoll: StageRoll | null;
   stageLength: { count: number | string; unit: StageLengthUnit };
   divisionSize?: number | string | null;
+  standingsMode?: StandingsMode | null;
 }): string {
   const length = describeStageLength(league.stageLength).toLowerCase();
   if (league.structure === "Knockout") return `Knockout · ${length} a round`;
   const divisions = league.divisionSize ? ` · Divisions of ${league.divisionSize}` : "";
-  return `Divisional${divisions} · ${length} Stages · ${league.stageRoll === "Automatic" ? "closes automatically" : "Manager closes"}`;
+  const points = league.standingsMode === "BonusPoints" ? " · Bonus points" : "";
+  return `Divisional${divisions}${points} · ${length} Stages · ${league.stageRoll === "Automatic" ? "closes automatically" : "Manager closes"}`;
 }
+
+/**
+ * How a Division's Standings rank (#214, ADR-0035), for the setup form and
+ * under the ladder. Foursomes has its own rule, games won, and no choice.
+ */
+export const STANDINGS_MODES: { value: StandingsMode; label: string; rule: string }[] = [
+  { value: "Standard", label: "Standard", rule: "Ranked by wins, then games difference, then the results between them." },
+  {
+    value: "BonusPoints",
+    label: "Bonus points",
+    rule: "A point a win, a point a game played and one more for playing them all; level on points, then games difference, then the results between them.",
+  },
+];
 
 /**
  * A League date as the calendar date it is (ADR-0016): "1 Dec 2026". Formatted

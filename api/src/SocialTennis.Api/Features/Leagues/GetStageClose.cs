@@ -31,6 +31,7 @@ public static class GetStageClose
                 l.EndDate,
                 l.StageLength,
                 l.ScoreFormat,
+                l.StandingsMode,
                 l.Club.TimeZone,
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null }).FirstOrDefault(),
             })
@@ -45,7 +46,7 @@ public static class GetStageClose
             return StageClose.AlreadyClosed();
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
         var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
         return TypedResults.Ok(new GetStageCloseResponse(
             new LeagueStageSummary(stage.Number, stage.StartDate, stage.EndDate),

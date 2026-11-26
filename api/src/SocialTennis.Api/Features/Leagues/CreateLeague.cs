@@ -47,6 +47,10 @@ public static class CreateLeague
             DivisionSize = request.Structure == LeagueStructure.Divisional && request.Type.TeamSize() > 0
                 ? request.DivisionSize ?? League.DefaultDivisionSize
                 : null,
+            // And only it ranks by a mode (#214): Standard unless the Manager chose otherwise.
+            StandingsMode = request.Structure == LeagueStructure.Divisional && request.Type.TeamSize() > 0
+                ? request.StandingsMode ?? StandingsMode.Standard
+                : null,
             CreatedAt = clock.GetUtcNow(),
         };
         db.Leagues.Add(league);

@@ -15,7 +15,7 @@ namespace SocialTennis.Api.Features.Leagues;
 public static class StageLadder
 {
     public static async Task<(IReadOnlyList<LadderDivision> Divisions, LadderAwaiting Awaiting)> BuildAsync(
-        TennisDbContext db, Guid stageId, ScoreFormat format, CancellationToken cancellationToken)
+        TennisDbContext db, Guid stageId, ScoreFormat format, StandingsMode? mode, CancellationToken cancellationToken)
     {
         var places = await db.LadderPlaces
             .Where(p => p.StageId == stageId)
@@ -63,7 +63,8 @@ public static class StageLadder
                             g.First,
                             g.Second,
                             g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null)),
-                    ]);
+                    ],
+                    mode ?? StandingsMode.Standard);
                 var division = new LadderDivision(
                     group.Key,
                     [.. group.Select(p => p.Competitor)],
@@ -80,7 +81,8 @@ public static class StageLadder
                     [
                         .. standings.Select(s => new LadderStanding(
                             s.TeamId, s.Rank, s.Played, s.Won, s.Lost, s.GamesFor, s.GamesAgainst, s.Tied,
-                            Standings.MoveOf(s, standings, group.Key, count))),
+                            Standings.MoveOf(s, standings, group.Key, count),
+                            s.Points)),
                     ]);
                 return (Division: division, Ties: Standings.OpenTies(standings, group.Key, count).Select(tie => new LadderTie(group.Key, tie)));
             })

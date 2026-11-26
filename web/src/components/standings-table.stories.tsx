@@ -5,8 +5,8 @@ import { Card } from "./ui/card";
 
 const ids = ["t1", "t2", "t3", "t4"];
 const names = { t1: "Tom Reid", t2: "Omar Ali", t3: "Josh Lee", t4: "Ravi Rao" };
-const row = (teamId: string, rank: number, won: number, lost: number, gamesFor: number, gamesAgainst: number, move: "Up" | "Down" | "Stays" | null, tied = false) => ({
-  teamId, rank, played: won + lost, won, lost, gamesFor, gamesAgainst, tied, move,
+const row = (teamId: string, rank: number, won: number, lost: number, gamesFor: number, gamesAgainst: number, move: "Up" | "Down" | "Stays" | null, tied = false, points?: number) => ({
+  teamId, rank, played: won + lost, won, lost, gamesFor, gamesAgainst, tied, move, points,
 });
 
 const meta = {
@@ -102,6 +102,39 @@ export const LongNames: Story = {
     const table = canvas.getByRole("table", { name: "Division 2 standings" });
     await expect(table.scrollWidth).toBeLessThanOrEqual(table.parentElement!.clientWidth);
     // The Acting Player's own row, in bold: the widest these words get.
+    const mine = canvas.getByRole("rowheader", { name: "Christopher Featherstone" });
+    await expect(onOneLine(mine, "Christopher")).toBe(true);
+    await expect(onOneLine(mine, "Featherstone")).toBe(true);
+  },
+};
+
+/**
+ * A Bonus points League (#214): a point a win, a point a game played and one
+ * more for playing all three. Tom v Ravi isn't played yet. Christopher has
+ * played all three, so one win and the bonus put him above Tom's two wins
+ * from two. A column wider, the table still fits a phone card without
+ * breaking a name inside a word.
+ */
+export const BonusPoints: Story = {
+  args: {
+    names: { ...names, t3: "Christopher Featherstone" },
+    standings: [
+      row("t2", 1, 2, 1, 15, 9, "Up", false, 6),
+      row("t3", 2, 1, 2, 12, 16, "Stays", false, 5),
+      row("t1", 3, 2, 0, 12, 7, "Stays", false, 4),
+      row("t4", 4, 0, 2, 5, 12, "Down", false, 2),
+    ],
+  },
+  decorators: LongNames.decorators,
+  play: async ({ canvas }) => {
+    const [first, second] = rows(canvas);
+    await expect(canvas.getByRole("columnheader", { name: "Pts" })).toBeVisible();
+    await expect(first).toHaveTextContent("1Omar Ali321+66▲ up");
+    await expect(second).toHaveTextContent("2Christopher Featherstone312-45stays");
+    await expect(canvas.getByText(/^A point a win, a point a game played and one more for playing them all/)).toBeVisible();
+    await document.fonts.ready;
+    const table = canvas.getByRole("table", { name: "Division 2 standings" });
+    await expect(table.scrollWidth).toBeLessThanOrEqual(table.parentElement!.clientWidth);
     const mine = canvas.getByRole("rowheader", { name: "Christopher Featherstone" });
     await expect(onOneLine(mine, "Christopher")).toBe(true);
     await expect(onOneLine(mine, "Featherstone")).toBe(true);
