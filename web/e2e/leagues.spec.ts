@@ -76,6 +76,8 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   await page.reload();
   const mine = page.getByRole("region", { name: `${robin}'s leagues` });
   await expect(mine.getByRole("region", { name: league })).toContainText("Joined");
+  // Robin is its one player so far.
+  await expect(mine.getByRole("region", { name: league })).toContainText("1 player. The ladder appears when the manager starts the league.");
   await expect(joinable.getByRole("region", { name: league })).toHaveCount(0);
   await showOnly(page, league);
 });

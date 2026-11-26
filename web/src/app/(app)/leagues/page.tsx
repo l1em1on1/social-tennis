@@ -63,7 +63,8 @@ function LadderState({ league }: { league: PlayerLeague }) {
   if (!stage) {
     return (
       <p className="mt-2 text-sm text-fg-muted">
-        {league.participantCount} players. The ladder appears when the manager starts the league.
+        {league.participantCount} {Number(league.participantCount) === 1 ? "player" : "players"}. The ladder appears when the
+        manager starts the league.
       </p>
     );
   }
