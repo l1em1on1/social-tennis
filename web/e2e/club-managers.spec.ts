@@ -1,17 +1,14 @@
-// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts), through e2e/support/chromatic.ts. Otherwise identical to
-// @playwright/test.
+// Runs in the real project only (playwright.config.ts), which takes no snapshots: those come
+// from the fixed data (screens.spec.ts, #234). `test` is e2e/support/chromatic.ts's all the same.
 import { expect, test } from "./support/chromatic";
 import { asAdmin, logIn, personaEmail, uniqueName, userIdOf } from "./support/auth";
 
 // What these pages show is a refusal, the same for any Club, so there is nothing to review.
 test.use({ disableAutoSnapshot: true });
 
-// Real API only: the mock's Leagues all belong to its one shared Club.
 test("a manager of one Club can't open another Club's League, whether or not they can see it", async ({
   page,
 }, testInfo) => {
-  test.skip(testInfo.project.name === "mock", "Needs a second Club with managers of its own");
   // Sign-in and several API calls: over the default timeout on a busy real-API run.
   test.slow();
   const email = personaEmail(testInfo, "elsewhere");

@@ -1,6 +1,5 @@
-// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
-// nav off a long page's content (#182). Otherwise identical to @playwright/test.
+// Runs in the real project only (playwright.config.ts), which takes no snapshots: those come
+// from the fixed data (screens.spec.ts, #234). `test` is e2e/support/chromatic.ts's all the same.
 import { expect, test } from "./support/chromatic";
 import { logIn, personaEmail, requestSignInLink } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
@@ -71,7 +70,6 @@ test("a sign-in address with no token goes back to the login page", async ({ pag
 });
 
 test("a link a mail scanner has already fetched still signs the User in", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mock", "the mocked API redeems any token any number of times");
   const link = await requestSignInLink(page, testInfo, personaEmail(testInfo, "player"));
 
   // A scanner follows the link with a GET, and doesn't press buttons.

@@ -113,9 +113,10 @@ services:
         condition: service_healthy
     healthcheck: *web-healthcheck
 
-  # The mock API (ADR-0009, ADR-0033): a server of its own that answers as the
-  # real one does, from memory. Publishes no port and is never deployed. Web
-  # alone against it, in the dev overlay: see the README.
+  # The mock API (ADR-0009, ADR-0033): a server of its own that serves fixed
+  # data and changes nothing (#234), for the screens' snapshots. Publishes no
+  # port and is never deployed. Web alone against it, to look at, in the dev
+  # overlay: see the README.
   mock-api:
     build:
       context: ./web

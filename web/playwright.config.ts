@@ -3,12 +3,12 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Frontend E2E seam (ADR-0014). Runs inside the `e2e` compose service against
- * the production build of the web app, twice; only its API_URL differs (ADR-0033):
+ * the production build of the web app, in two projects; only its API_URL differs (ADR-0033):
  *
- *   mock — web-mock, with the mock API (mock-api/) behind it; no api service
- *   real — web-e2e, the real api over the real Postgres
- *
- * Every spec runs in both projects unless it opts out with `test.skip`.
+ *   mock — web-mock, with the mock API (mock-api/) behind it: fixed data, read
+ *          only (#234). It runs the screens' specs, which only look.
+ *   real — web-e2e, the real api over the real Postgres. It runs every other
+ *          spec: what the app does is tested here.
  *
  * Visual review (ADR-0015): specs import `test`, `expect` and `takeSnapshot`
  * from e2e/support/chromatic.ts, which wraps @chromatic-com/playwright's and
@@ -20,6 +20,9 @@ import { defineConfig } from "@playwright/test";
  * Phones first: a 360px-wide touch viewport, the narrowest the shell supports.
  */
 const mockUrl = process.env.E2E_MOCK_URL ?? "http://web-mock:3000";
+
+/** The specs that only look at the fixed data (#234): the mock project's, and Chromatic's. */
+const SCREENS = /(screens|manager-pages)\.spec\.ts$/;
 const realUrl = process.env.E2E_REAL_URL ?? "http://web-e2e:3000";
 
 export default defineConfig<ChromaticConfig>({
@@ -36,9 +39,10 @@ export default defineConfig<ChromaticConfig>({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "mock", use: { browserName: "chromium", baseURL: mockUrl } },
+    { name: "mock", testMatch: SCREENS, use: { browserName: "chromium", baseURL: mockUrl } },
     {
       name: "real",
+      testIgnore: SCREENS,
       // Own output dir: Chromatic writes one `<test title>.stories.json` per
       // test under <outputDir>/chromatic-archives, so a shared dir lets this
       // project's empty lists overwrite the mock project's snapshots.

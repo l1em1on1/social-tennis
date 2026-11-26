@@ -80,24 +80,27 @@ test("starting a League, from fixed data", async ({ page }, testInfo) => {
   await expectNoSeriousA11yViolations(page);
 });
 
-test("a started League's Manager page, from fixed data", async ({ page }, testInfo) => {
+test("an ended League's Manager page, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_MANAGER);
   await page.goto(`/manage/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
 
   await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
   await expect(page.getByText("Stage 1 runs 1 Oct 2026 – 31 Oct 2026.")).toBeVisible();
+  // Its one Stage has closed (#10): nothing left to settle, and nobody to move.
+  await expect(page.getByRole("region", { name: "To do" })).toContainText("The League has ended");
+  await expect(page.getByRole("region", { name: "Move a Team" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Start the league" })).toHaveCount(0);
   const players = page.getByRole("list", { name: "Players in the league" });
   await expect(players.getByRole("listitem").filter({ hasText: "Chris Lee" })).toContainText("Division 1");
   // On the ladder, leaving is a Withdrawal (#21): only Sam, left out, can be removed.
   await expect(players.getByRole("button", { name: /^Remove/ })).toHaveCount(1);
   await expect(players.getByRole("listitem").filter({ hasText: "Sam Morgan" })).toContainText("Not on the ladder");
-  await expectButtonsApart(page, "a started League's Manager page");
+  await expectButtonsApart(page, "an ended League's Manager page");
   await expectNoSeriousA11yViolations(page);
 });
 
-test("a started League's ladder, from fixed data", async ({ page }, testInfo) => {
+test("an ended League's ladder, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_MANAGER);
   await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
@@ -166,7 +169,7 @@ test("Admin, from fixed data", async ({ page }, testInfo) => {
   await page.goto("/admin");
 
   await expect(page.getByRole("heading", { name: "Admin", level: 1 })).toBeVisible();
-  await expect(page.getByText("Users (9)")).toBeVisible();
+  await expect(page.getByText("Users (11)")).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 });
 
@@ -188,16 +191,17 @@ test.describe("on a desktop screen", () => {
     await expectNoSeriousA11yViolations(page);
   });
 
-  test("a started League's Manager page, from fixed data, on a desktop", async ({ page }, testInfo) => {
+  test("an ended League's Manager page, from fixed data, on a desktop", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
     await logIn(page, testInfo, FIXTURE_MANAGER);
     await page.goto(`/manage/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
 
     await expect(page.getByRole("heading", { name: "Autumn Singles", level: 1 })).toBeVisible();
+    await expect(page.getByRole("region", { name: "To do" })).toContainText("The League has ended");
     await expectNoSeriousA11yViolations(page);
   });
 
-  test("a started League's ladder, from fixed data, on a desktop", async ({ page }, testInfo) => {
+  test("an ended League's ladder, from fixed data, on a desktop", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
     await logIn(page, testInfo, FIXTURE_MANAGER);
     await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
@@ -211,7 +215,7 @@ test.describe("on a desktop screen", () => {
     await logIn(page, testInfo, FIXTURE_ADMIN);
     await page.goto("/admin");
 
-    await expect(page.getByText("Users (9)")).toBeVisible();
+    await expect(page.getByText("Users (11)")).toBeVisible();
     await expectNoSeriousA11yViolations(page);
   });
 });

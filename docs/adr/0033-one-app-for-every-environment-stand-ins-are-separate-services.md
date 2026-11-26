@@ -29,3 +29,10 @@ The web app had code for an environment it wasn't in. A build argument (`MOCK_AP
 - web's `/health` runs its real code in the mocked stack.
 - `fixture.ts`, the fixed world of ADR-0015's snapshots, is now `web/mock-api/fixture.ts`.
 - The API keeps ASP.NET's own Development mode, used only under `dotnet watch`: readable logs and the framework's error page. Compose and production both run it as Production.
+
+**Amended (2026-11-26): the mock API keeps fixed data only (#234).** It was about 2,700 lines that repeated the API's rules by hand, so every rule changed twice. The owner chose fixed data (2026-11-25; plan agreed 2026-11-26).
+
+- **What it does now.** It answers every read from one fixed world (`mock-api/fixture.ts`), as the real API would for the User signed in, and signs in and out. Every other write answers 501 `fixed-data`, so a test that tries one fails loudly. It repeats no API rule.
+- **Who uses it.** The e2e `mock` project, which only looks: one test per screen and state (`screens.spec.ts`, `manager-pages.spec.ts`), for Chromatic. Every flow runs in the `real` project only. Running web alone against it is for looking at screens; clicking through flows takes the real API.
+- **Considered: keep it** (every spec in both projects), and **remove it** (snapshots from the real API, which needs a test clock in the API). The first kept the double work; the second adds test-only code to the API.
+- **Consequence.** A new screen or state for review goes into the fixture and gets a test in `screens.spec.ts`. The mock no longer needs recreating between runs: it holds no state.

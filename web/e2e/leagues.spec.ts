@@ -1,35 +1,11 @@
-// Chromatic's test captures a DOM snapshot at the end of every test (mock project only;
-// see playwright.config.ts), through e2e/support/chromatic.ts, which keeps the bottom
-// nav off a long page's content (#182). Otherwise identical to @playwright/test.
+// Runs in the real project only (playwright.config.ts), which takes no snapshots: those come
+// from the fixed data (screens.spec.ts, #234). `test` is e2e/support/chromatic.ts's all the same.
 import { expect, test } from "./support/chromatic";
 import type { Page } from "@playwright/test";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
 import { expectButtonsApart } from "./support/spacing";
 import { addClubPlayer, createLeague } from "./support/league";
-
-/**
- * Call it last in a test that ends on the Leagues page. The page lists every
- * League of the Club as it stands when it loads, other tests' too, so its
- * snapshot would change with the suite's timing. Leaves the test's own League
- * showing, and "You can join" only if it is in there: the section is otherwise
- * empty or not by timing alone. A style rather than taking them out of the
- * page, which React could put back as it hydrates; it needs the page's nonce
- * (ADR-0027).
- */
-async function showOnly(page: Page, league: string) {
-  await page.evaluate((name) => {
-    const style = document.createElement("style");
-    style.nonce = document.querySelector<HTMLElement>("[nonce]")?.nonce ?? "";
-    const card = `section[aria-label=${JSON.stringify(name)}]`;
-    style.textContent = `
-      main section[aria-label]:not(${card}) { display: none; }
-      main section[aria-labelledby="joinable"]:not(:has(${card})) { display: none; }
-    `;
-    document.head.append(style);
-  }, league);
-  await expect(page.getByRole("main").locator("section[aria-label]").filter({ visible: true })).toHaveCount(1);
-}
 
 test("a Manager creates a League; a Player asks to join and is in once approved", async ({
   page,
@@ -79,7 +55,6 @@ test("a Manager creates a League; a Player asks to join and is in once approved"
   // Robin is its one player so far.
   await expect(mine.getByRole("region", { name: league })).toContainText("1 player. The ladder appears when the manager starts the league.");
   await expect(joinable.getByRole("region", { name: league })).toHaveCount(0);
-  await showOnly(page, league);
 });
 
 test("a rejected Player sees the outcome; a Manager adds a club member straight in", async ({
@@ -136,7 +111,6 @@ test("a rejected Player sees the outcome; a Manager adds a club member straight 
   const card = page.getByRole("region", { name: "You can join" }).getByRole("region", { name: league });
   await expect(card).toContainText("Not accepted");
   await expect(card.getByRole("button", { name: `Ask to join ${league}` })).toHaveCount(0);
-  await showOnly(page, league);
 });
 
 test("the League setup form keeps to the rules the API enforces", async ({ page }, testInfo) => {
@@ -221,7 +195,6 @@ test("a Manager renames a League, and its Player sees the new name", async ({ pa
   const mine = page.getByRole("region", { name: `${kim}'s leagues` });
   await expect(mine.getByRole("region", { name: renamed })).toContainText("Joined");
   await expect(page.getByRole("region", { name: league })).toHaveCount(0);
-  await showOnly(page, renamed);
 });
 
 test("a Manager removes a Player from a League, and they can ask to join again", async ({ page, browser }, testInfo) => {
@@ -254,7 +227,6 @@ test("a Manager removes a Player from a League, and they can ask to join again",
   const joinable = page.getByRole("region", { name: "You can join" });
   await expect(joinable.getByRole("button", { name: `Ask to join ${league}` })).toBeVisible();
   await expect(page.getByRole("region", { name: `${lee}'s leagues` }).getByRole("region", { name: league })).toHaveCount(0);
-  await showOnly(page, league);
 });
 
 test("a Manager pairs two Players of a doubles League into a team, and each sees their partner", async ({ page, browser }, testInfo) => {
@@ -314,7 +286,6 @@ test("a Manager pairs two Players of a doubles League into a team, and each sees
   await page.goto("/leagues");
   const mine = page.getByRole("region", { name: `${ana}'s leagues` });
   await expect(mine.getByRole("region", { name: league })).toContainText(`Partner: ${ben}`);
-  await showOnly(page, league);
 });
 
 test("a Player asks to join a doubles League with a partner, who can take it back; approved, they're a team", async ({
@@ -386,7 +357,6 @@ test("a Player asks to join a doubles League with a partner, who can take it bac
   await expect(page.getByRole("region", { name: `${eve}'s leagues` }).getByRole("region", { name: league })).toContainText(
     `Partner: ${fin}`,
   );
-  await showOnly(page, league);
 });
 
 test("a named partner sees the request wherever they are, and the Manager is told when the partner is the problem", async ({
@@ -486,7 +456,6 @@ test("a named partner sees the request wherever they are, and the Manager is tol
   // A made-up error code shows nothing, rather than breaking the page.
   await page.goto("/leagues?error=toString");
   await expect.soft(page.getByRole("heading", { name: "Leagues", level: 1 })).toBeVisible();
-  await showOnly(page, league);
 });
 
 test("a Manager starts a League, reordering and leaving one out; each Player sees their Division and everyone they play", async ({

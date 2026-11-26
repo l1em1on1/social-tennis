@@ -94,20 +94,6 @@ export const formatDates = (startDate: string, endDate: string) => `${formatDate
 /** Teams per Division, as the API's League (ADR-0031): 4 unless the Manager says, from 2 to 8. */
 export const DIVISION_SIZE = { default: 4, min: 2, max: 8 } as const;
 
-/**
- * The proposed Division sizes for a ladder of `count` with Divisions of about
- * `size`, top first: as many Divisions as the count rounds to, at least one
- * and none under 2, as even as possible, the bigger ones at the bottom. The
- * same rule as the API's `Ladder.ProposeDivisions` (ADR-0031).
- */
-export function proposeDivisions(count: number, size: number): number[] {
-  if (count < 2) return [];
-  const divisions = Math.min(Math.max(Math.floor((count + Math.floor(size / 2)) / size), 1), Math.floor(count / 2));
-  const smaller = Math.floor(count / divisions);
-  const bigger = count % divisions;
-  return Array.from({ length: divisions }, (_, index) => smaller + (index >= divisions - bigger ? 1 : 0));
-}
-
 /** A Division's Games in a Stage: every pair once. */
 export const gamesIn = (size: number) => (size * (size - 1)) / 2;
 
@@ -116,8 +102,7 @@ export const gamesIn = (size: number) => (size * (size - 1)) / 2;
  * top first, from this Stage's in their final order. Each Division's first
  * goes up to the bottom of the one above, its last down to the top of the
  * one below; the ends of the ladder stay put, and `joining` Teams start at
- * the bottom of the bottom Division. The close screen previews it, and the
- * mock applies it.
+ * the bottom of the bottom Division. The close screen previews it.
  */
 export function relegate(divisions: string[][], joining: string[]): string[][] {
   const count = divisions.length;
