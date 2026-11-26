@@ -52,6 +52,13 @@ public class League
     /// </summary>
     public int? DivisionSize { get; set; }
 
+    /// <summary>
+    /// How its Standings rank (#214), for a Divisional League of the
+    /// Team-based Types; null for Knockout, which has none, and Foursomes,
+    /// which always ranks by games won (#14).
+    /// </summary>
+    public StandingsMode? StandingsMode { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<LeagueParticipant> Participants { get; set; } = [];

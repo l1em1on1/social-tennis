@@ -81,7 +81,7 @@ public static class StageClose
         await GameScores.TakeResultsLockAsync(db, leagueId, cancellationToken);
         var league = await db.Leagues
             .Where(l => l.Id == leagueId)
-            .Select(l => new { l.Type, l.EndDate, l.StageLength, l.ScoreFormat })
+            .Select(l => new { l.Type, l.EndDate, l.StageLength, l.ScoreFormat, l.StandingsMode })
             .SingleOrDefaultAsync(cancellationToken);
         var stage = await db.Stages
             .Where(s => s.LeagueId == leagueId)
@@ -97,7 +97,7 @@ public static class StageClose
             return new CloseResult(CloseRefusal.AlreadyClosed);
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
         if (awaiting.UnscoredGameIds.Count > 0)
         {
             return new CloseResult(CloseRefusal.QueueNotEmpty);

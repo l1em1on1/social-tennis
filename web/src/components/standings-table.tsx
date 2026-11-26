@@ -1,5 +1,6 @@
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
+import { STANDINGS_MODES } from "@/lib/league";
 
 type Standing = components["schemas"]["LadderStanding"];
 
@@ -26,7 +27,8 @@ const difference = (standing: Standing) => {
 /**
  * A Division's Standings (#10, wireframe P5): every Team from first, with
  * its Games played, won and lost and its games difference, and where it
- * would go if the Stage closed now. Teams the tie-breaks can't separate
+ * would go if the Stage closed now, and in a Bonus points League (#214) its
+ * points, which rank it. Teams the tie-breaks can't separate
  * share a rank (=2); where that decides who moves, it says "tied", for the
  * Manager to settle at close. Before any Score, it says so instead.
  */
@@ -44,6 +46,10 @@ export function StandingsTable({
   mine?: string[];
 }) {
   const results = standings.some((standing) => Number(standing.played) > 0);
+  // The API sends points only where they rank (StandingsMode.BonusPoints). Their column fits a
+  // phone because the numbers' columns are only as wide as their figures (one digit for P, W, L).
+  const points = standings.some((standing) => standing.points != null);
+  const rule = STANDINGS_MODES.find((mode) => mode.value === (points ? "BonusPoints" : "Standard"))!.rule;
   return (
     <div className="flex flex-col gap-2">
       <table className="w-full border-collapse text-left text-sm">
@@ -56,18 +62,23 @@ export function StandingsTable({
             <th scope="col" className="py-1 font-medium">
               Team
             </th>
-            <th scope="col" className="w-6 py-1 text-center font-medium">
+            <th scope="col" className="w-5 py-1 text-center font-medium">
               <abbr title="Played">P</abbr>
             </th>
-            <th scope="col" className="w-6 py-1 text-center font-medium">
+            <th scope="col" className="w-5 py-1 text-center font-medium">
               <abbr title="Won">W</abbr>
             </th>
-            <th scope="col" className="w-6 py-1 text-center font-medium">
+            <th scope="col" className="w-5 py-1 text-center font-medium">
               <abbr title="Lost">L</abbr>
             </th>
-            <th scope="col" className="w-8 py-1 text-center font-medium">
+            <th scope="col" className="w-7 py-1 text-center font-medium">
               <abbr title="Games difference">±</abbr>
             </th>
+            {points && (
+              <th scope="col" className="w-7 py-1 text-center font-medium">
+                <abbr title="Points">Pts</abbr>
+              </th>
+            )}
             <th scope="col" className="w-12 py-1 text-right font-medium">
               <span className="sr-only">If the Stage closed now</span>
             </th>
@@ -89,6 +100,7 @@ export function StandingsTable({
               <td className="py-1.5 text-center tabular-nums">{Number(standing.won)}</td>
               <td className="py-1.5 text-center tabular-nums">{Number(standing.lost)}</td>
               <td className="py-1.5 text-center tabular-nums">{difference(standing)}</td>
+              {points && <td className="py-1.5 text-center tabular-nums">{Number(standing.points ?? 0)}</td>}
               <td className="py-1.5 text-right text-xs">
                 <Move standing={standing} results={results} />
               </td>
@@ -98,7 +110,7 @@ export function StandingsTable({
       </table>
       <p className="text-xs text-fg-muted">
         {results
-          ? "Ranked by wins, then games difference, then the results between them. Arrows show who would move if the Stage closed now."
+          ? `${rule} Arrows show who would move if the Stage closed now.`
           : "No scores yet: the table fills in as games are played."}
       </p>
     </div>

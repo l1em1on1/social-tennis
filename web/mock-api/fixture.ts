@@ -170,6 +170,7 @@ const winterSingles = {
   stageRoll: "Automatic",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 3, matchTiebreakDecider: true },
   divisionSize: 4,
+  standingsMode: "Standard",
 } as const;
 
 const springDoubles = {
@@ -183,6 +184,7 @@ const springDoubles = {
   stageRoll: null,
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
   divisionSize: null,
+  standingsMode: null,
 } as const;
 
 const autumnSingles = {
@@ -196,6 +198,7 @@ const autumnSingles = {
   stageRoll: "Manual",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
   divisionSize: 4,
+  standingsMode: "Standard",
 } as const;
 
 const summerLadder = {
@@ -209,6 +212,8 @@ const summerLadder = {
   stageRoll: "Automatic",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
   divisionSize: 3,
+  // Ranked by points (#214): see its standings.
+  standingsMode: "BonusPoints",
 } as const;
 
 const springLadder = {
@@ -222,6 +227,7 @@ const springLadder = {
   stageRoll: "Manual",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
   divisionSize: 2,
+  standingsMode: "Standard",
 } as const;
 
 const summerDoubles = {
@@ -235,6 +241,7 @@ const summerDoubles = {
   stageRoll: "Automatic",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 3, matchTiebreakDecider: true },
   divisionSize: 4,
+  standingsMode: "Standard",
 } as const;
 
 const autumnStage = { number: 1, startDate: "2026-10-01", endDate: "2026-10-31" };
@@ -452,7 +459,8 @@ const standing = (
   [played, won, lost, gamesFor, gamesAgainst]: number[],
   move: Schemas["StandingMove"] | null,
   tied = false,
-): Schemas["LadderStanding"] => ({ teamId: id("f", n), rank, played, won, lost, gamesFor, gamesAgainst, tied, move });
+  points?: number,
+): Schemas["LadderStanding"] => ({ teamId: id("f", n), rank, played, won, lost, gamesFor, gamesAgainst, tied, move, points });
 
 const G = FIXTURE_RUNNING_GAME_IDS;
 
@@ -508,7 +516,12 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
           { id: G.joNia, firstTeamId: id("f", 10), secondTeamId: id("f", 12), score: score(1, 6, 4), notPlayed: false },
           { id: G.ellaNia, firstTeamId: id("f", 12), secondTeamId: id("f", 11), score: null, notPlayed: false },
         ],
-        standings: [standing(10, 1, [2, 2, 0, 12, 7], "Stays"), standing(12, 2, [1, 0, 1, 4, 6], "Stays"), standing(11, 3, [1, 0, 1, 3, 6], "Down")],
+        // Bonus points (#214): Jo 2 won + 2 played + 1 for playing both; Nia and Ella 1 each, games difference between them.
+        standings: [
+          standing(10, 1, [2, 2, 0, 12, 7], "Stays", false, 5),
+          standing(12, 2, [1, 0, 1, 4, 6], "Stays", false, 1),
+          standing(11, 3, [1, 0, 1, 3, 6], "Down", false, 1),
+        ],
       },
       {
         number: 2,
@@ -518,7 +531,12 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
           { id: G.chrisAlex, firstTeamId: id("f", 13), secondTeamId: id("f", 14), score: null, notPlayed: false },
           { id: G.alexSam, firstTeamId: id("f", 15), secondTeamId: id("f", 14), score: score(1, 6, 4), notPlayed: false },
         ],
-        standings: [standing(13, 1, [1, 1, 0, 6, 2], "Up"), standing(15, 2, [2, 1, 1, 8, 10], "Stays"), standing(14, 3, [1, 0, 1, 4, 6], "Stays")],
+        // Sam and Chris won once each, but Sam has played both Games: 1 + 2 + 1 beats Chris's 1 + 1.
+        standings: [
+          standing(15, 1, [2, 1, 1, 8, 10], "Up", false, 4),
+          standing(13, 2, [1, 1, 0, 6, 2], "Stays", false, 2),
+          standing(14, 3, [1, 0, 1, 4, 6], "Stays", false, 1),
+        ],
       },
     ],
   },

@@ -47,6 +47,7 @@ public static class GetPlayerGames
                 ClubName = p.League.Club.Name,
                 p.League.Club.TimeZone,
                 p.League.ScoreFormat,
+                p.League.StandingsMode,
                 Stage = p.League.Stages
                     .OrderByDescending(s => s.Number)
                     .Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null })
@@ -59,7 +60,7 @@ public static class GetPlayerGames
         foreach (var league in leagues.OrderBy(l => l.Stage!.EndDate).ThenBy(l => l.Name))
         {
             var stage = league.Stage!;
-            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, cancellationToken);
+            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
             var division = league.TeamId is { } teamId
                 ? divisions.FirstOrDefault(d => d.Competitors.Any(c => c.TeamId == teamId))
                 : null;

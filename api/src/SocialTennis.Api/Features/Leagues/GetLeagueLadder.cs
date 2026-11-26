@@ -39,6 +39,7 @@ public static class GetLeagueLadder
                 ClubName = l.Club.Name,
                 l.Type,
                 l.ScoreFormat,
+                l.StandingsMode,
                 l.Club.TimeZone,
                 Yours = l.Participants.Where(p => p.Player.UserId == userId).Select(p => p.PlayerId).ToList(),
                 Stage = l.Stages.OrderByDescending(s => s.Number).Select(s => new { s.Id, s.Number, s.StartDate, s.EndDate, Closed = s.ClosedAt != null }).FirstOrDefault(),
@@ -58,7 +59,7 @@ public static class GetLeagueLadder
                 leagueId, league.Name, league.ClubName, league.Type, null, [], false, new LadderAwaiting([], []), false, league.Yours, managers, manages));
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, league.Stage.Id, league.ScoreFormat, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, league.Stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
         if (league.Stage.Closed)
         {
             awaiting = new LadderAwaiting([], []);

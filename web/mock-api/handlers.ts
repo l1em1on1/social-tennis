@@ -90,6 +90,7 @@ const leagueFacts = (league: Schemas["GetLeagueResponse"]) => ({
   stageRoll: league.stageRoll,
   scoreFormat: league.scoreFormat,
   divisionSize: league.divisionSize,
+  standingsMode: league.standingsMode,
 });
 
 const teamOf = (league: Schemas["GetLeagueResponse"], playerId: string) =>

@@ -841,6 +841,7 @@ export interface components {
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
             divisionSize: null | number | string;
+            standingsMode: null | components["schemas"]["StandingsMode"];
             /** Format: int32 */
             participantCount: number | string;
             /** Format: int32 */
@@ -911,6 +912,7 @@ export interface components {
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
             divisionSize?: null | number | string;
+            standingsMode?: null | components["schemas"]["StandingsMode"];
         };
         CreateLeagueResponse: {
             /** Format: uuid */
@@ -1054,6 +1056,7 @@ export interface components {
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
             divisionSize: null | number | string;
+            standingsMode: null | components["schemas"]["StandingsMode"];
             participants: components["schemas"]["LeagueParticipantSummary"][];
             joinRequests: components["schemas"]["LeagueJoinRequestSummary"][];
             teams: components["schemas"]["LeagueTeamSummary"][];
@@ -1167,6 +1170,8 @@ export interface components {
             gamesAgainst: number | string;
             tied: boolean;
             move: null | components["schemas"]["StandingMove"];
+            /** Format: int32 */
+            points?: null | number | string;
         };
         LadderTie: {
             /** Format: int32 */
@@ -1354,6 +1359,7 @@ export interface components {
             scoreFormat: components["schemas"]["ScoreFormat"];
             /** Format: int32 */
             divisionSize: null | number | string;
+            standingsMode: null | components["schemas"]["StandingsMode"];
             /** Format: int32 */
             participantCount: number | string;
             joined: boolean;
@@ -1487,6 +1493,8 @@ export interface components {
         StageRoll: "Automatic" | "Manual" | null;
         /** @enum {unknown} */
         StandingMove: "Up" | "Down" | "Stays" | null;
+        /** @enum {unknown} */
+        StandingsMode: "Standard" | "BonusPoints" | null;
         StartLeagueRequest: {
             ladder: string[];
             divisions: (number | string)[];

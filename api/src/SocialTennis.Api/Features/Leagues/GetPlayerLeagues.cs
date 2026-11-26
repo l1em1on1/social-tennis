@@ -50,6 +50,7 @@ public static class GetPlayerLeagues
                 l.StageRoll,
                 l.ScoreFormat,
                 l.DivisionSize,
+                l.StandingsMode,
                 l.Participants.Count,
                 l.Participants.Any(p => p.PlayerId == playerId),
                 l.JoinRequests

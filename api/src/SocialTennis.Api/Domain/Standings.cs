@@ -10,9 +10,13 @@ namespace SocialTennis.Api.Domain;
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
-/// <item>Order: matches won, then games difference, then head-to-head: the Game between two tied
-/// Teams, or among three or more the wins in the Games between them, again for any still tied.
-/// What's left tied is the Manager's to decide (#10 part 2).</item>
+/// <item>Order: matches won, or points in <see cref="StandingsMode.BonusPoints"/> (#214), then games
+/// difference, then head-to-head: the Game between two tied Teams, or among three or more the wins in
+/// the Games between them, again for any still tied. What's left tied is the Manager's to decide
+/// (#10 part 2).</item>
+/// <item>Points (#214): 1 for a match won, 1 for a match played, and 1 more for playing every one of
+/// the Team's Games in the Division. A Game with no Score, or not played, gives neither Side a point,
+/// and keeps both from the last one.</item>
 /// <item>A Game with no Score counts for nothing either way (owner, 2026-11-22). A Retirement is a
 /// played result: its winner is declared, and its games count as they stood.</item>
 /// <item>A Set's games count as recorded, 6–5 on a tiebreak included. A Match Tiebreak counts as one
@@ -57,13 +61,17 @@ public static class Standings
 
     /// <summary>
     /// Ranks a Division's <paramref name="teams"/>, given in ladder order, by its
-    /// <paramref name="games"/>. Teams still tied share a rank, in ladder order.
+    /// <paramref name="games"/>, every one of the Stage's, scored or not. Teams
+    /// still tied share a rank, in ladder order.
     /// </summary>
-    public static IReadOnlyList<Standing> Rank(IReadOnlyList<Guid> teams, IReadOnlyList<StandingsGame> games)
+    public static IReadOnlyList<Standing> Rank(
+        IReadOnlyList<Guid> teams, IReadOnlyList<StandingsGame> games, StandingsMode mode = StandingsMode.Standard)
     {
         var rows = teams.ToDictionary(team => team, team => new Tally());
         foreach (var game in games)
         {
+            rows[game.FirstTeamId].Games++;
+            rows[game.SecondTeamId].Games++;
             if (game.Result is not { } result)
             {
                 continue;
@@ -79,10 +87,11 @@ public static class Standings
         }
 
         var ladderOrder = teams.Select((team, index) => (team, index)).ToDictionary(pair => pair.team, pair => pair.index);
+        int? PointsOf(Guid team) => mode == StandingsMode.BonusPoints ? rows[team].Points : null;
         var groups = teams
-            .GroupBy(team => (rows[team].Won, rows[team].GamesFor - rows[team].GamesAgainst))
-            .OrderByDescending(group => group.Key.Won)
-            .ThenByDescending(group => group.Key.Item2)
+            .GroupBy(team => (First: PointsOf(team) ?? rows[team].Won, Difference: rows[team].GamesFor - rows[team].GamesAgainst))
+            .OrderByDescending(group => group.Key.First)
+            .ThenByDescending(group => group.Key.Difference)
             .SelectMany(group => HeadToHead([.. group], games))
             .ToList();
 
@@ -93,7 +102,7 @@ public static class Standings
             standings.AddRange(group
                 .OrderBy(team => ladderOrder[team])
                 .Select(team => new Standing(
-                    team, rank, rows[team].Won + rows[team].Lost, rows[team].Won, rows[team].Lost, rows[team].GamesFor, rows[team].GamesAgainst, group.Count > 1)));
+                    team, rank, rows[team].Played, rows[team].Won, rows[team].Lost, rows[team].GamesFor, rows[team].GamesAgainst, group.Count > 1, PointsOf(team))));
         }
 
         return standings;
@@ -178,9 +187,17 @@ public static class Standings
 
     private sealed class Tally
     {
+        /// <summary>Its Games in the Division this Stage, scored or not.</summary>
+        public int Games { get; set; }
+
         public int Won { get; set; }
 
         public int Lost { get; set; }
+
+        public int Played => Won + Lost;
+
+        /// <summary>A point a win, a point a match played, and one more for playing them all (#214).</summary>
+        public int Points => Won + Played + (Games > 0 && Played == Games ? 1 : 0);
 
         public int GamesFor { get; set; }
 
@@ -197,7 +214,8 @@ public sealed record StandingsResult(int Winner, int FirstGames, int SecondGames
 /// <summary>A Team's line in its Division's Standings.</summary>
 /// <param name="Rank">1 for first; Teams still tied share one.</param>
 /// <param name="Tied">Shares its rank with another Team: the tie-breaks don't separate them.</param>
-public sealed record Standing(Guid TeamId, int Rank, int Played, int Won, int Lost, int GamesFor, int GamesAgainst, bool Tied);
+/// <param name="Points">Its points in <see cref="StandingsMode.BonusPoints"/> (#214); null in Standard.</param>
+public sealed record Standing(Guid TeamId, int Rank, int Played, int Won, int Lost, int GamesFor, int GamesAgainst, bool Tied, int? Points = null);
 
 /// <summary>Where a Team goes at close (ADR-0031).</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<StandingMove>))]

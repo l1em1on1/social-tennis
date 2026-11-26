@@ -20,11 +20,12 @@ namespace SocialTennis.Api.IntegrationTests;
 /// </summary>
 public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestFactory>
 {
-    private static object ALeague(string type, string structure = "Divisional", int? divisionSize = null) => new
+    private static object ALeague(string type, string structure = "Divisional", int? divisionSize = null, string? standingsMode = null) => new
     {
         name = $"{type} {structure} League",
         type,
         divisionSize,
+        standingsMode,
         structure,
         startDate = "2026-12-01",
         endDate = "2027-03-31",
@@ -245,7 +246,72 @@ public class LeagueStartTests(AuthTestFactory factory) : IClassFixture<AuthTestF
 
         var leagueId = await CreateLeagueAsync(manager, clubId, type, structure);
 
-        Assert.Null((await LeagueAsync(manager, leagueId)).DivisionSize);
+        var league = await LeagueAsync(manager, leagueId);
+        Assert.Null(league.DivisionSize);
+        // Nor a Standings mode (#214): Knockout has no Standings, and Foursomes ranks by games won (#14).
+        Assert.Null(league.StandingsMode);
+    }
+
+    [Theory]
+    [InlineData(null, StandingsMode.Standard)]
+    [InlineData("BonusPoints", StandingsMode.BonusPoints)]
+    public async Task A_Divisional_League_of_Teams_ranks_as_Standard_unless_the_Manager_chooses_Bonus_points(string? asked, StandingsMode stored)
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync(manager);
+
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", ALeague("DoublesMix", standingsMode: asked));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var leagueId = (await response.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
+
+        Assert.Equal(stored, (await LeagueAsync(manager, leagueId)).StandingsMode);
+        var listed = (await manager.GetFromJsonAsync<GetClubLeaguesResponse>($"/clubs/{clubId}/leagues"))!.Leagues.Single();
+        Assert.Equal(stored, listed.StandingsMode);
+    }
+
+    [Theory]
+    [InlineData("SinglesMixed", "Knockout")]
+    [InlineData("Foursomes", "Divisional")]
+    [InlineData("SinglesMixed", "Divisional", "Wins")]
+    public async Task A_Standings_mode_is_refused_where_there_is_none_to_choose(string type, string structure, string mode = "BonusPoints")
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync(manager);
+
+        var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", ALeague(type, structure, standingsMode: mode));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        if (mode == "BonusPoints")
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+            Assert.Contains("standingsMode", problem!.Errors.Keys);
+        }
+    }
+
+    /// <summary>The StandingsMode migration's SQL on rows made the old way: Leagues with no mode.</summary>
+    [Fact]
+    public async Task The_migration_makes_old_Divisional_Leagues_of_Teams_Standard_and_leaves_the_rest()
+    {
+        using var manager = await factory.CreateManagerClientAsync();
+        var clubId = await NewClubAsync(manager);
+        var divisional = await CreateLeagueAsync(manager, clubId);
+        var knockout = await CreateLeagueAsync(manager, clubId, structure: "Knockout");
+        var foursomes = await CreateLeagueAsync(manager, clubId, "Foursomes");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+            await db.Leagues.Where(l => l.Id == divisional).ExecuteUpdateAsync(set => set.SetProperty(l => l.StandingsMode, (StandingsMode?)null));
+
+            foreach (var sql in new SocialTennis.Api.Migrations.StandingsMode().UpOperations.OfType<SqlOperation>().Select(o => o.Sql))
+            {
+                await db.Database.ExecuteSqlRawAsync(sql);
+            }
+        }
+
+        Assert.Equal(StandingsMode.Standard, (await LeagueAsync(manager, divisional)).StandingsMode);
+        Assert.Null((await LeagueAsync(manager, knockout)).StandingsMode);
+        Assert.Null((await LeagueAsync(manager, foursomes)).StandingsMode);
     }
 
     [Fact]

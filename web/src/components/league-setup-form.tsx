@@ -10,11 +10,13 @@ import { cx } from "@/lib/cx";
 import {
   DIVISION_SIZE,
   LEAGUE_TYPES,
+  STANDINGS_MODES,
   describeScoreFormat,
   isValidCombination,
   type LeagueStructure,
   type LeagueType,
   type StageRoll,
+  type StandingsMode,
 } from "@/lib/league";
 
 /** Matches the API's limit (League.NameMaxLength). */
@@ -96,7 +98,8 @@ const initialState: CreateLeagueState = { errors: {} };
  * Create a League (wireframe M2). The rules the API enforces are mirrored so
  * a Manager can't build a League it would refuse: Foursomes and Knockout can't
  * both be picked, the Match Tiebreak switch exists only for best of three, and
- * the roll mode only for Divisional. The API still decides, and its messages
+ * the roll mode only for Divisional, and the Standings choice only where a
+ * Division of Teams ranks (#214). The API still decides, and its messages
  * show next to the fields they name.
  */
 export function LeagueSetupForm({ clubId, today }: { clubId: string; today: string }) {
@@ -107,6 +110,7 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
   const [setsPerGame, setSetsPerGame] = useState<"1" | "3">("1");
   const [matchTiebreak, setMatchTiebreak] = useState(false);
   const [stageRoll, setStageRoll] = useState<StageRoll>("Manual");
+  const [standingsMode, setStandingsMode] = useState<StandingsMode>("Standard");
   // Controlled, every one: React resets a form's uncontrolled fields when its
   // action finishes, which would wipe them on a refusal.
   const [name, setName] = useState("");
@@ -270,6 +274,18 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
             />
           )}
         </Field>
+      )}
+
+      {structure === "Divisional" && type !== "Foursomes" && (
+        <ChoiceGroup
+          name="standingsMode"
+          legend="Standings"
+          value={standingsMode}
+          onChange={setStandingsMode}
+          choices={STANDINGS_MODES.map(({ value, label }) => ({ value, label }))}
+          hint={STANDINGS_MODES.find((mode) => mode.value === standingsMode)?.rule}
+          error={error("standingsMode")}
+        />
       )}
 
       {structure === "Divisional" && (

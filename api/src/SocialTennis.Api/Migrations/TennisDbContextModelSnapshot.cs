@@ -261,6 +261,9 @@ namespace SocialTennis.Api.Migrations
                     b.Property<int?>("StageRoll")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("StandingsMode")
+                        .HasColumnType("integer");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
 

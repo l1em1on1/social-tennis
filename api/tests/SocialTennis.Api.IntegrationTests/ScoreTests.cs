@@ -48,7 +48,7 @@ public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<Cloc
     }
 
     private static async Task<Guid> LeagueAsync(
-        HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed", string? endDate = null, string stageRoll = "Manual")
+        HttpClient manager, Guid clubId, object scoreFormat, string type = "SinglesMixed", string? endDate = null, string stageRoll = "Manual", string? standingsMode = null)
     {
         var response = await manager.PostAsJsonAsync($"/clubs/{clubId}/leagues", new
         {
@@ -60,6 +60,7 @@ public partial class ScoreTests(ClockedTestFactory factory) : IClassFixture<Cloc
             stageLength = new { count = 1, unit = "Months" },
             stageRoll,
             scoreFormat,
+            standingsMode,
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<CreateLeagueResponse>())!.Id;
