@@ -14,9 +14,8 @@ namespace SocialTennis.Api.Jobs;
 /// <remarks>
 /// <list type="bullet">
 /// <item><b>Someone who has never signed in stays</b> (owner, 2026-11-26): a Manager can add a member
-/// and record their scores, so a regular player may never sign in.</item>
-/// <item><b>So does anyone with a Player in a League that hasn't ended</b>: one not started yet, or
-/// whose latest Stage is open. They are playing, whether or not they sign in.</item>
+/// and record their scores, so a regular player may never sign in. So does someone who last signed in
+/// before the last sign-in was recorded (#117, part 1): there is no date to count from.</item>
 /// <item><b>An Admin is never deleted by it</b> when that would leave nobody able to act: the deletion
 /// path refuses, as it does for an Admin.</item>
 /// </list>
@@ -38,9 +37,6 @@ public sealed class PurgeInactiveAccountsJob(
 
         var due = await db.Users
             .Where(u => u.LastSignedInAt != null && u.LastSignedInAt < before)
-            .Where(u => !db.Players.Any(p => p.UserId == u.Id
-                && db.LeagueParticipants.Any(lp => lp.PlayerId == p.Id
-                    && lp.League.Stages.OrderByDescending(s => s.Number).Select(s => s.ClosedAt).FirstOrDefault() == null)))
             .OrderBy(u => u.Id)
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);

@@ -14,7 +14,7 @@ namespace SocialTennis.Api.IntegrationTests;
 /// <summary>
 /// The retention job (#117, ADR-0024): an account nobody has signed in to for
 /// 24 months is deleted, as an Admin's delete does it. Here because it needs
-/// Leagues, running and ended, which these tests build.
+/// a League with results, which these tests build.
 /// </summary>
 /// <remarks>
 /// The job is database-wide and the database is shared, so only these tests'
@@ -78,37 +78,19 @@ public partial class ScoreTests
     }
 
     [Fact]
-    public async Task Someone_in_a_League_that_hasnt_ended_stays_and_goes_once_it_has()
+    public async Task Playing_in_a_League_doesnt_keep_an_account_with_no_sign_in_for_24_months()
     {
-        // A League still running: Una and Vic on its ladder, Wes left out but in it.
+        // Una plays in a running League, but hasn't signed in for 25 months: she goes, and her results stay, as Former player's.
         var running = await SinglesAsync(OneSetOf6);
-        var una = await LastSignedInAsync(running.Una.Client, PurgeInactiveAccountsJob.Months + 6);
-        var wes = await LastSignedInAsync(running.Wes.Client, PurgeInactiveAccountsJob.Months + 6);
-        // A League not started yet.
-        var (manager, clubId) = await ClubAsync();
-        var waitingLeague = await LeagueAsync(manager, clubId, OneSetOf6);
-        var pat = await ParticipantAsync(manager, clubId, waitingLeague, "Pat");
-        var patUser = await LastSignedInAsync(pat.Client, PurgeInactiveAccountsJob.Months + 6);
-        // A League whose one Stage has closed: it has ended.
-        var endedLeague = await LeagueAsync(manager, clubId, OneSetOf6, endDate: $"{Year}-07-31");
-        var ann = await ParticipantAsync(manager, clubId, endedLeague, "Ann");
-        var bob = await ParticipantAsync(manager, clubId, endedLeague, "Bob");
-        var league = await ManagedAsync(manager, endedLeague);
-        var teams = new[] { TeamOf(league, ann.PlayerId), TeamOf(league, bob.PlayerId) };
-        await StartAsync(manager, endedLeague, teams);
-        var game = (await LadderOfAsync(manager, endedLeague)).Divisions.Single().Games.Single();
-        (await VoidAsync(manager, game.Id)).EnsureSuccessStatusCode();
-        (await CloseAsync(manager, endedLeague, [teams])).EnsureSuccessStatusCode();
-        Assert.True((await LadderOfAsync(manager, endedLeague)).Ended);
-        var annUser = await LastSignedInAsync(ann.Client, PurgeInactiveAccountsJob.Months + 6);
+        (await SubmitAsync(running.Una.Client, running.GameId, running.Una.PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        var una = await LastSignedInAsync(running.Una.Client, PurgeInactiveAccountsJob.Months + 1);
 
         await RunRetentionAsync();
 
-        Assert.True(await UserExistsAsync(una));
-        Assert.True(await UserExistsAsync(wes));
-        Assert.True(await UserExistsAsync(patUser));
-        Assert.False(await UserExistsAsync(annUser));
-        Assert.Equal(Player.FormerPlayerName, await PlayerNameAsync(ann.PlayerId));
+        Assert.False(await UserExistsAsync(una));
+        var game = await GameAsync(running.Vic.Client, running.GameId);
+        Assert.Equal(Player.FormerPlayerName, game.Sides.Single(s => s.Side == 1).Players.Single().Name);
+        Assert.Equal(1, game.Score!.Winner);
     }
 
     [Fact]
