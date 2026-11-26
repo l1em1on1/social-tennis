@@ -111,8 +111,9 @@ export default async function PrivacyPage() {
 
       <Section title="How long we keep it">
         <p>
-          While you use the app. Accounts with no sign-in for 24 months are to be deleted: we record when you last signed
-          in for that, and the deletion is being added. Backups of the database are kept for up to three weeks.
+          While you use the app. An account with no sign-in for 24 months is deleted, in the way described below: we record
+          when you last signed in for that. An account you have never signed in to is kept, as when a manager adds you and
+          records your scores. Backups of the database are kept for up to three weeks.
         </p>
       </Section>
 
