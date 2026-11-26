@@ -102,7 +102,8 @@ async function shot(page: Page, name: string, { top, ring }: { top?: Locator; ri
     await target.evaluate((element: HTMLElement) => {
       element.dataset.guideRing = element.style.boxShadow;
       // Inside its own box at the screen's edge, around it everywhere else.
-      element.style.boxShadow = element.closest("nav") ? "inset 0 0 0 4px #1d4f91" : "0 0 0 3px #fffdf8, 0 0 0 7px #1d4f91";
+      // Orange, which neither the court's blue nor the ball's yellow is (#254).
+      element.style.boxShadow = element.closest("nav") ? "inset 0 0 0 4px #e8590c" : "0 0 0 3px #ffffff, 0 0 0 7px #e8590c";
     });
   }
   await page.waitForTimeout(250);

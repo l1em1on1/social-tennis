@@ -177,16 +177,16 @@ export default async function ManagePage({ searchParams }: PageProps<"/manage">)
 
   return (
     <>
-      <h1 className="text-2xl font-bold">Manage</h1>
+      <h1 className="text-4xl leading-none font-black">Manage</h1>
 
       {problem && <ErrorState title={problem.title} description={problem.description} />}
       {typeof added === "string" && (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           <strong>{added}</strong> is added.
         </p>
       )}
       {typeof invited === "string" && (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           <strong>{invited}</strong> is pre-approved. If they already have a player, they&apos;re in the club now; if not,
           they&apos;re in as soon as they sign in with that address and save their name. We don&apos;t email them, so let
           them know.

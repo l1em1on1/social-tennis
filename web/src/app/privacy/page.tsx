@@ -33,7 +33,7 @@ export default async function PrivacyPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-8 leading-relaxed">
-      <h1 className="text-2xl font-bold">Privacy notice</h1>
+      <h1 className="text-4xl leading-none font-black">Privacy notice</h1>
 
       <Section title="Who we are">
         <p>

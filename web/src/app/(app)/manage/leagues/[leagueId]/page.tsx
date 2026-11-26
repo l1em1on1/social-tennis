@@ -122,7 +122,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       {/* Keyed by the name: a rename remounts it, so the sheet starts closed with the new name. */}
       <div key={league.name} className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="text-2xl font-bold break-words">{league.name}</h1>
+          <h1 className="text-4xl leading-none font-black break-words">{league.name}</h1>
           <p className="text-fg-muted">
             {league.clubName} · {typeLabel(league.type)}
           </p>
@@ -176,14 +176,14 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
         )
       )}
       {justClosed === "1" && ladder?.stage && (
-        <p role="status" className="rounded-2xl border border-success bg-success-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-success bg-success-muted px-4 py-3 text-sm">
           {ladder.ended
             ? "The League's last Stage is closed: the League has ended."
             : `Stage ${Number(ladder.stage.number) - 1} is closed, and Stage ${Number(ladder.stage.number)} runs ${formatDates(ladder.stage.startDate, ladder.stage.endDate)}.`}
         </p>
       )}
       {justStarted === "1" && stage && (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           <strong>{league.name}</strong> has started. Each Division&apos;s Games are waiting to be played by{" "}
           {formatDate(stage.endDate)}.
         </p>
@@ -194,7 +194,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       )}
 
       {created === "1" && (
-        <p role="status" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           <strong>{league.name}</strong> is created. Players at the club can ask to join it now, or add them below.
         </p>
       )}
@@ -592,7 +592,7 @@ function MoveTeamCard({ ladder, moved, refused }: { ladder: components["schemas"
     <Card title="Move a Team" aria-label="Move a Team">
       <div className="flex flex-col gap-3">
         {movedTeam && (
-          <p role="status" className="rounded-xl border border-success bg-success-muted px-3 py-2 text-sm">
+          <p role="status" className="rounded-md border border-success bg-success-muted px-3 py-2 text-sm">
             {movedTeam.name} is in Division {movedTeam.division} now, at the bottom, with a Game against everyone there. Its unplayed Games in its old
             Division are gone.
           </p>

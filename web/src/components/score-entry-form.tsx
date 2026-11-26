@@ -161,7 +161,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
             key={index}
             aria-label={title}
             className={cx(
-              "flex flex-col gap-4 rounded-2xl border bg-surface p-4",
+              "flex flex-col gap-4 rounded-md border bg-surface p-4",
               result.state === "won" && !serverError ? "border-success" : result.state === "impossible" || serverError ? "border-danger" : "border-border",
             )}
           >
@@ -182,7 +182,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
               </div>
             ))}
             {atTiebreak(format, entry, index) && (
-              <div className="flex flex-col gap-4 rounded-xl bg-surface-muted p-3">
+              <div className="flex flex-col gap-4 rounded-md bg-surface-muted p-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   Tiebreak points <Badge tone="accent">{`at ${format.gamesPerSet - 1}–${format.gamesPerSet - 1}`}</Badge>
                 </p>
@@ -210,14 +210,14 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
       {format.setsPerGame === 3 && shown === 2 && (
         <section
           aria-label={setTitle(format, 2)}
-          className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-border p-4 text-fg-muted"
+          className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border p-4 text-fg-muted"
         >
           <h2 className="text-base font-semibold">{setTitle(format, 2)}</h2>
           <Badge>Only at one set all</Badge>
         </section>
       )}
 
-      <section aria-label="Retirement" className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+      <section aria-label="Retirement" className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
         <label className="flex cursor-pointer items-start justify-between gap-3">
           <span>
             <span className="block font-semibold">Stopped early (retirement)</span>
@@ -239,7 +239,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
                 <label
                   key={side}
                   className={cx(
-                    "flex min-h-11 cursor-pointer items-center justify-center rounded-xl border px-3 text-center font-semibold wrap-anywhere",
+                    "flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-3 text-center font-semibold wrap-anywhere",
                     "has-checked:border-accent has-checked:bg-accent-muted has-checked:text-accent",
                     "has-focus-visible:outline-2 has-focus-visible:outline-accent",
                     "border-border-strong",
@@ -261,7 +261,7 @@ export function ScoreEntryForm({ gameId, mode = "enter", playerId, version, side
         )}
       </section>
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+      <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-4">
         <p className="font-mono text-lg font-semibold" aria-label="Score so far">
           {summary || "—"}
         </p>

@@ -52,7 +52,7 @@ function ChoiceGroup<T extends string>({
   return (
     <fieldset className="flex flex-col gap-1.5" aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}>
       <legend className="mb-1.5 text-sm font-medium">{legend}</legend>
-      <div className="flex rounded-xl border border-border-strong p-1">
+      <div className="flex rounded-md border border-border-strong p-1">
         {choices.map((choice) => (
           <label
             key={choice.value}
@@ -316,7 +316,7 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
       />
 
       {setsPerGame === "3" && (
-        <label className="flex items-start gap-3 rounded-xl border border-border p-3">
+        <label className="flex items-start gap-3 rounded-md border border-border p-3">
           <input
             type="checkbox"
             name="matchTiebreakDecider"
@@ -336,7 +336,7 @@ export function LeagueSetupForm({ clubId, today }: { clubId: string; today: stri
         <p className="text-sm font-medium text-danger">{error("scoreFormat.matchTiebreakDecider")}</p>
       )}
 
-      <p className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+      <p className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
         <strong>Format:</strong> {preview}.
       </p>
 

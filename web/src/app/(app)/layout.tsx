@@ -27,10 +27,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      {/* Ruled in terracotta, with the ball mark (#226). */}
-      <header className="sticky top-0 z-10 border-b-4 border-accent bg-surface">
+      {/* On the court's blue, ruled with a white line near its edge (#254, Hard court). */}
+      <header className="sticky top-0 z-10 bg-court pb-2 text-court-fg shadow-[inset_0_-4px_0_var(--st-court),inset_0_-7px_0_#fff]">
         <div className="mx-auto flex min-h-14 max-w-md items-center justify-between gap-3 px-4 md:max-w-5xl">
-          <span className="flex shrink-0 items-center gap-2 font-display text-lg font-bold text-accent">
+          <span className="flex shrink-0 items-center gap-2 font-display text-2xl font-black tracking-wide text-ball uppercase">
             <BallMark />
             Hits & Giggles
           </span>

@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { Big_Shoulders, Figtree, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// The text face (#254, Hard court). Variable fonts, so no weights to list.
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
 });
 
@@ -13,10 +14,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// The display serif for page and card titles (#226, Clay court). A variable font, so no weights to list.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+// The display face for the app's name and the page and card titles: tall, like a scoreboard's.
+// Its optical size axis gives the display cut at title sizes.
+const bigShoulders = Big_Shoulders({
+  variable: "--font-big-shoulders",
   subsets: ["latin"],
+  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -28,10 +31,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Matches --st-bg in globals.css so the mobile browser chrome blends in.
+  // Matches --st-court in globals.css, the header's blue, so the mobile browser chrome runs into it.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbf4ea" },
-    { media: "(prefers-color-scheme: dark)", color: "#18110c" },
+    { media: "(prefers-color-scheme: light)", color: "#0b57a8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a3a73" },
   ],
 };
 
@@ -41,7 +44,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // CSP guide: "all pages must be dynamically rendered").
   await connection();
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}>
+    <html lang="en" className={`${figtree.variable} ${geistMono.variable} ${bigShoulders.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

@@ -151,7 +151,7 @@ export function Combobox({
         role="listbox"
         aria-label={listLabel}
         hidden={!expanded}
-        className="absolute inset-x-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-xl border border-border-strong bg-surface py-1 shadow-lg"
+        className="absolute inset-x-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-md border border-border-strong bg-surface py-1 shadow-lg"
       >
         {shown.map((option, index) => (
           <li

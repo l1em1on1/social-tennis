@@ -92,7 +92,7 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
       {state.errors.form && <ErrorState title="The Stage didn't close" description={state.errors.form.join(" ")} />}
 
       {ends && (
-        <p role="note" className="rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm">
+        <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           This is the League&apos;s last Stage: it ended on {formatDate(leagueEnd)}. Closing it ends the League, and nobody moves.
         </p>
       )}
@@ -143,7 +143,7 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
       </ol>
 
       {!ends && waiting.length > 0 && (
-        <fieldset className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+        <fieldset className="flex flex-col gap-2 rounded-md border border-border bg-surface p-4">
           <legend className="px-1 text-base font-semibold">Teams waiting for a place</legend>
           <p className="text-sm text-fg-muted">Ticked Teams start Stage {stageNumber + 1} at the bottom of Division {divisions.length}.</p>
           {waiting.map((team) => (
@@ -163,7 +163,7 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
       )}
 
       {nextStage && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
           <h2 className="text-base font-semibold">Stage {stageNumber + 1}</h2>
           <Field
             id="nextStartDate"

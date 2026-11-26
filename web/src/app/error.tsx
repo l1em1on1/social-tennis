@@ -17,7 +17,7 @@ export default function RootError({ retry }: { error: Error & { digest?: string 
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-4 py-8">
-      <h1 className="text-2xl font-bold">Hits & Giggles</h1>
+      <h1 className="text-4xl leading-none font-black">Hits & Giggles</h1>
       <ErrorState
         title="Something went wrong"
         description="The app couldn't load. It's usually the server being briefly unreachable."

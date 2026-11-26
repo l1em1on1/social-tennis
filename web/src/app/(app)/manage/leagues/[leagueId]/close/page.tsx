@@ -58,7 +58,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">Close Stage {Number(stage.number)}</h1>
+        <h1 className="text-4xl leading-none font-black">Close Stage {Number(stage.number)}</h1>
         <p className="text-fg-muted">
           {formatDates(stage.startDate, stage.endDate)}
           {close.heldUp ? `. It ended on ${formatDate(stage.endDate)}.` : `. It runs to ${formatDate(stage.endDate)}: closing early is fine.`}

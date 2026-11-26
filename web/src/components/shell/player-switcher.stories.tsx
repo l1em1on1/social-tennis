@@ -22,7 +22,8 @@ const meta = {
   args: { viewer: viewer([pat, alex, sam], alex) },
   decorators: [
     (Story) => (
-      <div className="flex justify-end">
+      // On the header's court, where the app shows it (#254): its colours are the court's.
+      <div className="flex justify-end bg-court p-2">
         <Story />
       </div>
     ),

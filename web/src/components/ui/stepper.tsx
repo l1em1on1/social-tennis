@@ -12,7 +12,7 @@ interface StepperProps {
 }
 
 const step = cx(
-  "inline-flex size-11 items-center justify-center rounded-xl border border-border-strong bg-surface text-xl font-semibold",
+  "inline-flex size-11 items-center justify-center rounded-md border border-border-strong bg-surface text-xl font-semibold",
   "transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40",
 );
 

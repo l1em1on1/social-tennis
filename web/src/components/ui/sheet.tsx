@@ -73,14 +73,14 @@ export function Sheet(props: SheetProps) {
         // action) is the end of the interaction: close, and let the page update.
         onSubmit={() => ref.current?.close()}
         className={cx(
-          "m-0 mt-auto w-full max-w-none rounded-t-3xl border border-border bg-surface p-0 text-fg",
-          "sm:m-auto sm:max-w-md sm:rounded-3xl",
+          "m-0 mt-auto w-full max-w-none rounded-t-xl border-0 border-t-8 border-court bg-surface p-0 text-fg",
+          "sm:m-auto sm:max-w-md sm:rounded-md",
           "backdrop:bg-fg/40",
         )}
       >
         <div className="flex flex-col gap-4 p-5 pb-8">
           <header className="flex items-center justify-between gap-3">
-            <h2 id={titleId} className="text-lg font-semibold">
+            <h2 id={titleId} className="font-display text-2xl leading-tight font-extrabold">
               {title}
             </h2>
             <form method="dialog">

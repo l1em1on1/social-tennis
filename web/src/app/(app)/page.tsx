@@ -29,7 +29,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">Home</h1>
+        <h1 className="text-4xl leading-none font-black">Home</h1>
         {games && games.leagues.length > 0 && (
           <p className="text-fg-muted">
             {actingPlayer?.name} · {owed === 0 ? "no scores owed" : `${owed} ${owed === 1 ? "score" : "scores"} needed`}

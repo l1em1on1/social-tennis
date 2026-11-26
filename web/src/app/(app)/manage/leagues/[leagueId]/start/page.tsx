@@ -52,7 +52,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
     }
     return (
       <PageColumn>
-        <h1 className="text-2xl font-bold break-words">Start {league.name}</h1>
+        <h1 className="text-4xl leading-none font-black break-words">Start {league.name}</h1>
         <ErrorState title="This league can't start" description={reason} />
         <div>{back}</div>
       </PageColumn>
@@ -66,7 +66,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold break-words">Start {league.name}</h1>
+        <h1 className="text-4xl leading-none font-black break-words">Start {league.name}</h1>
         <p className="text-fg-muted">
           {league.clubName} · {typeLabel(league.type)}
         </p>

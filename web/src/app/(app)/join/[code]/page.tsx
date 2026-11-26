@@ -31,7 +31,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   if (!club) {
     return (
       <PageColumn>
-        <h1 className="text-2xl font-bold">Join a club</h1>
+        <h1 className="text-4xl leading-none font-black">Join a club</h1>
         <Card title="This link doesn't work any more">
           <p className="text-fg-muted">Ask your club&apos;s manager for a new one.</p>
           <ButtonLink href="/" variant="secondary" className="mt-4">
@@ -46,7 +46,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const membership = actingPlayer?.clubs.find((candidate) => candidate.id === club.clubId);
   return (
     <PageColumn>
-      <h1 className="text-2xl font-bold">Join {club.clubName}</h1>
+      <h1 className="text-4xl leading-none font-black">Join {club.clubName}</h1>
 
       {!actingPlayer ? (
         // A first sign-in: a name to ask as, then the button below.

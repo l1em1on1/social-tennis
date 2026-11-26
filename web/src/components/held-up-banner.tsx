@@ -23,7 +23,7 @@ export function HeldUpBanner({
 }) {
   const waiting = unscored.length > 0 || ties.length > 0;
   return (
-    <section aria-label="Stage held up" className="flex flex-col gap-1 rounded-2xl border border-warning bg-warning-muted px-4 py-3 text-sm">
+    <section aria-label="Stage held up" className="flex flex-col gap-1 rounded-md border border-warning bg-warning-muted px-4 py-3 text-sm">
       <p className="font-semibold">
         Stage {stageNumber} ended on {formatDate(endDate)}
         {waiting ? " and is held up" : " and is waiting to close"}
