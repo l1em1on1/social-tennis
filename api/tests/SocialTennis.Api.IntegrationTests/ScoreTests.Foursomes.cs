@@ -50,6 +50,10 @@ public partial class ScoreTests
         Assert.Equal(9, proposal.Competitors.Count);
         Assert.Equal(4, proposal.DivisionSize);
         Assert.Equal([4, 4], proposal.Divisions);
+        // The proposal covers the top 8 only: confirmed with Ivy still on the ladder, it doesn't add up. The Manager chooses whom to leave out.
+        var asProposed = await manager.PostAsJsonAsync(
+            $"/leagues/{leagueId}/start", new { ladder = teams, divisions = proposal.Divisions, leftOut = Array.Empty<Guid>(), removed = Array.Empty<Guid>() });
+        Assert.Equal(HttpStatusCode.BadRequest, asProposed.StatusCode);
 
         foreach (var divisions in new[] { new[] { 5, 4 }, new[] { 3, 3, 3 }, new[] { 9 } })
         {
