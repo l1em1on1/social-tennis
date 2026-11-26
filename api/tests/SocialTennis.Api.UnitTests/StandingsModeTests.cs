@@ -36,12 +36,18 @@ public class StandingsModeTests
     [Fact]
     public void Level_on_points_go_by_games_difference_then_the_Game_between_them()
     {
-        // A and B: a win and a loss each, both played out (1 + 2 + 1 = 4). A by more games; then C and D level on everything, D beat C.
+        // A, B and C: a win and a loss each, all played out (1 + 2 + 1 = 4), so games difference decides.
         var byGames = Standings.Rank([A, B, C], [Beat(A, C, 6, 0), Beat(B, A, 6, 4), Beat(C, B, 6, 4)], StandingsMode.BonusPoints);
         Assert.Equal([(A, 1, (int?)4), (B, 2, 4), (C, 3, 4)], Lines(byGames));
 
-        var byHeadToHead = Standings.Rank([C, D], [Beat(D, C, 6, 4)], StandingsMode.BonusPoints);
-        Assert.Equal([(D, 1, (int?)3), (C, 2, 2)], Lines(byHeadToHead));
+        // A and B each won one of two and haven't played D: 1 + 2 = 3, and 10–10 in games. Level on both,
+        // so the Game between them decides: A beat B, though B is higher on the ladder. C has 2 + 3 + 1 = 6, D 1.
+        var byHeadToHead = Standings.Rank(
+            [B, A, C, D],
+            [Beat(A, B, 6, 4), Beat(C, A, 6, 4), Beat(B, C, 6, 4), Beat(C, D, 6, 0), Unplayed(A, D), Unplayed(B, D)],
+            StandingsMode.BonusPoints);
+        Assert.Equal([(C, 1, (int?)6), (A, 2, 3), (B, 3, 3), (D, 4, 1)], Lines(byHeadToHead));
+        Assert.DoesNotContain(byHeadToHead, s => s.Tied);
     }
 
     [Fact]
