@@ -12,7 +12,7 @@ namespace SocialTennis.Api.Accounts;
 
 /// <summary>
 /// Deleting a User (#116, ADR-0024): an Admin does it for someone who asked to
-/// be forgotten, and the 24-month retention job (#117) will reuse it. Its own
+/// be forgotten, and the 24-month retention job (#117) uses it too. Its own
 /// top-level folder, since a job calls it as well as an endpoint
 /// (docs/agents/api-endpoints.md).
 /// </summary>
@@ -47,11 +47,23 @@ public static class AccountDeletion
 
         /// <summary>They are the only Admin, and no address is configured to fall back on.</summary>
         LastAdmin,
+
+        /// <summary>For the retention job: they have signed in since it chose them, so they stay.</summary>
+        SignedInSince,
     }
 
     /// <param name="byUserId">The Admin deleting, refused for their own account; none for a job.</param>
+    /// <param name="lastSignedInBefore">
+    /// For the retention job (#117): delete only if they last signed in before this, checked under the
+    /// email's sign-in lock, so someone signing in as the job runs stays.
+    /// </param>
     public static async Task<Outcome> DeleteAsync(
-        TennisDbContext db, AuthOptions auth, Guid userId, Guid? byUserId, CancellationToken cancellationToken)
+        TennisDbContext db,
+        AuthOptions auth,
+        Guid userId,
+        Guid? byUserId,
+        CancellationToken cancellationToken,
+        DateTimeOffset? lastSignedInBefore = null)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await AdminRoleRules.TakeRolesLockAsync(db, cancellationToken);
@@ -86,6 +98,12 @@ public static class AccountDeletion
         }
 
         await AddressLock.TakeAsync(db, user.Email, cancellationToken);
+        if (lastSignedInBefore is { } before
+            && !await db.Users.AnyAsync(u => u.Id == userId && u.LastSignedInAt != null && u.LastSignedInAt < before, cancellationToken))
+        {
+            return Outcome.SignedInSince;
+        }
+
         await ClubAdmission.TakeEmailLockAsync(db, user.Email, cancellationToken);
 
         var players = await db.Players.Where(p => p.UserId == userId).Select(p => p.Id).ToListAsync(cancellationToken);

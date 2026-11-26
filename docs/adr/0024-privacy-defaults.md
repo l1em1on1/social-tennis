@@ -11,13 +11,13 @@ The app holds members' email addresses and their Players' names, gender, Level a
 - **Sign-in requests:** an unsalted SHA-256 of the client's network address is kept with each sign-in link and goes with it in the nightly purge (#108, #112). It is pseudonymous, not anonymous (it could be matched back), and the notice says so.
 - **Who sees it:** in the club, Admins see email addresses and roles; Managers see their Clubs' members with email addresses, requests and pre-approved addresses, and no other Club's (ADR-0034); a League manager sees the names of their Club's members, to add them, and the email address, gender and rating of the Players in the Leagues they run or asking to join one (#220); members see Players' names, Games and Scores, and who runs their League by name, never by email. Outside the club, none, beyond the providers that run the app: Microsoft Azure (hosting, email) and Neon (database).
 - **Deletion:** a member emails the contact address, and an Admin deletes the account. The User, sessions and tokens go, and their Players are anonymised as "Former player", so others' results stay intact (#116).
-- **Retention:** an account with no sign-in for 24 months is deleted the same way, by a scheduled job (#117). Database backups are kept 14 days, plus 7 of soft delete (#137), so the notice says "up to three weeks".
+- **Retention:** an account with no sign-in for 24 months is deleted the same way, by a scheduled job (#117), unless it has never signed in or still plays in a League that hasn't ended (amendment below). Database backups are kept 14 days, plus 7 of soft delete (#137), so the notice says "up to three weeks".
 
 The notice is a public page, `/privacy`, linked from the login page, the app shell and the sign-in email.
 
 ## Consequences
 
-- **Deletion is built (#116, 2026-11-24).** An Admin removes the User on Admin (`DELETE /users/{userId}`, `AccountDeletion`), and the retention job will reuse that path. Their Players keep their places, Games and Scores as "Former player", with Gender and Level cleared, so nobody else's results change. They leave their Clubs. Their sign-in links, invites and sessions go, and the email can sign up again as a new account. Rating, a Manager's seeding number, stays with the Former player. The notice says that retention isn't in place yet.
+- **Deletion is built (#116, 2026-11-24).** An Admin removes the User on Admin (`DELETE /users/{userId}`, `AccountDeletion`), and the retention job uses that path. Their Players keep their places, Games and Scores as "Former player", with Gender and Level cleared, so nobody else's results change. They leave their Clubs. Their sign-in links, invites and sessions go, and the email can sign up again as a new account. Rating, a Manager's seeding number, stays with the Former player. The notice said that retention wasn't in place yet, until #117.
 - **The last sign-in is recorded (#117, part 1, 2026-11-24).** Redeeming a sign-in link sets `Users.LastSignedInAt`. A session lasts 30 days and isn't extended by use, so someone who uses the app signs in at least that often, and the last sign-in stands for the last use. It is null for a User a Manager added who hasn't signed in, and for one who hasn't since this was added. Nothing was filled in for existing Users: their next sign-in does it. The job that deletes after 24 months is part 2. No account can be due before November 2028.
 - **League managers (#220, 2026-11-25).** What a League manager sees is limited to names, and to the Players in the Leagues they run (ADR-0034). They keep that while they keep a League or the role, which stay until a Club's manager takes them, even if they leave the Club.
 - A change to what the app stores, who it shares with, or how long it keeps data updates the notice and this ADR together.
@@ -26,3 +26,11 @@ The notice is a public page, `/privacy`, linked from the login page, the app she
 
 - **Consent for everything.** Not needed: running the leagues members joined is the purpose, and nothing optional is collected.
 - **A self-service delete button.** Deferred: requests are rare in a club, and an Admin handling them keeps a person in the loop.
+
+**Amended (2026-11-26): the retention job (#117, part 2).** `purge-inactive-accounts` runs daily and deletes, through `AccountDeletion`, every account whose last sign-in is over 24 months ago. Two kinds of account stay:
+
+- **One never signed in to** (owner, 2026-11-26). A Manager can add a member by name and email and record their scores, so a regular player may never sign in. That is also everyone who hasn't signed in since the last sign-in began to be recorded.
+- **One with a Player in a League that hasn't ended:** not started, or with its latest Stage open. They are playing, whether or not they sign in. Once the League ends, the 24 months apply.
+
+The notice says so. No account can be due before November 2028.
+

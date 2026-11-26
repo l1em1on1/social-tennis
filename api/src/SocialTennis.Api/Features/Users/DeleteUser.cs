@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,8 @@ public static class DeleteUser
             AccountDeletion.Outcome.NotFound => TypedResults.NotFound(),
             AccountDeletion.Outcome.OwnAccount => Refused(
                 "own-account", "You can't delete your own account.", "Another Admin can."),
+            // Only the retention job asks for that check (#117).
+            AccountDeletion.Outcome.SignedInSince => throw new UnreachableException(),
             AccountDeletion.Outcome.AdminBySetting => Refused(
                 "admin-by-setting",
                 "This User can't be deleted.",

@@ -352,6 +352,9 @@ locals {
     # Closes auto-rolling Stages past their deadline with nothing waiting on
     # the Manager (#10). 00:15 UTC is past midnight in London all year.
     "auto-roll" = "15 0 * * *"
+    # Deletes accounts with no sign-in for 24 months (#117, ADR-0024), as an
+    # Admin's delete does: their Players become Former players.
+    "purge-inactive-accounts" = "30 3 * * *"
   }
 }
 
