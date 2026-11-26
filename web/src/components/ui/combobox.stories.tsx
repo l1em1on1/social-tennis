@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect } from "storybook/test";
+import { Card } from "./card";
 import { Combobox } from "./combobox";
 import { Field } from "./field";
 
@@ -63,5 +64,46 @@ export const NoMatch: Story = {
     await userEvent.type(box, "zed");
     await canvas.findByText("No one by that name.");
     await expect((box as HTMLInputElement).validity.valid).toBe(false);
+  },
+};
+
+const many = ["Alex Morgan", "Jo Bennett", "Priya Shah", "Sam Morgan", "Nia Brooks", "Ella Grant", "Chris Lee", "Maya Ross"].map(
+  (label, index) => ({ value: `00000000-0000-4000-8000-0000000000b${index}`, label }),
+);
+
+/**
+ * On a card near its foot, as on the Leagues page's "You can join": the open
+ * list runs past the card's edge, and every option in it can still be tapped
+ * (#257 review). The arrow keys move through it without moving the card.
+ */
+export const OnACard: Story = {
+  args: { options: many },
+  render: (args) => (
+    <div className="min-h-96">
+      <Card title="Winter Doubles">
+        <Field id={args.id} label="Partner" hint="Type a name and pick from the list.">
+          {(control) => <Combobox {...args} {...control} />}
+        </Field>
+      </Card>
+    </div>
+  ),
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const card = canvasElement.querySelector("section")!;
+    const top = card.querySelector("header")!.getBoundingClientRect().top;
+    await userEvent.type(canvas.getByRole("combobox", { name: "Partner" }), "a");
+    const list = canvas.getByRole("listbox").getBoundingClientRect();
+    const options = canvas.getAllByRole("option");
+    await expect(options.length).toBeGreaterThan(4);
+    const hidden = options
+      .filter((option) => option.getBoundingClientRect().bottom <= list.bottom)
+      .filter((option) => {
+        const box = option.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return !hit || !option.contains(hit);
+      })
+      .map((option) => option.textContent);
+    await expect(hidden).toEqual([]);
+    for (let i = 0; i < options.length; i++) await userEvent.keyboard("{ArrowDown}");
+    await expect(card.querySelector("header")!.getBoundingClientRect().top).toBe(top);
   },
 };

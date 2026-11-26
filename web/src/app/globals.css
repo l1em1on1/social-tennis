@@ -27,7 +27,7 @@
  *
  *   fg            13.1 / 11.2   on accent-muted
  *   fg-muted       5.7 /  6.7   on accent-muted
- *   accent         5.7 /  6.8   on bg (links, secondary buttons, the current tab, marks)
+ *   accent         5.7 /  6.8   on accent-muted (Badge, the current tab from md, a checked option)
  *   accent-fg      7.1 /  9.9   on accent-hover
  *   ball-fg       11.3 / 11.3   on ball-hover (primary buttons)
  *   court-fg       7.1 / 11.3   on court (the header, card titles)
@@ -37,7 +37,7 @@
  *   warning        5.9 /  8.5   on warning-muted
  *   danger         5.5 /  7.3   on danger-muted
  *   info           6.8 /  7.5   on info-muted
- *   border-strong  3.8 /  4.8   on bg
+ *   border-strong  3.8 /  4.9   on bg / on surface
  */
 
 :root {
@@ -47,7 +47,7 @@
   --st-fg: #0b1f3a;
   --st-fg-muted: #43587a;
   --st-border: #b9cfe6;
-  --st-border-strong: #5b7aa1; /* 3.8:1 on bg, 4.5:1 on surface */
+  --st-border-strong: #5b7aa1; /* 3.8:1 on bg, 4.4:1 on surface */
 
   --st-accent: #0b57a8;
   --st-accent-hover: #094a8f;
@@ -87,7 +87,7 @@
     --st-fg: #eaf2fc;
     --st-fg-muted: #a9bfdb;
     --st-border: #274569;
-    --st-border-strong: #6f8fb7; /* 4.8:1 on bg, 4.3:1 on surface */
+    --st-border-strong: #6f8fb7; /* 5.5:1 on bg, 4.9:1 on surface */
 
     --st-accent: #8cc2ff;
     --st-accent-hover: #add4ff;
