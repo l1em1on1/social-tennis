@@ -13,7 +13,8 @@ export function Card({ title, aside, className, children, ...props }: CardProps)
     <section className={cx("rounded-md bg-surface p-4 shadow-card", className)} {...props}>
       {(title || aside) && (
         // The title on the court's blue, ruled with a white line like a court's (#254, Hard court).
-        <header className="-mx-4 -mt-4 mb-5 flex rounded-t-md items-center justify-between gap-3 bg-court px-4 py-2 text-court-fg shadow-[inset_0_-3px_0_#fff,0_3px_0_var(--st-court)]">
+        // Focus on anything on it shows in the ball's yellow, as the focus ring's usual blue is the band's own (#257 review).
+        <header className="-mx-4 -mt-4 mb-5 flex rounded-t-md items-center justify-between gap-3 bg-court px-4 py-2 text-court-fg shadow-[inset_0_-3px_0_#fff,0_3px_0_var(--st-court)] [&_:focus-visible]:outline-ball">
           {title && <h2 className="min-w-0 font-display text-2xl leading-tight font-extrabold break-words uppercase">{title}</h2>}
           {aside}
         </header>

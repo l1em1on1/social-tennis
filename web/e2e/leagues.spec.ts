@@ -517,6 +517,22 @@ test("a Manager starts a League, reordering and leaving one out; each Player see
   await expect(manager.getByRole("heading", { name: `Start ${league}`, level: 1 })).toBeVisible();
   const division = manager.getByRole("list", { name: "Division 1" });
   await expect(division.getByRole("listitem")).toHaveText(players.map(({ name }) => new RegExp(name)));
+  // On the card's blue band, keyboard focus shows in the ball's yellow, not the band's own blue (#257 review).
+  for (let presses = 0; presses < 40; presses++) {
+    await manager.keyboard.press("Tab");
+    if ((await manager.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "More Divisions") break;
+  }
+  await expect(manager.getByRole("button", { name: "More Divisions" })).toBeFocused();
+  const ball = await manager.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--st-ball)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  // Polled: a button's colours, its focus ring's too, change over 150ms.
+  await expect.poll(() => manager.evaluate(() => getComputedStyle(document.activeElement!).outlineColor)).toBe(ball);
   await manager.getByRole("button", { name: `Move ${xan.name} up` }).click();
   await expect(manager.getByRole("button", { name: `Move ${xan.name} up` })).toBeFocused();
   await manager.getByRole("button", { name: `Leave out ${wes.name}` }).click();
