@@ -15,6 +15,7 @@ import {
   FIXTURE_OUTSIDER,
   FIXTURE_RUNNING_GAME_IDS,
   FIXTURE_RUNNING_LEAGUE_ID,
+  FIXTURE_STARTED_LEAGUE_ID,
   FIXTURE_WAITING,
   RIVERSIDE,
 } from "../mock-api/fixture";
@@ -120,6 +121,11 @@ test.describe("a member, with a child on the same login", () => {
     await as(page, testInfo, FIXTURE_MEMBER, `/leagues/${FIXTURE_RUNNING_LEAGUE_ID}`);
     await expect(page.getByRole("status")).toContainText("You're in Division 2");
     await expectNoSeriousA11yViolations(page);
+  });
+
+  test("a ladder whose League has ended, as a Player in it", async ({ page }, testInfo) => {
+    await as(page, testInfo, FIXTURE_MEMBER, `/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
+    await expect(page.getByRole("note")).toContainText("The League has ended");
   });
 
   test("a Game with no score, as a Player in it", async ({ page }, testInfo) => {

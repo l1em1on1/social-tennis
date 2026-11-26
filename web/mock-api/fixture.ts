@@ -54,7 +54,7 @@ export const FIXTURE_JOIN_CODE = "FixedJoinCodeForSnapsh";
 
 export const FIXTURE_LEAGUE_ID = id("e", 1);
 export const FIXTURE_DOUBLES_LEAGUE_ID = id("e", 2);
-/** Autumn Singles: started (#7), with a Division of 3 and someone left out; October closed. */
+/** Autumn Singles: started (#7), with a Division of 3 and someone left out; its one Stage, October, closed, so it has ended (#10). */
 export const FIXTURE_STARTED_LEAGUE_ID = id("e", 3);
 /** Summer Ladder: two Divisions, its Stage under way, Games still to score. Jo runs it. */
 export const FIXTURE_RUNNING_LEAGUE_ID = id("e", 4);
@@ -191,7 +191,7 @@ const autumnSingles = {
   type: "SinglesMixed",
   structure: "Divisional",
   startDate: "2026-10-01",
-  endDate: "2026-12-31",
+  endDate: "2026-10-31",
   stageLength: { count: 1, unit: "Months" },
   stageRoll: "Manual",
   scoreFormat: { gamesPerSet: 6, setsPerGame: 1, matchTiebreakDecider: false },
@@ -465,10 +465,10 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     type: autumnSingles.type,
     stage: autumnStage,
     yourPlayerIds: [],
-    // October is closed (see its Games): nothing waits on the Manager.
+    // October, its one Stage, is closed (see its Games): the League has ended (#10).
     heldUp: false,
     awaiting: { unscoredGameIds: [], ties: [] },
-    ended: false,
+    ended: true,
     managers: [{ name: jo.name }],
     canManage: true,
     divisions: [
@@ -657,7 +657,7 @@ function entered(gameScore: Schemas["LadderGameScore"], playedOn: string, by: st
   };
 }
 
-/** Whether a League's current Stage has closed: Autumn's October has, the others' haven't. */
+/** Whether a League's current Stage has closed: Autumn's October, its last, has; the others' haven't. A latest Stage closes only as the League's last (#10). */
 export const STAGE_CLOSED: Record<string, boolean> = { [autumnSingles.id]: true };
 
 /** The Club's time zone, for the history's times (ADR-0016). */

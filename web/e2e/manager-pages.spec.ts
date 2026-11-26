@@ -80,7 +80,7 @@ test("starting a League, from fixed data", async ({ page }, testInfo) => {
   await expectNoSeriousA11yViolations(page);
 });
 
-test("a started League's Manager page, from fixed data", async ({ page }, testInfo) => {
+test("an ended League's Manager page, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_MANAGER);
   await page.goto(`/manage/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
@@ -97,7 +97,7 @@ test("a started League's Manager page, from fixed data", async ({ page }, testIn
   await expectNoSeriousA11yViolations(page);
 });
 
-test("a started League's ladder, from fixed data", async ({ page }, testInfo) => {
+test("an ended League's ladder, from fixed data", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
   await logIn(page, testInfo, FIXTURE_MANAGER);
   await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
@@ -188,7 +188,7 @@ test.describe("on a desktop screen", () => {
     await expectNoSeriousA11yViolations(page);
   });
 
-  test("a started League's Manager page, from fixed data, on a desktop", async ({ page }, testInfo) => {
+  test("an ended League's Manager page, from fixed data, on a desktop", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
     await logIn(page, testInfo, FIXTURE_MANAGER);
     await page.goto(`/manage/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
@@ -197,7 +197,7 @@ test.describe("on a desktop screen", () => {
     await expectNoSeriousA11yViolations(page);
   });
 
-  test("a started League's ladder, from fixed data, on a desktop", async ({ page }, testInfo) => {
+  test("an ended League's ladder, from fixed data, on a desktop", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mock", "the fixed data is the mock's");
     await logIn(page, testInfo, FIXTURE_MANAGER);
     await page.goto(`/leagues/${FIXTURE_STARTED_LEAGUE_ID}`);
