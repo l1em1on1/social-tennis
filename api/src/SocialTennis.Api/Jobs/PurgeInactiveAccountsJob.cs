@@ -14,8 +14,7 @@ namespace SocialTennis.Api.Jobs;
 /// <remarks>
 /// <list type="bullet">
 /// <item><b>Someone who has never signed in stays</b> (owner, 2026-11-26): a Manager can add a member
-/// and record their scores, so a regular player may never sign in. So does someone who last signed in
-/// before the last sign-in was recorded (#117, part 1): there is no date to count from.</item>
+/// and record their scores, so a regular player may never sign in.</item>
 /// <item><b>An Admin is never deleted by it</b> when that would leave nobody able to act: the deletion
 /// path refuses, as it does for an Admin.</item>
 /// </list>
