@@ -378,7 +378,7 @@ export const handlers = [
       : response(409).json({ type: "stage-closed", title: "This Stage has closed.", status: 409 }, problemJson);
   }),
 
-  // A Game (#38), for its Players and whoever runs its League.
+  // A Game (#38), for anyone with a Player in its League and whoever runs it, as the API's GetGame.
   http.get("/games/{gameId}", ({ request, params, response }) => {
     const found = gameById(params.gameId);
     if (!found) return response(404).empty();
@@ -392,7 +392,8 @@ export const handlers = [
     }));
     const yourPlayerIds = sides.flatMap((side) => side.players).filter((p) => mine.has(p.playerId)).map((p) => p.playerId);
     const canManage = rolesOf(email).runs(league);
-    if (yourPlayerIds.length === 0 && !canManage) return response(404).empty();
+    const inLeague = league.participants.some((p) => mine.has(p.playerId));
+    if (!inLeague && !canManage) return response(404).empty();
     const recorded = fixtureGameScores[game.id];
     return response(200).json({
       id: game.id,

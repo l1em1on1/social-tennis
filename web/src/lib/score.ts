@@ -4,8 +4,8 @@ type Schemas = components["schemas"];
 
 /**
  * A Score's rules (#38), mirrored from the API's `ScoreRules` message for
- * message: the entry screen's hints and the mock API use them, and the API
- * stays the authority. Change both together (ScoreRulesTests pins the API's).
+ * message: the entry screen's hints use them, and the API stays the
+ * authority. Change both together (ScoreRulesTests pins the API's).
  */
 
 /** A League's Score format, with the API's `number | string` integers made numbers. */

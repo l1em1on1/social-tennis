@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
-import { proposeDivisions } from "@/lib/league";
 import { LeagueStartForm } from "./league-start-form";
 
 const id = (n: number) => `00000000-0000-4000-8000-0000000000${String(n).padStart(2, "0")}`;
@@ -14,7 +13,7 @@ const meta = {
     leagueId: "00000000-0000-4000-8000-000000000001",
     // Ten Teams in Divisions of about 4: the API proposes 3, 3 and 4.
     competitors: singles(10),
-    divisions: proposeDivisions(10, 4),
+    divisions: [3, 3, 4],
     unpaired: [],
     waitingRequestCount: 0,
     firstStage: { startDate: "2026-12-01", endDate: "2026-12-31" },
@@ -61,7 +60,7 @@ export const Reordered: Story = {
 
 /** Leaving Teams out keeps the number of Divisions and re-splits what's left; they're listed apart, to put back. */
 export const LeftOut: Story = {
-  args: { competitors: singles(6), divisions: proposeDivisions(6, 4) },
+  args: { competitors: singles(6), divisions: [3, 3] },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Leave out Tom Reid" }));
     await expect([1, 2].map((n) => division(canvas, n).length)).toEqual([2, 3]);

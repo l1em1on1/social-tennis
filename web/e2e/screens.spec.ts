@@ -127,6 +127,12 @@ test.describe("a member, with a child on the same login", () => {
     await expect(page.getByRole("link", { name: "Enter score" })).toBeVisible();
   });
 
+  test("a Game two others play, as a Player in the League", async ({ page }, testInfo) => {
+    await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.joElla}`);
+    await expect(h1(page, "Jo Bennett v Ella Grant")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Enter score" })).toHaveCount(0);
+  });
+
   test("entering a score", async ({ page }, testInfo) => {
     await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.chrisAlex}/score`);
     const more = page.getByRole("group", { name: "Set, Alex Morgan" }).getByRole("button", { name: "One more" });
