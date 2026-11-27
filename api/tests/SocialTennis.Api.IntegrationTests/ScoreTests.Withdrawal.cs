@@ -155,8 +155,13 @@ public partial class ScoreTests
         (await VoidAsync(manager, ladder.Divisions[0].Games.Single().Id)).EnsureSuccessStatusCode();
         (await SubmitAsync(players[2].Client, ladder.Divisions[1].Games.Single().Id, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
 
-        // Closing the last Stage carries nobody into another: the League ends.
+        // Cal asks to withdraw too, and the Manager closes before deciding.
+        (await AskToWithdrawAsync(players[2], leagueId)).EnsureSuccessStatusCode();
+
+        // Closing the last Stage carries nobody into another: the League ends, and Cal's request with it.
         (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]))).EnsureSuccessStatusCode();
         Assert.True((await LadderOfAsync(manager, leagueId)).Ended);
+        Assert.Empty((await ManagedAsync(manager, leagueId)).WithdrawalRequests);
+        Assert.Null(await MyWithdrawalAsync(players[2], leagueId));
     }
 }

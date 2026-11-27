@@ -190,6 +190,14 @@ public static class StageClose
             db.Stages.Add(opened);
             StageLadder.Place(opened, leagueId, league.Type, Relegation.Next(order, joining));
         }
+        else
+        {
+            // The League has ended (#21): a request to withdraw still waiting means nothing now, so it goes,
+            // as if taken back, rather than wait on the Manager for good.
+            await db.WithdrawalRequests
+                .Where(r => r.LeagueId == leagueId && r.Status == WithdrawalStatus.Pending)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
 
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
