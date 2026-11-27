@@ -17,16 +17,20 @@ public static class StageClose
     /// Player leaving for good is replaced in their place instead (#21).
     /// </summary>
     public static async Task<List<CloseWaitingTeam>> WaitingAsync(
+        TennisDbContext db, Guid leagueId, Guid stageId, LeagueType type, CancellationToken cancellationToken) =>
+        type == LeagueType.Foursomes ? [] : await OffLadderAsync(db, leagueId, stageId, type, cancellationToken);
+
+    /// <summary>
+    /// Teams in the League, complete for its Type and off the current ladder, that haven't withdrawn:
+    /// those who can take a withdrawn Team's place at the close (#21), in Foursomes too.
+    /// </summary>
+    public static async Task<List<CloseWaitingTeam>> OffLadderAsync(
         TennisDbContext db, Guid leagueId, Guid stageId, LeagueType type, CancellationToken cancellationToken)
     {
-        if (type == LeagueType.Foursomes)
-        {
-            return [];
-        }
-
-        var size = type.TeamSize();
+        var size = type == LeagueType.Foursomes ? 1 : type.TeamSize();
         return await db.Teams
-            .Where(t => t.LeagueId == leagueId && t.Members.Count == size && !db.LadderPlaces.Any(p => p.StageId == stageId && p.TeamId == t.Id))
+            .Where(t => t.LeagueId == leagueId && t.WithdrawnAt == null && t.Members.Count == size
+                && !db.LadderPlaces.Any(p => p.StageId == stageId && p.TeamId == t.Id))
             .OrderBy(t => t.CreatedAt)
             .ThenBy(t => t.Id)
             .Select(t => new CloseWaitingTeam(
@@ -41,14 +45,6 @@ public static class StageClose
             statusCode: StatusCodes.Status409Conflict,
             type: "stage-closed",
             title: "This League's last Stage has closed: the League has ended.");
-
-    /// <summary>A Team that has withdrawn is still on the ladder (#21): the close that takes it off is still to come.</summary>
-    public static ProblemHttpResult WithdrawnOnLadder() =>
-        TypedResults.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            type: "withdrawn-on-ladder",
-            title: "A Team that has withdrawn is still on the ladder.",
-            detail: "Closing a Stage with one, and naming a replacement, is still to be built.");
 
     /// <summary>ADR-0017's own example: a Stage can't close while anything waits on the Manager.</summary>
     public static ProblemHttpResult QueueNotEmpty() =>
@@ -90,7 +86,8 @@ public static class StageClose
         DateOnly? nextEndDate,
         TimeProvider clock,
         CancellationToken cancellationToken,
-        bool ordersTies = true)
+        bool ordersTies = true,
+        IReadOnlyList<CloseReplacement>? replacements = null)
     {
         await using var transaction = await LeagueEntry.LockLeagueAsync(db, leagueId, cancellationToken);
         await GameScores.TakeResultsLockAsync(db, leagueId, cancellationToken);
@@ -134,17 +131,34 @@ public static class StageClose
         }
 
         var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
-        // A Team that has withdrawn leaves the ladder at the close, or a replacement takes its place (#21, part 2).
-        // Until that is built, the close waits rather than carry it into a next Stage; the last Stage carries nobody.
-        if (next is not null && divisions.Any(d => d.Competitors.Any(c => c.Withdrawn)))
-        {
-            return new CloseResult(CloseRefusal.WithdrawnOnLadder);
-        }
+
         var waiting = next is null ? [] : await WaitingAsync(db, leagueId, stage.Id, league.Type, cancellationToken);
         if (joining.Distinct().Count() != joining.Count
             || !joining.All(team => waiting.Any(w => w.TeamId == team)))
         {
             return new CloseResult(CloseRefusal.LeagueChanged);
+        }
+
+        // Withdrawn Teams (#21) leave the ladder, or a Team off it takes each one's place.
+        var withdrawn = divisions.SelectMany(d => d.Competitors).Where(c => c.Withdrawn).Select(c => c.TeamId).ToHashSet();
+        var replacing = (replacements ?? []).ToDictionary(r => r.TeamId, r => r.ReplacementTeamId);
+        if ((replacements ?? []).Count != replacing.Count
+            || replacing.Keys.Any(team => !withdrawn.Contains(team))
+            || replacing.Values.Distinct().Count() != replacing.Count)
+        {
+            return new CloseResult(CloseRefusal.InvalidReplacements, new Dictionary<string, string[]>
+            {
+                ["replacements"] = ["Replace only a Team that has withdrawn, each once, and with a different Team each time."],
+            });
+        }
+
+        if (next is not null && replacing.Count > 0)
+        {
+            var candidates = await OffLadderAsync(db, leagueId, stage.Id, league.Type, cancellationToken);
+            if (replacing.Values.Any(team => joining.Contains(team) || !candidates.Any(c => c.TeamId == team)))
+            {
+                return new CloseResult(CloseRefusal.LeagueChanged);
+            }
         }
 
         var errors = new Dictionary<string, string[]>();
@@ -188,7 +202,28 @@ public static class StageClose
                 OpenedAt = now,
             };
             db.Stages.Add(opened);
-            StageLadder.Place(opened, leagueId, league.Type, Relegation.Next(order, joining));
+            // Who moves is worked out with the withdrawn Teams still in place, so their leaving moves nobody
+            // else; then each one's landing place goes to its replacement, or goes (#21).
+            var placed = Relegation.Next(order, joining)
+                .Select(division => (IReadOnlyList<Guid>)[
+                    .. division
+                        .Where(team => !withdrawn.Contains(team) || replacing.ContainsKey(team))
+                        .Select(team => replacing.TryGetValue(team, out var replacement) ? replacement : team),
+                ])
+                .ToList();
+            List<Guid> missing = league.Type == LeagueType.Foursomes ? [.. withdrawn.Where(team => !replacing.ContainsKey(team))] : [];
+            var small = placed.Select((division, index) => (division, index)).FirstOrDefault(d => d.division.Count < League.MinDivisionSize);
+            if (missing.Count > 0 || small.division is not null)
+            {
+                return new CloseResult(CloseRefusal.InvalidReplacements, new Dictionary<string, string[]>
+                {
+                    ["replacements"] = [missing.Count > 0
+                        ? "A Foursomes Division is always 4: name a replacement for each Player who has withdrawn."
+                        : $"Division {small.index + 1} would be left with one Team: name a replacement for the Team that has withdrawn."],
+                });
+            }
+
+            StageLadder.Place(opened, leagueId, league.Type, placed);
         }
         else
         {
@@ -250,7 +285,8 @@ public enum CloseRefusal
     StandingsChanged,
     LeagueChanged,
     InvalidDates,
-    WithdrawnOnLadder,
+    /// <summary>A replacement for a withdrawn Team that doesn't fit (#21).</summary>
+    InvalidReplacements,
 }
 
 /// <summary>A close's outcome: refused or not, and the dates' problems by wire name.</summary>

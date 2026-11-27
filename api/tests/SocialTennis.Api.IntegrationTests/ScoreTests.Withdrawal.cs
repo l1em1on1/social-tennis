@@ -78,11 +78,11 @@ public partial class ScoreTests
     }
 
     [Fact]
-    public async Task The_Manager_withdraws_a_Team_directly_and_the_Stage_waits_for_the_close_that_takes_it_off()
+    public async Task The_Manager_withdraws_a_Team_directly_and_a_replacement_takes_its_place_at_the_close()
     {
         var game = await SinglesAsync(OneSetOf6);
         var league = await ManagedAsync(game.Manager, game.LeagueId);
-        var vic = TeamOf(league, game.Vic.PlayerId);
+        var (una, vic, wes) = (TeamOf(league, game.Una.PlayerId), TeamOf(league, game.Vic.PlayerId), TeamOf(league, game.Wes.PlayerId));
 
         Assert.Equal(HttpStatusCode.Forbidden, (await game.Una.Client.PutAsync($"/leagues/{game.LeagueId}/teams/{vic}/withdrawal", null)).StatusCode);
         (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{vic}/withdrawal", null)).EnsureSuccessStatusCode();
@@ -91,17 +91,122 @@ public partial class ScoreTests
         var withdrawal = (await MyWithdrawalAsync(game.Vic, game.LeagueId))!;
         Assert.Equal(WithdrawalStatus.Accepted, withdrawal.Status);
         Assert.NotNull(withdrawal.DecidedAt);
-
-        // Its Game is marked not played; the close then waits for part 2 rather than carry Vic into Stage 2.
         (await VoidAsync(game.Manager, game.GameId)).EnsureSuccessStatusCode();
+
+        // Without a replacement Una would be alone in her Division: the close says so, and auto-roll holds.
+        var alone = await CloseAsync(game.Manager, game.LeagueId, Order([una, vic]), start: $"{Year}-08-01", end: $"{Year}-08-31");
+        Assert.Equal(["Division 1 would be left with one Team: name a replacement for the Team that has withdrawn."], (await ErrorsAsync(alone))["replacements"]);
+        Assert.Equal([wes], (await CloseScreenAsync(game.Manager, game.LeagueId)).Replaceable.Select(t => t.TeamId));
+
+        // Wes, waiting off the ladder, takes Vic's place.
+        (await CloseWithAsync(game.Manager, game.LeagueId, Order([una, vic]), [new(vic, wes)])).EnsureSuccessStatusCode();
+        var next = await LadderOfAsync(game.Una.Client, game.LeagueId);
+        Assert.Equal([una, wes], next.Divisions.Single().Competitors.Select(c => c.TeamId));
+    }
+
+    private static Task<HttpResponseMessage> CloseWithAsync(HttpClient manager, Guid leagueId, Guid[][] divisions, CloseReplacement[] replacements, Guid[]? joining = null) =>
+        manager.PostAsJsonAsync(
+            $"/leagues/{leagueId}/close",
+            new { divisions, joining = joining ?? [], nextStartDate = $"{Year}-08-01", nextEndDate = $"{Year}-08-31", replacements });
+
+    /// <summary>
+    /// Six singles Players in two Divisions of 3, all played out (Ann, Bob, Cat; then Dan, Eve, Fay, each in that order),
+    /// Cat withdrawn, and Gus left out at the start, waiting.
+    /// </summary>
+    private async Task<(HttpClient Manager, Guid LeagueId, Guid[] Teams)> CatWithdrawnAsync(string stageRoll = "Manual")
+    {
+        var (manager, clubId) = await ClubAsync();
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, stageRoll: stageRoll);
+        var players = new List<(HttpClient Client, Guid PlayerId)>();
+        foreach (var name in new[] { "Ann", "Bob", "Cat", "Dan", "Eve", "Fay", "Gus" })
+        {
+            players.Add(await ParticipantAsync(manager, clubId, leagueId, name));
+        }
+        var league = await ManagedAsync(manager, leagueId);
+        var teams = players.Select(p => TeamOf(league, p.PlayerId)).ToArray();
+        await StartAsync(manager, leagueId, teams[..6], leftOut: [teams[6]], divisions: [3, 3]);
+        var games = (await LadderOfAsync(manager, leagueId)).Divisions.SelectMany(d => d.Games).ToList();
+        foreach (var (winner, loser) in new[] { (0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5) })
+        {
+            var game = games.Single(g => new[] { g.FirstTeamId, g.SecondTeamId }.ToHashSet().SetEquals([teams[winner], teams[loser]]));
+            var set = game.FirstTeamId == teams[winner] ? Set(6, 2) : Set(2, 6);
+            (await SubmitAsync(players[winner].Client, game.Id, players[winner].PlayerId, [set])).EnsureSuccessStatusCode();
+        }
+        (await manager.PutAsync($"/leagues/{leagueId}/teams/{teams[2]}/withdrawal", null)).EnsureSuccessStatusCode();
+        return (manager, leagueId, teams);
+    }
+
+    [Fact]
+    public async Task At_the_close_a_withdrawn_Team_leaves_the_ladder_and_moves_nobody_else()
+    {
+        var (manager, leagueId, teams) = await CatWithdrawnAsync();
+
+        // Cat, last in Division 1, would have gone down: leaving, she does, and Bob stays. Dan comes up.
+        (await CloseAsync(manager, leagueId, Order([.. teams[..3]], [.. teams[3..6]]), start: $"{Year}-08-01", end: $"{Year}-08-31")).EnsureSuccessStatusCode();
+
         Assert.Equal(
-            "withdrawn-on-ladder",
-            await ProblemTypeAsync(
-                await CloseAsync(game.Manager, game.LeagueId, Order([TeamOf(league, game.Una.PlayerId), vic]), start: $"{Year}-08-01", end: $"{Year}-08-31"),
-                HttpStatusCode.Conflict));
+            [[teams[0], teams[1], teams[3]], [teams[4], teams[5]]],
+            (await LadderOfAsync(manager, leagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+    }
+
+    [Fact]
+    public async Task A_replacement_takes_the_place_the_withdrawn_Team_would_have_moved_to()
+    {
+        var (manager, leagueId, teams) = await CatWithdrawnAsync();
+        var order = Order([.. teams[..3]], [.. teams[3..6]]);
+
+        // Only a withdrawn Team is replaced, and only by a Team off the ladder.
+        Assert.True((await ErrorsAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[1], teams[6])]))).ContainsKey("replacements"));
+        Assert.Equal("league-changed", await ProblemTypeAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[4])]), HttpStatusCode.Conflict));
+
+        // Gus takes the place Cat goes down to: the top of Division 2.
+        (await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[6])])).EnsureSuccessStatusCode();
+        Assert.Equal(
+            [[teams[0], teams[1], teams[3]], [teams[6], teams[4], teams[5]]],
+            (await LadderOfAsync(manager, leagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+    }
+
+    [Fact]
+    public async Task The_auto_roll_job_closes_with_a_withdrawn_Team_leaving_the_ladder()
+    {
+        var (manager, leagueId, teams) = await CatWithdrawnAsync("Automatic");
+
         factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 23, 5, 0, TimeSpan.Zero);
         await RollAsync();
-        Assert.Equal(1, (int)(await LadderOfAsync(game.Una.Client, game.LeagueId)).Stage!.Number);
+
+        Assert.Equal(
+            [[teams[0], teams[1], teams[3]], [teams[4], teams[5]]],
+            (await LadderOfAsync(manager, leagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+    }
+
+    [Fact]
+    public async Task A_Foursomes_Player_who_withdraws_must_be_replaced_at_the_close()
+    {
+        var (manager, leagueId, players, teams) = await FoursomesAsync([.. Eight, "Ivy"]);
+        await StartAsync(manager, leagueId, teams[..8], leftOut: [teams[8]], divisions: [4, 4]);
+        var ladder = await LadderOfAsync(manager, leagueId);
+        foreach (var (division, offset) in ladder.Divisions.Select((d, index) => (d, index * 4)))
+        {
+            var top = players[offset];
+            (await SubmitAsync(top.Client, PairedGame(division, teams, offset, offset + 1).Id, top.PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+            (await SubmitAsync(top.Client, PairedGame(division, teams, offset, offset + 2).Id, top.PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+            (await SubmitAsync(top.Client, PairedGame(division, teams, offset, offset + 3).Id, top.PlayerId, [Set(4, 6)])).EnsureSuccessStatusCode();
+        }
+        (await manager.PutAsync($"/leagues/{leagueId}/teams/{teams[3]}/withdrawal", null)).EnsureSuccessStatusCode();
+        var order = Order([.. teams[..4]], [.. teams[4..8]]);
+
+        Assert.Equal(
+            ["A Foursomes Division is always 4: name a replacement for each Player who has withdrawn."],
+            (await ErrorsAsync(await CloseAsync(manager, leagueId, order, start: $"{Year}-08-01", end: $"{Year}-08-31")))["replacements"]);
+        Assert.Equal([teams[8]], (await CloseScreenAsync(manager, leagueId)).Replaceable.Select(t => t.TeamId));
+
+        // Ivy takes the place Dan goes down to, and Division 2 plays its rotation with her.
+        (await CloseWithAsync(manager, leagueId, order, [new(teams[3], teams[8])])).EnsureSuccessStatusCode();
+        var next = await LadderOfAsync(manager, leagueId);
+        Assert.Equal(
+            [[teams[0], teams[1], teams[2], teams[4]], [teams[8], teams[5], teams[6], teams[7]]],
+            next.Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+        Assert.All(next.Divisions, d => Assert.Equal(3, d.Games.Count));
     }
 
     [Fact]

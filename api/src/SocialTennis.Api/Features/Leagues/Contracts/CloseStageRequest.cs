@@ -10,8 +10,16 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Joining">Waiting Teams the Manager adds, in the order they join the bottom.</param>
 /// <param name="NextStartDate">The next Stage's first day; none when this Stage is the League's last.</param>
 /// <param name="NextEndDate">Its last day, the deadline.</param>
+/// <param name="Replacements">
+/// Who takes each withdrawn Team's place (#21), if anyone: required in Foursomes. A withdrawn Team
+/// with none leaves the ladder.
+/// </param>
 public record CloseStageRequest(
-    IReadOnlyList<IReadOnlyList<Guid>> Divisions, IReadOnlyList<Guid> Joining, DateOnly? NextStartDate, DateOnly? NextEndDate)
+    IReadOnlyList<IReadOnlyList<Guid>> Divisions,
+    IReadOnlyList<Guid> Joining,
+    DateOnly? NextStartDate,
+    DateOnly? NextEndDate,
+    IReadOnlyList<CloseReplacement>? Replacements = null)
 {
     public sealed class Validator : AbstractValidator<CloseStageRequest>
     {

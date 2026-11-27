@@ -666,6 +666,7 @@ export const fixtureCloses: Record<string, Schemas["GetStageCloseResponse"]> = {
     awaiting: fixtureLadders[springLadder.id].awaiting,
     waiting: [{ teamId: id("f", 24), players: [{ playerId: sam.playerId, name: sam.name }] }],
     nextStage: { startDate: "2026-11-01", endDate: "2026-11-30" },
+    replaceable: [],
   },
   [summerLadder.id]: {
     stage: summerStage,
@@ -675,6 +676,7 @@ export const fixtureCloses: Record<string, Schemas["GetStageCloseResponse"]> = {
     awaiting: fixtureLadders[summerLadder.id].awaiting,
     waiting: [],
     nextStage: { startDate: "2026-12-01", endDate: "2026-12-31" },
+    replaceable: [],
   },
 };
 

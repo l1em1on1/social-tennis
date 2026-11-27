@@ -76,12 +76,6 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
         />
       )}
       {error === "queue" && <ErrorState title="A game still has no score" description="Settle it below, then close the Stage." />}
-      {error === "withdrawn" && (
-        <ErrorState
-          title="A team that has withdrawn is still on the ladder"
-          description="Closing a Stage with one, and naming a replacement, is still to be built (#21)."
-        />
-      )}
 
       {unscored.length > 0 ? (
         <Card title="Settle these first" aria-label="Settle these first">

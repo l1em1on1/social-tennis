@@ -926,6 +926,12 @@ export interface components {
             /** Format: date */
             endDate: string;
         };
+        CloseReplacement: {
+            /** Format: uuid */
+            teamId: string;
+            /** Format: uuid */
+            replacementTeamId: string;
+        };
         CloseStageRequest: {
             divisions: string[][];
             joining: string[];
@@ -933,6 +939,7 @@ export interface components {
             nextStartDate: null | string;
             /** Format: date */
             nextEndDate: null | string;
+            replacements?: null | components["schemas"]["CloseReplacement"][];
         };
         CloseWaitingTeam: {
             /** Format: uuid */
@@ -1239,6 +1246,7 @@ export interface components {
             awaiting: components["schemas"]["LadderAwaiting"];
             waiting: components["schemas"]["CloseWaitingTeam"][];
             nextStage: null | components["schemas"]["CloseNextStage"];
+            replaceable: components["schemas"]["CloseWaitingTeam"][];
         };
         GetUsersResponse: {
             users: components["schemas"]["UserSummary"][];

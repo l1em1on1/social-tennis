@@ -39,7 +39,8 @@ public static class CloseStage
         CancellationToken cancellationToken)
     {
         var closed = await StageClose.CloseAsync(
-            db, leagueId, request.Divisions, request.Joining, request.NextStartDate, request.NextEndDate, clock, cancellationToken);
+            db, leagueId, request.Divisions, request.Joining, request.NextStartDate, request.NextEndDate, clock, cancellationToken,
+            replacements: request.Replacements);
         return closed.Refusal switch
         {
             CloseRefusal.None => TypedResults.NoContent(),
@@ -48,7 +49,6 @@ public static class CloseStage
             CloseRefusal.QueueNotEmpty or CloseRefusal.TiesOpen => StageClose.QueueNotEmpty(),
             CloseRefusal.StandingsChanged => StageClose.StandingsChanged(),
             CloseRefusal.LeagueChanged => StageClose.LeagueChanged(),
-            CloseRefusal.WithdrawnOnLadder => StageClose.WithdrawnOnLadder(),
             _ => TypedResults.ValidationProblem(closed.Errors!),
         };
     }

@@ -55,6 +55,7 @@ public static class GetStageClose
             divisions,
             awaiting,
             next is null ? [] : await StageClose.WaitingAsync(db, leagueId, stage.Id, league.Type, cancellationToken),
-            next is { } dates ? new CloseNextStage(dates.Start, dates.End) : null));
+            next is { } dates ? new CloseNextStage(dates.Start, dates.End) : null,
+            next is null ? [] : await StageClose.OffLadderAsync(db, leagueId, stage.Id, league.Type, cancellationToken)));
     }
 }

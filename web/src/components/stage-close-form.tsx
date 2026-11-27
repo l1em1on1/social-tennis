@@ -90,6 +90,8 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
         <input key={teamId} type="hidden" name="joining" value={teamId} />
       ))}
       {state.errors.form && <ErrorState title="The Stage didn't close" description={state.errors.form.join(" ")} />}
+      {/* A withdrawn Team's place (#21): naming a replacement on this screen comes in part 3. */}
+      {state.errors.replacements && <ErrorState title="The Stage didn't close" description={state.errors.replacements.join(" ")} />}
 
       {ends && (
         <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
