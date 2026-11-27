@@ -11,7 +11,9 @@ this way: ADR-0025.
 
 - `kits/toolchain/`: the .NET 10 SDK (with ICU), Node 24, `csharp-ls` and
   `typescript-language-server`, linked into `/usr/local/bin`, plus an install
-  hook that adds Claude Code's `csharp-lsp` and `typescript-lsp` plugins.
+  hook that adds Claude Code's `csharp-lsp` and `typescript-lsp` plugins, and
+  `frontend-design` (design guidance, here because this hook already adds the
+  marketplace).
 - `kits/context7/`: the Context7 MCP server's API key, through the sandbox
   proxy, and the Context7 plugin.
 - `kits/github/`: `gh` (issues, PRs) and `git push` to github.com over HTTPS as
