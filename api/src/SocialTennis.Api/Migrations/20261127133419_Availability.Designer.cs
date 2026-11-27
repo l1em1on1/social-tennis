@@ -13,7 +13,7 @@ using SocialTennis.Api.Data;
 namespace SocialTennis.Api.Migrations
 {
     [DbContext(typeof(TennisDbContext))]
-    [Migration("20261127090934_Availability")]
+    [Migration("20261127133419_Availability")]
     partial class Availability
     {
         /// <inheritdoc />
@@ -717,6 +717,40 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("Teams");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.TieMark", b =>
+                {
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Division")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Place")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<Guid[]>("Group")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<Guid>("LeagueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("MarkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MarkedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("StageId", "Division", "Place");
+
+                    b.HasIndex("MarkedById");
+
+                    b.ToTable("TieMarks");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1064,6 +1098,24 @@ namespace SocialTennis.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("League");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.TieMark", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "MarkedBy")
+                        .WithMany()
+                        .HasForeignKey("MarkedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SocialTennis.Api.Domain.Stage", "Stage")
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MarkedBy");
+
+                    b.Navigation("Stage");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
