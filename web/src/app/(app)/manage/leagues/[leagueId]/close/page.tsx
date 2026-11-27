@@ -42,6 +42,8 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
   }
 
   const { stage } = close;
+  // One tie can be both open and half marked (level for first and last): list it once.
+  const sameTeams = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join();
   const name = (players: { name: string }[]) => players.map((player) => player.name).join(" & ");
   const competitors = close.divisions.flatMap((division) => division.competitors);
   // Only a Foursomes Game has pairs (#14, ADR-0036), and every one of them does.
@@ -95,6 +97,8 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
             number: Number(division.number),
             teams: division.standings.map((standing) => {
               const difference = Number(standing.gamesFor) - Number(standing.gamesAgainst);
+              // What the Players said of a Foursomes tie (#14 part 3): shown, and in order, for the Manager to keep or change.
+              const marked = division.playersTies.find((tie) => tie.mark?.teamId === standing.teamId);
               return {
                 teamId: standing.teamId,
                 name: teamName(standing.teamId),
@@ -102,11 +106,15 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
                 // Points first where they rank (#214): "5 pts, 2–0, +5". In Foursomes, the games banked that rank them (#14).
                 record:
                   foursomes
-                    ? `${Number(standing.gamesFor)} games`
+                    ? `${Number(standing.gamesFor)} games${marked ? ` · the players say ${marked.place === "Up" ? "up" : "down"}` : ""}`
                     : `${standing.points != null ? `${Number(standing.points)} pts, ` : ""}${Number(standing.won)}–${Number(standing.lost)}, ${difference > 0 ? "+" : ""}${difference}`,
               };
             }),
-            ties: close.awaiting.ties.filter((tie) => Number(tie.division) === Number(division.number)).map((tie) => tie.teamIds),
+            // Ties still open, and those the Players marked, which the Manager can still reorder.
+            ties: [
+              ...close.awaiting.ties.filter((tie) => Number(tie.division) === Number(division.number)).map((tie) => tie.teamIds),
+              ...division.playersTies.filter((tie) => tie.mark).map((tie) => tie.teamIds),
+            ].filter((tie, index, all) => all.findIndex((other) => sameTeams(other, tie)) === index),
           }))}
           waiting={close.waiting.map((team) => ({ teamId: team.teamId, name: name(team.players) }))}
           nextStage={

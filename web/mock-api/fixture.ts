@@ -520,6 +520,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     divisions: [
       {
         number: 1,
+        playersTies: [],
         competitors: [competitor(4, 1, jo), competitor(5, 2, alex), competitor(6, 3, chris)],
         // Every pair once, the higher place first (ADR-0031).
         games: [
@@ -548,6 +549,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     divisions: [
       {
         number: 1,
+        playersTies: [],
         competitors: [competitor(10, 1, jo), competitor(12, 2, nia), competitor(11, 3, ella)],
         games: [
           { id: G.joElla, firstTeamId: id("f", 10), secondTeamId: id("f", 11), score: score(1, 6, 3), notPlayed: false },
@@ -563,6 +565,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
       },
       {
         number: 2,
+        playersTies: [],
         competitors: [competitor(13, 4, chris), competitor(15, 5, sam), competitor(14, 6, alex)],
         games: [
           { id: G.chrisSam, firstTeamId: id("f", 13), secondTeamId: id("f", 15), score: score(1, 6, 2), notPlayed: false },
@@ -594,12 +597,14 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     divisions: [
       {
         number: 1,
+        playersTies: [],
         competitors: [competitor(20, 1, jo), competitor(21, 2, chris)],
         games: [{ id: id("9", 10), firstTeamId: id("f", 20), secondTeamId: id("f", 21), score: score(1, 6, 4), notPlayed: false }],
         standings: [standing(20, 1, [1, 1, 0, 6, 4], "Stays"), standing(21, 2, [1, 0, 1, 4, 6], "Down")],
       },
       {
         number: 2,
+        playersTies: [],
         competitors: [competitor(22, 3, ella), competitor(23, 4, nia)],
         games: [{ id: id("9", 11), firstTeamId: id("f", 22), secondTeamId: id("f", 23), score: null, notPlayed: true }],
         standings: [standing(22, 1, [0, 0, 0, 0, 0], null, true), standing(23, 1, [0, 0, 0, 0, 0], null, true)],
@@ -622,6 +627,7 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
     divisions: [
       {
         number: 1,
+        playersTies: [],
         competitors: [competitor(40, 1, jo), competitor(41, 2, nia), competitor(42, 3, ella), competitor(43, 4, alex)],
         games: [
           { id: F.joNia, firstTeamId: id("f", 40), firstPartnerTeamId: id("f", 41), secondTeamId: id("f", 42), secondPartnerTeamId: id("f", 43), score: score(1, 9, 6), notPlayed: false },

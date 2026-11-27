@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
+import { TieMarkForm } from "@/components/tie-mark-form";
 import { ButtonLink } from "@/components/ui/button";
 import { ButtonStack } from "@/components/ui/button-stack";
+import { ErrorState } from "@/components/ui/states";
 import { Card } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { unvoidGame, voidGame } from "@/lib/actions";
@@ -33,10 +35,11 @@ const SAVED: Record<string, string> = {
  * while the Stage is open; a Manager overrides it at any time; after the
  * close, its Players see it locked. A Manager settles one nobody scored by
  * recording it or marking it not played, and can undo that (#10). The League's Players and Managers see
- * it; anyone else gets a 404.
+ * it; anyone else gets a 404. In Foursomes (#14 part 3), a Player in it whose
+ * score left the Division level for a place that moves is asked who goes.
  */
 export default async function MatchPage({ params, searchParams }: PageProps<"/games/[gameId]">) {
-  const [viewer, api, { gameId }, { saved, refused }] = await Promise.all([
+  const [viewer, api, { gameId }, { saved, refused, tie }] = await Promise.all([
     getViewer(),
     apiWithSession(),
     params,
@@ -68,6 +71,16 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
     "not-played": "A manager has marked this game as not played, so it takes no score.",
   };
   const savedMessage = typeof saved === "string" ? SAVED[saved] : undefined;
+
+  // Foursomes (#14 part 3): the ties this Game's Division leaves its Players to settle, asked here as the score lands.
+  const ladder =
+    game.type === "Foursomes" && playing && !stage.closed
+      ? (await api.GET("/leagues/{leagueId}/ladder", { params: { path: { leagueId: game.leagueId } } })).data
+      : undefined;
+  const division = ladder?.divisions.find((candidate) => Number(candidate.number) === Number(game.division));
+  const divisionNames = Object.fromEntries(
+    (division?.competitors ?? []).map((competitor) => [competitor.teamId, competitor.players.map((player) => player.name).join(" & ")]),
+  );
   const refusal = typeof refused === "string" ? refusals[refused] : undefined;
 
   return (
@@ -94,6 +107,22 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           {refusal}
         </p>
       )}
+      {tie === "changed" && (
+        <ErrorState title="That didn't save" description="The tie changed meanwhile, or the Stage closed. This is how it stands now." />
+      )}
+      {tie === "pick" && <ErrorState title="Nothing saved" description="Pick who goes, then save." />}
+      {acting &&
+        division?.playersTies.map((playersTie) => (
+          <TieMarkForm
+            key={playersTie.place}
+            leagueId={game.leagueId}
+            playerId={acting.id}
+            division={Number(division.number)}
+            tie={playersTie}
+            names={divisionNames}
+            gameId={game.id}
+          />
+        ))}
 
       {score ? (
         <Card title="Score" aria-label="Score" aside={<ResultStatusBadge status={score.retired ? "retirement" : "played"} />}>

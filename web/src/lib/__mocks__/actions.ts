@@ -60,3 +60,4 @@ export const voidGame = pending;
 export const unvoidGame = pending;
 export const closeStage = pending;
 export const moveTeam = pending;
+export const markTie = pending;

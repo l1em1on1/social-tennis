@@ -1031,3 +1031,38 @@ export async function moveTeam(formData: FormData) {
   revalidatePath("/", "layout");
   redirect(`/manage/leagues/${leagueId}${response.ok ? `?moved=${teamId}` : ""}`);
 }
+
+/**
+ * A Foursomes Player says who goes up, or down, of the Players level on games
+ * in their Division (#14 part 3), as they settled it. The Player is the one
+ * this login acts as, checked against the ones it holds; the API checks they
+ * are in that Division. Back to where it was said: a Game, or the ladder.
+ */
+export async function markTie(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const playerId = formData.get("playerId");
+  const gameId = formData.get("gameId");
+  const teamId = formData.get("teamId");
+  const place = formData.get("place");
+  const division = Number(formData.get("division"));
+  if (!isId(leagueId) || !isId(playerId) || (place !== "Up" && place !== "Down") || !Number.isInteger(division)) return;
+  const viewer = await getViewer();
+  if (!viewer.players.some((player) => player.id === playerId)) return;
+  const back = isId(gameId) ? `/games/${gameId}` : `/leagues/${leagueId}`;
+  if (!isId(teamId)) redirect(`${back}?tie=pick`);
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/leagues/{leagueId}/tie-marks", {
+    params: { path: { leagueId } },
+    body: { playerId, division, place, teamId },
+  });
+  // A Score changed the tie, or the Stage closed, since the page loaded: it shows how things stand now.
+  if (response.status === 400 || response.status === 403 || response.status === 409) {
+    redirect(`${back}?tie=changed`);
+  }
+  if (!response.ok) {
+    throw new Error(`PUT /leagues/${leagueId}/tie-marks failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`${back}?tie=marked`);
+}

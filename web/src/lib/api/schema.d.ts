@@ -612,6 +612,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/tie-marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["MarkTie"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/join-requests": {
         parameters: {
             query?: never;
@@ -1133,6 +1149,7 @@ export interface components {
             competitors: components["schemas"]["LadderCompetitor"][];
             games: components["schemas"]["LadderGame"][];
             standings: components["schemas"]["LadderStanding"][];
+            playersTies: components["schemas"]["LadderPlayersTie"][];
         };
         LadderGame: {
             /** Format: uuid */
@@ -1159,6 +1176,11 @@ export interface components {
             playerId: string;
             name: string;
         };
+        LadderPlayersTie: {
+            place: components["schemas"]["TieMarkPlace"];
+            teamIds: string[];
+            mark: null | components["schemas"]["LadderTieMark"];
+        };
         LadderStanding: {
             /** Format: uuid */
             teamId: string;
@@ -1183,6 +1205,13 @@ export interface components {
             /** Format: int32 */
             division: number | string;
             teamIds: string[];
+        };
+        LadderTieMark: {
+            /** Format: uuid */
+            teamId: string;
+            markedBy: null | string;
+            /** Format: date-time */
+            markedAt: string;
         };
         LeagueJoinRequestPartner: {
             /** Format: uuid */
@@ -1277,6 +1306,15 @@ export interface components {
         MagicLinkRequest: {
             email: string;
             join?: null | string;
+        };
+        MarkTieRequest: {
+            /** Format: uuid */
+            playerId: string;
+            /** Format: int32 */
+            division: number | string;
+            place: components["schemas"]["TieMarkPlace"];
+            /** Format: uuid */
+            teamId: string;
         };
         MoveTeamRequest: {
             /** Format: uuid */
@@ -1516,6 +1554,8 @@ export interface components {
             /** Format: int32 */
             retirementWinner: null | number | string;
         };
+        /** @enum {unknown} */
+        TieMarkPlace: "Up" | "Down";
         UpdatePlayerRequest: {
             name: string;
             gender?: null | components["schemas"]["PlayerGender"];
@@ -4056,6 +4096,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    MarkTie: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkTieRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
