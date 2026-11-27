@@ -62,7 +62,9 @@ public static class StageLadder
             })
             .ToList();
         // The Players' answers to Foursomes ties (#14 part 3), each kept only while its tie stands as it was.
-        var marks = type == LeagueType.Foursomes
+        // A closed Stage is as it closed: nothing more is said, and a mark no longer orders it.
+        var open = await db.Stages.AnyAsync(s => s.Id == stageId && s.ClosedAt == null, cancellationToken);
+        var marks = type == LeagueType.Foursomes && open
             ? await db.TieMarks
                 .Where(m => m.StageId == stageId)
                 .Select(m => new { m.Division, m.Place, m.Group, m.TeamId, MarkedBy = m.MarkedBy == null ? null : m.MarkedBy.Name, m.MarkedAt })
@@ -104,7 +106,7 @@ public static class StageLadder
 
                 // A Foursomes tie at a place that moves is the Players' to settle once every Game is scored,
                 // and none was not played (that leaves the Division to the Manager): owner, 2026-11-26.
-                var settledByPlayers = type == LeagueType.Foursomes && inDivision.All(g => g.Score is not null);
+                var settledByPlayers = type == LeagueType.Foursomes && open && inDivision.All(g => g.Score is not null);
                 var playersTies = new List<LadderPlayersTie>();
                 Guid? up = null, down = null;
                 foreach (var place in settledByPlayers ? [TieMarkPlace.Up, TieMarkPlace.Down] : Array.Empty<TieMarkPlace>())

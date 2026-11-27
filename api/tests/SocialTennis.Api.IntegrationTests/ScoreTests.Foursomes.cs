@@ -387,4 +387,41 @@ public partial class ScoreTests
 
         Assert.Equal("stage-closed", await ProblemTypeAsync(await MarkAsync(players[1], leagueId, 1, "Down", teams[1]), HttpStatusCode.Conflict));
     }
+
+    [Fact]
+    public async Task In_a_middle_Division_all_level_one_Player_cant_go_both_up_and_down()
+    {
+        var (manager, leagueId, players, teams) = await FoursomesAsync([.. Eight, "Ivy", "Jim", "Kay", "Lee"]);
+        await StartAsync(manager, leagueId, teams, divisions: [4, 4, 4]);
+        // Division 2's three Games all stop at 3–3: each of Eve, Fay, Gus and Hal banks 9, level for both first and last.
+        var middle = (await LadderOfAsync(manager, leagueId)).Divisions[1];
+        foreach (var partner in new[] { 5, 6, 7 })
+        {
+            (await SubmitAsync(players[4].Client, PairedGame(middle, teams, 4, partner).Id, players[4].PlayerId, [Set(3, 3)], retirementWinner: 1))
+                .EnsureSuccessStatusCode();
+        }
+        Assert.Equal([TieMarkPlace.Up, TieMarkPlace.Down], (await LadderOfAsync(manager, leagueId)).Divisions[1].PlayersTies.Select(t => t.Place));
+
+        (await MarkAsync(players[5], leagueId, 2, "Up", teams[4])).EnsureSuccessStatusCode();
+        Assert.Equal(
+            ["They're already marked to go the other way."],
+            (await ErrorsAsync(await MarkAsync(players[5], leagueId, 2, "Down", teams[4])))["teamId"]);
+        // Both answered: Eve up, Hal down, and the tie no longer waits.
+        (await MarkAsync(players[6], leagueId, 2, "Down", teams[7])).EnsureSuccessStatusCode();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        Assert.Equal(
+            [(teams[4], StandingMove.Up), (teams[5], StandingMove.Stays), (teams[6], StandingMove.Stays), (teams[7], StandingMove.Down)],
+            ladder.Divisions[1].Standings.Select(s => (s.TeamId, s.Move!.Value)));
+        Assert.DoesNotContain(ladder.Awaiting.Ties, tie => tie.Division == 2);
+    }
+
+    [Fact]
+    public async Task An_ended_Leagues_ladder_has_no_tie_left_for_its_Players()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync(endDate: $"{Year}-07-31");
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+        (await CloseAsync(manager, leagueId, Order([.. teams[..4]], [.. teams[4..]]))).EnsureSuccessStatusCode();
+
+        Assert.All((await LadderOfAsync(players[0].Client, leagueId)).Divisions, d => Assert.Empty(d.PlayersTies));
+    }
 }
