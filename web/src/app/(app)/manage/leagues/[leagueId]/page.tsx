@@ -27,7 +27,7 @@ import {
 import type { components } from "@/lib/api/schema";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
-import { describeScoreFormat, describeStructure, formatDate, formatDates, typeLabel } from "@/lib/league";
+import { describeScoreFormat, describeStructure, formatDate, formatDates, gameLabel, typeLabel } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata: Metadata = { title: "League" };
@@ -92,8 +92,8 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     const login = couldManage.get(member.userId) ?? { names: [], email: member.email };
     couldManage.set(member.userId, { ...login, names: [...login.names, member.name] });
   }
-  // Doubles: the Manager pairs Players into Teams (#6). Singles Teams of one,
-  // and Foursomes' lack of Teams, need nothing on this page.
+  // Doubles: the Manager pairs Players into Teams (#6). Teams of one, in
+  // singles and in Foursomes (where partners change every Game), need nothing on this page.
   const doubles = ["DoublesMen", "DoublesWomen", "DoublesMix"].includes(league.type);
   const nameOf = (playerId: string) => league.participants.find((p) => p.playerId === playerId)?.name ?? "";
   const unpaired = league.participants.filter((participant) => participant.teamId === null);
@@ -103,11 +103,11 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     request.partner ? `${request.name} with ${request.partner.name}` : request.name;
   const sameGender = (request: (typeof league.joinRequests)[number]) =>
     league.type === "DoublesMix" && request.gender !== null && request.gender === request.partner?.gender;
-  // Starting (#7): only a Divisional League of the Team-based Types, once.
+  // Starting (#7): only a Divisional League, once (Foursomes too, #14).
   // Afterwards a Team on the ladder is fixed: no Unpair, and no Remove for its
   // Players (a Withdrawal, #21). Anyone not on it can still come and go.
   const stage = league.stage;
-  const canStart = !stage && league.structure === "Divisional" && league.type !== "Foursomes";
+  const canStart = !stage && league.structure === "Divisional";
   const teamOf = (teamId: string | null) => league.teams.find((team) => team.id === teamId);
   const onLadder = (teamId: string | null) => teamOf(teamId)?.position != null;
   const placeBadge = (teamId: string | null) => {
@@ -165,7 +165,8 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
           {/* From md, side by side (#225): what holds the close up, and moving a Team. */}
           <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:items-start">
             {ladder && <ToDo ladder={ladder} />}
-            {ladder && !ladder.ended && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
+            {/* A Foursomes Division is always 4, playing its rotation together: nobody moves mid-Stage (#14). */}
+            {ladder && !ladder.ended && league.type !== "Foursomes" && <MoveTeamCard ladder={ladder} moved={typeof moved === "string" ? moved : undefined} refused={typeof moveRefused === "string" ? moveRefused : undefined} />}
           </div>
         </div>
       ) : (
@@ -530,7 +531,7 @@ function ToDo({ ladder }: { ladder: components["schemas"]["GetLeagueLadderRespon
                 games={unscored.map(({ game, division }) => ({
                   id: game.id,
                   division,
-                  label: `${name(game.firstTeamId)} v ${name(game.secondTeamId)}`,
+                  label: gameLabel(game, name),
                 }))}
               />
             </div>

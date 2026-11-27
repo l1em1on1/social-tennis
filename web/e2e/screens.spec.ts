@@ -5,6 +5,8 @@ import { expect, test } from "./support/chromatic";
 import type { Page, TestInfo } from "@playwright/test";
 import {
   FIXTURE_ADMIN,
+  FIXTURE_FOURSOMES_GAME_IDS,
+  FIXTURE_FOURSOMES_LEAGUE_ID,
   FIXTURE_GAME_IDS,
   FIXTURE_HELD_UP_LEAGUE_ID,
   FIXTURE_JOIN_CODE,
@@ -121,6 +123,26 @@ test.describe("a member, with a child on the same login", () => {
     await as(page, testInfo, FIXTURE_MEMBER, `/leagues/${FIXTURE_RUNNING_LEAGUE_ID}`);
     await expect(page.getByRole("status")).toContainText("You're in Division 2");
     await expectNoSeriousA11yViolations(page);
+  });
+
+  test("a Foursomes ladder, as a Player in it", async ({ page }, testInfo) => {
+    await as(page, testInfo, FIXTURE_MEMBER, `/leagues/${FIXTURE_FOURSOMES_LEAGUE_ID}`);
+    await expect(page.getByRole("status")).toContainText("You play 3 games with and against Jo Bennett, Nia Brooks and Ella Grant");
+    // Ranked by games banked; Alex's own Games name Alex and the partner first (#14).
+    const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+    await expect(standings).toHaveText([/^1Nia Brooks218stays$/, /^2Alex Morgan215stays$/, /^3Jo Bennett214stays$/, /^4Ella Grant211stays$/]);
+    await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
+      /^Alex Morgan & Ella Grant v Jo Bennett & Nia Brooks/,
+      /^Alex Morgan & Nia Brooks v Jo Bennett & Ella Grant/,
+      /^Alex Morgan & Jo Bennett v Nia Brooks & Ella Grant/,
+    ]);
+    await expectNoSeriousA11yViolations(page);
+  });
+
+  test("a Foursomes Game, as a Player in it", async ({ page }, testInfo) => {
+    await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_FOURSOMES_GAME_IDS.joAlex}`);
+    await expect(h1(page, "Jo Bennett & Alex Morgan v Nia Brooks & Ella Grant")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Enter score" })).toBeVisible();
   });
 
   test("a ladder whose League has ended, as a Player in it", async ({ page }, testInfo) => {

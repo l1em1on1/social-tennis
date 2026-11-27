@@ -12,7 +12,7 @@ import { apiWithSession } from "@/lib/api/server";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { isId } from "@/lib/ids";
-import { describeManagers, formatDate, formatDates, typeLabel } from "@/lib/league";
+import { describeManagers, formatDate, formatDates, gameLabel, sidesOf, typeLabel } from "@/lib/league";
 import { formatSets } from "@/lib/score";
 import { getViewer } from "@/lib/viewer";
 
@@ -31,6 +31,9 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
  * Player's Division is marked, with who they play, or it says they aren't on
  * the ladder. Only the League's Players and managers see it: anyone else gets
  * a 404. It names who runs it, and whoever does has a way to its Manager page (#220).
+ * A Foursomes Division (#14) is 4 Players with 3 Games of rotating pairs,
+ * ranked by the games each Player banked; a Player's own Games name their
+ * partner first.
  */
 export default async function LadderPage({ params }: PageProps<"/leagues/[leagueId]">) {
   const [viewer, api, { leagueId }] = await Promise.all([getViewer(), apiWithSession(), params]);
@@ -85,6 +88,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
     );
   }
 
+  const foursomes = ladder.type === "Foursomes";
   const me = viewer.actingPlayer?.id;
   // The API lets in a login with any of its Players in the League, and says which;
   // the Acting Player may be another of them (a parent switched to a child who isn't in it).
@@ -98,6 +102,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
     return team ? names(team) : "";
   };
   const list = opponents.length > 1 ? `${opponents.slice(0, -1).join(", ")} and ${opponents[opponents.length - 1]}` : opponents[0];
+  const myTeams = competitors.filter(isMe).map((competitor) => competitor.teamId);
 
   return (
     <>
@@ -105,7 +110,10 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
       <p className="text-sm">
         <strong>Stage {stage.number}</strong>{" "}
         <span className="text-fg-muted">
-          {formatDates(stage.startDate, stage.endDate)}. Everyone in a Division plays everyone else in it once, by{" "}
+          {formatDates(stage.startDate, stage.endDate)}.{" "}
+          {foursomes
+            ? "Each Division plays 3 games, everyone partnering each of the others once, by "
+            : "Everyone in a Division plays everyone else in it once, by "}
           {formatDate(stage.endDate)}.
         </span>
       </p>
@@ -122,7 +130,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
           unscored={ladder.divisions.flatMap((division) =>
             division.games
               .filter((game) => ladder.awaiting.unscoredGameIds.includes(game.id))
-              .map((game) => ({ gameId: game.id, label: `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}` })),
+              .map((game) => ({ gameId: game.id, label: gameLabel(game, teamName) })),
           )}
           ties={ladder.awaiting.ties.map((tie) => ({
             division: Number(tie.division),
@@ -134,8 +142,17 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
 
       {mine ? (
         <p role="status" className="rounded-md border border-accent bg-accent-muted px-4 py-3 text-sm">
-          You&apos;re in <strong>Division {mine.number}</strong>. You play <strong>{list}</strong> by {formatDate(stage.endDate)}:
-          arrange each game between you.
+          You&apos;re in <strong>Division {mine.number}</strong>.{" "}
+          {foursomes ? (
+            <>
+              You play 3 games with and against <strong>{list}</strong> by {formatDate(stage.endDate)}: arrange each game
+              between the four of you.
+            </>
+          ) : (
+            <>
+              You play <strong>{list}</strong> by {formatDate(stage.endDate)}: arrange each game between you.
+            </>
+          )}
         </p>
       ) : actingInLeague ? (
         <p role="status" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
@@ -171,6 +188,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
               >
                 <StandingsTable
                   number={Number(division.number)}
+                  foursomes={foursomes ? { gameNotPlayed: division.games.some((game) => game.notPlayed) } : undefined}
                   standings={division.standings}
                   names={Object.fromEntries(division.competitors.map((competitor) => [competitor.teamId, names(competitor)]))}
                   mine={division.competitors.filter(isMe).map((competitor) => competitor.teamId)}
@@ -180,9 +198,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                 </h3>
                 <ul aria-label={`Division ${division.number} Games`} className="divide-y divide-border text-sm">
                   {division.games.map((game) => {
-                    const ourGame = [game.firstTeamId, game.secondTeamId].some((teamId) =>
-                      division.competitors.some((competitor) => competitor.teamId === teamId && isMe(competitor)),
-                    );
+                    const ourGame = sidesOf(game).flat().some((teamId) => myTeams.includes(teamId));
                     const { score } = game;
                     return (
                       <li key={game.id}>
@@ -191,7 +207,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                           className="flex min-h-11 items-center justify-between gap-2 py-1.5 hover:underline"
                         >
                           <span className={cx("min-w-0 break-words", ourGame && "font-semibold")}>
-                            {nameOf(game.firstTeamId)} v {nameOf(game.secondTeamId)}
+                            {gameLabel(game, nameOf, myTeams)}
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {score && <span className="font-mono text-xs">{formatSets(score.sets)}</span>}

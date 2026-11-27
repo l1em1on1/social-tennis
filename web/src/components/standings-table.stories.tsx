@@ -140,3 +140,35 @@ export const BonusPoints: Story = {
     await expect(onOneLine(mine, "Featherstone")).toBe(true);
   },
 };
+
+/**
+ * A Foursomes Division (#14): each Player's Games and the games they banked,
+ * which alone rank them, under the Players' names.
+ */
+export const Foursomes: Story = {
+  args: {
+    foursomes: { gameNotPlayed: false },
+    standings: [row("t2", 1, 2, 0, 18, 11, "Up"), row("t3", 2, 1, 1, 15, 14, "Stays"), row("t1", 3, 1, 1, 14, 15, "Stays"), row("t4", 4, 0, 2, 11, 18, "Down")],
+  },
+  play: async ({ canvas }) => {
+    const [first, , , last] = rows(canvas);
+    await expect(canvas.getByRole("columnheader", { name: "Player" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Games" })).toBeVisible();
+    await expect(canvas.queryByRole("columnheader", { name: "±" })).toBeNull();
+    await expect(first).toHaveTextContent("1Omar Ali218▲ up");
+    await expect(last).toHaveTextContent("4Ravi Rao211▼ down");
+    await expect(canvas.getByText(/^Ranked by games banked/)).toBeVisible();
+  },
+};
+
+/** A Foursomes Division with a game not played: everyone level, for the Manager to order (#14). */
+export const FoursomesGameNotPlayed: Story = {
+  args: {
+    foursomes: { gameNotPlayed: true },
+    standings: [row("t2", 1, 2, 0, 12, 4, null, true), row("t3", 1, 1, 1, 9, 9, null, true), row("t1", 1, 1, 1, 8, 9, null, true), row("t4", 1, 0, 2, 5, 12, null, true)],
+  },
+  play: async ({ canvas }) => {
+    await expect(rows(canvas)[0]).toHaveTextContent("=1Omar Ali212tied");
+    await expect(canvas.getByText(/^A game wasn't played, so the Manager decides who moves\./)).toBeVisible();
+  },
+};

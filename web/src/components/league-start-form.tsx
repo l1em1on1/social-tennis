@@ -14,6 +14,9 @@ export interface StartCompetitor {
   names: string[];
 }
 
+/** A Foursomes ladder (#14): as many Divisions of exactly 4 as `count` fills. */
+const fours = (count: number) => Array.from({ length: Math.floor(count / 4) }, () => 4);
+
 /** `count` split into `divisions` Divisions as evenly as possible, the bigger ones at the bottom. */
 function split(count: number, divisions: number): number[] {
   const parts = Math.min(Math.max(divisions, 1), Math.floor(count / 2));
@@ -30,6 +33,11 @@ function split(count: number, divisions: number): number[] {
  * are; and leaves Teams out. Every pair in a Division plays once a Stage, so
  * each Division shows its Games. Confirming sends the ladder, the Division
  * sizes, who is left out and who is removed, as shown here.
+ *
+ * A Foursomes ladder (#14, wireframe M4) is Divisions of exactly 4 Players,
+ * with no Bye: there is no line to move or number of Divisions to change.
+ * Players below the last full Division are listed apart, with how many to
+ * leave out or add, and Confirm waits until the count is a multiple of 4.
  */
 export function LeagueStartForm({
   leagueId,
@@ -38,6 +46,7 @@ export function LeagueStartForm({
   unpaired,
   waitingRequestCount,
   firstStage,
+  foursomes = false,
 }: {
   leagueId: string;
   competitors: StartCompetitor[];
@@ -47,6 +56,8 @@ export function LeagueStartForm({
   unpaired: { playerId: string; name: string }[];
   waitingRequestCount: number;
   firstStage: { startDate: string; endDate: string };
+  /** A Foursomes League: Divisions of exactly 4 Players. */
+  foursomes?: boolean;
 }) {
   const [ladder, setLadder] = useState(() => competitors.map((competitor) => competitor.teamId));
   const [leftOut, setLeftOut] = useState<string[]>([]);
@@ -58,7 +69,13 @@ export function LeagueStartForm({
   const nameOf = (teamId: string) => competitors.find((competitor) => competitor.teamId === teamId)?.names.join(" & ") ?? "";
   const starts = sizes.map((_, index) => sizes.slice(0, index).reduce((sum, size) => sum + size, 0));
   const divisionOf = (index: number) => starts.filter((start) => start <= index).length;
-  const canStart = ladder.length >= 2 && sizes.length > 0 && sizes.every((size) => size >= 2);
+  const placed = sizes.reduce((sum, size) => sum + size, 0);
+  // Foursomes only: Players below the last full Division of 4, to leave out or make up to 4.
+  const spare = foursomes ? ladder.slice(placed) : [];
+  const canStart = foursomes
+    ? ladder.length >= 4 && spare.length === 0
+    : ladder.length >= 2 && sizes.length > 0 && sizes.every((size) => size >= 2);
+  const resize = (count: number) => (foursomes ? fours(count) : split(count, sizes.length || 1));
 
   useEffect(() => {
     if (!refocus.current) return;
@@ -75,7 +92,8 @@ export function LeagueStartForm({
     const teamId = ladder[index];
     refocus.current = { id: `move-${direction}-${teamId}`, fallback: `move-${direction === "up" ? "down" : "up"}-${teamId}` };
     setLadder(next);
-    setAnnouncement(`${nameOf(teamId)} moved ${direction} to place ${target + 1}, Division ${divisionOf(target)}.`);
+    const where = target >= placed ? "not in a Division" : `Division ${divisionOf(target)}`;
+    setAnnouncement(`${nameOf(teamId)} moved ${direction} to place ${target + 1}, ${where}.`);
   }
 
   /** Moves the line under Division `division` (1-based) a Team up or down. */
@@ -102,7 +120,7 @@ export function LeagueStartForm({
     refocus.current = { id: `put-back-${teamId}`, fallback: `put-back-${teamId}` };
     setLadder(next);
     setLeftOut([...leftOut, teamId]);
-    setSizes(split(next.length, sizes.length || 1));
+    setSizes(resize(next.length));
     setAnnouncement(`${nameOf(teamId)} left out.`);
   }
 
@@ -113,8 +131,44 @@ export function LeagueStartForm({
     refocus.current = { id: `move-up-${teamId}`, fallback: `leave-out-${teamId}` };
     setLadder(next);
     setLeftOut(leftOut.filter((id) => id !== teamId));
-    setSizes(split(next.length, sizes.length || 1));
+    setSizes(resize(next.length));
     setAnnouncement(`${nameOf(teamId)} put back, at the bottom of the ladder.`);
+  }
+
+  /** A place on the ladder: its number, who, and the buttons to move them or leave them out. */
+  function row(teamId: string, index: number) {
+    const name = nameOf(teamId);
+    return (
+      <li key={teamId} className="flex items-center justify-between gap-2 py-1">
+        <p className="min-w-0 flex-1 font-medium break-words">
+          <span className="text-fg-muted">{index + 1}.</span> {name}
+        </p>
+        <div className="flex">
+          <IconButton
+            id={`move-up-${teamId}`}
+            icon="up"
+            label={`Move ${name} up`}
+            disabled={index === 0}
+            onClick={() => move(index, "up")}
+          />
+          <IconButton
+            id={`move-down-${teamId}`}
+            icon="down"
+            label={`Move ${name} down`}
+            disabled={index === ladder.length - 1}
+            onClick={() => move(index, "down")}
+          />
+          <IconButton
+            id={`leave-out-${teamId}`}
+            icon="personMinus"
+            word="Leave out"
+            className="w-16"
+            label={`Leave out ${name}`}
+            onClick={() => leaveOut(teamId)}
+          />
+        </div>
+      </li>
+    );
   }
 
   return (
@@ -137,31 +191,33 @@ export function LeagueStartForm({
       <Card
         title="Starting ladder"
         aside={
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              id="divisions-fewer"
-              variant="secondary"
-              aria-label="Fewer Divisions"
-              disabled={sizes.length <= 1}
-              onClick={() => changeDivisions(-1)}
-              className="px-3"
-            >
-              −
-            </Button>
-            <p className="px-1 text-sm">
-              {sizes.length} {sizes.length === 1 ? "Division" : "Divisions"}
-            </p>
-            <Button
-              id="divisions-more"
-              variant="secondary"
-              aria-label="More Divisions"
-              disabled={sizes.length >= Math.floor(ladder.length / 2)}
-              onClick={() => changeDivisions(1)}
-              className="px-3"
-            >
-              +
-            </Button>
-          </div>
+          foursomes ? undefined : (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                id="divisions-fewer"
+                variant="secondary"
+                aria-label="Fewer Divisions"
+                disabled={sizes.length <= 1}
+                onClick={() => changeDivisions(-1)}
+                className="px-3"
+              >
+                −
+              </Button>
+              <p className="px-1 text-sm">
+                {sizes.length} {sizes.length === 1 ? "Division" : "Divisions"}
+              </p>
+              <Button
+                id="divisions-more"
+                variant="secondary"
+                aria-label="More Divisions"
+                disabled={sizes.length >= Math.floor(ladder.length / 2)}
+                onClick={() => changeDivisions(1)}
+                className="px-3"
+              >
+                +
+              </Button>
+            </div>
+          )
         }
       >
         <div className="flex flex-col gap-3">
@@ -170,47 +226,15 @@ export function LeagueStartForm({
             <h3 id={`division-${division + 1}`} className="text-sm font-semibold">
               Division {division + 1}{" "}
               <span className="font-normal text-fg-muted">
-                · {size} {size === 1 ? "Team" : "Teams"} · {gamesIn(size)} {gamesIn(size) === 1 ? "Game" : "Games"}
+                {foursomes
+                  ? "· 4 Players · 3 Games"
+                  : `· ${size} ${size === 1 ? "Team" : "Teams"} · ${gamesIn(size)} ${gamesIn(size) === 1 ? "Game" : "Games"}`}
               </span>
             </h3>
             <ol aria-label={`Division ${division + 1}`} className="divide-y divide-border">
-              {ladder.slice(starts[division], starts[division] + size).map((teamId, offset) => {
-                const index = starts[division] + offset;
-                const name = nameOf(teamId);
-                return (
-                  <li key={teamId} className="flex items-center justify-between gap-2 py-1">
-                    <p className="min-w-0 flex-1 font-medium break-words">
-                      <span className="text-fg-muted">{index + 1}.</span> {name}
-                    </p>
-                    <div className="flex">
-                      <IconButton
-                        id={`move-up-${teamId}`}
-                        icon="up"
-                        label={`Move ${name} up`}
-                        disabled={index === 0}
-                        onClick={() => move(index, "up")}
-                      />
-                      <IconButton
-                        id={`move-down-${teamId}`}
-                        icon="down"
-                        label={`Move ${name} down`}
-                        disabled={index === ladder.length - 1}
-                        onClick={() => move(index, "down")}
-                      />
-                      <IconButton
-                        id={`leave-out-${teamId}`}
-                        icon="personMinus"
-                        word="Leave out"
-                        className="w-16"
-                        label={`Leave out ${name}`}
-                        onClick={() => leaveOut(teamId)}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
+              {ladder.slice(starts[division], starts[division] + size).map((teamId, offset) => row(teamId, starts[division] + offset))}
             </ol>
-            {division < sizes.length - 1 && (
+            {division < sizes.length - 1 && !foursomes && (
               // The line between two Divisions, on one row: arrows move it, as they move a Team,
               // in the Teams' arrow column, with its label where their Leave out sits.
               <div className="flex items-center">
@@ -235,7 +259,22 @@ export function LeagueStartForm({
           </section>
         ))}
 
-        {sizes.length === 0 && ladder.length > 0 && (
+        {spare.length > 0 && (
+          // Foursomes: below the last full Division of 4, until someone is left out or more join.
+          <section aria-labelledby="spare" className="flex flex-col gap-1">
+            <h3 id="spare" className="text-sm font-semibold">
+              Not in a Division{" "}
+              <span className="font-normal text-fg-muted">
+                · {ladder.length >= 4 ? `leave out ${spare.length}, or add ${4 - spare.length} more` : `add ${4 - spare.length} more`}
+              </span>
+            </h3>
+            <ol aria-label="Not in a Division" className="divide-y divide-border">
+              {spare.map((teamId, offset) => row(teamId, placed + offset))}
+            </ol>
+          </section>
+        )}
+
+        {sizes.length === 0 && ladder.length > 0 && !foursomes && (
           // Too few for a Division: the Teams still on the ladder stay in view, to leave out or add to.
           <section aria-labelledby="too-few" className="flex flex-col gap-1">
             <h3 id="too-few" className="text-sm font-semibold">
@@ -287,8 +326,10 @@ export function LeagueStartForm({
 
       <ul className="flex flex-col gap-2 text-sm">
         <li>
-          Stage 1 runs <strong>{formatDates(firstStage.startDate, firstStage.endDate)}</strong>. Everyone in a Division plays
-          everyone else in it once by then.
+          Stage 1 runs <strong>{formatDates(firstStage.startDate, firstStage.endDate)}</strong>.{" "}
+          {foursomes
+            ? "Each Division plays 3 games by then, everyone partnering each of the others once."
+            : "Everyone in a Division plays everyone else in it once by then."}
         </li>
         {leftOut.length > 0 && (
           <li>Anyone left out stays in the league without a place on the ladder. You can still remove them afterwards.</li>
@@ -314,7 +355,9 @@ export function LeagueStartForm({
       <p className="text-sm text-fg-muted">
         {canStart
           ? "Starting makes Stage 1's Games. After that, the ladder only changes as results move people."
-          : "A ladder needs at least two on it, and every Division at least two."}
+          : foursomes
+            ? "A Foursomes ladder is Divisions of 4 players, with no one sitting out: it needs a multiple of 4."
+            : "A ladder needs at least two on it, and every Division at least two."}
       </p>
     </form>
   );

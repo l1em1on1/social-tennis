@@ -63,6 +63,9 @@ export const FIXTURE_HELD_UP_LEAGUE_ID = id("e", 5);
 /** Summer Doubles: not started, with a Team and a Player without a partner. Alex can join it. */
 export const FIXTURE_OPEN_DOUBLES_LEAGUE_ID = id("e", 6);
 
+/** Thursday Foursomes (#14): Jo, Nia, Ella and Alex in one Division of 4, two of its 3 Games played. */
+export const FIXTURE_FOURSOMES_LEAGUE_ID = id("e", 7);
+
 /** Autumn Singles' Games (#38): Jo beat Alex on a tiebreak, Chris won when Jo stopped early, and Alex v Chris wasn't played (#10). */
 export const FIXTURE_GAME_IDS = { played: id("9", 1), retirement: id("9", 2), notPlayed: id("9", 3) } as const;
 /** Summer Ladder's Games, by who plays. */
@@ -74,6 +77,9 @@ export const FIXTURE_RUNNING_GAME_IDS = {
   chrisSam: id("9", 8),
   alexSam: id("9", 9),
 } as const;
+
+/** Thursday Foursomes' Games, by pairs: Jo & Nia v Ella & Alex, Jo & Ella v Nia & Alex, Jo & Alex v Nia & Ella. */
+export const FIXTURE_FOURSOMES_GAME_IDS = { joNia: id("9", 20), joElla: id("9", 21), joAlex: id("9", 22) } as const;
 
 const whole = (total: number) => ({ total, offset: 0, limit: null });
 
@@ -244,7 +250,22 @@ const summerDoubles = {
   standingsMode: "Standard",
 } as const;
 
+const thursdayFoursomes = {
+  id: FIXTURE_FOURSOMES_LEAGUE_ID,
+  name: "Thursday Foursomes",
+  type: "Foursomes",
+  structure: "Divisional",
+  startDate: "2026-11-01",
+  endDate: "2027-02-28",
+  stageLength: { count: 1, unit: "Months" },
+  stageRoll: "Manual",
+  scoreFormat: { gamesPerSet: 9, setsPerGame: 1, matchTiebreakDecider: false },
+  divisionSize: null,
+  standingsMode: null,
+} as const;
+
 const autumnStage = { number: 1, startDate: "2026-10-01", endDate: "2026-10-31" };
+const foursomesStage = { number: 1, startDate: "2026-11-01", endDate: "2026-11-30" };
 const summerStage = { number: 2, startDate: "2026-11-01", endDate: "2026-11-30" };
 const springStage = { number: 1, startDate: "2026-10-01", endDate: "2026-10-31" };
 
@@ -405,6 +426,22 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     managers: [],
     canAssignManagers: true,
   },
+  /** Thursday Foursomes: Jo, Nia, Ella and Alex, each a Team of one (ADR-0036), in one Division. */
+  [thursdayFoursomes.id]: {
+    ...thursdayFoursomes,
+    ...club,
+    participants: [
+      inLeague(jo, "2026-10-20T18:00:00Z", id("f", 40)),
+      inLeague(nia, "2026-10-21T18:00:00Z", id("f", 41)),
+      inLeague(ella, "2026-10-22T18:00:00Z", id("f", 42)),
+      inLeague(alex, "2026-10-23T18:00:00Z", id("f", 43)),
+    ],
+    joinRequests: [],
+    teams: [team(40, [jo], 1, 1), team(41, [nia], 2, 1), team(42, [ella], 3, 1), team(43, [alex], 4, 1)],
+    stage: foursomesStage,
+    managers: [],
+    canAssignManagers: true,
+  },
   /** Summer Doubles: Jo and Nia are a Team, and Ella waits for a partner. */
   [summerDoubles.id]: {
     ...summerDoubles,
@@ -463,6 +500,7 @@ const standing = (
 ): Schemas["LadderStanding"] => ({ teamId: id("f", n), rank, played, won, lost, gamesFor, gamesAgainst, tied, move, points });
 
 const G = FIXTURE_RUNNING_GAME_IDS;
+const F = FIXTURE_FOURSOMES_GAME_IDS;
 
 /** Each started League's ladder, as its Club's managers see it; the mock sets `yourPlayerIds` and `canManage` per User. */
 export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> = {
@@ -568,6 +606,38 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
       },
     ],
   },
+  /** Thursday Foursomes' ladder (#14): 3 Games of rotating pairs, ranked by games banked; one Division, so nobody moves. */
+  [thursdayFoursomes.id]: {
+    id: thursdayFoursomes.id,
+    name: thursdayFoursomes.name,
+    clubName: RIVERSIDE.name,
+    type: thursdayFoursomes.type,
+    stage: foursomesStage,
+    yourPlayerIds: [],
+    heldUp: false,
+    awaiting: { unscoredGameIds: [F.joAlex], ties: [] },
+    ended: false,
+    managers: [],
+    canManage: true,
+    divisions: [
+      {
+        number: 1,
+        competitors: [competitor(40, 1, jo), competitor(41, 2, nia), competitor(42, 3, ella), competitor(43, 4, alex)],
+        games: [
+          { id: F.joNia, firstTeamId: id("f", 40), firstPartnerTeamId: id("f", 41), secondTeamId: id("f", 42), secondPartnerTeamId: id("f", 43), score: score(1, 9, 6), notPlayed: false },
+          { id: F.joElla, firstTeamId: id("f", 40), firstPartnerTeamId: id("f", 42), secondTeamId: id("f", 41), secondPartnerTeamId: id("f", 43), score: score(2, 5, 9), notPlayed: false },
+          { id: F.joAlex, firstTeamId: id("f", 40), firstPartnerTeamId: id("f", 43), secondTeamId: id("f", 41), secondPartnerTeamId: id("f", 42), score: null, notPlayed: false },
+        ],
+        // Games banked: Nia 9 + 9 = 18, Alex 6 + 9 = 15, Jo 9 + 5 = 14, Ella 6 + 5 = 11.
+        standings: [
+          standing(41, 1, [2, 2, 0, 18, 11], "Stays"),
+          standing(43, 2, [2, 1, 1, 15, 14], "Stays"),
+          standing(40, 3, [2, 1, 1, 14, 15], "Stays"),
+          standing(42, 4, [2, 0, 2, 11, 18], "Stays"),
+        ],
+      },
+    ],
+  },
 };
 
 /** Closing Spring Ladder's Stage 1 (#10): the tie to order, Sam waiting, and November as Stage 2. */
@@ -666,6 +736,8 @@ export const fixtureGameScores: Record<string, Pick<Schemas["GetGameResponse"], 
   [G.chrisSam]: entered(score(1, 6, 2), "2026-11-06", chris.name, "2026-11-06T18:30:00Z"),
   [G.alexSam]: entered(score(1, 6, 4), "2026-11-15", sam.name, "2026-11-15T12:20:00Z"),
   [id("9", 10)]: entered(score(1, 6, 4), "2026-10-20", jo.name, "2026-10-20T19:00:00Z"),
+  [F.joNia]: entered(score(1, 9, 6), "2026-11-05", ella.name, "2026-11-05T21:30:00Z"),
+  [F.joElla]: entered(score(2, 5, 9), "2026-11-12", alex.name, "2026-11-12T21:15:00Z"),
 };
 
 function entered(gameScore: Schemas["LadderGameScore"], playedOn: string, by: string, at: string): Pick<Schemas["GetGameResponse"], "score" | "history"> {

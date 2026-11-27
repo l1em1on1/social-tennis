@@ -104,3 +104,31 @@ export const TooFew: Story = {
     await expect(canvas.getByRole("button", { name: "Leave out Josh Lee" })).toHaveFocus();
   },
 };
+
+/**
+ * Foursomes (#14): ten Players make two Divisions of 4, with no line to move or
+ * number of Divisions to change. The two below them must be left out, or two
+ * more found, before it can start.
+ */
+export const Foursomes: Story = {
+  args: { foursomes: true, divisions: [4, 4] },
+  play: async ({ canvas, userEvent }) => {
+    await expect([1, 2].map((n) => division(canvas, n).length)).toEqual([4, 4]);
+    await expect(canvas.getByRole("heading", { name: /Division 1 · 4 Players · 3 Games/ })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "More Divisions" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: /Move the line/ })).toBeNull();
+    await expect(canvas.getByRole("heading", { name: /Not in a Division · leave out 2, or add 2 more/ })).toBeVisible();
+    await expect(within(canvas.getByRole("list", { name: "Not in a Division" })).getAllByRole("listitem")).toHaveLength(2);
+    const confirm = canvas.getByRole("button", { name: "Confirm and start" });
+    await expect(confirm).toBeDisabled();
+
+    // Moving the ninth Player up swaps them into Division 2; leaving out the last two lets it start.
+    await userEvent.click(canvas.getByRole("button", { name: "Move Ben Hart up" }));
+    await expect(division(canvas, 2).map((row) => row.textContent)).toContainEqual(expect.stringContaining("Ben Hart"));
+    await userEvent.click(canvas.getByRole("button", { name: "Leave out Nate Cole" }));
+    await expect(canvas.getByRole("heading", { name: /Not in a Division · leave out 1, or add 3 more/ })).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Leave out Kit Moore" }));
+    await expect(canvas.queryByRole("list", { name: "Not in a Division" })).toBeNull();
+    await expect(confirm).toBeEnabled();
+  },
+};

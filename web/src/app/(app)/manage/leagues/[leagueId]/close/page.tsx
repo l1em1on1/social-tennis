@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/states";
 import { apiWithSession } from "@/lib/api/server";
 import { isId } from "@/lib/ids";
-import { formatDate, formatDates } from "@/lib/league";
+import { formatDate, formatDates, gameLabel } from "@/lib/league";
 import { getViewer } from "@/lib/viewer";
 import { PageColumn } from "@/components/shell/page-column";
 
@@ -44,6 +44,8 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
   const { stage } = close;
   const name = (players: { name: string }[]) => players.map((player) => player.name).join(" & ");
   const competitors = close.divisions.flatMap((division) => division.competitors);
+  // Only a Foursomes Game has pairs (#14, ADR-0036), and every one of them does.
+  const foursomes = close.divisions.some((division) => division.games.some((game) => game.firstPartnerTeamId));
   const teamName = (teamId: string) => name(competitors.find((competitor) => competitor.teamId === teamId)?.players ?? []);
   const unscored = close.divisions.flatMap((division) =>
     division.games
@@ -51,7 +53,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
       .map((game) => ({
         id: game.id,
         division: Number(division.number),
-        label: `${teamName(game.firstTeamId)} v ${teamName(game.secondTeamId)}`,
+        label: gameLabel(game, teamName),
       })),
   );
 
@@ -97,8 +99,11 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
                 teamId: standing.teamId,
                 name: teamName(standing.teamId),
                 rank: Number(standing.rank),
-                // Points first where they rank (#214): "5 pts, 2–0, +5".
-                record: `${standing.points != null ? `${Number(standing.points)} pts, ` : ""}${Number(standing.won)}–${Number(standing.lost)}, ${difference > 0 ? "+" : ""}${difference}`,
+                // Points first where they rank (#214): "5 pts, 2–0, +5". In Foursomes, the games banked that rank them (#14).
+                record:
+                  foursomes
+                    ? `${Number(standing.gamesFor)} games`
+                    : `${standing.points != null ? `${Number(standing.points)} pts, ` : ""}${Number(standing.won)}–${Number(standing.lost)}, ${difference > 0 ? "+" : ""}${difference}`,
               };
             }),
             ties: close.awaiting.ties.filter((tie) => Number(tie.division) === Number(division.number)).map((tie) => tie.teamIds),
