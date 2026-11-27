@@ -7,6 +7,16 @@ type PlayersTie = components["schemas"]["LadderPlayersTie"];
 const list = (names: string[]) => new Intl.ListFormat("en-GB").format(names);
 
 /**
+ * In a middle Division where all four are level, one group decides both who
+ * goes up and who goes down: the Player marked for one can't be marked for
+ * the other, so the form leaves them out.
+ */
+export function markedOtherWay(tie: PlayersTie, ties: PlayersTie[]): string | undefined {
+  const same = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join();
+  return ties.find((other) => other.place !== tie.place && same(other.teamIds, tie.teamIds))?.mark?.teamId;
+}
+
+/**
  * A Foursomes tie the Division's Players settle themselves (#14 part 3; owner,
  * 2026-11-26): Players level on games at a place that moves, once every Game
  * has a score. Any of the four says who goes up, or down, however they decided
@@ -20,6 +30,7 @@ export function TieMarkForm({
   tie,
   names,
   gameId,
+  otherWay,
 }: {
   leagueId: string;
   /** The Acting Player, in this Division. */
@@ -30,6 +41,8 @@ export function TieMarkForm({
   names: Record<string, string>;
   /** The Game it's said from, to come back to; the ladder otherwise. */
   gameId?: string;
+  /** The Player already marked to go the other way from the same group (`markedOtherWay`): not offered. */
+  otherWay?: string;
 }) {
   const direction = tie.place === "Up" ? "up" : "down";
   const legend = `Who goes ${direction} from Division ${division}?`;
@@ -46,7 +59,7 @@ export function TieMarkForm({
           {list(tie.teamIds.map((teamId) => names[teamId] ?? ""))} are level on games. Settle it between you, with a coin toss or
           however you like, and say who goes {direction}.
         </p>
-        {tie.teamIds.map((teamId) => (
+        {tie.teamIds.filter((teamId) => teamId !== otherWay).map((teamId) => (
           <label key={teamId} className="flex min-h-11 items-center gap-3">
             <input
               type="radio"

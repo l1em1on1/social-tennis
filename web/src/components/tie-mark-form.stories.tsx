@@ -37,3 +37,15 @@ export const Marked: Story = {
     await expect(canvas.getByRole("button", { name: "Change" })).toBeVisible();
   },
 };
+
+/**
+ * A middle Division where all four are level: Bob is marked to go up, so the
+ * question of who goes down doesn't offer him.
+ */
+export const OtherWayMarked: Story = {
+  args: { tie: { place: "Down", teamIds: ["t1", "t2", "t3"], mark: null }, otherWay: "t1" },
+  play: async ({ canvas }) => {
+    await expect(canvas.getAllByRole("radio")).toHaveLength(2);
+    await expect(canvas.queryByRole("radio", { name: "Bob Hart" })).toBeNull();
+  },
+};

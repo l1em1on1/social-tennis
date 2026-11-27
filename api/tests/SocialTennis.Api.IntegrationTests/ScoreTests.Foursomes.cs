@@ -20,10 +20,10 @@ public partial class ScoreTests
 
     /// <summary>A Foursomes League of <paramref name="names"/>, each with their Team of one, in the order they joined.</summary>
     private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> FoursomesAsync(
-        string[] names, string stageRoll = "Manual")
+        string[] names, string stageRoll = "Manual", string? endDate = null)
     {
         var (manager, clubId) = await ClubAsync();
-        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, type: "Foursomes", stageRoll: stageRoll);
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, type: "Foursomes", endDate: endDate, stageRoll: stageRoll);
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in names)
         {
@@ -244,9 +244,9 @@ public partial class ScoreTests
     /// the third 4–6: Eve 16, Fay and Gus 14, Hal 8, so it's settled.
     /// </summary>
     private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams, LadderDivision Top)> LevelForLastAsync(
-        string stageRoll = "Manual")
+        string stageRoll = "Manual", string? endDate = null)
     {
-        var (manager, leagueId, players, teams) = await FoursomesAsync(Eight, stageRoll);
+        var (manager, leagueId, players, teams) = await FoursomesAsync(Eight, stageRoll, endDate);
         await StartAsync(manager, leagueId, teams, divisions: [4, 4]);
         var ladder = await LadderOfAsync(manager, leagueId);
         foreach (var partner in new[] { 1, 2, 3 })
@@ -359,5 +359,32 @@ public partial class ScoreTests
         Assert.Equal("not-in-division", await ProblemTypeAsync(await MarkAsync(others[4], otherLeague, 1, "Down", otherTeams[1]), HttpStatusCode.Forbidden));
         Assert.Equal(["Pick one of the Players level there."], (await ErrorsAsync(await MarkAsync(others[1], otherLeague, 1, "Down", otherTeams[0])))["teamId"]);
         Assert.Equal(HttpStatusCode.NotFound, (await MarkAsync(players[0], otherLeague, 1, "Down", otherTeams[1])).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_automatic_close_refuses_an_order_read_before_the_answer_changed()
+    {
+        var (_, leagueId, players, teams, _) = await LevelForLastAsync("Automatic");
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+        var asRead = Order([teams[0], teams[2], teams[3], teams[1]], [.. teams[4..]]);
+        // Dan says Cat instead, after the job read the ladder with Bob last.
+        (await MarkAsync(players[3], leagueId, 1, "Down", teams[2])).EnsureSuccessStatusCode();
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        var closed = await SocialTennis.Api.Features.Leagues.StageClose.CloseAsync(
+            db, leagueId, asRead, [], new DateOnly(Year, 8, 1), new DateOnly(Year, 8, 31), factory.Clock, CancellationToken.None, ordersTies: false);
+
+        Assert.Equal(SocialTennis.Api.Features.Leagues.CloseRefusal.StandingsChanged, closed.Refusal);
+        Assert.Equal(1, (int)(await LadderOfAsync(players[0].Client, leagueId)).Stage!.Number);
+    }
+
+    [Fact]
+    public async Task Nobody_marks_a_tie_once_the_League_has_ended()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync(endDate: $"{Year}-07-31");
+        (await CloseAsync(manager, leagueId, Order([.. teams[..4]], [.. teams[4..]]))).EnsureSuccessStatusCode();
+
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await MarkAsync(players[1], leagueId, 1, "Down", teams[1]), HttpStatusCode.Conflict));
     }
 }

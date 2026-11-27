@@ -115,7 +115,12 @@ public static class StageClose
             return new CloseResult(CloseRefusal.TiesOpen);
         }
 
-        if (!FollowsStandings(divisions, order))
+        // The automatic close orders no tie of its own: its order must be the Standings' exactly, as rebuilt
+        // under the locks, so a Players' mark changed since it read the ladder (#14 part 3) can't be passed over.
+        var follows = ordersTies
+            ? FollowsStandings(divisions, order)
+            : divisions.Count == order.Count && divisions.Select((d, i) => d.Standings.Select(s => s.TeamId).SequenceEqual(order[i])).All(same => same);
+        if (!follows)
         {
             return new CloseResult(CloseRefusal.StandingsChanged);
         }

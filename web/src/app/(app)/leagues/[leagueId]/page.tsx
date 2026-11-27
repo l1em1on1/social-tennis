@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { HeldUpBanner } from "@/components/held-up-banner";
 import { StandingsTable } from "@/components/standings-table";
-import { TieMarkForm, describePlayersTie } from "@/components/tie-mark-form";
+import { TieMarkForm, describePlayersTie, markedOtherWay } from "@/components/tie-mark-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -145,6 +145,9 @@ export default async function LadderPage({ params, searchParams }: PageProps<"/l
         <ErrorState title="That didn't save" description="The tie changed meanwhile, or the Stage closed. This is how it stands now." />
       )}
       {tie === "pick" && <ErrorState title="Nothing saved" description="Pick who goes, then save." />}
+      {tie === "invalid" && (
+        <ErrorState title="Nothing saved" description="Pick one of the players level there, and not one already going the other way." />
+      )}
 
       {mine ? (
         <p role="status" className="rounded-md border border-accent bg-accent-muted px-4 py-3 text-sm">
@@ -202,7 +205,8 @@ export default async function LadderPage({ params, searchParams }: PageProps<"/l
                 />
                 {/* A Foursomes tie its Players settle (#14 part 3): theirs to say; everyone else reads it. */}
                 {division.playersTies.map((playersTie) =>
-                  ours && me ? (
+                  // Once the League has ended, nothing more is said: it reads as it closed.
+                  ours && me && !ladder.ended ? (
                     <div key={playersTie.place} className="mt-3">
                       <TieMarkForm
                         leagueId={ladder.id}
@@ -210,6 +214,7 @@ export default async function LadderPage({ params, searchParams }: PageProps<"/l
                         division={Number(division.number)}
                         tie={playersTie}
                         names={divisionNames}
+                        otherWay={markedOtherWay(playersTie, division.playersTies)}
                       />
                     </div>
                   ) : (

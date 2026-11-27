@@ -1056,8 +1056,12 @@ export async function markTie(formData: FormData) {
     params: { path: { leagueId } },
     body: { playerId, division, place, teamId },
   });
+  // 400: not one of those level there, or the one already going the other way.
+  if (response.status === 400) {
+    redirect(`${back}?tie=invalid`);
+  }
   // A Score changed the tie, or the Stage closed, since the page loaded: it shows how things stand now.
-  if (response.status === 400 || response.status === 403 || response.status === 409) {
+  if (response.status === 403 || response.status === 409) {
     redirect(`${back}?tie=changed`);
   }
   if (!response.ok) {

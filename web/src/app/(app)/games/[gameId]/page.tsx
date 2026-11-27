@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
-import { TieMarkForm } from "@/components/tie-mark-form";
+import { TieMarkForm, markedOtherWay } from "@/components/tie-mark-form";
 import { ButtonLink } from "@/components/ui/button";
 import { ButtonStack } from "@/components/ui/button-stack";
 import { ErrorState } from "@/components/ui/states";
@@ -111,6 +111,9 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
         <ErrorState title="That didn't save" description="The tie changed meanwhile, or the Stage closed. This is how it stands now." />
       )}
       {tie === "pick" && <ErrorState title="Nothing saved" description="Pick who goes, then save." />}
+      {tie === "invalid" && (
+        <ErrorState title="Nothing saved" description="Pick one of the players level there, and not one already going the other way." />
+      )}
       {acting &&
         division?.playersTies.map((playersTie) => (
           <TieMarkForm
@@ -121,6 +124,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
             tie={playersTie}
             names={divisionNames}
             gameId={game.id}
+            otherWay={markedOtherWay(playersTie, division.playersTies)}
           />
         ))}
 
