@@ -61,6 +61,13 @@ public static class StageLadder
                 g.NotPlayed,
             })
             .ToList();
+        // The Players' answers to Foursomes ties (#14 part 3), each kept only while its tie stands as it was.
+        var marks = type == LeagueType.Foursomes
+            ? await db.TieMarks
+                .Where(m => m.StageId == stageId)
+                .Select(m => new { m.Division, m.Place, m.Group, m.TeamId, MarkedBy = m.MarkedBy == null ? null : m.MarkedBy.Name, m.MarkedAt })
+                .ToListAsync(cancellationToken)
+            : [];
         var count = places.Select(p => p.Division).Distinct().Count();
         var ranked = places
             .GroupBy(p => p.Division)
@@ -94,6 +101,33 @@ public static class StageLadder
                                 g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null)),
                         ],
                         mode ?? StandingsMode.Standard);
+
+                // A Foursomes tie at a place that moves is the Players' to settle once every Game is scored,
+                // and none was not played (that leaves the Division to the Manager): owner, 2026-11-26.
+                var settledByPlayers = type == LeagueType.Foursomes && inDivision.All(g => g.Score is not null);
+                var playersTies = new List<LadderPlayersTie>();
+                Guid? up = null, down = null;
+                foreach (var place in settledByPlayers ? [TieMarkPlace.Up, TieMarkPlace.Down] : Array.Empty<TieMarkPlace>())
+                {
+                    if (Standings.TiedAt(standings, place, group.Key, count) is not { } tied)
+                    {
+                        continue;
+                    }
+
+                    var mark = marks.SingleOrDefault(m => m.Division == group.Key && m.Place == place && m.Group.ToHashSet().SetEquals(tied));
+                    if (mark is not null && place == TieMarkPlace.Up)
+                    {
+                        up = mark.TeamId;
+                    }
+                    else if (mark is not null)
+                    {
+                        down = mark.TeamId;
+                    }
+
+                    playersTies.Add(new LadderPlayersTie(place, tied, mark is null ? null : new LadderTieMark(mark.TeamId, mark.MarkedBy, mark.MarkedAt)));
+                }
+
+                standings = Standings.OrderByMarks(standings, up, down);
                 var division = new LadderDivision(
                     group.Key,
                     [.. group.Select(p => p.Competitor)],
@@ -112,10 +146,11 @@ public static class StageLadder
                     [
                         .. standings.Select(s => new LadderStanding(
                             s.TeamId, s.Rank, s.Played, s.Won, s.Lost, s.GamesFor, s.GamesAgainst, s.Tied,
-                            Standings.MoveOf(s, standings, group.Key, count),
+                            Standings.MoveOf(s, standings, group.Key, count, up, down),
                             s.Points)),
-                    ]);
-                return (Division: division, Ties: Standings.OpenTies(standings, group.Key, count).Select(tie => new LadderTie(group.Key, tie)));
+                    ],
+                    playersTies);
+                return (Division: division, Ties: Standings.OpenTies(standings, group.Key, count, up, down).Select(tie => new LadderTie(group.Key, tie)));
             })
             .ToList();
         var divisions = ranked.Select(r => r.Division).ToList();

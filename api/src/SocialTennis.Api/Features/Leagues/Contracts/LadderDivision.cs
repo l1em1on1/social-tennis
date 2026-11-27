@@ -4,6 +4,11 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Number">1 at the top.</param>
 /// <param name="Competitors">Its Teams, the higher place first.</param>
 /// <param name="Games">Every pair of them once this Stage, in ladder order, each with its Score once entered (#38).</param>
-/// <param name="Standings">Every Team, first first; Teams still tied in ladder order.</param>
+/// <param name="Standings">Every Team, first first; Teams still tied in ladder order, or in a Foursomes tie the Players marked, theirs.</param>
+/// <param name="PlayersTies">Foursomes only (#14 part 3): the ties its Players settle, marked or not. Empty otherwise.</param>
 public record LadderDivision(
-    int Number, IReadOnlyList<LadderCompetitor> Competitors, IReadOnlyList<LadderGame> Games, IReadOnlyList<LadderStanding> Standings);
+    int Number,
+    IReadOnlyList<LadderCompetitor> Competitors,
+    IReadOnlyList<LadderGame> Games,
+    IReadOnlyList<LadderStanding> Standings,
+    IReadOnlyList<LadderPlayersTie> PlayersTies);

@@ -114,7 +114,13 @@ public static class Standings
     /// that place is tied, for the Manager to decide. Before a Game in the
     /// Division has a Score, nobody's place means anything yet, so none.
     /// </summary>
-    public static StandingMove? MoveOf(Standing standing, IReadOnlyList<Standing> division, int number, int divisions)
+    /// <remarks>
+    /// <paramref name="up"/> and <paramref name="down"/> are the Players' marks
+    /// on a Foursomes tie (#14 part 3, <see cref="TieMark"/>), already checked
+    /// to be for the tie as it stands: the one marked moves, the others stay.
+    /// </remarks>
+    public static StandingMove? MoveOf(
+        Standing standing, IReadOnlyList<Standing> division, int number, int divisions, Guid? up = null, Guid? down = null)
     {
         if (division.All(row => row.Played == 0))
         {
@@ -129,7 +135,23 @@ public static class Standings
             return StandingMove.Stays;
         }
 
-        return standing.Tied ? null : movesUp ? StandingMove.Up : StandingMove.Down;
+        if (!standing.Tied)
+        {
+            return movesUp ? StandingMove.Up : StandingMove.Down;
+        }
+
+        // A tie: each place it decides moves only the one the Players marked for it.
+        if (movesUp && up == standing.TeamId)
+        {
+            return StandingMove.Up;
+        }
+
+        if (movesDown && down == standing.TeamId)
+        {
+            return StandingMove.Down;
+        }
+
+        return (!movesUp || up is not null) && (!movesDown || down is not null) ? StandingMove.Stays : null;
     }
 
     /// <summary>
@@ -138,7 +160,9 @@ public static class Standings
     /// in any but the bottom. A Division where nothing was played is one such
     /// tie of all its Teams, ordered like any other (#10, part 2).
     /// </summary>
-    public static IReadOnlyList<IReadOnlyList<Guid>> OpenTies(IReadOnlyList<Standing> division, int number, int divisions)
+    /// <remarks>A tie the Players marked for every place it decides (<see cref="MoveOf"/>) no longer waits.</remarks>
+    public static IReadOnlyList<IReadOnlyList<Guid>> OpenTies(
+        IReadOnlyList<Standing> division, int number, int divisions, Guid? up = null, Guid? down = null)
     {
         var last = division.Max(row => row.Rank);
         return
@@ -146,8 +170,37 @@ public static class Standings
             .. division
                 .Where(row => row.Tied && ((row.Rank == 1 && number > 1) || (row.Rank == last && number < divisions)))
                 .GroupBy(row => row.Rank)
+                .Where(group => !((group.Key != 1 || number == 1 || up is not null) && (group.Key != last || number == divisions || down is not null)))
                 .Select(group => (IReadOnlyList<Guid>)[.. group.Select(row => row.TeamId)]),
         ];
+    }
+
+    /// <summary>
+    /// A Division's Standings with the Players' marks (#14 part 3) applied:
+    /// the one marked to go up first in its tie, the one to go down last.
+    /// Ranks stay shared, so the Manager can still order the tie at the close.
+    /// </summary>
+    public static IReadOnlyList<Standing> OrderByMarks(IReadOnlyList<Standing> division, Guid? up, Guid? down)
+    {
+        int Order(Standing row) => row.TeamId == up ? 0 : row.TeamId == down ? 2 : 1;
+        return [.. division.Select((row, index) => (row, index)).OrderBy(pair => pair.row.Rank).ThenBy(pair => Order(pair.row)).ThenBy(pair => pair.index).Select(pair => pair.row)];
+    }
+
+    /// <summary>
+    /// The Teams level at a place that moves in a Division (#10): first, which
+    /// decides who goes up in any Division but the top, or last, who goes down
+    /// in any but the bottom. None if one Team holds it alone.
+    /// </summary>
+    public static IReadOnlyList<Guid>? TiedAt(IReadOnlyList<Standing> division, TieMarkPlace place, int number, int divisions)
+    {
+        if (place == TieMarkPlace.Up ? number == 1 : number == divisions)
+        {
+            return null;
+        }
+
+        var rank = place == TieMarkPlace.Up ? 1 : division.Max(row => row.Rank);
+        var tied = division.Where(row => row.Rank == rank).Select(row => row.TeamId).ToList();
+        return tied.Count > 1 ? tied : null;
     }
 
     /// <summary>
