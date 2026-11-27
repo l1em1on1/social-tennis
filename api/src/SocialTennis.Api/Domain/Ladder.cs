@@ -26,6 +26,27 @@ public static class Ladder
     }
 
     /// <summary>
+    /// The proposed Divisions of a Foursomes ladder of <paramref name="count"/>
+    /// Players (#14): as many Divisions of 4 as fit. The rest must be left
+    /// out, or more Players found, before it can start: there is no Bye.
+    /// </summary>
+    public static IReadOnlyList<int> ProposeFoursomes(int count) =>
+        [.. Enumerable.Repeat(League.FoursomesDivisionSize, count / League.FoursomesDivisionSize)];
+
+    /// <summary>
+    /// A Foursomes Division's 3 Games (#14, ADR-0036), as indexes into its 4
+    /// places from the top: 1+2 v 3+4, 1+3 v 2+4 and 1+4 v 2+3. Each Player
+    /// partners each of the others once and plays against each twice. Side 1
+    /// is the pair with the first place.
+    /// </summary>
+    public static IReadOnlyList<(int[] First, int[] Second)> FoursomesRotation { get; } =
+    [
+        ([0, 1], [2, 3]),
+        ([0, 2], [1, 3]),
+        ([0, 3], [1, 2]),
+    ];
+
+    /// <summary>
     /// The Games of a Division of <paramref name="size"/>: every pair once, as
     /// indexes into the Division from its top, the higher place first.
     /// </summary>

@@ -51,8 +51,8 @@ internal static class LeagueLadder
 
     /// <summary>
     /// Why this League can't start, or null if it can (apart from who is in
-    /// it): a League starts once, and only a Divisional League of the
-    /// Team-based Types can start for now.
+    /// it): a League starts once, and only a Divisional League can start for
+    /// now (Knockout is #12).
     /// </summary>
     public static async Task<ProblemHttpResult?> CannotStartAsync(
         TennisDbContext db, Guid leagueId, LeagueStructure structure, LeagueType type, CancellationToken cancellationToken)
@@ -72,15 +72,6 @@ internal static class LeagueLadder
                 type: "knockout-not-yet",
                 title: "A Knockout League can't start yet.",
                 detail: "Starting a Knockout League, with its Bracket, is still to be built.");
-        }
-
-        if (type.TeamSize() == 0)
-        {
-            return TypedResults.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                type: "foursomes-not-yet",
-                title: "A Foursomes League can't start yet.",
-                detail: "Starting a Foursomes League, with its Divisions of 4, is still to be built.");
         }
 
         return null;

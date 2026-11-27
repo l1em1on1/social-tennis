@@ -46,6 +46,7 @@ public static class GetPlayerGames
                 p.League.Name,
                 ClubName = p.League.Club.Name,
                 p.League.Club.TimeZone,
+                p.League.Type,
                 p.League.ScoreFormat,
                 p.League.StandingsMode,
                 Stage = p.League.Stages
@@ -60,27 +61,29 @@ public static class GetPlayerGames
         foreach (var league in leagues.OrderBy(l => l.Stage!.EndDate).ThenBy(l => l.Name))
         {
             var stage = league.Stage!;
-            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
+            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.Type, league.StandingsMode, cancellationToken);
             var division = league.TeamId is { } teamId
                 ? divisions.FirstOrDefault(d => d.Competitors.Any(c => c.TeamId == teamId))
                 : null;
             var games = division is null
                 ? []
                 : division.Games
-                    .Where(g => g.FirstTeamId == league.TeamId || g.SecondTeamId == league.TeamId)
+                    .Select(g => (Game: g, First: SideOf(g.FirstTeamId, g.FirstPartnerTeamId), Second: SideOf(g.SecondTeamId, g.SecondPartnerTeamId)))
+                    .Where(g => g.First.Contains(league.TeamId!.Value) || g.Second.Contains(league.TeamId!.Value))
                     .Select(g =>
                     {
-                        var yourSide = g.FirstTeamId == league.TeamId ? 1 : 2;
-                        var (ours, theirs) = yourSide == 1 ? (g.FirstTeamId, g.SecondTeamId) : (g.SecondTeamId, g.FirstTeamId);
-                        var team = division.Competitors.Single(c => c.TeamId == ours);
-                        var opponents = division.Competitors.Single(c => c.TeamId == theirs);
+                        // A Side is one Team, or in Foursomes two Players' Teams of one (ADR-0036): partners are the rest of yours.
+                        var yourSide = g.First.Contains(league.TeamId!.Value) ? 1 : 2;
+                        var (ours, theirs) = yourSide == 1 ? (g.First, g.Second) : (g.Second, g.First);
+                        var players = (IEnumerable<Guid> teams) =>
+                            teams.SelectMany(team => division.Competitors.Single(c => c.TeamId == team).Players);
                         return new PlayerGame(
-                            g.Id,
+                            g.Game.Id,
                             yourSide,
-                            [.. team.Players.Where(p => p.PlayerId != playerId).Select(p => p.Name)],
-                            [.. opponents.Players.Select(p => p.Name)],
-                            g.Score,
-                            g.NotPlayed);
+                            [.. players(ours).Where(p => p.PlayerId != playerId).Select(p => p.Name)],
+                            [.. players(theirs).Select(p => p.Name)],
+                            g.Game.Score,
+                            g.Game.NotPlayed);
                     })
                     .ToList();
             items.Add(new PlayerGamesLeague(
@@ -97,4 +100,6 @@ public static class GetPlayerGames
 
         return TypedResults.Ok(new GetPlayerGamesResponse(items, new PageInfo(items.Count)));
     }
+
+    private static Guid[] SideOf(Guid team, Guid? partner) => partner is { } other ? [team, other] : [team];
 }

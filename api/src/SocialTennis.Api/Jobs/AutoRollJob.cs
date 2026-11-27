@@ -30,6 +30,7 @@ public sealed class AutoRollJob(TennisDbContext db, TimeProvider clock, ILogger<
                 l.Id,
                 l.EndDate,
                 l.StageLength,
+                l.Type,
                 l.ScoreFormat,
                 l.StandingsMode,
                 l.Club.TimeZone,
@@ -45,7 +46,7 @@ public sealed class AutoRollJob(TennisDbContext db, TimeProvider clock, ILogger<
                 continue;
             }
 
-            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
+            var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.Type, league.StandingsMode, cancellationToken);
             if (awaiting.UnscoredGameIds.Count > 0 || awaiting.Ties.Count > 0)
             {
                 held++;

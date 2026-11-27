@@ -12,11 +12,18 @@ public static class StageClose
 {
     /// <summary>
     /// Teams in the League but off the current ladder, complete for its Type
-    /// (a doubles Team of two), which the Manager can add at close.
+    /// (a doubles Team of two), which the Manager can add at close. None in
+    /// Foursomes (#14): its Divisions are always 4, so how Players join a
+    /// running ladder is still the owner's to decide.
     /// </summary>
     public static async Task<List<CloseWaitingTeam>> WaitingAsync(
         TennisDbContext db, Guid leagueId, Guid stageId, LeagueType type, CancellationToken cancellationToken)
     {
+        if (type == LeagueType.Foursomes)
+        {
+            return [];
+        }
+
         var size = type.TeamSize();
         return await db.Teams
             .Where(t => t.LeagueId == leagueId && t.Members.Count == size && !db.LadderPlaces.Any(p => p.StageId == stageId && p.TeamId == t.Id))
@@ -97,7 +104,7 @@ public static class StageClose
             return new CloseResult(CloseRefusal.AlreadyClosed);
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.Type, league.StandingsMode, cancellationToken);
         if (awaiting.UnscoredGameIds.Count > 0)
         {
             return new CloseResult(CloseRefusal.QueueNotEmpty);
@@ -162,7 +169,7 @@ public static class StageClose
                 OpenedAt = now,
             };
             db.Stages.Add(opened);
-            StageLadder.Place(opened, leagueId, Relegation.Next(order, joining));
+            StageLadder.Place(opened, leagueId, league.Type, Relegation.Next(order, joining));
         }
 
         await db.SaveChangesAsync(cancellationToken);

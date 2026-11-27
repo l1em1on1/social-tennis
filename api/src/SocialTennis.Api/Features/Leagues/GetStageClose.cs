@@ -46,7 +46,7 @@ public static class GetStageClose
             return StageClose.AlreadyClosed();
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, stage.Id, league.ScoreFormat, league.Type, league.StandingsMode, cancellationToken);
         var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
         return TypedResults.Ok(new GetStageCloseResponse(
             new LeagueStageSummary(stage.Number, stage.StartDate, stage.EndDate),

@@ -59,7 +59,7 @@ public static class GetLeagueLadder
                 leagueId, league.Name, league.ClubName, league.Type, null, [], false, new LadderAwaiting([], []), false, league.Yours, managers, manages));
         }
 
-        var (divisions, awaiting) = await StageLadder.BuildAsync(db, league.Stage.Id, league.ScoreFormat, league.StandingsMode, cancellationToken);
+        var (divisions, awaiting) = await StageLadder.BuildAsync(db, league.Stage.Id, league.ScoreFormat, league.Type, league.StandingsMode, cancellationToken);
         if (league.Stage.Closed)
         {
             awaiting = new LadderAwaiting([], []);

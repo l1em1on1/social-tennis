@@ -15,7 +15,7 @@ namespace SocialTennis.Api.Features.Leagues;
 public static class StageLadder
 {
     public static async Task<(IReadOnlyList<LadderDivision> Divisions, LadderAwaiting Awaiting)> BuildAsync(
-        TennisDbContext db, Guid stageId, ScoreFormat format, StandingsMode? mode, CancellationToken cancellationToken)
+        TennisDbContext db, Guid stageId, ScoreFormat format, LeagueType type, StandingsMode? mode, CancellationToken cancellationToken)
     {
         var places = await db.LadderPlaces
             .Where(p => p.StageId == stageId)
@@ -40,43 +40,74 @@ public static class StageLadder
             {
                 g.Id,
                 g.Division,
-                First = g.Sides.Where(s => s.Side == 1).Select(s => s.TeamId).Single(),
-                Second = g.Sides.Where(s => s.Side == 2).Select(s => s.TeamId).Single(),
+                // A Side is one Team, or in Foursomes two Players' Teams of one (ADR-0036).
+                Sides = g.Sides.Select(s => new { s.Side, s.TeamId }).ToList(),
                 Score = g.Score == null ? null : new { g.Score.Winner, g.Score.Retired, g.Score.Sets },
                 NotPlayed = g.VoidedAt != null,
             })
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
-        // Each Division's Games in ladder order: by the higher Team's place, then the lower's.
+        // Each Side's Teams top first; each Division's Games in ladder order: by Side 1's places, then Side 2's.
         var positionOf = places.ToDictionary(p => p.Competitor.TeamId, p => p.Competitor.Position);
+        var sided = games
+            .Select(g => new
+            {
+                g.Id,
+                g.Division,
+                First = (IReadOnlyList<Guid>)[.. g.Sides.Where(s => s.Side == 1).Select(s => s.TeamId).OrderBy(team => positionOf[team])],
+                Second = (IReadOnlyList<Guid>)[.. g.Sides.Where(s => s.Side == 2).Select(s => s.TeamId).OrderBy(team => positionOf[team])],
+                g.Score,
+                g.NotPlayed,
+            })
+            .ToList();
         var count = places.Select(p => p.Division).Distinct().Count();
         var ranked = places
             .GroupBy(p => p.Division)
             .OrderBy(group => group.Key)
             .Select(group =>
             {
-                var inDivision = games.Where(g => g.Division == group.Key).OrderBy(g => positionOf[g.First]).ThenBy(g => positionOf[g.Second]).ToList();
-                var standings = Standings.Rank(
-                    [.. group.Select(p => p.Competitor.TeamId)],
-                    [
-                        .. inDivision.Select(g => new StandingsGame(
-                            g.First,
-                            g.Second,
-                            g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null)),
-                    ],
-                    mode ?? StandingsMode.Standard);
+                var inDivision = sided
+                    .Where(g => g.Division == group.Key)
+                    .OrderBy(g => positionOf[g.First[0]])
+                    // In Foursomes Side 1 always has the first place: 1+2, then 1+3, then 1+4.
+                    .ThenBy(g => g.First.Count > 1 ? positionOf[g.First[1]] : 0)
+                    .ThenBy(g => positionOf[g.Second[0]])
+                    .ToList();
+                var teams = (IReadOnlyList<Guid>)[.. group.Select(p => p.Competitor.TeamId)];
+                var standings = type == LeagueType.Foursomes
+                    ? Standings.RankFoursomes(
+                        teams,
+                        [
+                            .. inDivision.Select(g => new PairsGame(
+                                g.First,
+                                g.Second,
+                                g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null,
+                                g.NotPlayed)),
+                        ])
+                    : Standings.Rank(
+                        teams,
+                        [
+                            .. inDivision.Select(g => new StandingsGame(
+                                g.First[0],
+                                g.Second[0],
+                                g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null)),
+                        ],
+                        mode ?? StandingsMode.Standard);
                 var division = new LadderDivision(
                     group.Key,
                     [.. group.Select(p => p.Competitor)],
                     [
                         .. inDivision.Select(g => new LadderGame(
                             g.Id,
-                            g.First,
-                            g.Second,
+                            g.First[0],
+                            g.Second[0],
                             g.Score is { } score
                                 ? new LadderGameScore(score.Winner, score.Retired, SetScore.Of(format, score.Sets))
                                 : null,
-                            g.NotPlayed)),
+                            g.NotPlayed,
+                            g.First.Count > 1 ? g.First[1] : null,
+                            g.Second.Count > 1 ? g.Second[1] : null)),
                     ],
                     [
                         .. standings.Select(s => new LadderStanding(
@@ -99,10 +130,12 @@ public static class StageLadder
     /// <summary>
     /// Places <paramref name="divisions"/> (Team ids, top first, each in
     /// ladder order) on <paramref name="stage"/>'s ladder, and makes every
-    /// pair in a Division a Game, the higher place as Side 1 (ADR-0031). For
-    /// Stage 1 at the start (#7), and each Stage after a close (#10).
+    /// pair in a Division a Game, the higher place as Side 1 (ADR-0031). A
+    /// Foursomes Division of 4 Players gets its 3 Games of rotating pairs
+    /// instead (<see cref="Ladder.FoursomesRotation"/>, ADR-0036). For Stage 1
+    /// at the start (#7), and each Stage after a close (#10).
     /// </summary>
-    public static void Place(Stage stage, Guid leagueId, IReadOnlyList<IReadOnlyList<Guid>> divisions)
+    public static void Place(Stage stage, Guid leagueId, LeagueType type, IReadOnlyList<IReadOnlyList<Guid>> divisions)
     {
         var position = 0;
         for (var division = 1; division <= divisions.Count; division++)
@@ -113,11 +146,20 @@ public static class StageLadder
                 stage.Places.Add(new LadderPlace { LeagueId = leagueId, Position = ++position, Division = division, TeamId = teamId });
             }
 
-            foreach (var (first, second) in Ladder.RoundRobin(members.Count))
+            IEnumerable<(int[] First, int[] Second)> pairings = type == LeagueType.Foursomes
+                ? Ladder.FoursomesRotation
+                : Ladder.RoundRobin(members.Count).Select(pair => (new[] { pair.First }, new[] { pair.Second }));
+            foreach (var (first, second) in pairings)
             {
                 var game = new Game { Id = Guid.NewGuid(), LeagueId = leagueId, Division = division };
-                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 1, TeamId = members[first] });
-                game.Sides.Add(new GameSide { LeagueId = leagueId, Side = 2, TeamId = members[second] });
+                foreach (var (side, places) in new[] { (1, first), (2, second) })
+                {
+                    foreach (var place in places)
+                    {
+                        game.Sides.Add(new GameSide { LeagueId = leagueId, Side = side, TeamId = members[place] });
+                    }
+                }
+
                 stage.Games.Add(game);
             }
         }

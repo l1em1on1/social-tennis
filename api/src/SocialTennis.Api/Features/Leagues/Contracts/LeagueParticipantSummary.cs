@@ -11,7 +11,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Gender">Shown when the Manager pairs Players for mixed doubles (#6).</param>
 /// <param name="TeamId">
 /// Their Team: always one in singles; in doubles, none until they are paired;
-/// never in Foursomes.
+/// in Foursomes, a Team of one, never a pair (ADR-0036).
 /// </param>
 public record LeagueParticipantSummary(
     Guid PlayerId,

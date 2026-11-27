@@ -190,9 +190,12 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             // Who marked it not played (#10): kept, like who changed a Score.
             game.HasOne<User>().WithMany().HasForeignKey(g => g.VoidedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
+        // A Team plays a Game once. A Side is one Team, or in Foursomes two
+        // Players' Teams of one (#14, ADR-0036), so the key is the Team, not the Side.
         modelBuilder.Entity<GameSide>(side =>
         {
-            side.HasKey(s => new { s.GameId, s.Side });
+            side.HasKey(s => new { s.GameId, s.TeamId });
+            side.HasIndex(s => new { s.GameId, s.Side });
             side.HasOne(s => s.Game).WithMany(g => g.Sides)
                 .HasForeignKey(s => new { s.LeagueId, s.GameId })
                 .HasPrincipalKey(g => new { g.LeagueId, g.Id })

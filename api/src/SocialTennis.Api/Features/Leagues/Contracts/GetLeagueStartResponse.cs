@@ -9,8 +9,13 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// </summary>
 /// <param name="Competitors">Every Team, in the proposed order, top first.</param>
 /// <param name="Unpaired">Doubles Players without a partner: starting removes them from the League.</param>
-/// <param name="DivisionSize">The League's Teams per Division, which the proposal aims for.</param>
-/// <param name="Divisions">The proposed Division sizes, top first, adding up to the Competitors; empty with fewer than two.</param>
+/// <param name="DivisionSize">The League's Teams per Division, which the proposal aims for; 4 in Foursomes, exactly.</param>
+/// <param name="Divisions">
+/// The proposed Division sizes, top first, adding up to the Competitors; empty with fewer than two.
+/// In Foursomes (#14) they are as many Divisions of 4 as fit, so they cover only the top 4 × n
+/// Competitors: until the count is a multiple of 4 the Manager must leave the rest out (choosing
+/// whom), or find more Players. Empty with fewer than 4.
+/// </param>
 /// <param name="WaitingRequestCount">Join Requests still waiting: approving one after the start brings the Player in without a place.</param>
 public record GetLeagueStartResponse(
     IReadOnlyList<LeagueStartCompetitor> Competitors,

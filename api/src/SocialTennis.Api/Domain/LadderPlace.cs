@@ -20,7 +20,7 @@ public class LadderPlace
     /// <summary>With <see cref="StageId"/> and <see cref="TeamId"/>, keeps the Stage and the Team in one League.</summary>
     public Guid LeagueId { get; set; }
 
-    /// <summary>The Competitor: a Team in the Team-based Types. Foursomes (#14) places Players.</summary>
+    /// <summary>The Competitor: a Team, a Team of one in singles and in Foursomes, where it is the Player (ADR-0036).</summary>
     public Guid TeamId { get; set; }
 
     public Team Team { get; set; } = null!;
