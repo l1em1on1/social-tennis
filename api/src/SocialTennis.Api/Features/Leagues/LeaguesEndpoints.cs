@@ -116,6 +116,15 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(MarkTie));
 
+        // A Player's free days this Stage (#9): a Player the User holds, in the League; theirs alone.
+        league.MapGet("/players/{playerId:guid}/availability", GetAvailability.HandleAsync)
+            .WithName(nameof(GetAvailability));
+
+        league.MapPut("/players/{playerId:guid}/availability", SetAvailability.HandleAsync)
+            .ValidatesBody<SetAvailabilityRequest, SetAvailabilityRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(SetAvailability));
+
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
             .ValidatesBody<AskToJoinLeagueRequest, AskToJoinLeagueRequest.Validator>()

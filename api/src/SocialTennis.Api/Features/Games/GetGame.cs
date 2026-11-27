@@ -43,6 +43,12 @@ public static class GetGame
                 g.Division,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
                 NotPlayed = g.VoidedAt != null,
+                g.StageId,
+                g.Date,
+                g.Court,
+                DateSetBy = g.DateSetBy == null ? null : g.DateSetBy.Name,
+                // Every Player it needs, on both Sides (#9): their free days make its shared ones.
+                Needed = g.Sides.SelectMany(s => s.Team.Members).Select(m => new { m.PlayerId, m.Player.Name }).ToList(),
                 // A Side is one Team, or in Foursomes two Players' Teams of one (ADR-0036), grouped below.
                 Sides = g.Sides
                     .Select(s => new
@@ -90,6 +96,21 @@ public static class GetGame
         }
 
         var managers = await LeagueManagerList.NamesAsync(db, game.LeagueId, cancellationToken);
+        var today = ClubCalendar.Today(game.TimeZone, clock);
+
+        // The days that suit everyone (#9), for the Game's own Players while there's still a Stage to play it in.
+        GameAvailability? availability = null;
+        if (game.Yours.Count > 0 && !game.Stage.Closed)
+        {
+            var needed = game.Needed.Select(p => p.PlayerId).ToList();
+            var free = await db.AvailableDays
+                .Where(d => d.StageId == game.StageId && needed.Contains(d.PlayerId))
+                .Select(d => new { d.PlayerId, d.Date })
+                .ToListAsync(cancellationToken);
+            availability = new GameAvailability(
+                [.. free.Where(d => d.Date >= today).GroupBy(d => d.Date).Where(day => day.Count() == needed.Count).Select(day => day.Key).Order()],
+                [.. game.Needed.Where(p => free.All(d => d.PlayerId != p.PlayerId)).Select(p => p.Name)]);
+        }
         var score = game.Score is { } s
             ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.RecordedByManager, s.SubmittedAt, s.Version)
             : null;
@@ -141,6 +162,10 @@ public static class GetGame
             manages,
             managers,
             game.TimeZone,
-            ClubCalendar.Today(game.TimeZone, clock)));
+            today,
+            game.Date,
+            game.Court,
+            game.DateSetBy,
+            availability));
     }
 }

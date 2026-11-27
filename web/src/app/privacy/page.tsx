@@ -50,7 +50,8 @@ export default async function PrivacyPage() {
           </li>
           <li>For each of your players: name, gender, level and rating.</li>
           <li>
-            Which clubs and leagues each player is in or has asked to join, the answers, and their games and scores.
+            Which clubs and leagues each player is in or has asked to join, the answers, and their games and scores: the
+            days they say they&apos;re free to play, and the date and court note agreed for a game.
           </li>
           <li>An email address a Manager pre-approves for a club, before that person has signed in.</li>
           <li>Each sign-in link, with the address it went to, until the nightly clean-up after it&apos;s used or expires.</li>

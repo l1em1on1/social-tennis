@@ -191,6 +191,8 @@ export const handlers = [
                   opponents: sidePlayers(division, theirs).map((p) => p.name),
                   score: game.score,
                   notPlayed: game.notPlayed,
+                  date: game.date ?? null,
+                  court: game.court ?? null,
                 };
               }),
           },
@@ -420,6 +422,11 @@ export const handlers = [
       managers: league.managers.map(({ name }) => ({ name })),
       timeZone: TIME_ZONE,
       today: FIXTURE_TODAY,
+      // Arranging it (#9): the fixed world has no Date, Court or free days yet.
+      date: game.date ?? null,
+      court: game.court ?? null,
+      dateSetBy: null,
+      availability: null,
     });
   }),
 

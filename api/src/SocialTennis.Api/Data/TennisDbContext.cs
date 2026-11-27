@@ -45,6 +45,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<TieMark> TieMarks => Set<TieMark>();
 
+    public DbSet<AvailableDay> AvailableDays => Set<AvailableDay>();
+
     public DbSet<ScoreChange> ScoreChanges => Set<ScoreChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -191,6 +193,17 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             game.HasIndex(g => new { g.StageId, g.Division });
             // Who marked it not played (#10): kept, like who changed a Score.
             game.HasOne<User>().WithMany().HasForeignKey(g => g.VoidedByUserId).OnDelete(DeleteBehavior.Restrict);
+            // Arranging it (#9): who set its Date goes with their Player (#116).
+            game.Property(g => g.Court).HasMaxLength(Game.CourtMaxLength);
+            game.HasOne(g => g.DateSetBy).WithMany().HasForeignKey(g => g.DateSetById).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // The days a Player is free in a Stage (#9): theirs, so they go with the Player and the Stage.
+        modelBuilder.Entity<AvailableDay>(day =>
+        {
+            day.HasKey(d => new { d.StageId, d.PlayerId, d.Date });
+            day.HasOne(d => d.Stage).WithMany().HasForeignKey(d => d.StageId).OnDelete(DeleteBehavior.Cascade);
+            day.HasOne(d => d.Player).WithMany().HasForeignKey(d => d.PlayerId).OnDelete(DeleteBehavior.Cascade);
         });
         // A Team plays a Game once. A Side is one Team, or in Foursomes two
         // Players' Teams of one (#14, ADR-0036), so the key is the Team, not the Side.
