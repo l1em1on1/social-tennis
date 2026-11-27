@@ -70,22 +70,22 @@ public static class ArrangeGame
 
         if (!game.Plays)
         {
-            return GameScores.NotInGame();
+            return Refused(StatusCodes.Status403Forbidden, "not-in-game", "Only a Player in this game can arrange it.");
         }
 
         if (game.Closed)
         {
-            return GameScores.StageClosed();
+            return Refused(StatusCodes.Status409Conflict, "stage-closed", "This game's Stage has closed, so it isn't arranged any more.");
         }
 
         if (game.Voided)
         {
-            return GameScores.NotPlayed();
+            return Refused(StatusCodes.Status409Conflict, "not-played", "A manager marked this game as not played, so it isn't arranged.");
         }
 
         if (game.Scored)
         {
-            return GameScores.AlreadyScored();
+            return Refused(StatusCodes.Status409Conflict, "already-scored", "This game has been played: it has a score.");
         }
 
         if (request.Date is { } date && (date < game.StartDate || date > game.LeagueEndDate))
@@ -109,4 +109,8 @@ public static class ArrangeGame
         await transaction.CommitAsync(cancellationToken);
         return TypedResults.NoContent();
     }
+
+    /// <summary>The same problem types as entering a Score, worded for arranging the Game.</summary>
+    private static ProblemHttpResult Refused(int status, string type, string title) =>
+        TypedResults.Problem(statusCode: status, type: type, title: title);
 }

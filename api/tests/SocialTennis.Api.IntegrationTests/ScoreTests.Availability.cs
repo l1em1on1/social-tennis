@@ -157,4 +157,55 @@ public partial class ScoreTests
         Assert.Equal(2, next.Stage.Number);
         Assert.Empty(next.Dates);
     }
+
+    [Fact]
+    public async Task A_Game_not_played_or_in_a_closed_Stage_isnt_arranged_and_shows_no_days()
+    {
+        var voided = await SinglesAsync(OneSetOf6);
+        (await VoidAsync(voided.Manager, voided.GameId)).EnsureSuccessStatusCode();
+        var notPlayed = await ArrangeAsync(voided.Una, voided.GameId, Day(7, 20));
+        Assert.Equal("not-played", await ProblemTypeAsync(notPlayed, HttpStatusCode.Conflict));
+
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync();
+        (await FreeOnAsync(players[0], leagueId, Day(7, 20))).EnsureSuccessStatusCode();
+        (await FreeOnAsync(players[1], leagueId, Day(7, 20))).EnsureSuccessStatusCode();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        var top = ladder.Divisions[0].Games.Single().Id;
+        (await SubmitAsync(players[0].Client, top, players[0].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, ladder.Divisions[1].Games.Single().Id, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]), start: Day(8, 1), end: Day(8, 31))).EnsureSuccessStatusCode();
+
+        var closed = await ArrangeAsync(players[0], top, Day(7, 20));
+        Assert.Equal("stage-closed", await ProblemTypeAsync(closed, HttpStatusCode.Conflict));
+        Assert.Null((await GameAsync(players[0].Client, top)).Availability);
+    }
+
+    [Fact]
+    public async Task Nobody_says_free_days_once_the_League_has_ended()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync(endDate: Day(7, 31));
+        var ladder = await LadderOfAsync(manager, leagueId);
+        (await SubmitAsync(players[0].Client, ladder.Divisions[0].Games.Single().Id, players[0].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, ladder.Divisions[1].Games.Single().Id, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]))).EnsureSuccessStatusCode();
+
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await FreeOnAsync(players[0], leagueId, Day(7, 20)), HttpStatusCode.Conflict));
+        Assert.Equal(HttpStatusCode.NotFound, (await players[0].Client.GetAsync($"/leagues/{leagueId}/players/{players[0].PlayerId}/availability")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Deleting_an_account_deletes_its_free_days()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        (await FreeOnAsync(game.Una, game.LeagueId, Day(7, 20))).EnsureSuccessStatusCode();
+        (await FreeOnAsync(game.Vic, game.LeagueId, Day(7, 20))).EnsureSuccessStatusCode();
+        Assert.Equal([On(7, 20)], (await GameAsync(game.Vic.Client, game.GameId)).Availability!.SharedDates);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await DeleteUserAsync(await UserIdAsync(game.Una.Client))).StatusCode);
+
+        // Una is a Former player now, with no days: nothing suits both any more.
+        var availability = (await GameAsync(game.Vic.Client, game.GameId)).Availability!;
+        Assert.Empty(availability.SharedDates);
+        Assert.Equal([SocialTennis.Api.Domain.Player.FormerPlayerName], availability.NotGiven);
+    }
 }

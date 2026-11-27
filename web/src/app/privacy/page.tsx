@@ -121,7 +121,7 @@ export default async function PrivacyPage() {
       <Section title="Seeing, correcting or deleting your data">
         <p>
           Email {contact}, and we&apos;ll do it. When an account is deleted, its login goes, and its players are kept as
-          &ldquo;Former player&rdquo;, so other members&apos; results stay correct.
+          &ldquo;Former player&rdquo;, so other members&apos; results stay correct. The days they said they were free go.
         </p>
       </Section>
 

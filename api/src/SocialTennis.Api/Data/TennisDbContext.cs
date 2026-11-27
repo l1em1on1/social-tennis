@@ -198,7 +198,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             game.HasOne(g => g.DateSetBy).WithMany().HasForeignKey(g => g.DateSetById).OnDelete(DeleteBehavior.SetNull);
         });
 
-        // The days a Player is free in a Stage (#9): theirs, so they go with the Player and the Stage.
+        // The days a Player is free in a Stage (#9): theirs alone. Deleting the account deletes them
+        // (AccountDeletion, as its Players stay as Former players); the cascades are for a Stage or Player removed.
         modelBuilder.Entity<AvailableDay>(day =>
         {
             day.HasKey(d => new { d.StageId, d.PlayerId, d.Date });
