@@ -42,6 +42,14 @@ public static class StageClose
             type: "stage-closed",
             title: "This League's last Stage has closed: the League has ended.");
 
+    /// <summary>A Team that has withdrawn is still on the ladder (#21): the close that takes it off is still to come.</summary>
+    public static ProblemHttpResult WithdrawnOnLadder() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "withdrawn-on-ladder",
+            title: "A Team that has withdrawn is still on the ladder.",
+            detail: "Closing a Stage with one, and naming a replacement, is still to be built.");
+
     /// <summary>ADR-0017's own example: a Stage can't close while anything waits on the Manager.</summary>
     public static ProblemHttpResult QueueNotEmpty() =>
         TypedResults.Problem(
@@ -113,6 +121,13 @@ public static class StageClose
         if (!ordersTies && awaiting.Ties.Count > 0)
         {
             return new CloseResult(CloseRefusal.TiesOpen);
+        }
+
+        // A Team that has withdrawn leaves the ladder at the close, or a replacement takes its place (#21, part 2).
+        // Until that is built, the close waits rather than carry it into the next Stage.
+        if (divisions.Any(d => d.Competitors.Any(c => c.Withdrawn)))
+        {
+            return new CloseResult(CloseRefusal.WithdrawnOnLadder);
         }
 
         // The automatic close orders no tie of its own: its order must be the Standings' exactly, as rebuilt
@@ -228,6 +243,7 @@ public enum CloseRefusal
     StandingsChanged,
     LeagueChanged,
     InvalidDates,
+    WithdrawnOnLadder,
 }
 
 /// <summary>A close's outcome: refused or not, and the dates' problems by wire name.</summary>

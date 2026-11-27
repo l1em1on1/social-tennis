@@ -628,6 +628,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/withdrawals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AskToWithdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/withdrawals/{playerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["CancelWithdrawal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/withdrawals/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["DecideWithdrawal"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leagues/{leagueId}/teams/{teamId}/withdrawal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["WithdrawTeam"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/players/{playerId}/availability": {
         parameters: {
             query?: never;
@@ -852,6 +916,10 @@ export interface components {
             /** Format: uuid */
             partnerId?: null | string;
         };
+        AskToWithdrawRequest: {
+            /** Format: uuid */
+            playerId: string;
+        };
         CloseNextStage: {
             /** Format: date */
             startDate: string;
@@ -984,6 +1052,9 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        DecideWithdrawalRequest: {
+            accept: boolean;
         };
         GameAvailability: {
             sharedDates: string[];
@@ -1135,6 +1206,7 @@ export interface components {
             stage: null | components["schemas"]["LeagueStageSummary"];
             managers: components["schemas"]["LeagueManagerSummary"][];
             canAssignManagers: boolean;
+            withdrawalRequests: components["schemas"]["LeagueWithdrawalSummary"][];
         };
         GetLeagueStartResponse: {
             competitors: components["schemas"]["LeagueStartCompetitor"][];
@@ -1196,6 +1268,8 @@ export interface components {
             /** Format: int32 */
             position: number | string;
             players: components["schemas"]["LadderPlayer"][];
+            /** @default false */
+            withdrawn: boolean;
         };
         LadderDivision: {
             /** Format: int32 */
@@ -1357,9 +1431,20 @@ export interface components {
             position: null | number | string;
             /** Format: int32 */
             division: null | number | string;
+            /** @default false */
+            withdrawn: boolean;
         };
         /** @enum {unknown} */
         LeagueType: "SinglesMen" | "SinglesWomen" | "SinglesMixed" | "DoublesMen" | "DoublesWomen" | "DoublesMix" | "Foursomes";
+        LeagueWithdrawalSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            teamId: string;
+            playerName: string;
+            /** Format: date-time */
+            requestedAt: string;
+        };
         MagicLinkRequest: {
             email: string;
             join?: null | string;
@@ -1472,6 +1557,7 @@ export interface components {
             partnerRequest: null | components["schemas"]["PlayerLeaguePartnerRequest"];
             stage: null | components["schemas"]["LeagueStageSummary"];
             place: null | components["schemas"]["PlayerLeaguePlace"];
+            withdrawal?: null | components["schemas"]["PlayerLeagueWithdrawal"];
         };
         PlayerLeagueJoinRequest: {
             status: components["schemas"]["LeagueJoinRequestStatus"];
@@ -1497,6 +1583,13 @@ export interface components {
             /** Format: int32 */
             division: number | string;
             opponents: components["schemas"]["PlayerLeagueOpponent"][];
+        };
+        PlayerLeagueWithdrawal: {
+            status: components["schemas"]["WithdrawalStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            decidedAt: null | string;
         };
         PlayerSummary: {
             /** Format: uuid */
@@ -1646,6 +1739,8 @@ export interface components {
             lastAdmin: boolean;
             players: components["schemas"]["UserPlayer"][];
         };
+        /** @enum {unknown} */
+        WithdrawalStatus: "Pending" | "Accepted" | "Declined";
     };
     responses: never;
     parameters: never;
@@ -4192,6 +4287,224 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AskToWithdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskToWithdrawRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CancelWithdrawal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DecideWithdrawal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideWithdrawalRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    WithdrawTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                teamId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unauthorized */
             401: {

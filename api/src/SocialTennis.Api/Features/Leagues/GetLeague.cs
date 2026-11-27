@@ -67,7 +67,8 @@ public static class GetLeague
                         t.Members.OrderBy(m => m.JoinedAt).ThenBy(m => m.PlayerId).Select(m => m.PlayerId).ToList(),
                         t.Members.Average(m => (double)m.Player.Rating),
                         null,
-                        null))
+                        null,
+                        t.WithdrawnAt != null))
                     .ToList(),
                 l.Stages
                     .OrderByDescending(s => s.Number)
@@ -75,7 +76,12 @@ public static class GetLeague
                     .FirstOrDefault(),
                 // Filled in below, as they depend on who asks.
                 Array.Empty<LeagueManagerSummary>(),
-                false))
+                false,
+                db.WithdrawalRequests
+                    .Where(r => r.LeagueId == l.Id && r.Status == WithdrawalStatus.Pending)
+                    .OrderBy(r => r.RequestedAt)
+                    .Select(r => new LeagueWithdrawalSummary(r.Id, r.TeamId, r.Player != null ? r.Player.Name : "", r.RequestedAt))
+                    .ToList()))
             .AsSplitQuery()
             .SingleOrDefaultAsync(cancellationToken);
         if (league is null)

@@ -48,6 +48,7 @@ public static class CloseStage
             CloseRefusal.QueueNotEmpty or CloseRefusal.TiesOpen => StageClose.QueueNotEmpty(),
             CloseRefusal.StandingsChanged => StageClose.StandingsChanged(),
             CloseRefusal.LeagueChanged => StageClose.LeagueChanged(),
+            CloseRefusal.WithdrawnOnLadder => StageClose.WithdrawnOnLadder(),
             _ => TypedResults.ValidationProblem(closed.Errors!),
         };
     }

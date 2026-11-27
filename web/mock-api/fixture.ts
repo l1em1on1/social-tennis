@@ -295,6 +295,7 @@ const team = (
   rating: members.reduce((sum, m) => sum + Number(m.rating), 0) / members.length,
   position,
   division,
+  withdrawn: false,
 });
 
 const asked = (
@@ -343,6 +344,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: null,
     managers: [],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /**
    * Spring Doubles (mixed): Alex and Jo are a Team, and Sam and Chris, added by
@@ -363,6 +365,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: null,
     managers: [],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /**
    * Autumn Singles, started (#7): Jo, Alex and Chris are Division 1, each
@@ -383,6 +386,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: autumnStage,
     managers: [{ userId: FIXTURE_USER_IDS[jo.email!], name: jo.name, email: jo.email }],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /** Summer Ladder: Jo, Nia and Ella in Division 1; Chris, Sam and Alex in Division 2. Jo runs it. */
   [summerLadder.id]: {
@@ -408,6 +412,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: summerStage,
     managers: [{ userId: FIXTURE_USER_IDS[jo.email!], name: jo.name, email: jo.email }],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /** Spring Ladder: Jo and Chris in Division 1, Ella and Nia in Division 2, and Sam waiting for a place. */
   [springLadder.id]: {
@@ -425,6 +430,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: springStage,
     managers: [],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /** Thursday Foursomes: Jo, Nia, Ella and Alex, each a Team of one (ADR-0036), in one Division. */
   [thursdayFoursomes.id]: {
@@ -441,6 +447,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: foursomesStage,
     managers: [],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
   /** Summer Doubles: Jo and Nia are a Team, and Ella waits for a partner. */
   [summerDoubles.id]: {
@@ -456,6 +463,7 @@ export const fixtureLeaguePages: Record<string, Schemas["GetLeagueResponse"]> = 
     stage: null,
     managers: [],
     canAssignManagers: true,
+    withdrawalRequests: [],
   },
 };
 
@@ -488,6 +496,7 @@ const competitor = (n: number, position: number, who: Schemas["ClubMember"]): Sc
   teamId: id("f", n),
   position,
   players: [{ playerId: who.playerId, name: who.name }],
+  withdrawn: false,
 });
 
 const standing = (

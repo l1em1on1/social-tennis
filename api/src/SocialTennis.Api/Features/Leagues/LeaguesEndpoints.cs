@@ -116,6 +116,27 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(MarkTie));
 
+        // Withdrawal (#21): a Player asks for a Player they hold, and cancels while it waits; the Manager decides,
+        // or withdraws a Team directly.
+        league.MapPost("/withdrawals", AskToWithdraw.HandleAsync)
+            .ValidatesBody<AskToWithdrawRequest, AskToWithdrawRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(AskToWithdraw));
+
+        league.MapDelete("/withdrawals/{playerId:guid}", CancelWithdrawal.HandleAsync)
+            .WithName(nameof(CancelWithdrawal));
+
+        league.MapPut("/withdrawals/{requestId:guid}", DecideWithdrawal.HandleAsync)
+            .RequireAuthorization(Policies.LeagueManager)
+            .ValidatesBody<DecideWithdrawalRequest, DecideWithdrawalRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(DecideWithdrawal));
+
+        league.MapPut("/teams/{teamId:guid}/withdrawal", WithdrawTeam.HandleAsync)
+            .RequireAuthorization(Policies.LeagueManager)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(WithdrawTeam));
+
         // A Player's free days this Stage (#9): a Player the User holds, in the League; theirs alone.
         league.MapGet("/players/{playerId:guid}/availability", GetAvailability.HandleAsync)
             .WithName(nameof(GetAvailability));

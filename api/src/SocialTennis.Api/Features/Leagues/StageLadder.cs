@@ -23,6 +23,7 @@ public static class StageLadder
             .Select(p => new
             {
                 p.Division,
+                Withdrawn = p.Team.WithdrawnAt != null,
                 Competitor = new LadderCompetitor(
                     p.TeamId,
                     p.Position,
@@ -30,7 +31,8 @@ public static class StageLadder
                         .OrderBy(m => m.JoinedAt)
                         .ThenBy(m => m.PlayerId)
                         .Select(m => new LadderPlayer(m.PlayerId, m.Player.Name))
-                        .ToList()),
+                        .ToList(),
+                    p.Team.WithdrawnAt != null),
             })
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
@@ -75,6 +77,8 @@ public static class StageLadder
                 .ToListAsync(cancellationToken)
             : [];
         var count = places.Select(p => p.Division).Distinct().Count();
+        // Teams that have withdrawn (#21): their Games not played don't count against their opponents.
+        var withdrawn = places.Where(p => p.Withdrawn).Select(p => p.Competitor.TeamId).ToHashSet();
         var ranked = places
             .GroupBy(p => p.Division)
             .OrderBy(group => group.Key)
@@ -104,9 +108,11 @@ public static class StageLadder
                             .. inDivision.Select(g => new StandingsGame(
                                 g.First[0],
                                 g.Second[0],
-                                g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null)),
+                                g.Score is { } score ? Standings.ResultOf(format, score.Winner, score.Sets) : null,
+                                g.NotPlayed)),
                         ],
-                        mode ?? StandingsMode.Standard);
+                        mode ?? StandingsMode.Standard,
+                        withdrawn);
 
                 // A Foursomes tie at a place that moves is the Players' to settle once every Game is scored,
                 // and none was not played (that leaves the Division to the Manager): owner, 2026-11-26.

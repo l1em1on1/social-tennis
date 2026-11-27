@@ -47,6 +47,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<AvailableDay> AvailableDays => Set<AvailableDay>();
 
+    public DbSet<WithdrawalRequest> WithdrawalRequests => Set<WithdrawalRequest>();
+
     public DbSet<ScoreChange> ScoreChanges => Set<ScoreChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -196,6 +198,17 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             // Arranging it (#9): who set its Date goes with their Player (#116).
             game.Property(g => g.Court).HasMaxLength(Game.CourtMaxLength);
             game.HasOne(g => g.DateSetBy).WithMany().HasForeignKey(g => g.DateSetById).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Leaving a running League (#21): one request waits per Team at most, held by a partial unique index.
+        // Who asked stays (their Player is kept as Former player, #116); who decided goes with their account.
+        modelBuilder.Entity<WithdrawalRequest>(request =>
+        {
+            request.HasOne(r => r.Team).WithMany().HasForeignKey(r => r.TeamId).OnDelete(DeleteBehavior.Cascade);
+            request.HasOne(r => r.Player).WithMany().HasForeignKey(r => r.PlayerId).OnDelete(DeleteBehavior.Cascade);
+            request.HasOne<User>().WithMany().HasForeignKey(r => r.DecidedByUserId).OnDelete(DeleteBehavior.SetNull);
+            request.HasIndex(r => r.TeamId).IsUnique().HasFilter($"\"Status\" = {(int)WithdrawalStatus.Pending}");
+            request.HasIndex(r => r.LeagueId);
         });
 
         // The days a Player is free in a Stage (#9): theirs alone. Deleting the account deletes them
