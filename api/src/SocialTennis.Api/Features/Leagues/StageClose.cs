@@ -13,8 +13,8 @@ public static class StageClose
     /// <summary>
     /// Teams in the League but off the current ladder, complete for its Type
     /// (a doubles Team of two), which the Manager can add at close. None in
-    /// Foursomes (#14): its Divisions are always 4, so how Players join a
-    /// running ladder is still the owner's to decide.
+    /// Foursomes (#14): nobody joins a running ladder (owner, 2026-11-27). A
+    /// Player leaving for good is replaced in their place instead (#21).
     /// </summary>
     public static async Task<List<CloseWaitingTeam>> WaitingAsync(
         TennisDbContext db, Guid leagueId, Guid stageId, LeagueType type, CancellationToken cancellationToken)

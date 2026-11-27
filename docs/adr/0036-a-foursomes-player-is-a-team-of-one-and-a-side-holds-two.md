@@ -19,7 +19,7 @@ Foursomes (#14, ADR-0013) is a ladder of individual Players in Divisions of 4. E
   - **A Manager who records the last score isn't asked;** they order the tie at the close as before.
 - **A Game not played hands the Division to the Manager** (owner, 2026-11-26). Every Player shares first, so the Division is one tie, for the Manager to order at the close.
 - **The responses grow, they don't change shape.** `LadderGame` and `GameSideSummary` keep one Team id per Side and add the partner's (`firstPartnerTeamId`, `secondPartnerTeamId`, `partnerTeamId`), null outside Foursomes. A Match screen's Side lists both Players.
-- **Two things wait on the owner, so they are refused for now:** a Player joining a running Foursomes ladder at the close (none is offered), and a Manager's mid-Stage move (409 `foursomes-fixed`). Either would break a Division of 4.
+- **Nobody joins a running Foursomes ladder** (owner, 2026-11-27): the close offers no one waiting. A Player who leaves for good is replaced by the Manager, who puts another Player in their place (#21). Someone who misses one Game has a Substitute (#11). A Manager's mid-Stage move is refused too (409 `foursomes-fixed`): it would break a Division of 4.
 
 ## Considered
 
