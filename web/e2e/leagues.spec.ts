@@ -1297,11 +1297,12 @@ test("two Players tick their free days, see the day that suits both, and agree t
   const when = vicPage.getByRole("region", { name: "When to play" });
   await expect(when.getByRole("list", { name: "Days that suit everyone" }).getByRole("listitem")).toHaveText(["Thu 12 Dec"]);
   await expect(when.getByLabel("Agreed date")).toHaveValue("2030-12-12");
-  await when.getByLabel("Court (optional)").fill("6 - astro");
+  // A court note with a semicolon and a comma, which a calendar file must escape.
+  await when.getByLabel("Court (optional)").fill("6; astro, back");
   await when.getByRole("button", { name: "Save" }).click();
   await expect(vicPage.getByRole("status").filter({ hasText: "Saved: everyone in the game" })).toBeVisible();
   await expect(vicPage.getByRole("region", { name: "When to play" }).getByRole("note")).toHaveText(
-    `Agreed for Thu 12 Dec · 6 - astro, set by ${vic.name}`,
+    `Agreed for Thu 12 Dec · 6; astro, back, set by ${vic.name}`,
   );
   await expectNoSeriousA11yViolations(vicPage);
   const vicGame = vicPage.url();
@@ -1312,13 +1313,16 @@ test("two Players tick their free days, see the day that suits both, and agree t
   expect(download.suggestedFilename()).toBe("game-2030-12-12.ics");
   expect(calendar).toContain("DTSTART;VALUE=DATE:20301212\r\nDTEND;VALUE=DATE:20301213\r\n");
   expect(calendar).toContain(`SUMMARY:Tennis: ${una.name} v ${vic.name}\r\n`);
-  expect(calendar).toContain("LOCATION:6 - astro\r\n");
+  expect(calendar).toContain("LOCATION:6\\; astro\\, back\r\n");
+  // Every line within 75 octets; the description, folded, reads whole once unfolded.
+  expect(calendar.split("\r\n").every((line) => new TextEncoder().encode(line).length <= 75)).toBe(true);
+  expect(calendar.replaceAll("\r\n ", "")).toContain(`DESCRIPTION:${league}\\, Riverside Tennis Club. Division 1\\, Stage 1.\r\n`);
 
   // Una sees it on Home and on the ladder.
   await unaPage.goto("/");
-  await expect(unaPage.getByRole("list", { name: `Your games in ${league}` })).toContainText("Agreed for Thu 12 Dec · 6 - astro");
+  await expect(unaPage.getByRole("list", { name: `Your games in ${league}` })).toContainText("Agreed for Thu 12 Dec · 6; astro, back");
   await unaPage.goto(ladder);
-  await expect(unaPage.getByRole("list", { name: "Division 1 Games" })).toContainText("Agreed for Thu 12 Dec · 6 - astro");
+  await expect(unaPage.getByRole("list", { name: "Division 1 Games" })).toContainText("Agreed for Thu 12 Dec · 6; astro, back");
   await unaContext.close();
 
   // While Vic still has the form open, the Manager marks the Game not played: Vic's change is refused, in words about arranging.

@@ -38,7 +38,7 @@ export function gameCalendarFile(game: {
 }
 
 const text = (value: string) =>
-  value.replaceAll("\\", "\\\\").replaceAll(";", "\;").replaceAll(",", "\\,").replace(/\r?\n/g, "\\n");
+  value.replaceAll("\\", "\\\\").replaceAll(";", "\\;").replaceAll(",", "\\,").replace(/\r?\n/g, "\\n");
 
 /** Folds a line longer than 75 octets: a CRLF and a space before each further part, never inside a character. */
 function fold(line: string): string {
