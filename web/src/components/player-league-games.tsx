@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { formatDate } from "@/lib/league";
-import { formatSet } from "@/lib/score";
+import { formatSets } from "@/lib/score";
 
 type League = components["schemas"]["PlayerGamesLeague"];
 type Game = components["schemas"]["PlayerGame"];
@@ -15,15 +15,8 @@ type Game = components["schemas"]["PlayerGame"];
 function fromYourSide(game: Game) {
   const score = game.score;
   if (!score) return null;
-  const mine = Number(game.yourSide) === 1;
-  const sets = score.sets.map((set) =>
-    formatSet(
-      mine
-        ? set
-        : { ...set, first: set.second, second: set.first, firstTiebreak: set.secondTiebreak, secondTiebreak: set.firstTiebreak },
-    ),
-  );
-  return { line: sets.join(" "), won: Number(score.winner) === Number(game.yourSide), retired: score.retired };
+  const side = Number(game.yourSide) === 1 ? 1 : 2;
+  return { line: formatSets(score.sets, side), won: Number(score.winner) === side, retired: score.retired };
 }
 
 /** The Games still owing a Score: none, and not marked not played. */

@@ -1087,3 +1087,94 @@ test("a Player can't open a Manager's League pages", async ({ page }, testInfo) 
   await page.goto("/manage/leagues/new");
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
+
+test("a Manager starts a Foursomes League in Divisions of 4, and each Player banks their pair's games", async ({ page }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Foursomes");
+  const players = ["Ann Four", "Bob Four", "Cat Four", "Dan Four", "Eve Four"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `four-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [ann, bob, cat, dan, eve] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  // Its Stage runs a year, so its deadline is far off (see createLeague).
+  await createLeague(page, league, "Foursomes", { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+
+  // Five: one Division of 4, and Eve below it, to leave out before it can start.
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await expect(page.getByRole("list", { name: "Division 1" }).getByRole("listitem")).toHaveCount(4);
+  await expect(page.getByRole("heading", { name: /Not in a Division · leave out 1, or add 3 more/ })).toBeVisible();
+  const confirm = page.getByRole("button", { name: "Confirm and start" });
+  await expect(confirm).toBeDisabled();
+  await expectNoSeriousA11yViolations(page);
+  await page.getByRole("button", { name: `Leave out ${eve.name}` }).click();
+  await confirm.click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+  // Nobody moves Division mid-Stage in Foursomes.
+  await expect(page.getByRole("region", { name: "Move a Team" })).toHaveCount(0);
+
+  // The ladder: 3 Games of rotating pairs.
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  const games = page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem");
+  await expect(games).toHaveText([
+    new RegExp(`^${ann.name} & ${bob.name} v ${cat.name} & ${dan.name}`),
+    new RegExp(`^${ann.name} & ${cat.name} v ${bob.name} & ${dan.name}`),
+    new RegExp(`^${ann.name} & ${dan.name} v ${bob.name} & ${cat.name}`),
+  ]);
+
+  // Ann and Dan win 6–3: each of them banks 6, Bob and Cat 3.
+  await games.nth(2).getByRole("link").click();
+  await expect(page.getByRole("heading", { name: `${ann.name} & ${dan.name} v ${bob.name} & ${cat.name}`, level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Record the score (manager)" }).click();
+  const tap = async (side: string, times: number) => {
+    const more = page.getByRole("group", { name: `Set, ${side}` }).getByRole("button", { name: "One more" });
+    for (let i = 0; i < times; i++) await more.click();
+  };
+  await tap(`${ann.name} & ${dan.name}`, 6);
+  await tap(`${bob.name} & ${cat.name}`, 3);
+  await page.getByRole("button", { name: "Save score" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to the ladder" }).click();
+  const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings).toHaveText([
+    new RegExp(`^=1${ann.name}16`),
+    new RegExp(`^=1${dan.name}16`),
+    new RegExp(`^=3${bob.name}13`),
+    new RegExp(`^=3${cat.name}13`),
+  ]);
+  await expect(page.getByText(/^Ranked by games banked/)).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
+
+  // The Manager's to-do names the other two Games by their pairs; the first pair wins each 6–0.
+  await page.goto(leaguePage);
+  const unscored = page.getByRole("region", { name: "To do" }).getByRole("list", { name: "Games with no score" });
+  for (const [winners, losers] of [
+    [`${ann.name} & ${bob.name}`, `${cat.name} & ${dan.name}`],
+    [`${ann.name} & ${cat.name}`, `${bob.name} & ${dan.name}`],
+  ]) {
+    await unscored.getByRole("listitem").filter({ hasText: `${winners} v ${losers}` }).getByRole("link", { name: "Settle" }).click();
+    await page.getByRole("link", { name: "Record the score (manager)" }).click();
+    await tap(winners, 6);
+    await page.getByRole("button", { name: "Save score" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+    await page.goto(leaguePage);
+  }
+
+  // The close screen gives each Player's games banked: Ann 6+6+6, Bob 6+0+3, Cat 0+6+3, Dan 0+0+6. One Division: nobody moves.
+  await page.getByRole("region", { name: "To do" }).getByRole("link", { name: "Close Stage 1" }).click();
+  await expect(page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${ann.name}.*18 games`),
+    new RegExp(`${bob.name}.*9 games`),
+    new RegExp(`${cat.name}.*9 games`),
+    new RegExp(`${dan.name}.*6 games`),
+  ]);
+  await expectNoSeriousA11yViolations(page);
+});

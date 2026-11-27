@@ -11,18 +11,18 @@ import { PageColumn } from "@/components/shell/page-column";
 
 export const metadata: Metadata = { title: "Start the league" };
 
-/** Why a League can't start, by the API's 409 type, and Foursomes until its screen is built (#14). */
+/** Why a League can't start, by the API's 409 type. */
 const CANT_START: Record<string, string> = {
   "already-started": "This league has already started.",
   "knockout-not-yet": "Starting a knockout league isn't built yet.",
-  "foursomes-not-yet": "Starting a Foursomes league isn't built yet.",
 };
 
 /**
  * Start a Divisional League (#7, wireframe M4): the proposed starting ladder,
  * by Rating, then whoever joined first (ADR-0013), for the Manager to reorder,
  * cut and confirm. Every Rating is 1 while Rating is hidden (#161), so in
- * practice the proposal is the order Players joined.
+ * practice the proposal is the order Players joined. A Foursomes ladder (#14)
+ * is Divisions of exactly 4 Players: it starts once the count fits.
  */
 export default async function StartLeaguePage({ params, searchParams }: PageProps<"/manage/leagues/[leagueId]/start">) {
   const [viewer, api, { leagueId }, { error }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);
@@ -51,11 +51,6 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
       <div>{back}</div>
     </PageColumn>
   );
-  // The API starts a Foursomes League (#14, part 1), but this screen's Divisions of 4 come in part 2.
-  if (league.type === "Foursomes") {
-    return cantStart(CANT_START["foursomes-not-yet"]);
-  }
-
   const start = await api.GET("/leagues/{leagueId}/start", { params: { path: { leagueId } } });
   if (!start.data) {
     const reason = start.response.status === 409 ? CANT_START[start.error?.type ?? ""] : undefined;
@@ -69,6 +64,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
   // The proposal is by Rating, then join time (ADR-0013). Rating isn't shown anywhere (ADR-0007,
   // owner 2026-11-21) and stays 1, so the order is join order; the screen only says so when it is.
   const byJoinTime = new Set(competitors.map((competitor) => Number(competitor.rating))).size <= 1;
+  const foursomes = league.type === "Foursomes";
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">
@@ -78,8 +74,10 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
         </p>
       </div>
       <p className="text-sm">
-        {byJoinTime ? "Proposed in the order players joined" : "Proposed order"}, in Divisions of about {String(divisionSize)}. Move
-        anyone up or down, leave them out, or change where the Divisions split, then confirm.
+        {byJoinTime ? "Proposed in the order players joined" : "Proposed order"}
+        {foursomes
+          ? ", in Divisions of 4. Move anyone up or down, or leave them out, then confirm."
+          : `, in Divisions of about ${String(divisionSize)}. Move anyone up or down, leave them out, or change where the Divisions split, then confirm.`}
       </p>
       {error === "changed" && (
         <ErrorState
@@ -112,6 +110,7 @@ export default async function StartLeaguePage({ params, searchParams }: PageProp
           unpaired={unpaired}
           waitingRequestCount={Number(waitingRequestCount)}
           firstStage={firstStage}
+          foursomes={foursomes}
         />
       )}
       <div>{back}</div>

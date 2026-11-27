@@ -107,6 +107,43 @@ export function formatDate(date: string): string {
 
 export const formatDates = (startDate: string, endDate: string) => `${formatDate(startDate)} – ${formatDate(endDate)}`;
 
+/** A Game's Sides, as Team ids: one Team each, or in Foursomes a pair of Players' Teams of one (#14, ADR-0036). */
+export function sidesOf(game: {
+  firstTeamId: string;
+  secondTeamId: string;
+  firstPartnerTeamId?: string | null;
+  secondPartnerTeamId?: string | null;
+}): [string[], string[]] {
+  return [
+    [game.firstTeamId, ...(game.firstPartnerTeamId ? [game.firstPartnerTeamId] : [])],
+    [game.secondTeamId, ...(game.secondPartnerTeamId ? [game.secondPartnerTeamId] : [])],
+  ];
+}
+
+/**
+ * The Side `gameLabel` names first: Side 1, unless the Game is Foursomes and
+ * `mine` is on Side 2. Its score is then shown from Side 2's side too
+ * (`formatSets`), so the games read against the right pair.
+ */
+export function labelledSide(game: Parameters<typeof sidesOf>[0], mine: string[] = []): 1 | 2 {
+  const [first, second] = sidesOf(game);
+  const ours = (side: string[]) => side.some((team) => mine.includes(team));
+  return first.length > 1 && !ours(first) && ours(second) ? 2 : 1;
+}
+
+/**
+ * A Game in words: "Tom Reid v Omar Ali", or in Foursomes "Ann & Bob v Cat &
+ * Dan". With `mine`, a Foursomes Player's own pair comes first, them first,
+ * so the partner is named first after them (wireframe P5): "Dan & Ann v Bob &
+ * Cat"; show its score from `labelledSide`. Team Games keep the ladder's order.
+ */
+export function gameLabel(game: Parameters<typeof sidesOf>[0], name: (teamId: string) => string, mine: string[] = []): string {
+  const [first, second] = sidesOf(game);
+  const ordered = labelledSide(game, mine) === 2 ? [second, first] : [first, second];
+  const mineFirst = (side: string[]) => [...side].sort((a, b) => Number(mine.includes(b)) - Number(mine.includes(a)));
+  return ordered.map((side) => mineFirst(side).map(name).join(" & ")).join(" v ");
+}
+
 /** Teams per Division, as the API's League (ADR-0031): 4 unless the Manager says, from 2 to 8. */
 export const DIVISION_SIZE = { default: 4, min: 2, max: 8 } as const;
 

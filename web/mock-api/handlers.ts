@@ -1,5 +1,6 @@
 import type { components, paths } from "@/lib/api/schema";
 import { isJoinCode } from "@/lib/join";
+import { sidesOf } from "@/lib/league";
 import { HttpResponse } from "msw";
 import { createOpenApiHttp } from "openapi-msw";
 import {
@@ -110,6 +111,9 @@ function gameById(gameId: string) {
 const namesOf = (division: Schemas["LadderDivision"], teamId: string) =>
   division.competitors.find((competitor) => competitor.teamId === teamId)?.players ?? [];
 
+/** A Side's Players: one Team's, or in Foursomes a pair of Teams of one (#14, ADR-0036). */
+const sidePlayers = (division: Schemas["LadderDivision"], teams: string[]) => teams.flatMap((teamId) => namesOf(division, teamId));
+
 export const handlers = [
   // In place of an email, as the real API's Log provider does: whoever runs the mock opens the link from its log.
   http.post("/auth/magic-link", async ({ request, response }) => {
@@ -175,15 +179,16 @@ export const handlers = [
             unscoredGames: ladder.awaiting.unscoredGameIds.length,
             openTies: ladder.awaiting.ties.length,
             games: division.games
-              .filter((game) => game.firstTeamId === teamId || game.secondTeamId === teamId)
+              .filter((game) => sidesOf(game).flat().includes(teamId))
               .map((game) => {
-                const yourSide = game.firstTeamId === teamId ? 1 : 2;
-                const theirs = yourSide === 1 ? game.secondTeamId : game.firstTeamId;
+                const [first, second] = sidesOf(game);
+                const yourSide = first.includes(teamId) ? 1 : 2;
+                const [ours, theirs] = yourSide === 1 ? [first, second] : [second, first];
                 return {
                   gameId: game.id,
                   yourSide,
-                  partners: namesOf(division, teamId).filter((p) => p.playerId !== params.playerId).map((p) => p.name),
-                  opponents: namesOf(division, theirs).map((p) => p.name),
+                  partners: sidePlayers(division, ours).filter((p) => p.playerId !== params.playerId).map((p) => p.name),
+                  opponents: sidePlayers(division, theirs).map((p) => p.name),
                   score: game.score,
                   notPlayed: game.notPlayed,
                 };
@@ -386,10 +391,11 @@ export const handlers = [
     const { league, ladder, division, game } = found;
     const email = emailOf(request) ?? "";
     const mine = playerIdsOf(email);
-    const sides = [game.firstTeamId, game.secondTeamId].map((teamId, index) => ({
+    const sides = sidesOf(game).map((teams, index) => ({
       side: index + 1,
-      teamId,
-      players: namesOf(division, teamId),
+      teamId: teams[0],
+      players: sidePlayers(division, teams),
+      partnerTeamId: teams[1] ?? null,
     }));
     const yourPlayerIds = sides.flatMap((side) => side.players).filter((p) => mine.has(p.playerId)).map((p) => p.playerId);
     const canManage = rolesOf(email).runs(league);
