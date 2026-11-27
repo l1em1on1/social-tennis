@@ -189,6 +189,17 @@ public partial class ScoreTests
     }
 
     [Fact]
+    public async Task One_Team_replaces_one_withdrawn_Team_only()
+    {
+        var (manager, leagueId, teams) = await CatWithdrawnAsync();
+        (await manager.PutAsync($"/leagues/{leagueId}/teams/{teams[5]}/withdrawal", null)).EnsureSuccessStatusCode();
+
+        // Gus can't take both Cat's place and Fay's: he would hold two places in the next Stage (#272 review).
+        var twice = await CloseWithAsync(manager, leagueId, Order([.. teams[..3]], [.. teams[3..6]]), [new(teams[2], teams[6]), new(teams[5], teams[6])]);
+        Assert.True((await ErrorsAsync(twice)).ContainsKey("replacements"));
+    }
+
+    [Fact]
     public async Task The_auto_roll_job_closes_with_a_withdrawn_Team_leaving_the_ladder()
     {
         var (manager, leagueId, teams) = await CatWithdrawnAsync("Automatic");
