@@ -101,7 +101,11 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Other members: players&apos; names in clubs and leagues, and their games and scores. A league says who runs it,
-            by name.
+            by name. A game&apos;s agreed date and court note are seen by its league.
+          </li>
+          <li>
+            The other players in a game: the days that suit everyone in it, which shows them which of your free days they
+            share. Your whole list of free days is seen by you alone.
           </li>
         </ul>
         <p>
