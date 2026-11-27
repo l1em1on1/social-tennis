@@ -644,7 +644,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/leagues/{leagueId}/withdrawals/{playerId}": {
+    "/leagues/{leagueId}/players/{playerId}/withdrawal": {
         parameters: {
             query?: never;
             header?: never;
@@ -1054,7 +1054,7 @@ export interface components {
             name: string;
         };
         DecideWithdrawalRequest: {
-            accept: boolean;
+            accept: null | boolean;
         };
         GameAvailability: {
             sharedDates: string[];

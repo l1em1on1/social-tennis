@@ -123,7 +123,7 @@ public static class LeaguesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(AskToWithdraw));
 
-        league.MapDelete("/withdrawals/{playerId:guid}", CancelWithdrawal.HandleAsync)
+        league.MapDelete("/players/{playerId:guid}/withdrawal", CancelWithdrawal.HandleAsync)
             .WithName(nameof(CancelWithdrawal));
 
         league.MapPut("/withdrawals/{requestId:guid}", DecideWithdrawal.HandleAsync)

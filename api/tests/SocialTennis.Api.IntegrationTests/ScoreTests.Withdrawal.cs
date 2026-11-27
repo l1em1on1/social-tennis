@@ -34,8 +34,8 @@ public partial class ScoreTests
         Assert.Equal(WithdrawalStatus.Pending, (await MyWithdrawalAsync(game.Una, game.LeagueId))!.Status);
 
         // Taken back: it's gone, as if never asked.
-        Assert.Equal(HttpStatusCode.NoContent, (await game.Una.Client.DeleteAsync($"/leagues/{game.LeagueId}/withdrawals/{game.Una.PlayerId}")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await game.Una.Client.DeleteAsync($"/leagues/{game.LeagueId}/withdrawals/{game.Una.PlayerId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await game.Una.Client.DeleteAsync($"/leagues/{game.LeagueId}/players/{game.Una.PlayerId}/withdrawal")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await game.Una.Client.DeleteAsync($"/leagues/{game.LeagueId}/players/{game.Una.PlayerId}/withdrawal")).StatusCode);
         Assert.Empty((await ManagedAsync(game.Manager, game.LeagueId)).WithdrawalRequests);
         Assert.Null(await MyWithdrawalAsync(game.Una, game.LeagueId));
 
@@ -43,6 +43,9 @@ public partial class ScoreTests
         (await AskToWithdrawAsync(game.Una, game.LeagueId)).EnsureSuccessStatusCode();
         var first = (await ManagedAsync(game.Manager, game.LeagueId)).WithdrawalRequests.Single();
         Assert.Equal(HttpStatusCode.Forbidden, (await DecideAsync(game.Una.Client, game.LeagueId, first.Id, true)).StatusCode);
+        // A decision left out is no decision: a 400, and the request still waits.
+        var missing = await game.Manager.PutAsJsonAsync($"/leagues/{game.LeagueId}/withdrawals/{first.Id}", new { });
+        Assert.True((await ErrorsAsync(missing)).ContainsKey("accept"));
         (await DecideAsync(game.Manager, game.LeagueId, first.Id, false)).EnsureSuccessStatusCode();
         Assert.Equal("already-decided", await ProblemTypeAsync(await DecideAsync(game.Manager, game.LeagueId, first.Id, true), HttpStatusCode.Conflict));
         Assert.Equal(WithdrawalStatus.Declined, (await MyWithdrawalAsync(game.Una, game.LeagueId))!.Status);
@@ -141,5 +144,19 @@ public partial class ScoreTests
         Assert.Equal(HttpStatusCode.NoContent, (await DeleteUserAsync(await UserIdAsync(game.Manager))).StatusCode);
 
         Assert.Equal(WithdrawalStatus.Declined, (await MyWithdrawalAsync(game.Una, game.LeagueId))!.Status);
+    }
+
+    [Fact]
+    public async Task The_Leagues_last_Stage_closes_with_a_withdrawn_Team_on_it()
+    {
+        var (manager, leagueId, players, teams) = await TwoDivisionsAsync(endDate: $"{Year}-07-31");
+        var ladder = await LadderOfAsync(manager, leagueId);
+        (await manager.PutAsync($"/leagues/{leagueId}/teams/{teams[1]}/withdrawal", null)).EnsureSuccessStatusCode();
+        (await VoidAsync(manager, ladder.Divisions[0].Games.Single().Id)).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[2].Client, ladder.Divisions[1].Games.Single().Id, players[2].PlayerId, [Set(6, 4), Set(6, 4)])).EnsureSuccessStatusCode();
+
+        // Closing the last Stage carries nobody into another: the League ends.
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]))).EnsureSuccessStatusCode();
+        Assert.True((await LadderOfAsync(manager, leagueId)).Ended);
     }
 }

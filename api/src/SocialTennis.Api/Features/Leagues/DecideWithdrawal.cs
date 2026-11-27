@@ -45,16 +45,16 @@ public static class DecideWithdrawal
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: "already-decided", title: "This request has already been decided.");
         }
 
-        if (decision.Accept && await Withdrawals.OpenStageWithAsync(db, leagueId, request.TeamId, cancellationToken) is null)
+        if (decision.Accept == true && await Withdrawals.OpenStageWithAsync(db, leagueId, request.TeamId, cancellationToken) is null)
         {
             return StageClose.AlreadyClosed();
         }
 
         var now = clock.GetUtcNow();
-        request.Status = decision.Accept ? WithdrawalStatus.Accepted : WithdrawalStatus.Declined;
+        request.Status = decision.Accept == true ? WithdrawalStatus.Accepted : WithdrawalStatus.Declined;
         request.DecidedAt = now;
         request.DecidedByUserId = user.UserId();
-        if (decision.Accept)
+        if (decision.Accept == true)
         {
             request.Team.WithdrawnAt = now;
         }

@@ -123,13 +123,6 @@ public static class StageClose
             return new CloseResult(CloseRefusal.TiesOpen);
         }
 
-        // A Team that has withdrawn leaves the ladder at the close, or a replacement takes its place (#21, part 2).
-        // Until that is built, the close waits rather than carry it into the next Stage.
-        if (divisions.Any(d => d.Competitors.Any(c => c.Withdrawn)))
-        {
-            return new CloseResult(CloseRefusal.WithdrawnOnLadder);
-        }
-
         // The automatic close orders no tie of its own: its order must be the Standings' exactly, as rebuilt
         // under the locks, so a Players' mark changed since it read the ladder (#14 part 3) can't be passed over.
         var follows = ordersTies
@@ -141,6 +134,12 @@ public static class StageClose
         }
 
         var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
+        // A Team that has withdrawn leaves the ladder at the close, or a replacement takes its place (#21, part 2).
+        // Until that is built, the close waits rather than carry it into a next Stage; the last Stage carries nobody.
+        if (next is not null && divisions.Any(d => d.Competitors.Any(c => c.Withdrawn)))
+        {
+            return new CloseResult(CloseRefusal.WithdrawnOnLadder);
+        }
         var waiting = next is null ? [] : await WaitingAsync(db, leagueId, stage.Id, league.Type, cancellationToken);
         if (joining.Distinct().Count() != joining.Count
             || !joining.All(team => waiting.Any(w => w.TeamId == team)))
