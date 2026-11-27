@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { describeArrangement } from "@/components/game-arrangement";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -92,6 +93,9 @@ export function PlayerLeagueGames({ league }: { league: League }) {
                           {score.retired ? " (retired)" : ""}
                         </span>
                       )}
+                      {!score && !game.notPlayed && game.date && (
+                        <span className="block text-xs text-fg-muted">{describeArrangement(game.date, game.court)}</span>
+                      )}
                     </span>
                     <ResultStatusBadge
                       status={game.score ? (game.score.retired ? "retirement" : "played") : game.notPlayed ? "void" : "pending"}
@@ -103,7 +107,10 @@ export function PlayerLeagueGames({ league }: { league: League }) {
           </ul>
         )}
         <p className="text-sm text-fg-muted">
-          Stage {Number(stage.number)} · play by <strong className="text-fg">{formatDate(stage.endDate)}</strong>
+          Stage {Number(stage.number)} · play by <strong className="text-fg">{formatDate(stage.endDate)}</strong> ·{" "}
+          <Link href={`/leagues/${league.leagueId}/availability`} className="font-medium text-accent underline">
+            Your free days
+          </Link>
         </p>
         <div className="flex gap-2">
           {/* One Game to score goes straight to its entry; with more, its Match screen, as the wireframe's doubles card does. */}

@@ -70,7 +70,10 @@ export default async function ScorePage({ params, searchParams }: PageProps<"/ga
         playedOn: score.playedOn,
         retirementWinner: score.retired ? (Number(score.winner) as 1 | 2) : undefined,
       }
-    : undefined;
+    : // The agreed Date (#9) is when it was played, once it has come: a later one can't be entered yet.
+      game.date && game.date <= game.today && game.date >= stage.startDate
+      ? { playedOn: game.date }
+      : undefined;
   return (
     <PageColumn>
       <div className="flex flex-col gap-1">

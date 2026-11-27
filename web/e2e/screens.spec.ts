@@ -154,6 +154,19 @@ test.describe("a member, with a child on the same login", () => {
   test("a Game with no score, as a Player in it", async ({ page }, testInfo) => {
     await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.chrisAlex}`);
     await expect(page.getByRole("link", { name: "Enter score" })).toBeVisible();
+    // Arranged (#9): the agreed Date and Court, and the days that suit both.
+    const when = page.getByRole("region", { name: "When to play" });
+    await expect(when.getByRole("note")).toHaveText("Agreed for Tue 24 Nov · 6 - astro, set by Chris Lee");
+    await expect(when.getByRole("list", { name: "Days that suit everyone" }).getByRole("listitem")).toHaveText(["Tue 24 Nov", "Fri 27 Nov"]);
+    await expectNoSeriousA11yViolations(page);
+  });
+
+  test("Free days, as a Player in the League", async ({ page }, testInfo) => {
+    await as(page, testInfo, FIXTURE_MEMBER, `/leagues/${FIXTURE_RUNNING_LEAGUE_ID}/availability`);
+    await expect(h1(page, "Free days")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Tuesday 24 November" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Wednesday 25 November" })).not.toBeChecked();
+    await expectNoSeriousA11yViolations(page);
   });
 
   test("a Game two others play, as a Player in the League", async ({ page }, testInfo) => {

@@ -569,7 +569,8 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
         competitors: [competitor(13, 4, chris), competitor(15, 5, sam), competitor(14, 6, alex)],
         games: [
           { id: G.chrisSam, firstTeamId: id("f", 13), secondTeamId: id("f", 15), score: score(1, 6, 2), notPlayed: false },
-          { id: G.chrisAlex, firstTeamId: id("f", 13), secondTeamId: id("f", 14), score: null, notPlayed: false },
+          // Arranged (#9): Chris set the Date both are free.
+          { id: G.chrisAlex, firstTeamId: id("f", 13), secondTeamId: id("f", 14), score: null, notPlayed: false, date: "2026-11-24", court: "6 - astro" },
           { id: G.alexSam, firstTeamId: id("f", 15), secondTeamId: id("f", 14), score: score(1, 6, 4), notPlayed: false },
         ],
         // Sam and Chris won once each, but Sam has played both Games: 1 + 2 + 1 beats Chris's 1 + 1.
@@ -722,6 +723,23 @@ export const fixtureUsers: Schemas["UserSummary"][] = [
 ];
 
 const snapshot = (gameScore: Schemas["LadderGameScore"], playedOn: string) => ({ ...gameScore, playedOn });
+
+/** Who set each arranged Game's Date (#9), by Game id. */
+export const fixtureDateSetBy: Record<string, string> = { [G.chrisAlex]: chris.name };
+
+/**
+ * The days that suit everyone in a Game (#9), as its own Players see them,
+ * by Game id: Chris and Alex share two, and Ella hasn't said which days she's free.
+ */
+export const fixtureGameAvailability: Record<string, Schemas["GameAvailability"]> = {
+  [G.chrisAlex]: { sharedDates: ["2026-11-24", "2026-11-27"], notGiven: [] },
+  [G.ellaNia]: { sharedDates: [], notGiven: [ella.name] },
+};
+
+/** Each Player's free days in a League's current Stage (#9), by League and Player: Alex's in Summer Ladder. */
+export const fixtureFreeDays: Record<string, Record<string, string[]>> = {
+  [summerLadder.id]: { [alex.playerId]: ["2026-11-21", "2026-11-24", "2026-11-27"] },
+};
 
 /** A Game's score and history, by id: those with a score, and how it came to be. */
 export const fixtureGameScores: Record<string, Pick<Schemas["GetGameResponse"], "score" | "history">> = {

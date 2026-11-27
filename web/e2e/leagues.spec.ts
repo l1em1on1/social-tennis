@@ -1244,3 +1244,71 @@ test("Foursomes Players level for last say who goes down, and the close screen k
     new RegExp(`${bob.name}.*6 games · the players say down`),
   );
 });
+
+test("two Players tick their free days, see the day that suits both, and agree the Date and court", async ({ page, browser }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Arranging");
+  const [una, vic] = ["Una Arr", "Vic Arr"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `arrange-${name.split(" ")[0].toLowerCase()}`),
+  }));
+
+  // Its one Stage is December 2026.
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of [una, vic]) await addClubPlayer(page, name, email);
+  await createLeague(page, league, undefined, { starts: "2026-12-01", ends: "2026-12-31" });
+  for (const { name, email } of [una, vic]) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const ladder = new URL(page.url()).pathname.replace("/manage/leagues/", "/leagues/");
+
+  const tick = async (who: Page, days: string[]) => {
+    await who.goto(`${ladder}/availability`);
+    await expect(who.getByRole("heading", { name: "Free days", level: 1 })).toBeVisible();
+    // The box itself is visually hidden: a person taps the day it labels.
+    for (const day of days) {
+      await who.getByRole("checkbox", { name: day }).locator("xpath=..").click();
+      await expect(who.getByRole("checkbox", { name: day })).toBeChecked();
+    }
+    await who.getByRole("button", { name: "Save free days" }).click();
+    await expect(who.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+  };
+
+  // Una is free on the 10th and 12th; Vic on the 12th and 13th.
+  const unaContext = await browser.newContext();
+  const unaPage = await unaContext.newPage();
+  await logIn(unaPage, testInfo, una.email);
+  await tick(unaPage, ["Thursday 10 December", "Saturday 12 December"]);
+  await expectNoSeriousA11yViolations(unaPage);
+  const vicContext = await browser.newContext();
+  const vicPage = await vicContext.newPage();
+  await logIn(vicPage, testInfo, vic.email);
+  await tick(vicPage, ["Saturday 12 December", "Sunday 13 December"]);
+
+  // Vic opens their Game: the 12th suits both, and the date starts there. Vic notes the court and saves.
+  await vicPage.goto(ladder);
+  await vicPage.getByRole("list", { name: "Division 1 Games" }).getByRole("link").click();
+  const when = vicPage.getByRole("region", { name: "When to play" });
+  await expect(when.getByRole("list", { name: "Days that suit everyone" }).getByRole("listitem")).toHaveText(["Sat 12 Dec"]);
+  await expect(when.getByLabel("Agreed date")).toHaveValue("2026-12-12");
+  await when.getByLabel("Court (optional)").fill("6 - astro");
+  await when.getByRole("button", { name: "Save" }).click();
+  await expect(vicPage.getByRole("status").filter({ hasText: "Saved: everyone in the game" })).toBeVisible();
+  await expect(vicPage.getByRole("region", { name: "When to play" }).getByRole("note")).toHaveText(
+    `Agreed for Sat 12 Dec · 6 - astro, set by ${vic.name}`,
+  );
+  await expectNoSeriousA11yViolations(vicPage);
+  await vicContext.close();
+
+  // Una sees it on Home and on the ladder.
+  await unaPage.goto("/");
+  await expect(unaPage.getByRole("list", { name: `Your games in ${league}` })).toContainText("Agreed for Sat 12 Dec · 6 - astro");
+  await unaPage.goto(ladder);
+  await expect(unaPage.getByRole("list", { name: "Division 1 Games" })).toContainText("Agreed for Sat 12 Dec · 6 - astro");
+  await unaContext.close();
+});

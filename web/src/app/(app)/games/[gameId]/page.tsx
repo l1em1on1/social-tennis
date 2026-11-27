@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { GameArrangement, describeArrangement } from "@/components/game-arrangement";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
@@ -26,6 +27,7 @@ const SAVED: Record<string, string> = {
   record: "Score recorded. The players in the game can still correct it while the Stage is open.",
   void: "Marked not played: the game counts for nothing.",
   unvoid: "No longer marked not played: the game can be scored again.",
+  arranged: "Saved: everyone in the game can see when it's played.",
 };
 
 /**
@@ -69,6 +71,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
     "stage-closed": `${stageName} has closed, so its players can't change this game's score any more.`,
     "not-scored": "This game has no score to change yet.",
     "not-played": "A manager has marked this game as not played, so it takes no score.",
+    "arrange-invalid": "That date isn't in this game's Stage or League, or the court note is too long.",
   };
   const savedMessage = typeof saved === "string" ? SAVED[saved] : undefined;
 
@@ -127,6 +130,25 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
             otherWay={markedOtherWay(playersTie, division.playersTies)}
           />
         ))}
+
+      {/* Arranging it (#9): its own Players, while it has no score; everyone else reads the agreed Date. */}
+      {!score && !game.notPlayed && acting && playing && game.availability && (
+        <GameArrangement
+          gameId={game.id}
+          leagueId={game.leagueId}
+          playerId={acting.id}
+          availability={game.availability}
+          date={game.date}
+          court={game.court}
+          dateSetBy={game.dateSetBy}
+          stageStart={stage.startDate}
+        />
+      )}
+      {!score && !playing && game.date && (
+        <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
+          {describeArrangement(game.date, game.court)}
+        </p>
+      )}
 
       {score ? (
         <Card title="Score" aria-label="Score" aside={<ResultStatusBadge status={score.retired ? "retirement" : "played"} />}>
