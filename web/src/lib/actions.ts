@@ -1116,6 +1116,10 @@ export async function arrangeGame(formData: FormData) {
   if (!isId(gameId) || !isId(playerId)) return;
   const viewer = await getViewer();
   if (!viewer.players.some((player) => player.id === playerId)) return;
+  // Only an empty field clears the Date: anything else that isn't a day is refused, not taken as "none".
+  if (typeof date === "string" && date.trim() !== "" && !isDay(date)) {
+    redirect(`/games/${gameId}?refused=arrange-invalid`);
+  }
 
   const api = await apiWithSession();
   const { error, response } = await api.PUT("/games/{gameId}/date", {
@@ -1127,7 +1131,8 @@ export async function arrangeGame(formData: FormData) {
   }
   if (response.status === 403 || response.status === 409) {
     const type = error && "type" in error && typeof error.type === "string" ? error.type : "not-in-game";
-    redirect(`/games/${gameId}?refused=${encodeURIComponent(type)}`);
+    // Its own wording on the Game: the Score's refusals with the same types talk about scores.
+    redirect(`/games/${gameId}?refused=arrange-${encodeURIComponent(type)}`);
   }
   if (!response.ok && response.status !== 404) {
     throw new Error(`PUT /games/${gameId}/date failed with ${response.status}`);

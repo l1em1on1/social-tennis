@@ -569,8 +569,8 @@ export const fixtureLadders: Record<string, Schemas["GetLeagueLadderResponse"]> 
         competitors: [competitor(13, 4, chris), competitor(15, 5, sam), competitor(14, 6, alex)],
         games: [
           { id: G.chrisSam, firstTeamId: id("f", 13), secondTeamId: id("f", 15), score: score(1, 6, 2), notPlayed: false },
-          // Arranged (#9): Chris set the Date both are free.
-          { id: G.chrisAlex, firstTeamId: id("f", 13), secondTeamId: id("f", 14), score: null, notPlayed: false, date: "2026-11-24", court: "6 - astro" },
+          // Arranged (#9): Chris set it for yesterday, and nobody has entered the score yet.
+          { id: G.chrisAlex, firstTeamId: id("f", 13), secondTeamId: id("f", 14), score: null, notPlayed: false, date: "2026-11-19", court: "6 - astro" },
           { id: G.alexSam, firstTeamId: id("f", 15), secondTeamId: id("f", 14), score: score(1, 6, 4), notPlayed: false },
         ],
         // Sam and Chris won once each, but Sam has played both Games: 1 + 2 + 1 beats Chris's 1 + 1.

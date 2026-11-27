@@ -156,9 +156,15 @@ test.describe("a member, with a child on the same login", () => {
     await expect(page.getByRole("link", { name: "Enter score" })).toBeVisible();
     // Arranged (#9): the agreed Date and Court, and the days that suit both.
     const when = page.getByRole("region", { name: "When to play" });
-    await expect(when.getByRole("note")).toHaveText("Agreed for Tue 24 Nov · 6 - astro, set by Chris Lee");
+    await expect(when.getByRole("note")).toHaveText("Agreed for Thu 19 Nov · 6 - astro, set by Chris Lee");
     await expect(when.getByRole("list", { name: "Days that suit everyone" }).getByRole("listitem")).toHaveText(["Tue 24 Nov", "Fri 27 Nov"]);
     await expectNoSeriousA11yViolations(page);
+  });
+
+  test("entering the score of an arranged Game, as a Player in it", async ({ page }, testInfo) => {
+    // Agreed for 19 Nov, which has come (today is 20 Nov): "Date played" starts there.
+    await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.chrisAlex}/score`);
+    await expect(page.getByLabel("Date played")).toHaveValue("2026-11-19");
   });
 
   test("Free days, as a Player in the League", async ({ page }, testInfo) => {

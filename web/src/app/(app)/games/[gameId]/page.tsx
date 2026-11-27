@@ -72,6 +72,10 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
     "not-scored": "This game has no score to change yet.",
     "not-played": "A manager has marked this game as not played, so it takes no score.",
     "arrange-invalid": "That date isn't in this game's Stage or League, or the court note is too long.",
+    "arrange-stage-closed": `${stageName} has closed, so this game isn't arranged any more.`,
+    "arrange-not-in-game": "Only the players in this game can arrange it.",
+    "arrange-not-played": "A manager has marked this game as not played, so it isn't arranged.",
+    "arrange-already-scored": "This game has a score now: it's been played.",
   };
   const savedMessage = typeof saved === "string" ? SAVED[saved] : undefined;
 
@@ -144,7 +148,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           stageStart={stage.startDate}
         />
       )}
-      {!score && !playing && game.date && (
+      {!score && !game.notPlayed && !playing && game.date && (
         <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           {describeArrangement(game.date, game.court)}
         </p>

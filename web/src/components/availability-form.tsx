@@ -31,10 +31,11 @@ function months(first: string, last: string): { name: string; days: Date[] }[] {
 
 /**
  * The days a Player is free in their League's current Stage (#9; owner,
- * 2026-11-27: whole days), as a calendar of tick boxes from today to the last
- * day the Stage takes. Saving sends every ticked day, replacing the last list;
- * days already past stay as they were. Real checkboxes, so it works without
- * script and each day reads as its full date.
+ * 2026-11-27: whole days), as a calendar of tick boxes from the Stage's start
+ * to the last day it takes, past days included: a past tick does no harm, as
+ * shared days start from today. Saving sends every ticked day, replacing the
+ * last list. Real checkboxes, so it works without script and each day reads
+ * as its full date.
  */
 export function AvailabilityForm({
   leagueId,
@@ -46,7 +47,7 @@ export function AvailabilityForm({
   leagueId: string;
   /** The Acting Player. */
   playerId: string;
-  /** The first day shown: the Stage's start, or today once it's under way. */
+  /** The first day shown: the Stage's start. */
   firstDay: string;
   /** The last day the Stage takes (the API's `lastDay`). */
   lastDay: string;
@@ -54,14 +55,10 @@ export function AvailabilityForm({
   dates: string[];
 }) {
   const ticked = new Set(dates);
-  const past = dates.filter((day) => day < firstDay);
   return (
     <form action={saveAvailability} className="flex flex-col gap-4">
       <input type="hidden" name="leagueId" value={leagueId} />
       <input type="hidden" name="playerId" value={playerId} />
-      {past.map((day) => (
-        <input key={day} type="hidden" name="dates" value={day} />
-      ))}
       {months(firstDay, lastDay).map((month) => (
         <fieldset key={month.name} className="flex flex-col gap-1">
           <legend className="mb-2 font-semibold">{month.name}</legend>
