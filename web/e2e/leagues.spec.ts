@@ -1117,6 +1117,7 @@ test("a Manager starts a Foursomes League in Divisions of 4, and each Player ban
   await page.getByRole("button", { name: `Leave out ${eve.name}` }).click();
   await confirm.click();
   await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
   // Nobody moves Division mid-Stage in Foursomes.
   await expect(page.getByRole("region", { name: "Move a Team" })).toHaveCount(0);
 
@@ -1150,5 +1151,30 @@ test("a Manager starts a Foursomes League in Divisions of 4, and each Player ban
     new RegExp(`^=3${cat.name}13`),
   ]);
   await expect(page.getByText(/^Ranked by games banked/)).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
+
+  // The Manager's to-do names the other two Games by their pairs; the first pair wins each 6–0.
+  await page.goto(leaguePage);
+  const unscored = page.getByRole("region", { name: "To do" }).getByRole("list", { name: "Games with no score" });
+  for (const [winners, losers] of [
+    [`${ann.name} & ${bob.name}`, `${cat.name} & ${dan.name}`],
+    [`${ann.name} & ${cat.name}`, `${bob.name} & ${dan.name}`],
+  ]) {
+    await unscored.getByRole("listitem").filter({ hasText: `${winners} v ${losers}` }).getByRole("link", { name: "Settle" }).click();
+    await page.getByRole("link", { name: "Record the score (manager)" }).click();
+    await tap(winners, 6);
+    await page.getByRole("button", { name: "Save score" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+    await page.goto(leaguePage);
+  }
+
+  // The close screen gives each Player's games banked: Ann 6+6+6, Bob 6+0+3, Cat 0+6+3, Dan 0+0+6. One Division: nobody moves.
+  await page.getByRole("region", { name: "To do" }).getByRole("link", { name: "Close Stage 1" }).click();
+  await expect(page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem")).toHaveText([
+    new RegExp(`${ann.name}.*18 games`),
+    new RegExp(`${bob.name}.*9 games`),
+    new RegExp(`${cat.name}.*9 games`),
+    new RegExp(`${dan.name}.*6 games`),
+  ]);
   await expectNoSeriousA11yViolations(page);
 });
