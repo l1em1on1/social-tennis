@@ -183,7 +183,18 @@ export function formatSet(set: Pick<Schemas["SetScore"], "first" | "second" | "f
   return `${games}(${Math.min(Number(set.firstTiebreak), Number(set.secondTiebreak))})`;
 }
 
-export const formatSets = (sets: Schemas["SetScore"][]) => sets.map(formatSet).join(" ");
+/** A Set from Side 2's side: its games, and its tiebreak points, first. */
+export const flipSet = <T extends Pick<Schemas["SetScore"], "first" | "second" | "firstTiebreak" | "secondTiebreak">>(set: T): T => ({
+  ...set,
+  first: set.second,
+  second: set.first,
+  firstTiebreak: set.secondTiebreak,
+  secondTiebreak: set.firstTiebreak,
+});
+
+/** A Score's Sets, from `side`'s side: Side 1's games first unless the line names Side 2 first. */
+export const formatSets = (sets: Schemas["SetScore"][], side: 1 | 2 = 1) =>
+  sets.map((set) => formatSet(side === 1 ? set : flipSet(set))).join(" ");
 
 /**
  * One Set on the entry screen, as it was played: at the tiebreak score the

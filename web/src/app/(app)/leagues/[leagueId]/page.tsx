@@ -12,7 +12,7 @@ import { apiWithSession } from "@/lib/api/server";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { isId } from "@/lib/ids";
-import { describeManagers, formatDate, formatDates, gameLabel, sidesOf, typeLabel } from "@/lib/league";
+import { describeManagers, formatDate, formatDates, gameLabel, labelledSide, sidesOf, typeLabel } from "@/lib/league";
 import { formatSets } from "@/lib/score";
 import { getViewer } from "@/lib/viewer";
 
@@ -210,7 +210,8 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                             {gameLabel(game, nameOf, myTeams)}
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
-                            {score && <span className="font-mono text-xs">{formatSets(score.sets)}</span>}
+                            {/* From the side named first: a Foursomes Player's own pair may be Side 2. */}
+                            {score && <span className="font-mono text-xs">{formatSets(score.sets, labelledSide(game, myTeams))}</span>}
                             <ResultStatusBadge
                               status={score ? (score.retired ? "retirement" : "played") : game.notPlayed ? "void" : "pending"}
                             />

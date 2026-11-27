@@ -132,8 +132,9 @@ test.describe("a member, with a child on the same login", () => {
     const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
     await expect(standings).toHaveText([/^1Nia Brooks218stays$/, /^2Alex Morgan215stays$/, /^3Jo Bennett214stays$/, /^4Ella Grant211stays$/]);
     await expect(page.getByRole("list", { name: "Division 1 Games" }).getByRole("listitem")).toHaveText([
-      /^Alex Morgan & Ella Grant v Jo Bennett & Nia Brooks/,
-      /^Alex Morgan & Nia Brooks v Jo Bennett & Ella Grant/,
+      // Each score from Alex's pair's side: lost 6–9, then won 9–5.
+      /^Alex Morgan & Ella Grant v Jo Bennett & Nia Brooks6–9/,
+      /^Alex Morgan & Nia Brooks v Jo Bennett & Ella Grant9–5/,
       /^Alex Morgan & Jo Bennett v Nia Brooks & Ella Grant/,
     ]);
     await expectNoSeriousA11yViolations(page);

@@ -121,15 +121,25 @@ export function sidesOf(game: {
 }
 
 /**
+ * The Side `gameLabel` names first: Side 1, unless the Game is Foursomes and
+ * `mine` is on Side 2. Its score is then shown from Side 2's side too
+ * (`formatSets`), so the games read against the right pair.
+ */
+export function labelledSide(game: Parameters<typeof sidesOf>[0], mine: string[] = []): 1 | 2 {
+  const [first, second] = sidesOf(game);
+  const ours = (side: string[]) => side.some((team) => mine.includes(team));
+  return first.length > 1 && !ours(first) && ours(second) ? 2 : 1;
+}
+
+/**
  * A Game in words: "Tom Reid v Omar Ali", or in Foursomes "Ann & Bob v Cat &
  * Dan". With `mine`, a Foursomes Player's own pair comes first, them first,
  * so the partner is named first after them (wireframe P5): "Dan & Ann v Bob &
- * Cat". Team Games keep the ladder's order.
+ * Cat"; show its score from `labelledSide`. Team Games keep the ladder's order.
  */
 export function gameLabel(game: Parameters<typeof sidesOf>[0], name: (teamId: string) => string, mine: string[] = []): string {
   const [first, second] = sidesOf(game);
-  const ours = first.length > 1 ? [first, second].find((side) => side.some((team) => mine.includes(team))) : undefined;
-  const ordered = ours ? [ours, ours === first ? second : first] : [first, second];
+  const ordered = labelledSide(game, mine) === 2 ? [second, first] : [first, second];
   const mineFirst = (side: string[]) => [...side].sort((a, b) => Number(mine.includes(b)) - Number(mine.includes(a)));
   return ordered.map((side) => mineFirst(side).map(name).join(" & ")).join(" v ");
 }
