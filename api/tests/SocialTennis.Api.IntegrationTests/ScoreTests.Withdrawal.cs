@@ -178,6 +178,8 @@ public partial class ScoreTests
             $"/leagues/{leagueId}/close",
             new { divisions = order, joining = Array.Empty<Guid>(), nextStartDate = $"{Year}-08-01", nextEndDate = $"{Year}-08-31", replacements = new CloseReplacement?[] { null } });
         Assert.True((await ErrorsAsync(holed)).ContainsKey("replacements"));
+        // Gus can't both join and replace Cat: he would hold two places in the next Stage (#272 review).
+        Assert.Equal("league-changed", await ProblemTypeAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[6])], joining: [teams[6]]), HttpStatusCode.Conflict));
 
         // Gus takes the place Cat goes down to: the top of Division 2.
         (await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[6])])).EnsureSuccessStatusCode();
