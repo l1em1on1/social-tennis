@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, within } from "storybook/test";
 import { StageCloseForm } from "./stage-close-form";
 
-const team = (teamId: string, name: string, rank: number, record: string) => ({ teamId, name, rank, record });
+const team = (teamId: string, name: string, rank: number, record: string, withdrawn = false) => ({ teamId, name, rank, record, withdrawn });
 
 const meta = {
   title: "Forms/StageCloseForm",
@@ -47,6 +47,31 @@ export const TieOrdered: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Move Tom Reid up" }));
     await expect(order(canvas, 2)[0]).toHaveTextContent("Tom Reid · 0–0, 0, tied▲ to Division 1");
     await expect(order(canvas, 2)[1]).toHaveTextContent("Omar Ali · 0–0, 0, tiedstays");
+  },
+};
+
+/**
+ * Cat has withdrawn (#21). She leaves from the place she would have gone down to, so Bob stays, and Dan still comes up.
+ */
+export const TeamWithdrawn: Story = {
+  args: {
+    divisions: [
+      {
+        number: 1,
+        teams: [team("a", "Ann Cole", 1, "2–0, +8"), team("b", "Bob Hart", 2, "1–1, 0"), team("c", "Cat Moss", 3, "0–2, -8", true)],
+        ties: [],
+      },
+      {
+        number: 2,
+        teams: [team("d", "Dan Ford", 1, "2–0, +8"), team("e", "Eve Lane", 2, "1–1, 0"), team("f", "Fay Wood", 3, "0–2, -8")],
+        ties: [],
+      },
+    ],
+  },
+  play: async ({ canvas }) => {
+    await expect(order(canvas, 1)[2]).toHaveTextContent("Cat Moss · 0–2, -8leaves");
+    await expect(order(canvas, 1)[1]).toHaveTextContent("Bob Hart · 1–1, 0stays");
+    await expect(order(canvas, 2)[0]).toHaveTextContent("Dan Ford · 2–0, +8▲ to Division 1");
   },
 };
 

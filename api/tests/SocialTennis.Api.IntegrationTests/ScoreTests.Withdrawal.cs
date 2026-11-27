@@ -95,13 +95,27 @@ public partial class ScoreTests
 
         // Without a replacement Una would be alone in her Division: the close says so, and auto-roll holds.
         var alone = await CloseAsync(game.Manager, game.LeagueId, Order([una, vic]), start: $"{Year}-08-01", end: $"{Year}-08-31");
-        Assert.Equal(["Division 1 would be left with one Team: name a replacement for the Team that has withdrawn."], (await ErrorsAsync(alone))["replacements"]);
+        Assert.Equal(["Division 1 would be left with one Team: name a replacement for a Team that has withdrawn."], (await ErrorsAsync(alone))["replacements"]);
         Assert.Equal([wes], (await CloseScreenAsync(game.Manager, game.LeagueId)).Replaceable.Select(t => t.TeamId));
 
         // Wes, waiting off the ladder, takes Vic's place.
         (await CloseWithAsync(game.Manager, game.LeagueId, Order([una, vic]), [new(vic, wes)])).EnsureSuccessStatusCode();
         var next = await LadderOfAsync(game.Una.Client, game.LeagueId);
         Assert.Equal([una, wes], next.Divisions.Single().Competitors.Select(c => c.TeamId));
+    }
+
+    [Fact]
+    public async Task A_Division_every_Team_has_withdrawn_from_says_it_would_be_left_with_none()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        var league = await ManagedAsync(game.Manager, game.LeagueId);
+        var (una, vic) = (TeamOf(league, game.Una.PlayerId), TeamOf(league, game.Vic.PlayerId));
+        (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{una}/withdrawal", null)).EnsureSuccessStatusCode();
+        (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{vic}/withdrawal", null)).EnsureSuccessStatusCode();
+        (await VoidAsync(game.Manager, game.GameId)).EnsureSuccessStatusCode();
+
+        var empty = await CloseAsync(game.Manager, game.LeagueId, Order([una, vic]), start: $"{Year}-08-01", end: $"{Year}-08-31");
+        Assert.Equal(["Division 1 would be left with no Teams: name replacements for the Teams that have withdrawn."], (await ErrorsAsync(empty))["replacements"]);
     }
 
     private static Task<HttpResponseMessage> CloseWithAsync(HttpClient manager, Guid leagueId, Guid[][] divisions, CloseReplacement[] replacements, Guid[]? joining = null) =>
@@ -158,6 +172,12 @@ public partial class ScoreTests
         // Only a withdrawn Team is replaced, and only by a Team off the ladder.
         Assert.True((await ErrorsAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[1], teams[6])]))).ContainsKey("replacements"));
         Assert.Equal("league-changed", await ProblemTypeAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[4])]), HttpStatusCode.Conflict));
+        // Cat named twice, or a replacement that isn't there, is a malformed request, not a server error (#272 review).
+        Assert.True((await ErrorsAsync(await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[6]), new(teams[2], teams[5])]))).ContainsKey("replacements"));
+        var holed = await manager.PostAsJsonAsync(
+            $"/leagues/{leagueId}/close",
+            new { divisions = order, joining = Array.Empty<Guid>(), nextStartDate = $"{Year}-08-01", nextEndDate = $"{Year}-08-31", replacements = new CloseReplacement?[] { null } });
+        Assert.True((await ErrorsAsync(holed)).ContainsKey("replacements"));
 
         // Gus takes the place Cat goes down to: the top of Division 2.
         (await CloseWithAsync(manager, leagueId, order, [new(teams[2], teams[6])])).EnsureSuccessStatusCode();

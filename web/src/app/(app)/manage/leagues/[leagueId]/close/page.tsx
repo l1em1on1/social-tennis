@@ -103,6 +103,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
                 teamId: standing.teamId,
                 name: teamName(standing.teamId),
                 rank: Number(standing.rank),
+                withdrawn: division.competitors.some((competitor) => competitor.teamId === standing.teamId && competitor.withdrawn),
                 // Points first where they rank (#214): "5 pts, 2–0, +5". In Foursomes, the games banked that rank them (#14).
                 record:
                   foursomes

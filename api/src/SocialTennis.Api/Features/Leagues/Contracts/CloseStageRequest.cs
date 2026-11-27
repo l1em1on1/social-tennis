@@ -41,6 +41,14 @@ public record CloseStageRequest(
                 .Must((request, end) => (request.NextStartDate is null) == (end is null))
                 .WithMessage("Give the next Stage both its dates.")
                 .OverridePropertyName("nextEndDate");
+            // None at all is fine: no withdrawn Team is replaced. Stop at a hole, so the second rule never sees one.
+            RuleFor(request => request.Replacements)
+                .Cascade(CascadeMode.Stop)
+                .Must(replacements => replacements is null || replacements.All(replacement => replacement is not null))
+                .WithMessage("Each replacement names the Team that has withdrawn and the Team taking its place.")
+                .Must(replacements => replacements is null || replacements.DistinctBy(replacement => replacement.TeamId).Count() == replacements.Count)
+                .WithMessage("Replace each Team that has withdrawn once.")
+                .OverridePropertyName("replacements");
         }
     }
 }

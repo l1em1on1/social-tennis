@@ -141,16 +141,19 @@ public static class StageClose
 
         // Withdrawn Teams (#21) leave the ladder, or a Team off it takes each one's place.
         var withdrawn = divisions.SelectMany(d => d.Competitors).Where(c => c.Withdrawn).Select(c => c.TeamId).ToHashSet();
-        var replacing = (replacements ?? []).ToDictionary(r => r.TeamId, r => r.ReplacementTeamId);
-        if ((replacements ?? []).Count != replacing.Count
-            || replacing.Keys.Any(team => !withdrawn.Contains(team))
-            || replacing.Values.Distinct().Count() != replacing.Count)
+        // Checked before the map is built, which a Team named twice would throw on.
+        var given = replacements ?? [];
+        if (given.DistinctBy(r => r.TeamId).Count() != given.Count
+            || given.Any(r => !withdrawn.Contains(r.TeamId))
+            || given.DistinctBy(r => r.ReplacementTeamId).Count() != given.Count)
         {
             return new CloseResult(CloseRefusal.InvalidReplacements, new Dictionary<string, string[]>
             {
                 ["replacements"] = ["Replace only a Team that has withdrawn, each once, and with a different Team each time."],
             });
         }
+
+        var replacing = given.ToDictionary(r => r.TeamId, r => r.ReplacementTeamId);
 
         if (next is not null && replacing.Count > 0)
         {
@@ -219,7 +222,9 @@ public static class StageClose
                 {
                     ["replacements"] = [missing.Count > 0
                         ? "A Foursomes Division is always 4: name a replacement for each Player who has withdrawn."
-                        : $"Division {small.index + 1} would be left with one Team: name a replacement for the Team that has withdrawn."],
+                        : small.division.Count == 0
+                            ? $"Division {small.index + 1} would be left with no Teams: name replacements for the Teams that have withdrawn."
+                            : $"Division {small.index + 1} would be left with one Team: name a replacement for a Team that has withdrawn."],
                 });
             }
 

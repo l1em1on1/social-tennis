@@ -17,6 +17,8 @@ export interface CloseTeam {
   rank: number;
   /** "2–1, +5", or "5 pts, 2–1, +5" where points rank (#214): its record, for the Manager to judge a tie by. */
   record: string;
+  /** Withdrawn (#21): it leaves at the close, from the place it would have moved to, so nobody else moves for it. */
+  withdrawn: boolean;
 }
 
 export interface CloseDivision {
@@ -54,9 +56,10 @@ function destination(from: number, to: number) {
 /**
  * Closing a Stage (#10, wireframe M6): each Division in its final order, with
  * ▲ ▼ to order the Teams of a tie that decides who moves, and where each
- * Team goes, as the close will do it (`relegate`); the Teams waiting for a
- * place to tick; and the next Stage's dates. Confirming sends that order, and
- * the API refuses it if the Standings have changed since.
+ * Team goes, as the close will do it (`relegate`), or that it leaves, where
+ * it has withdrawn; the Teams waiting for a place to tick; and the next
+ * Stage's dates. Confirming sends that order, and the API refuses it if the
+ * Standings have changed since.
  */
 export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, divisions, waiting, nextStage }: StageCloseFormProps) {
   const [state, action] = useActionState<CloseStageState, FormData>(closeStage, { errors: {} });
@@ -121,7 +124,12 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
                           {tie && <span className="sr-only">, tied</span>}
                         </span>
                         <span className="flex shrink-0 items-center gap-2">
-                          {next && destination(division.number, divisionOf(teamId))}
+                          {next &&
+                            (team.withdrawn ? (
+                              <span className="whitespace-nowrap text-fg-muted">leaves</span>
+                            ) : (
+                              destination(division.number, divisionOf(teamId))
+                            ))}
                           {tie && (
                             <>
                               <IconButton icon="up" label={`Move ${team.name} up`} disabled={!canUp} onClick={() => swap(d, at, -1)} />
