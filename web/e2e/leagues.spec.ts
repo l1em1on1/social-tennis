@@ -1303,7 +1303,7 @@ test("two Players tick their free days, see the day that suits both, and agree t
     `Agreed for Thu 12 Dec · 6 - astro, set by ${vic.name}`,
   );
   await expectNoSeriousA11yViolations(vicPage);
-  await vicContext.close();
+  const vicGame = vicPage.url();
 
   // Una sees it on Home and on the ladder.
   await unaPage.goto("/");
@@ -1311,4 +1311,12 @@ test("two Players tick their free days, see the day that suits both, and agree t
   await unaPage.goto(ladder);
   await expect(unaPage.getByRole("list", { name: "Division 1 Games" })).toContainText("Agreed for Thu 12 Dec · 6 - astro");
   await unaContext.close();
+
+  // While Vic still has the form open, the Manager marks the Game not played: Vic's change is refused, in words about arranging.
+  await page.goto(vicGame);
+  await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+  await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+  await vicPage.getByRole("region", { name: "When to play" }).getByRole("button", { name: "Change" }).click();
+  await expect(vicPage.getByRole("status").filter({ hasText: "marked this game as not played, so it isn't arranged" })).toBeVisible();
+  await vicContext.close();
 });

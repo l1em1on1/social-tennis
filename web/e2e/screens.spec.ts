@@ -161,6 +161,12 @@ test.describe("a member, with a child on the same login", () => {
     await expectNoSeriousA11yViolations(page);
   });
 
+  test("a Game whose new Date was refused, as a Player in it", async ({ page }, testInfo) => {
+    // Where arranging sends a Date that isn't a day, or one the API refuses (#9).
+    await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.chrisAlex}?refused=arrange-invalid`);
+    await expect(page.getByRole("status").filter({ hasText: "That date isn't in this game's Stage or League" })).toBeVisible();
+  });
+
   test("entering the score of an arranged Game, as a Player in it", async ({ page }, testInfo) => {
     // Agreed for 19 Nov, which has come (today is 20 Nov): "Date played" starts there.
     await as(page, testInfo, FIXTURE_MEMBER, `/games/${FIXTURE_RUNNING_GAME_IDS.chrisAlex}/score`);
