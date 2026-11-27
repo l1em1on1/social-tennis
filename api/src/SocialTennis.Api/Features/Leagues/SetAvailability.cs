@@ -14,6 +14,8 @@ namespace SocialTennis.Api.Features.Leagues;
 /// A Player says which days they're free in their League's current Stage (#9):
 /// whole days (owner, 2026-11-27), every one of them, replacing what they said
 /// before. Days already past may stay ticked: it's the same list sent back.
+/// A Stage held up past its deadline (#10) takes days up to the League's end,
+/// so its Games can still be arranged.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
@@ -31,6 +33,7 @@ public static class SetAvailability
         SetAvailabilityRequest request,
         ClaimsPrincipal user,
         TennisDbContext db,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         await using var transaction = await GameScores.LockResultsAsync(db, leagueId, cancellationToken);
@@ -44,12 +47,13 @@ public static class SetAvailability
             return StageClose.AlreadyClosed();
         }
 
-        if (request.Dates.Any(date => date < stage.StartDate || date > stage.EndDate))
+        var lastDay = stage.LastDay(clock);
+        if (request.Dates.Any(date => date < stage.StartDate || date > lastDay))
         {
             var format = (DateOnly date) => date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["dates"] = [$"Pick days in Stage {stage.Number}: from {format(stage.StartDate)} to {format(stage.EndDate)}."],
+                ["dates"] = [$"Pick days in Stage {stage.Number}: from {format(stage.StartDate)} to {format(lastDay)}."],
             });
         }
 

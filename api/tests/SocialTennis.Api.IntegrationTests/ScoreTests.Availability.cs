@@ -208,4 +208,20 @@ public partial class ScoreTests
         Assert.Empty(availability.SharedDates);
         Assert.Equal([SocialTennis.Api.Domain.Player.FormerPlayerName], availability.NotGiven);
     }
+
+    [Fact]
+    public async Task A_Stage_held_past_its_deadline_takes_days_up_to_the_Leagues_end()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        Assert.Equal(On(7, 31), (await FreeDaysOfAsync(game.Una, game.LeagueId)).LastDay);
+
+        // 5 August: July's Stage is past its deadline, still open as its Game has no score.
+        factory.Clock.Now = new DateTimeOffset(Year, 8, 5, 12, 0, 0, TimeSpan.Zero);
+        Assert.Equal(On(9, 30), (await FreeDaysOfAsync(game.Una, game.LeagueId)).LastDay);
+        (await FreeOnAsync(game.Una, game.LeagueId, Day(8, 10))).EnsureSuccessStatusCode();
+        (await FreeOnAsync(game.Vic, game.LeagueId, Day(8, 10), Day(8, 12))).EnsureSuccessStatusCode();
+
+        Assert.Equal([On(8, 10)], (await GameAsync(game.Una.Client, game.GameId)).Availability!.SharedDates);
+        Assert.True((await ErrorsAsync(await FreeOnAsync(game.Una, game.LeagueId, Day(10, 1)))).ContainsKey("dates"));
+    }
 }

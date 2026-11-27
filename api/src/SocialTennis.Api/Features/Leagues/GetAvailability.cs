@@ -23,6 +23,7 @@ public static class GetAvailability
         Guid playerId,
         ClaimsPrincipal user,
         TennisDbContext db,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         if (await Availability.OpenStageAsync(db, leagueId, playerId, user.UserId(), cancellationToken) is not { Closed: false } stage)
@@ -35,6 +36,7 @@ public static class GetAvailability
             .OrderBy(d => d.Date)
             .Select(d => d.Date)
             .ToListAsync(cancellationToken);
-        return TypedResults.Ok(new GetAvailabilityResponse(new LeagueStageSummary(stage.Number, stage.StartDate, stage.EndDate), dates));
+        return TypedResults.Ok(new GetAvailabilityResponse(
+            new LeagueStageSummary(stage.Number, stage.StartDate, stage.EndDate), dates, stage.LastDay(clock)));
     }
 }
