@@ -31,6 +31,6 @@ internal static class Availability
         /// open (held up, #10), the League's end, so its Games can still be arranged.
         /// </summary>
         public DateOnly LastDay(TimeProvider clock) =>
-            ClubCalendar.Today(TimeZone, clock) > EndDate ? LeagueEndDate : EndDate;
+            StageDates.DeadlinePassed(EndDate, TimeZone, clock) ? LeagueEndDate : EndDate;
     }
 }

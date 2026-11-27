@@ -44,7 +44,10 @@ public class Game
     /// <summary>Where, as the Players note it for themselves ("6 - astro"): free text, required nowhere (ADR-0006).</summary>
     public string? Court { get; set; }
 
-    /// <summary>The Player who set the Date last; none once they're deleted (#116).</summary>
+    /// <summary>
+    /// The Player who set the Date last. Deleting their account keeps the Player as "Former player" (#116);
+    /// the reference is cleared only if the Player row itself goes.
+    /// </summary>
     public Guid? DateSetById { get; set; }
 
     public Player? DateSetBy { get; set; }

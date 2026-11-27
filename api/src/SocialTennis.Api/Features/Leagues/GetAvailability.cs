@@ -9,8 +9,9 @@ namespace SocialTennis.Api.Features.Leagues;
 
 /// <summary>
 /// A Player's free days in their League's current Stage (#9), for them to
-/// tick and untick. Only their own: someone else's days are shown to nobody,
-/// only the days everyone in a Game shares (<see cref="Games.GetGame"/>).
+/// tick and untick. Only their own: nobody else reads a Player's whole list.
+/// A Game's other Players see only the days everyone in it shares
+/// (<see cref="Games.GetGame"/>), which shows them where theirs overlap.
 /// </summary>
 /// <remarks>
 /// A Player the signed-in User doesn't hold, one not in the League, or a League
