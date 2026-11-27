@@ -1,6 +1,7 @@
 // Runs in the real project only (playwright.config.ts), which takes no snapshots: those come
 // from the fixed data (screens.spec.ts, #234). `test` is e2e/support/chromatic.ts's all the same.
 import { expect, test } from "./support/chromatic";
+import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { addAnotherPlayer, logIn, personaEmail, uniqueName } from "./support/auth";
 import { expectNoSeriousA11yViolations } from "./support/axe";
@@ -1304,6 +1305,14 @@ test("two Players tick their free days, see the day that suits both, and agree t
   );
   await expectNoSeriousA11yViolations(vicPage);
   const vicGame = vicPage.url();
+
+  // "Add to calendar" (#9 part 3): an all-day event on the 12th, named for both, at the court.
+  const [download] = await Promise.all([vicPage.waitForEvent("download"), vicPage.getByRole("link", { name: "Add to calendar" }).click()]);
+  const calendar = readFileSync((await download.path())!, "utf8");
+  expect(download.suggestedFilename()).toBe("game-2030-12-12.ics");
+  expect(calendar).toContain("DTSTART;VALUE=DATE:20301212\r\nDTEND;VALUE=DATE:20301213\r\n");
+  expect(calendar).toContain(`SUMMARY:Tennis: ${una.name} v ${vic.name}\r\n`);
+  expect(calendar).toContain("LOCATION:6 - astro\r\n");
 
   // Una sees it on Home and on the ladder.
   await unaPage.goto("/");
