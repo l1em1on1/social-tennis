@@ -51,6 +51,16 @@ Remote Control (#179) lets the owner drive the sandbox's Claude Code from claude
 - **`npm ci --no-bin-links`.** The bind mount from a Windows host refuses symlinks.
 - **The worktree hooks read their JSON with bash, not `jq`.** A Windows host's Git Bash has no `jq`.
 
+## Plugins
+
+The plugins are Anthropic's official ones that `.claude/settings.json` enables (2026-11-27, #271 and its follow-up).
+
+- **A kit hook installs each one.** An entry in project settings turns a plugin on but downloads nothing, and the session starts without it ([plugin docs](https://code.claude.com/docs/en/plugins/loading.md#enabled-in-project-settings-but-not-installed)). The toolchain kit's hook already adds the marketplace, so it installs them, all but `context7`, which its own kit installs. The list is kept by hand: a plugin added to `enabledPlugins` needs its line in the hook too.
+- **Debian's Chromium for the Playwright MCP server.** The claude kit has no browser. Playwright's own download host needs an approval on each machine, while Debian's apt sources are already the image's. The plugin fixes the server's arguments, so the kit configures it through `PLAYWRIGHT_MCP_*` args with `env:`: Chromium at `/usr/bin/chromium`, headless (no display) and with an in-memory profile.
+- **npm and PyPI egress, declared.** The server is fetched from npm on each start, and `security-guidance` installs the Agent SDK from PyPI on its first session. Both reached them before the kit allowed them, but a policy the kit doesn't declare may not hold on another machine.
+- **RTK leaves `git commit` and `git push` alone.** `security-guidance` reviews a commit or push only when the command matches `Bash(git*commit*)` or `Bash(git*push*)`. RTK rewrites `git commit` to `rtk git commit`, which doesn't match, so with RTK as it was no commit was reviewed (tested 2026-11-27). Their output is short, so RTK saves little on them.
+- **`security-guidance` spends the subscription's usage.** At each turn end it reviews the turn's diff on the newest Opus, and after each commit or push it runs an agentic review. That cost $0.01 to $0.08 at API prices on a small diff. `ENABLE_STOP_REVIEW=0` or `ENABLE_COMMIT_REVIEW=0` in the environment turns either off.
+
 ## Consequences
 
 - Kits attach only when a sandbox is created, so changing a kit means removing the sandbox and creating it again. The workspace is a bind mount, so the repository is untouched.

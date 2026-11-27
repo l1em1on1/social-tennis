@@ -10,10 +10,13 @@ The sandbox is sbx's built-in `claude` agent with five **v3 mixin kits**
 this way: ADR-0025.
 
 - `kits/toolchain/`: the .NET 10 SDK (with ICU), Node 24, `csharp-ls` and
-  `typescript-language-server`, linked into `/usr/local/bin`, plus an install
-  hook that adds Claude Code's `csharp-lsp` and `typescript-lsp` plugins, and
-  `frontend-design` (design guidance, here because this hook already adds the
-  marketplace).
+  `typescript-language-server`, linked into `/usr/local/bin`, plus install
+  hooks that add Debian's Chromium and the Claude Code plugins in
+  `.claude/settings.json`, from a list kept by hand in the hook (add a line
+  there with each new plugin; `context7` comes from its own kit). Chromium is
+  the browser the `playwright` plugin's MCP server drives (headless, set by the
+  kit's `PLAYWRIGHT_MCP_*` args). It allows egress to npm and PyPI, which that
+  server and `security-guidance` fetch from.
 - `kits/context7/`: the Context7 MCP server's API key, through the sandbox
   proxy, and the Context7 plugin.
 - `kits/github/`: `gh` (issues, PRs) and `git push` to github.com over HTTPS as
@@ -21,6 +24,8 @@ this way: ADR-0025.
 - `kits/nuget/`: egress to `api.nuget.org`, so `dotnet restore` works and
   `csharp-ls` can resolve packages. See [NuGet restore](#nuget-restore).
 - `kits/rtk/`: the RTK binary, and its Claude Code hook, registered at creation.
+  It leaves `git commit` and `git push` as typed, so `security-guidance` reviews
+  them.
 
 Each kit is a directory with a descriptor, `<kit>.yaml`. The toolchain and rtk
 kits also have `<kit>.dockerfile`, their image content. The format is Docker's
