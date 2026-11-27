@@ -6,5 +6,14 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Opponents">The other Side's Players.</param>
 /// <param name="Score">None until it's entered.</param>
 /// <param name="NotPlayed">A Manager marked it not played (#10): it counts for nothing.</param>
+/// <param name="Date">The Date its Players agreed (#9); none until one of them sets it.</param>
+/// <param name="Court">Where, as its Players noted it; none if they didn't.</param>
 public record PlayerGame(
-    Guid GameId, int YourSide, IReadOnlyList<string> Partners, IReadOnlyList<string> Opponents, LadderGameScore? Score, bool NotPlayed);
+    Guid GameId,
+    int YourSide,
+    IReadOnlyList<string> Partners,
+    IReadOnlyList<string> Opponents,
+    LadderGameScore? Score,
+    bool NotPlayed,
+    DateOnly? Date,
+    string? Court);

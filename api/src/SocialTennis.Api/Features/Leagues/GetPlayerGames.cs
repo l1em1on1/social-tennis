@@ -83,7 +83,9 @@ public static class GetPlayerGames
                             [.. players(ours).Where(p => p.PlayerId != playerId).Select(p => p.Name)],
                             [.. players(theirs).Select(p => p.Name)],
                             g.Game.Score,
-                            g.Game.NotPlayed);
+                            g.Game.NotPlayed,
+                            g.Game.Date,
+                            g.Game.Court);
                     })
                     .ToList();
             items.Add(new PlayerGamesLeague(

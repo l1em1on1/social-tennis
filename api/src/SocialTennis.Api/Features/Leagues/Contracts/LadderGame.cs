@@ -7,6 +7,8 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="NotPlayed">A Manager marked it not played (#10): it counts for nothing.</param>
 /// <param name="FirstPartnerTeamId">In Foursomes, Side 1's other Player (their Team of one, ADR-0036); null otherwise.</param>
 /// <param name="SecondPartnerTeamId">In Foursomes, Side 2's other Player; null otherwise.</param>
+/// <param name="Date">The Date its Players agreed (#9); none until one of them sets it.</param>
+/// <param name="Court">Where, as its Players noted it; none if they didn't.</param>
 public record LadderGame(
     Guid Id,
     Guid FirstTeamId,
@@ -14,4 +16,6 @@ public record LadderGame(
     LadderGameScore? Score,
     bool NotPlayed,
     Guid? FirstPartnerTeamId = null,
-    Guid? SecondPartnerTeamId = null);
+    Guid? SecondPartnerTeamId = null,
+    DateOnly? Date = null,
+    string? Court = null);

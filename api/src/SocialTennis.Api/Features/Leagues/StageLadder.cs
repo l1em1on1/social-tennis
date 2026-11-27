@@ -44,6 +44,8 @@ public static class StageLadder
                 Sides = g.Sides.Select(s => new { s.Side, s.TeamId }).ToList(),
                 Score = g.Score == null ? null : new { g.Score.Winner, g.Score.Retired, g.Score.Sets },
                 NotPlayed = g.VoidedAt != null,
+                g.Date,
+                g.Court,
             })
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
@@ -59,6 +61,8 @@ public static class StageLadder
                 Second = (IReadOnlyList<Guid>)[.. g.Sides.Where(s => s.Side == 2).Select(s => s.TeamId).OrderBy(team => positionOf[team])],
                 g.Score,
                 g.NotPlayed,
+                g.Date,
+                g.Court,
             })
             .ToList();
         // The Players' answers to Foursomes ties (#14 part 3), each kept only while its tie stands as it was.
@@ -143,7 +147,9 @@ public static class StageLadder
                                 : null,
                             g.NotPlayed,
                             g.First.Count > 1 ? g.First[1] : null,
-                            g.Second.Count > 1 ? g.Second[1] : null)),
+                            g.Second.Count > 1 ? g.Second[1] : null,
+                            g.Date,
+                            g.Court)),
                     ],
                     [
                         .. standings.Select(s => new LadderStanding(

@@ -23,6 +23,24 @@ namespace SocialTennis.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.AvailableDay", b =>
+                {
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PlayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.HasKey("StageId", "PlayerId", "Date");
+
+                    b.HasIndex("PlayerId");
+
+                    b.ToTable("AvailableDays");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.Club", b =>
                 {
                     b.Property<Guid>("Id")
@@ -157,6 +175,16 @@ namespace SocialTennis.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Court")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateOnly?>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("DateSetById")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Division")
                         .HasColumnType("integer");
 
@@ -173,6 +201,8 @@ namespace SocialTennis.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DateSetById");
 
                     b.HasIndex("VoidedByUserId");
 
@@ -746,6 +776,25 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.AvailableDay", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialTennis.Api.Domain.Stage", "Stage")
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
+
+                    b.Navigation("Stage");
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.ClubInvite", b =>
                 {
                     b.HasOne("SocialTennis.Api.Domain.Club", "Club")
@@ -808,6 +857,11 @@ namespace SocialTennis.Api.Migrations
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Game", b =>
                 {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "DateSetBy")
+                        .WithMany()
+                        .HasForeignKey("DateSetById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SocialTennis.Api.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("VoidedByUserId")
@@ -819,6 +873,8 @@ namespace SocialTennis.Api.Migrations
                         .HasPrincipalKey("LeagueId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("DateSetBy");
 
                     b.Navigation("Stage");
                 });

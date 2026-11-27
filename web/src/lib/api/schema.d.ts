@@ -628,6 +628,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leagues/{leagueId}/players/{playerId}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetAvailability"];
+        put: operations["SetAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leagues/{leagueId}/join-requests": {
         parameters: {
             query?: never;
@@ -756,6 +772,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/games/{gameId}/date": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ArrangeGame"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/games/{gameId}/score/record": {
         parameters: {
             query?: never;
@@ -806,6 +838,13 @@ export interface components {
             /** Format: uuid */
             playerId: string;
             name: string;
+        };
+        ArrangeGameRequest: {
+            /** Format: uuid */
+            playerId: string;
+            /** Format: date */
+            date: null | string;
+            court: null | string;
         };
         AskToJoinLeagueRequest: {
             /** Format: uuid */
@@ -946,6 +985,10 @@ export interface components {
             id: string;
             name: string;
         };
+        GameAvailability: {
+            sharedDates: string[];
+            notGiven: string[];
+        };
         GamePlayer: {
             /** Format: uuid */
             playerId: string;
@@ -986,6 +1029,12 @@ export interface components {
         GetAddablePlayersResponse: {
             players: components["schemas"]["AddablePlayer"][];
             page: components["schemas"]["PageInfo"];
+        };
+        GetAvailabilityResponse: {
+            stage: components["schemas"]["LeagueStageSummary"];
+            dates: string[];
+            /** Format: date */
+            lastDay: string;
         };
         GetClubLeaguesResponse: {
             leagues: components["schemas"]["ClubLeague"][];
@@ -1031,6 +1080,11 @@ export interface components {
             timeZone: string;
             /** Format: date */
             today: string;
+            /** Format: date */
+            date: null | string;
+            court: null | string;
+            dateSetBy: null | string;
+            availability: null | components["schemas"]["GameAvailability"];
         };
         GetJoinLinkClubResponse: {
             /** Format: uuid */
@@ -1164,6 +1218,9 @@ export interface components {
             firstPartnerTeamId?: null | string;
             /** Format: uuid */
             secondPartnerTeamId?: null | string;
+            /** Format: date */
+            date?: null | string;
+            court?: null | string;
         };
         LadderGameScore: {
             /** Format: int32 */
@@ -1367,6 +1424,9 @@ export interface components {
             opponents: string[];
             score: null | components["schemas"]["LadderGameScore"];
             notPlayed: boolean;
+            /** Format: date */
+            date: null | string;
+            court: null | string;
         };
         PlayerGamesLeague: {
             /** Format: uuid */
@@ -1510,6 +1570,9 @@ export interface components {
             /** Format: int32 */
             winner: number | string;
             retired: boolean;
+        };
+        SetAvailabilityRequest: {
+            dates: string[];
         };
         SetPlayerRatingRequest: {
             /** Format: int32 */
@@ -4166,6 +4229,104 @@ export interface operations {
             };
         };
     };
+    GetAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetAvailabilityResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                leagueId: string;
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAvailabilityRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     AskToJoinLeague: {
         parameters: {
             query?: never;
@@ -4613,6 +4774,73 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OverrideScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ArrangeGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gameId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArrangeGameRequest"];
             };
         };
         responses: {

@@ -133,6 +133,8 @@ public static class AccountDeletion
                     .SetProperty(p => p.UserId, (Guid?)null),
                 cancellationToken);
         await db.ClubMemberships.Where(m => players.Contains(m.PlayerId)).ExecuteDeleteAsync(cancellationToken);
+        // The days they said they're free (#9) are theirs alone: nobody's results depend on them.
+        await db.AvailableDays.Where(d => players.Contains(d.PlayerId)).ExecuteDeleteAsync(cancellationToken);
         await db.LeagueJoinRequests
             .Where(r => players.Contains(r.PlayerId)
                 || (r.Status == LeagueJoinRequestStatus.Pending && r.PartnerId != null && players.Contains(r.PartnerId.Value)))

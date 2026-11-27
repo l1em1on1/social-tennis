@@ -36,6 +36,13 @@ public static class GamesEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName(nameof(OverrideScore));
 
+        // Arranging it (#9): a Player in the Game sets the agreed Date and notes the Court.
+        game.MapPut("/date", ArrangeGame.HandleAsync)
+            .ValidatesBody<ArrangeGameRequest, ArrangeGameRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(ArrangeGame));
+
         // Settling what holds up a Stage's close (#10): a Manager records a Score
         // nobody entered, or marks the Game not played, and can undo that.
         game.MapPost("/score/record", RecordScore.HandleAsync)

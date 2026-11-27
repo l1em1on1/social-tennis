@@ -3,7 +3,8 @@ namespace SocialTennis.Api.Domain;
 /// <summary>
 /// Two Sides playing a match (see CONTEXT.md, Game): here a Division's Game in
 /// a League Stage, made when the Stage opens (#7). Its <see cref="Score"/> is
-/// entered once it's played (#38); arranging a Date and a Court is #9.
+/// entered once it's played (#38). Its Players agree a Date, and may note a
+/// Court, as they arrange it (#9).
 /// </summary>
 public class Game
 {
@@ -33,4 +34,23 @@ public class Game
 
     /// <summary>The Manager who marked it not played.</summary>
     public Guid? VoidedByUserId { get; set; }
+
+    /// <summary>
+    /// The Date its Players agreed (#9): any of them sets it, and the last change stands
+    /// (owner, 2026-11-27). None until one does.
+    /// </summary>
+    public DateOnly? Date { get; set; }
+
+    /// <summary>Where, as the Players note it for themselves ("6 - astro"): free text, required nowhere (ADR-0006).</summary>
+    public string? Court { get; set; }
+
+    /// <summary>
+    /// The Player who set the Date last. Deleting their account keeps the Player as "Former player" (#116);
+    /// the reference is cleared only if the Player row itself goes.
+    /// </summary>
+    public Guid? DateSetById { get; set; }
+
+    public Player? DateSetBy { get; set; }
+
+    public const int CourtMaxLength = 50;
 }

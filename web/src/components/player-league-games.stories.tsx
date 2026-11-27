@@ -10,6 +10,8 @@ const game = (gameId: string, opponents: string[], extra: Record<string, unknown
   opponents,
   score: null,
   notPlayed: false,
+  date: null,
+  court: null,
   ...extra,
 });
 
