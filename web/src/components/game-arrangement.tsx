@@ -55,6 +55,14 @@ export function GameArrangement({
             {dateSetBy ? <span className="text-fg-muted">, set by {dateSetBy}</span> : null}
           </p>
         )}
+        {date && (
+          // A calendar file for the agreed Date (#9 part 3): a plain link, so the phone hands it to its calendar.
+          <p>
+            <a href={`/games/${gameId}/calendar`} download className="font-medium text-accent underline">
+              Add to calendar
+            </a>
+          </p>
+        )}
         <div className="flex flex-col gap-1">
           <h3 className="font-semibold">Days that suit everyone</h3>
           {shared.length > 0 ? (
