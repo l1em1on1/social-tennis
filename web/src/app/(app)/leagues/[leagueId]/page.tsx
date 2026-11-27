@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { HeldUpBanner } from "@/components/held-up-banner";
 import { StandingsTable } from "@/components/standings-table";
+import { TieMarkForm, describePlayersTie, markedOtherWay } from "@/components/tie-mark-form";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 import { apiWithSession } from "@/lib/api/server";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
@@ -35,8 +36,8 @@ const names = (competitor: Competitor) => competitor.players.map((player) => pla
  * ranked by the games each Player banked; a Player's own Games name their
  * partner first.
  */
-export default async function LadderPage({ params }: PageProps<"/leagues/[leagueId]">) {
-  const [viewer, api, { leagueId }] = await Promise.all([getViewer(), apiWithSession(), params]);
+export default async function LadderPage({ params, searchParams }: PageProps<"/leagues/[leagueId]">) {
+  const [viewer, api, { leagueId }, { tie }] = await Promise.all([getViewer(), apiWithSession(), params, searchParams]);
   if (!isId(leagueId)) {
     notFound();
   }
@@ -140,6 +141,14 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
         />
       )}
 
+      {tie === "changed" && (
+        <ErrorState title="That didn't save" description="The tie changed meanwhile, or the Stage closed. This is how it stands now." />
+      )}
+      {tie === "pick" && <ErrorState title="Nothing saved" description="Pick who goes, then save." />}
+      {tie === "invalid" && (
+        <ErrorState title="Nothing saved" description="Pick one of the players level there, and not one already going the other way." />
+      )}
+
       {mine ? (
         <p role="status" className="rounded-md border border-accent bg-accent-muted px-4 py-3 text-sm">
           You&apos;re in <strong>Division {mine.number}</strong>.{" "}
@@ -178,6 +187,7 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
             const team = division.competitors.find((competitor) => competitor.teamId === teamId);
             return team ? names(team) : "";
           };
+          const divisionNames = Object.fromEntries(division.competitors.map((competitor) => [competitor.teamId, names(competitor)]));
           return (
             <li key={division.number}>
               <Card
@@ -190,9 +200,29 @@ export default async function LadderPage({ params }: PageProps<"/leagues/[league
                   number={Number(division.number)}
                   foursomes={foursomes ? { gameNotPlayed: division.games.some((game) => game.notPlayed) } : undefined}
                   standings={division.standings}
-                  names={Object.fromEntries(division.competitors.map((competitor) => [competitor.teamId, names(competitor)]))}
+                  names={divisionNames}
                   mine={division.competitors.filter(isMe).map((competitor) => competitor.teamId)}
                 />
+                {/* A Foursomes tie its Players settle (#14 part 3): theirs to say; everyone else reads it. */}
+                {division.playersTies.map((playersTie) =>
+                  // Once the League has ended, nothing more is said: it reads as it closed.
+                  ours && me && !ladder.ended ? (
+                    <div key={playersTie.place} className="mt-3">
+                      <TieMarkForm
+                        leagueId={ladder.id}
+                        playerId={me}
+                        division={Number(division.number)}
+                        tie={playersTie}
+                        names={divisionNames}
+                        otherWay={markedOtherWay(playersTie, division.playersTies)}
+                      />
+                    </div>
+                  ) : (
+                    <p key={playersTie.place} className="mt-2 text-sm">
+                      {describePlayersTie(playersTie, divisionNames)}
+                    </p>
+                  ),
+                )}
                 <h3 className="mt-3 text-sm font-semibold">
                   Games <span className="font-normal text-fg-muted">· {division.games.length}</span>
                 </h3>

@@ -92,4 +92,44 @@ public class FoursomesTests
 
         Assert.Equal([(Ann, 1, 6, true), (Bob, 1, 6, true), (Cat, 3, 2, true), (Dan, 3, 2, true)], Lines(standings));
     }
+
+    /// <summary>Ann first on 18; Bob, Cat and Dan level for last on 14: 6–4 three times for Ann's pair.</summary>
+    private static IReadOnlyList<Standing> LevelForLast() =>
+        Standings.RankFoursomes(Division, [Game(0, 6, 4), Game(1, 6, 4), Game(2, 6, 4)]);
+
+    [Fact]
+    public void The_Players_mark_moves_the_one_they_chose_and_the_others_stay()
+    {
+        var standings = LevelForLast();
+        Assert.Equal([Bob, Cat, Dan], Standings.TiedAt(standings, TieMarkPlace.Down, number: 1, divisions: 2));
+        Assert.Null(Standings.TiedAt(standings, TieMarkPlace.Up, number: 1, divisions: 2));
+
+        // Unmarked, it waits; Bob marked to go down, he does, though ladder order would send Dan.
+        Assert.Equal([[Bob, Cat, Dan]], Standings.OpenTies(standings, 1, 2));
+        var marked = Standings.OrderByMarks(standings, up: null, down: Bob);
+        Assert.Equal([Ann, Cat, Dan, Bob], marked.Select(s => s.TeamId));
+        Assert.Empty(Standings.OpenTies(marked, 1, 2, down: Bob));
+        Assert.Equal(
+            [StandingMove.Stays, StandingMove.Stays, StandingMove.Stays, StandingMove.Down],
+            marked.Select(s => Standings.MoveOf(s, marked, 1, 2, down: Bob)));
+        // Ranks stay shared, so the Manager can still order them at the close.
+        Assert.Equal([1, 2, 2, 2], marked.Select(s => s.Rank));
+    }
+
+    [Fact]
+    public void A_tie_for_both_first_and_last_needs_both_marks()
+    {
+        // A middle Division where all four banked the same: who goes up, and who goes down.
+        var standings = Standings.RankFoursomes(Division, [Game(0, 6, 6), Game(1, 6, 6), Game(2, 6, 6)]);
+        Assert.Equal([Ann, Bob, Cat, Dan], Standings.TiedAt(standings, TieMarkPlace.Up, 2, 3));
+        Assert.Equal([Ann, Bob, Cat, Dan], Standings.TiedAt(standings, TieMarkPlace.Down, 2, 3));
+
+        Assert.Single(Standings.OpenTies(standings, 2, 3, up: Cat));
+        var marked = Standings.OrderByMarks(standings, up: Cat, down: Ann);
+        Assert.Equal([Cat, Bob, Dan, Ann], marked.Select(s => s.TeamId));
+        Assert.Empty(Standings.OpenTies(marked, 2, 3, up: Cat, down: Ann));
+        Assert.Equal(
+            [StandingMove.Up, StandingMove.Stays, StandingMove.Stays, StandingMove.Down],
+            marked.Select(s => Standings.MoveOf(s, marked, 2, 3, up: Cat, down: Ann)));
+    }
 }

@@ -43,6 +43,8 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<Score> Scores => Set<Score>();
 
+    public DbSet<TieMark> TieMarks => Set<TieMark>();
+
     public DbSet<ScoreChange> ScoreChanges => Set<ScoreChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -210,6 +212,15 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
         // the Sides. Sets are a JSON column (EF Core docs, "Complex types",
         // collections need ToJson). Who entered or changed a Score is kept
         // (Restrict): removing a Player must deal with their Scores (#116).
+        // A Foursomes tie the Players marked (#14 part 3): one answer per place a Division's tie decides.
+        // A deleted Player's answer stays, without their name (#116).
+        modelBuilder.Entity<TieMark>(mark =>
+        {
+            mark.HasKey(m => new { m.StageId, m.Division, m.Place });
+            mark.HasOne(m => m.Stage).WithMany().HasForeignKey(m => m.StageId).OnDelete(DeleteBehavior.Cascade);
+            mark.HasOne(m => m.MarkedBy).WithMany().HasForeignKey(m => m.MarkedById).OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<Score>(score =>
         {
             score.HasKey(s => s.GameId);

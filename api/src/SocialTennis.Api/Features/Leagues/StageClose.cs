@@ -13,8 +13,8 @@ public static class StageClose
     /// <summary>
     /// Teams in the League but off the current ladder, complete for its Type
     /// (a doubles Team of two), which the Manager can add at close. None in
-    /// Foursomes (#14): its Divisions are always 4, so how Players join a
-    /// running ladder is still the owner's to decide.
+    /// Foursomes (#14): nobody joins a running ladder (owner, 2026-11-27). A
+    /// Player leaving for good is replaced in their place instead (#21).
     /// </summary>
     public static async Task<List<CloseWaitingTeam>> WaitingAsync(
         TennisDbContext db, Guid leagueId, Guid stageId, LeagueType type, CancellationToken cancellationToken)
@@ -115,7 +115,12 @@ public static class StageClose
             return new CloseResult(CloseRefusal.TiesOpen);
         }
 
-        if (!FollowsStandings(divisions, order))
+        // The automatic close orders no tie of its own: its order must be the Standings' exactly, as rebuilt
+        // under the locks, so a Players' mark changed since it read the ladder (#14 part 3) can't be passed over.
+        var follows = ordersTies
+            ? FollowsStandings(divisions, order)
+            : divisions.Count == order.Count && divisions.Select((d, i) => d.Standings.Select(s => s.TeamId).SequenceEqual(order[i])).All(same => same);
+        if (!follows)
         {
             return new CloseResult(CloseRefusal.StandingsChanged);
         }

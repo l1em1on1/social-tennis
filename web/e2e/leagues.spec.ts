@@ -1178,3 +1178,69 @@ test("a Manager starts a Foursomes League in Divisions of 4, and each Player ban
   ]);
   await expectNoSeriousA11yViolations(page);
 });
+
+test("Foursomes Players level for last say who goes down, and the close screen keeps it", async ({ page, browser }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Foursomes Ties");
+  const players = ["Ann Tie", "Bob Tie", "Cat Tie", "Dan Tie", "Eve Tie", "Fay Tie", "Gus Tie", "Hal Tie"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `tie-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [ann, bob, cat, dan, eve, fay, gus, hal] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  await createLeague(page, league, "Foursomes", { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+
+  // The first place's pair wins every Game 6–0: Ann and Eve 18; Bob, Cat and Dan level for last on 6, which sends one down.
+  const pairs = [
+    [ann, bob, cat, dan],
+    [ann, cat, bob, dan],
+    [ann, dan, bob, cat],
+    [eve, fay, gus, hal],
+    [eve, gus, fay, hal],
+    [eve, hal, fay, gus],
+  ];
+  for (const [a, b, c, d] of pairs) {
+    const winners = `${a.name} & ${b.name}`;
+    await page.getByRole("region", { name: "To do" }).getByRole("list", { name: "Games with no score" }).getByRole("listitem")
+      .filter({ hasText: `${winners} v ${c.name} & ${d.name}` }).getByRole("link", { name: "Settle" }).click();
+    await page.getByRole("link", { name: "Record the score (manager)" }).click();
+    const more = page.getByRole("group", { name: `Set, ${winners}` }).getByRole("button", { name: "One more" });
+    for (let i = 0; i < 6; i++) await more.click();
+    await page.getByRole("button", { name: "Save score" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Score recorded" })).toBeVisible();
+    await page.goto(leaguePage);
+  }
+
+  // Cat, one of the three, says Bob goes down, though ladder order would send Dan.
+  const catContext = await browser.newContext();
+  const catPage = await catContext.newPage();
+  await logIn(catPage, testInfo, cat.email);
+  await catPage.goto(leaguePage.replace("/manage/leagues/", "/leagues/"));
+  const ask = catPage.getByRole("group", { name: "Who goes down from Division 1?" });
+  await expect(ask).toContainText(`${bob.name}, ${cat.name} and ${dan.name} are level on games.`);
+  await expectNoSeriousA11yViolations(catPage);
+  await ask.getByRole("radio", { name: bob.name }).check();
+  await catPage.getByRole("button", { name: "Save" }).click();
+  await expect(catPage.getByText(`${cat.name} said ${bob.name} goes down.`)).toBeVisible();
+  const standings = catPage.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: catPage.getByRole("rowheader") });
+  await expect(standings.last()).toHaveText(new RegExp(`${bob.name}.*▼ down`));
+  await catContext.close();
+
+  // The Manager's close screen keeps their order, Bob last, and says so; nothing holds the Stage now.
+  await page.goto(leaguePage);
+  await page.getByRole("region", { name: "To do" }).getByRole("link", { name: "Close Stage 1" }).click();
+  await expect(page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem").last()).toHaveText(
+    new RegExp(`${bob.name}.*6 games · the players say down`),
+  );
+});

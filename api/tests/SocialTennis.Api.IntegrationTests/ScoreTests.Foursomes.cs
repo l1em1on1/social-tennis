@@ -20,10 +20,10 @@ public partial class ScoreTests
 
     /// <summary>A Foursomes League of <paramref name="names"/>, each with their Team of one, in the order they joined.</summary>
     private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams)> FoursomesAsync(
-        string[] names, string stageRoll = "Manual")
+        string[] names, string stageRoll = "Manual", string? endDate = null)
     {
         var (manager, clubId) = await ClubAsync();
-        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, type: "Foursomes", stageRoll: stageRoll);
+        var leagueId = await LeagueAsync(manager, clubId, OneSetOf6, type: "Foursomes", endDate: endDate, stageRoll: stageRoll);
         var players = new List<(HttpClient Client, Guid PlayerId)>();
         foreach (var name in names)
         {
@@ -233,5 +233,195 @@ public partial class ScoreTests
         var league = await ManagedAsync(manager, leagueId);
         Assert.Equal(3, league.Teams.Count);
         Assert.All(players, p => Assert.Single(league.Teams, t => t.PlayerIds.SequenceEqual([p.PlayerId])));
+    }
+
+    private static Task<HttpResponseMessage> MarkAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId, int division, string place, Guid teamId) =>
+        player.Client.PutAsJsonAsync($"/leagues/{leagueId}/tie-marks", new { playerId = player.PlayerId, division, place, teamId });
+
+    /// <summary>
+    /// Eight Players in two Divisions, every Game scored: in Division 1 Ann's pair wins each 6–4, so Ann has 18
+    /// and Bob, Cat and Dan are level for last on 14. In Division 2 Eve's pair wins the first two 6–2 and loses
+    /// the third 4–6: Eve 16, Fay and Gus 14, Hal 8, so it's settled.
+    /// </summary>
+    private async Task<(HttpClient Manager, Guid LeagueId, List<(HttpClient Client, Guid PlayerId)> Players, Guid[] Teams, LadderDivision Top)> LevelForLastAsync(
+        string stageRoll = "Manual", string? endDate = null)
+    {
+        var (manager, leagueId, players, teams) = await FoursomesAsync(Eight, stageRoll, endDate);
+        await StartAsync(manager, leagueId, teams, divisions: [4, 4]);
+        var ladder = await LadderOfAsync(manager, leagueId);
+        foreach (var partner in new[] { 1, 2, 3 })
+        {
+            (await SubmitAsync(players[0].Client, PairedGame(ladder.Divisions[0], teams, 0, partner).Id, players[0].PlayerId, [Set(6, 4)])).EnsureSuccessStatusCode();
+        }
+        (await SubmitAsync(players[4].Client, PairedGame(ladder.Divisions[1], teams, 4, 5).Id, players[4].PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[4].Client, PairedGame(ladder.Divisions[1], teams, 4, 6).Id, players[4].PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        (await SubmitAsync(players[4].Client, PairedGame(ladder.Divisions[1], teams, 4, 7).Id, players[4].PlayerId, [Set(4, 6)])).EnsureSuccessStatusCode();
+        return (manager, leagueId, players, teams, ladder.Divisions[0]);
+    }
+
+    [Fact]
+    public async Task The_Players_mark_who_goes_down_from_a_tie_and_the_auto_roll_follows_it()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync("Automatic");
+        var ladder = await LadderOfAsync(players[1].Client, leagueId);
+        var tie = ladder.Divisions[0].PlayersTies.Single();
+        Assert.Equal(TieMarkPlace.Down, tie.Place);
+        Assert.Equal([teams[1], teams[2], teams[3]], tie.TeamIds);
+        Assert.Null(tie.Mark);
+        Assert.Empty(ladder.Divisions[1].PlayersTies);
+        Assert.Equal([teams[1], teams[2], teams[3]], ladder.Awaiting.Ties.Single().TeamIds);
+
+        // Cat says Bob goes down, though ladder order would send Dan; then Dan says so again: the last answer stands.
+        (await MarkAsync(players[2], leagueId, 1, "Down", teams[3])).EnsureSuccessStatusCode();
+        (await MarkAsync(players[3], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+
+        var marked = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Empty(marked.Awaiting.Ties);
+        Assert.Equal(teams[1], marked.Divisions[0].PlayersTies.Single().Mark!.TeamId);
+        Assert.StartsWith("Dan", marked.Divisions[0].PlayersTies.Single().Mark!.MarkedBy);
+        Assert.Equal(
+            [(teams[0], StandingMove.Stays), (teams[2], StandingMove.Stays), (teams[3], StandingMove.Stays), (teams[1], StandingMove.Down)],
+            marked.Divisions[0].Standings.Select(s => (s.TeamId, s.Move!.Value)));
+
+        factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 23, 5, 0, TimeSpan.Zero);
+        await RollAsync();
+        Assert.Equal(
+            [[teams[0], teams[2], teams[3], teams[4]], [teams[1], teams[5], teams[6], teams[7]]],
+            (await LadderOfAsync(manager, leagueId)).Divisions.Select(d => d.Competitors.Select(c => c.TeamId).ToArray()));
+    }
+
+    [Fact]
+    public async Task The_Manager_can_still_order_a_marked_tie_at_the_close()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync();
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+
+        // The close screen shows the Players' order; the Manager sends Dan down instead.
+        var screen = await CloseScreenAsync(manager, leagueId);
+        Assert.Equal([teams[0], teams[2], teams[3], teams[1]], screen.Divisions[0].Standings.Select(s => s.TeamId));
+        (await CloseAsync(manager, leagueId, Order([teams[0], teams[1], teams[2], teams[3]], [.. teams[4..]]), start: $"{Year}-08-01", end: $"{Year}-08-31"))
+            .EnsureSuccessStatusCode();
+        Assert.Equal([teams[0], teams[1], teams[2], teams[4]], (await LadderOfAsync(manager, leagueId)).Divisions[0].Competitors.Select(c => c.TeamId));
+    }
+
+    [Fact]
+    public async Task A_Score_that_changes_the_tie_sets_the_mark_aside_and_the_Stage_waits_again()
+    {
+        var (_, leagueId, players, teams, top) = await LevelForLastAsync("Automatic");
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+
+        // Ann and Bob's 6–4 becomes 4–6: Bob 4+4+4 = 12, last alone, and the mark is set aside.
+        var game = PairedGame(top, teams, 0, 1);
+        var version = (await GameAsync(players[0].Client, game.Id)).Score!.Version;
+        (await CorrectAsync(players[0].Client, game.Id, players[0].PlayerId, version, [Set(4, 6)])).EnsureSuccessStatusCode();
+        var ladder = await LadderOfAsync(players[0].Client, leagueId);
+        Assert.Empty(ladder.Divisions[0].PlayersTies);
+        Assert.Equal(StandingMove.Down, ladder.Divisions[0].Standings.Single(s => s.TeamId == teams[1]).Move);
+
+        // Back to 6–4: the same three level again, and the old mark holds again, as it's for this very tie.
+        version = (await GameAsync(players[0].Client, game.Id)).Score!.Version;
+        (await CorrectAsync(players[0].Client, game.Id, players[0].PlayerId, version, [Set(6, 4)])).EnsureSuccessStatusCode();
+        Assert.Equal(teams[1], (await LadderOfAsync(players[0].Client, leagueId)).Divisions[0].PlayersTies.Single().Mark!.TeamId);
+
+        // 6–3: Cat and Dan 3+6+4 and 3+4+6 = 13, level for last without Bob. A new tie, so it's asked again, and the Stage waits.
+        version = (await GameAsync(players[0].Client, game.Id)).Score!.Version;
+        (await CorrectAsync(players[0].Client, game.Id, players[0].PlayerId, version, [Set(6, 3)])).EnsureSuccessStatusCode();
+        var reopened = await LadderOfAsync(players[0].Client, leagueId);
+        var tie = reopened.Divisions[0].PlayersTies.Single();
+        Assert.Equal([teams[2], teams[3]], tie.TeamIds);
+        Assert.Null(tie.Mark);
+        factory.Clock.Now = new DateTimeOffset(Year, 7, 31, 23, 5, 0, TimeSpan.Zero);
+        await RollAsync();
+        Assert.Equal(1, (int)(await LadderOfAsync(players[0].Client, leagueId)).Stage!.Number);
+    }
+
+    [Fact]
+    public async Task A_tie_is_the_Players_to_mark_only_once_every_Game_is_scored_none_not_played_and_only_by_its_Division()
+    {
+        var (manager, leagueId, players, teams) = await FoursomesAsync(Eight);
+        await StartAsync(manager, leagueId, teams, divisions: [4, 4]);
+        var ladder = await LadderOfAsync(manager, leagueId);
+        // After one Game, Cat and Dan share last, but two Games are still to play.
+        (await SubmitAsync(players[0].Client, PairedGame(ladder.Divisions[0], teams, 0, 1).Id, players[0].PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        Assert.Equal("no-tie-to-mark", await ProblemTypeAsync(await MarkAsync(players[2], leagueId, 1, "Down", teams[2]), HttpStatusCode.Conflict));
+
+        // Division 2 with a Game not played is the Manager's alone.
+        foreach (var partner in new[] { 5, 6 })
+        {
+            (await SubmitAsync(players[4].Client, PairedGame(ladder.Divisions[1], teams, 4, partner).Id, players[4].PlayerId, [Set(6, 2)])).EnsureSuccessStatusCode();
+        }
+        (await VoidAsync(manager, PairedGame(ladder.Divisions[1], teams, 4, 7).Id)).EnsureSuccessStatusCode();
+        Assert.Empty((await LadderOfAsync(manager, leagueId)).Divisions[1].PlayersTies);
+        Assert.Equal("no-tie-to-mark", await ProblemTypeAsync(await MarkAsync(players[5], leagueId, 2, "Up", teams[5]), HttpStatusCode.Conflict));
+
+        // Someone from another Division, or someone not level there, can't settle it.
+        var (_, otherLeague, others, otherTeams, _) = await LevelForLastAsync();
+        Assert.Equal("not-in-division", await ProblemTypeAsync(await MarkAsync(others[4], otherLeague, 1, "Down", otherTeams[1]), HttpStatusCode.Forbidden));
+        Assert.Equal(["Pick one of the Players level there."], (await ErrorsAsync(await MarkAsync(others[1], otherLeague, 1, "Down", otherTeams[0])))["teamId"]);
+        Assert.Equal(HttpStatusCode.NotFound, (await MarkAsync(players[0], otherLeague, 1, "Down", otherTeams[1])).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_automatic_close_refuses_an_order_read_before_the_answer_changed()
+    {
+        var (_, leagueId, players, teams, _) = await LevelForLastAsync("Automatic");
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+        var asRead = Order([teams[0], teams[2], teams[3], teams[1]], [.. teams[4..]]);
+        // Dan says Cat instead, after the job read the ladder with Bob last.
+        (await MarkAsync(players[3], leagueId, 1, "Down", teams[2])).EnsureSuccessStatusCode();
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TennisDbContext>();
+        var closed = await SocialTennis.Api.Features.Leagues.StageClose.CloseAsync(
+            db, leagueId, asRead, [], new DateOnly(Year, 8, 1), new DateOnly(Year, 8, 31), factory.Clock, CancellationToken.None, ordersTies: false);
+
+        Assert.Equal(SocialTennis.Api.Features.Leagues.CloseRefusal.StandingsChanged, closed.Refusal);
+        Assert.Equal(1, (int)(await LadderOfAsync(players[0].Client, leagueId)).Stage!.Number);
+    }
+
+    [Fact]
+    public async Task Nobody_marks_a_tie_once_the_League_has_ended()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync(endDate: $"{Year}-07-31");
+        (await CloseAsync(manager, leagueId, Order([.. teams[..4]], [.. teams[4..]]))).EnsureSuccessStatusCode();
+
+        Assert.Equal("stage-closed", await ProblemTypeAsync(await MarkAsync(players[1], leagueId, 1, "Down", teams[1]), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task In_a_middle_Division_all_level_one_Player_cant_go_both_up_and_down()
+    {
+        var (manager, leagueId, players, teams) = await FoursomesAsync([.. Eight, "Ivy", "Jim", "Kay", "Lee"]);
+        await StartAsync(manager, leagueId, teams, divisions: [4, 4, 4]);
+        // Division 2's three Games all stop at 3–3: each of Eve, Fay, Gus and Hal banks 9, level for both first and last.
+        var middle = (await LadderOfAsync(manager, leagueId)).Divisions[1];
+        foreach (var partner in new[] { 5, 6, 7 })
+        {
+            (await SubmitAsync(players[4].Client, PairedGame(middle, teams, 4, partner).Id, players[4].PlayerId, [Set(3, 3)], retirementWinner: 1))
+                .EnsureSuccessStatusCode();
+        }
+        Assert.Equal([TieMarkPlace.Up, TieMarkPlace.Down], (await LadderOfAsync(manager, leagueId)).Divisions[1].PlayersTies.Select(t => t.Place));
+
+        (await MarkAsync(players[5], leagueId, 2, "Up", teams[4])).EnsureSuccessStatusCode();
+        Assert.Equal(
+            ["They're already marked to go the other way."],
+            (await ErrorsAsync(await MarkAsync(players[5], leagueId, 2, "Down", teams[4])))["teamId"]);
+        // Both answered: Eve up, Hal down, and the tie no longer waits.
+        (await MarkAsync(players[6], leagueId, 2, "Down", teams[7])).EnsureSuccessStatusCode();
+        var ladder = await LadderOfAsync(manager, leagueId);
+        Assert.Equal(
+            [(teams[4], StandingMove.Up), (teams[5], StandingMove.Stays), (teams[6], StandingMove.Stays), (teams[7], StandingMove.Down)],
+            ladder.Divisions[1].Standings.Select(s => (s.TeamId, s.Move!.Value)));
+        Assert.DoesNotContain(ladder.Awaiting.Ties, tie => tie.Division == 2);
+    }
+
+    [Fact]
+    public async Task An_ended_Leagues_ladder_has_no_tie_left_for_its_Players()
+    {
+        var (manager, leagueId, players, teams, _) = await LevelForLastAsync(endDate: $"{Year}-07-31");
+        (await MarkAsync(players[1], leagueId, 1, "Down", teams[1])).EnsureSuccessStatusCode();
+        (await CloseAsync(manager, leagueId, Order([.. teams[..4]], [.. teams[4..]]))).EnsureSuccessStatusCode();
+
+        Assert.All((await LadderOfAsync(players[0].Client, leagueId)).Divisions, d => Assert.Empty(d.PlayersTies));
     }
 }

@@ -109,6 +109,13 @@ public static class LeaguesEndpoints
         league.MapGet("/ladder", GetLeagueLadder.HandleAsync)
             .WithName(nameof(GetLeagueLadder));
 
+        // A Foursomes tie the Division's Players settle (#14 part 3): a Player they hold, in that Division.
+        league.MapPut("/tie-marks", MarkTie.HandleAsync)
+            .ValidatesBody<MarkTieRequest, MarkTieRequest.Validator>()
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName(nameof(MarkTie));
+
         // The Player's side: any signed-in User, for a Player they hold.
         league.MapPost("/join-requests", AskToJoinLeague.HandleAsync)
             .ValidatesBody<AskToJoinLeagueRequest, AskToJoinLeagueRequest.Validator>()

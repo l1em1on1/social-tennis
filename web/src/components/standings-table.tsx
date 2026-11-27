@@ -34,7 +34,7 @@ const difference = (standing: Standing) => {
  *
  * A Foursomes Division (#14, ADR-0036) lists its 4 Players with the Games
  * they played and the games they banked, which alone rank them; Players
- * level where it decides a move are the Manager's to order, and a Game not
+ * level where it decides a move say who goes (#14 part 3), and a Game not
  * played leaves the whole Division to the Manager.
  */
 export function StandingsTable({
@@ -60,7 +60,7 @@ export function StandingsTable({
   const rule = foursomes
     ? foursomes.gameNotPlayed
       ? "A game wasn't played, so the Manager decides who moves."
-      : "Ranked by games banked: the games your side won in each game. Players level for a place that moves are the Manager's to order. The middle two stay."
+      : "Ranked by games banked: the games your side won in each game. Players level for a place that moves say who goes, and the Manager can change it at the close. The middle two stay."
     : STANDINGS_MODES.find((mode) => mode.value === (points ? "BonusPoints" : "Standard"))!.rule;
   return (
     <div className="flex flex-col gap-2">
