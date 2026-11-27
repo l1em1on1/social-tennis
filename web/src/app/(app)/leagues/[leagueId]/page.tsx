@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResultStatusBadge } from "@/components/result-status-badge";
 import { HeldUpBanner } from "@/components/held-up-banner";
+import { describeArrangement } from "@/components/game-arrangement";
 import { StandingsTable } from "@/components/standings-table";
 import { TieMarkForm, describePlayersTie, markedOtherWay } from "@/components/tie-mark-form";
 import { Badge } from "@/components/ui/badge";
@@ -238,6 +239,9 @@ export default async function LadderPage({ params, searchParams }: PageProps<"/l
                         >
                           <span className={cx("min-w-0 break-words", ourGame && "font-semibold")}>
                             {gameLabel(game, nameOf, myTeams)}
+                            {!score && !game.notPlayed && game.date && (
+                              <span className="block text-xs font-normal text-fg-muted">{describeArrangement(game.date, game.court)}</span>
+                            )}
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {/* From the side named first: a Foursomes Player's own pair may be Side 2. */}

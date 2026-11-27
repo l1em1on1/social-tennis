@@ -1070,3 +1070,73 @@ export async function markTie(formData: FormData) {
   revalidatePath("/", "layout");
   redirect(`${back}?tie=marked`);
 }
+
+/** A whole day as the API takes it: YYYY-MM-DD. */
+const isDay = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+/**
+ * A Player saves the days they're free in their League's current Stage (#9),
+ * every one ticked, replacing the last list. The Player is the one this
+ * login acts as, checked against the ones it holds; the API checks again.
+ */
+export async function saveAvailability(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const playerId = formData.get("playerId");
+  const dates = formData.getAll("dates").filter(isDay);
+  if (!isId(leagueId) || !isId(playerId)) return;
+  const viewer = await getViewer();
+  if (!viewer.players.some((player) => player.id === playerId)) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.PUT("/leagues/{leagueId}/players/{playerId}/availability", {
+    params: { path: { leagueId, playerId } },
+    body: { dates },
+  });
+  // 400: a day the Stage no longer takes; 404/409: the Stage closed meanwhile. The page shows how things stand.
+  if (response.status === 400 || response.status === 404 || response.status === 409) {
+    redirect(`/leagues/${leagueId}/availability?saved=refused`);
+  }
+  if (!response.ok) {
+    throw new Error(`PUT /leagues/${leagueId}/players/${playerId}/availability failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/leagues/${leagueId}/availability?saved=1`);
+}
+
+/**
+ * A Player in a Game sets the Date its Players agreed, and the Court note
+ * (#9); an empty Date clears it. The last change stands. Back to the Game,
+ * which says how it went.
+ */
+export async function arrangeGame(formData: FormData) {
+  const gameId = formData.get("gameId");
+  const playerId = formData.get("playerId");
+  const date = formData.get("date");
+  const court = formData.get("court");
+  if (!isId(gameId) || !isId(playerId)) return;
+  const viewer = await getViewer();
+  if (!viewer.players.some((player) => player.id === playerId)) return;
+  // Only an empty field clears the Date: anything else that isn't a day is refused, not taken as "none".
+  if (typeof date === "string" && date.trim() !== "" && !isDay(date)) {
+    redirect(`/games/${gameId}?refused=arrange-invalid`);
+  }
+
+  const api = await apiWithSession();
+  const { error, response } = await api.PUT("/games/{gameId}/date", {
+    params: { path: { gameId } },
+    body: { playerId, date: isDay(date) ? date : null, court: typeof court === "string" && court.trim() ? court : null },
+  });
+  if (response.status === 400) {
+    redirect(`/games/${gameId}?refused=arrange-invalid`);
+  }
+  if (response.status === 403 || response.status === 409) {
+    const type = error && "type" in error && typeof error.type === "string" ? error.type : "not-in-game";
+    // Its own wording on the Game: the Score's refusals with the same types talk about scores.
+    redirect(`/games/${gameId}?refused=arrange-${encodeURIComponent(type)}`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`PUT /games/${gameId}/date failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+  redirect(`/games/${gameId}${response.ok ? "?saved=arranged" : ""}`);
+}

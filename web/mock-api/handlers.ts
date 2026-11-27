@@ -22,6 +22,9 @@ import {
   fixtureMembers,
   fixturePlayersOf,
   fixtureUsers,
+  fixtureDateSetBy,
+  fixtureFreeDays,
+  fixtureGameAvailability,
 } from "./fixture";
 
 /**
@@ -200,6 +203,25 @@ export const handlers = [
       })
       .sort((a, b) => a.stage.endDate.localeCompare(b.stage.endDate) || a.leagueName.localeCompare(b.leagueName));
     return response(200).json({ leagues, page: wholeList(leagues.length) });
+  }),
+
+  // A Player's own free days in a League's current Stage (#9). Saving them is a write: the server answers 501.
+  http.get("/leagues/{leagueId}/players/{playerId}/availability", ({ request, params, response }) => {
+    const league = fixtureLeaguePages[params.leagueId];
+    const ladder = fixtureLadders[params.leagueId];
+    if (
+      !playerIdsOf(emailOf(request) ?? "").has(params.playerId) ||
+      !league?.participants.some((p) => p.playerId === params.playerId) ||
+      !ladder?.stage ||
+      STAGE_CLOSED[params.leagueId]
+    ) {
+      return response(404).empty();
+    }
+    return response(200).json({
+      stage: ladder.stage,
+      dates: fixtureFreeDays[params.leagueId]?.[params.playerId] ?? [],
+      lastDay: ladder.stage.endDate,
+    });
   }),
 
   // The Leagues of the Player's Clubs, and the ones they're in (#5, #7).
@@ -422,11 +444,14 @@ export const handlers = [
       managers: league.managers.map(({ name }) => ({ name })),
       timeZone: TIME_ZONE,
       today: FIXTURE_TODAY,
-      // Arranging it (#9): the fixed world has no Date, Court or free days yet.
+      // Arranging it (#9): the days that suit everyone reach only its own Players, while it has no score.
       date: game.date ?? null,
       court: game.court ?? null,
-      dateSetBy: null,
-      availability: null,
+      dateSetBy: fixtureDateSetBy[game.id] ?? null,
+      availability:
+        yourPlayerIds.length > 0 && !game.score && !game.notPlayed && !STAGE_CLOSED[league.id]
+          ? (fixtureGameAvailability[game.id] ?? { sharedDates: [], notGiven: [] })
+          : null,
     });
   }),
 
