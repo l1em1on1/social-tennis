@@ -21,6 +21,17 @@ capabilities:
         - command: [rtk, init, -g, --auto-patch]
           user: agent
           description: Register RTK's PreToolUse hook in Claude Code's global settings
+        # security-guidance's commit review runs on `Bash(git*commit*)` and
+        # `Bash(git*push*)`, which a rewritten `rtk git commit` doesn't match.
+        - command:
+            - sh
+            - -c
+            - |
+              set -e
+              mkdir -p "$HOME/.config/rtk"
+              printf '[hooks]\nexclude_commands = ["git commit", "git push"]\n' > "$HOME/.config/rtk/config.toml"
+          user: agent
+          description: Leave git commit and git push unrewritten, for security-guidance's commit review
 
   - type: com.docker.sandbox/agent-context@1
     optional: true

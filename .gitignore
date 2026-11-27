@@ -19,3 +19,6 @@ Thumbs.db
 
 # Claude Code worktrees (#185): .claude/hooks/worktree-create.sh makes them here.
 /.claude/worktrees/
+
+# Snapshots and console logs of the Playwright MCP plugin (ADR-0025)
+.playwright-mcp/

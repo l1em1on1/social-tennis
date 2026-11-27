@@ -2,7 +2,7 @@
 schemaVersion: "3"
 kind: mixin
 displayName: Social Tennis toolchain
-description: ".NET SDK, Node, csharp-ls and typescript-language-server, with Claude Code's two LSP plugins and its frontend-design plugin"
+description: ".NET SDK, Node, csharp-ls, typescript-language-server and Chromium, with the project's Claude Code plugins"
 sourceUrl: https://github.com/l1em1on1/social-tennis
 
 # Replaces the custom template (.sbx/Dockerfile) of the v2 setup (#175). The
@@ -20,13 +20,44 @@ provides:
 requires:
   - claude
 
+# The Playwright plugin's MCP server (npx @playwright/mcp@latest) is configured
+# only through these: the plugin fixes its arguments. Debian's Chromium, because
+# Playwright's own browser download host needs an approval on each machine.
+args:
+  playwrightMcpBrowser:
+    default: chromium
+    env: PLAYWRIGHT_MCP_BROWSER
+    description: Browser the Playwright MCP server drives
+  playwrightMcpExecutablePath:
+    default: /usr/bin/chromium
+    env: PLAYWRIGHT_MCP_EXECUTABLE_PATH
+    description: Debian's Chromium, installed by the hook below
+  playwrightMcpHeadless:
+    default: "true"
+    env: PLAYWRIGHT_MCP_HEADLESS
+    description: The sandbox has no display
+  playwrightMcpIsolated:
+    default: "true"
+    env: PLAYWRIGHT_MCP_ISOLATED
+    description: Keep the browser profile in memory, so no session's cookies outlive it
+
 capabilities:
-  # The marketplace is a git repository on GitHub, cloned once at creation.
+  # Install: the marketplace is a git repository on GitHub, cloned once at
+  # creation, and apt fetches Chromium. Runtime: the Playwright MCP server is
+  # fetched from npm on each start, and security-guidance installs the Agent
+  # SDK from PyPI into a venv on its first session.
   - type: com.docker.sandbox/network-policy@1
     config:
       install:
         allow:
           - github.com
+          - deb.debian.org
+          - dhi.io
+      runtime:
+        allow:
+          - registry.npmjs.org
+          - pypi.org
+          - files.pythonhosted.org
 
   - type: com.docker.sandbox/lifecycle@1
     config:
@@ -42,8 +73,22 @@ capabilities:
               claude plugin install csharp-lsp@claude-plugins-official
               claude plugin install typescript-lsp@claude-plugins-official
               claude plugin install frontend-design@claude-plugins-official
+              claude plugin install code-review@claude-plugins-official
+              claude plugin install code-simplifier@claude-plugins-official
+              claude plugin install feature-dev@claude-plugins-official
+              claude plugin install playwright@claude-plugins-official
+              claude plugin install security-guidance@claude-plugins-official
           user: agent
-          description: Install Claude Code's C# and TypeScript LSP plugins, and its frontend-design plugin
+          description: Install the Claude Code plugins the project enables in .claude/settings.json
+        - command:
+            - sh
+            - -c
+            - |
+              set -e
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium
+          user: "0"
+          description: Install Debian's Chromium for the Playwright plugin's MCP server
 
   # The claude kit accepts either context version; the runtime picks one.
   - type: com.docker.sandbox/agent-context@1
@@ -53,8 +98,9 @@ capabilities:
         # Toolchain
 
         The .NET 10 SDK, Node 24, `csharp-ls` and `typescript-language-server` are on
-        PATH for the LSP plugins only. Builds, tests, migrations and installs run as
-        compose services (CLAUDE.md).
+        PATH for the LSP plugins only, and Chromium for the Playwright plugin's
+        browser. Builds, tests (Playwright e2e included), migrations and installs
+        run as compose services (CLAUDE.md).
 
   - type: com.docker.sandbox/agent-context@2
     optional: true

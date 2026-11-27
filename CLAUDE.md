@@ -38,7 +38,7 @@ Report in a few lines: what changed, what was checked (the command and its resul
 
 ## RTK
 
-RTK compacts command output; its hook rewrites Bash commands (`git status` becomes `rtk git status`). Wrap a compose run to see only failures, and use `rtk proxy <cmd>` for the raw output:
+RTK compacts command output; its hook rewrites Bash commands (`git status` becomes `rtk git status`), except `git commit` and `git push`, which `security-guidance` reviews: run them as plain `git commit` and `git push` in the worktree. Wrap a compose run to see only failures, and use `rtk proxy <cmd>` for the raw output:
 
 ```bash
 rtk test docker compose --profile e2e run --rm e2e       # Playwright
