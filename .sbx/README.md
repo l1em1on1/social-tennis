@@ -11,10 +11,12 @@ this way: ADR-0025.
 
 - `kits/toolchain/`: the .NET 10 SDK (with ICU), Node 24, `csharp-ls` and
   `typescript-language-server`, linked into `/usr/local/bin`, plus install
-  hooks that add the Claude Code plugins `.claude/settings.json` enables and
-  Debian's Chromium, the browser the `playwright` plugin's MCP server drives
-  (headless, set by the kit's `PLAYWRIGHT_MCP_*` args). It allows egress to npm
-  and PyPI, which that server and `security-guidance` fetch from.
+  hooks that add Debian's Chromium and the Claude Code plugins in
+  `.claude/settings.json`, from a list kept by hand in the hook (add a line
+  there with each new plugin; `context7` comes from its own kit). Chromium is
+  the browser the `playwright` plugin's MCP server drives (headless, set by the
+  kit's `PLAYWRIGHT_MCP_*` args). It allows egress to npm and PyPI, which that
+  server and `security-guidance` fetch from.
 - `kits/context7/`: the Context7 MCP server's API key, through the sandbox
   proxy, and the Context7 plugin.
 - `kits/github/`: `gh` (issues, PRs) and `git push` to github.com over HTTPS as

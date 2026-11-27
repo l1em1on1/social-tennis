@@ -79,7 +79,7 @@ capabilities:
               claude plugin install playwright@claude-plugins-official
               claude plugin install security-guidance@claude-plugins-official
           user: agent
-          description: Install the Claude Code plugins the project enables in .claude/settings.json
+          description: Install the plugins in .claude/settings.json, all but context7 (its own kit); kept by hand, so a new plugin needs a line here
         - command:
             - sh
             - -c
