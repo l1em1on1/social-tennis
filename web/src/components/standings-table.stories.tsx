@@ -172,3 +172,12 @@ export const FoursomesGameNotPlayed: Story = {
     await expect(canvas.getByText(/^A game wasn't played, so the Manager decides who moves\./)).toBeVisible();
   },
 };
+
+/** A Team that has withdrawn (#21) keeps its row until the close, marked beside its name. */
+export const Withdrawn: Story = {
+  args: { withdrawn: ["t4"] },
+  play: async ({ canvas }) => {
+    await expect(rows(canvas)[3]).toHaveTextContent("4Ravi Rao Withdrawn");
+    await expect(within(rows(canvas)[3]).getByText("Withdrawn")).toBeVisible();
+  },
+};

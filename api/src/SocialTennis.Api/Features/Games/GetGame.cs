@@ -56,6 +56,7 @@ public static class GetGame
                         s.Side,
                         s.TeamId,
                         Place = db.LadderPlaces.Where(p => p.StageId == g.StageId && p.TeamId == s.TeamId).Select(p => p.Position).FirstOrDefault(),
+                        Withdrawn = s.Team.WithdrawnAt != null,
                         Players = s.Team.Members
                             .OrderBy(m => m.JoinedAt)
                             .ThenBy(m => m.PlayerId)
@@ -153,7 +154,8 @@ public static class GetGame
                         teams[0].Side,
                         teams[0].TeamId,
                         [.. teams.SelectMany(t => t.Players)],
-                        teams.Count > 1 ? teams[1].TeamId : null)),
+                        teams.Count > 1 ? teams[1].TeamId : null,
+                        teams.Any(t => t.Withdrawn))),
             ],
             score,
             game.NotPlayed,

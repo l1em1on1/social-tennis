@@ -78,6 +78,22 @@ public partial class ScoreTests
     }
 
     [Fact]
+    public async Task The_Match_screen_says_which_side_has_withdrawn()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        var league = await ManagedAsync(game.Manager, game.LeagueId);
+        var vic = TeamOf(league, game.Vic.PlayerId);
+        Assert.All((await GameAsync(game.Una.Client, game.GameId)).Sides, side => Assert.False(side.Withdrawn));
+
+        (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{vic}/withdrawal", null)).EnsureSuccessStatusCode();
+
+        // Una, his opponent, sees that Vic has left: their Game won't be played.
+        Assert.Equal(
+            [(vic, true)],
+            (await GameAsync(game.Una.Client, game.GameId)).Sides.Where(side => side.Withdrawn).Select(side => (side.TeamId, side.Withdrawn)));
+    }
+
+    [Fact]
     public async Task The_Manager_withdraws_a_Team_directly_and_a_replacement_takes_its_place_at_the_close()
     {
         var game = await SinglesAsync(OneSetOf6);

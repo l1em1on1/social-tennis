@@ -1333,3 +1333,112 @@ test("two Players tick their free days, see the day that suits both, and agree t
   await expect(vicPage.getByRole("status").filter({ hasText: "marked this game as not played, so it isn't arranged" })).toBeVisible();
   await vicContext.close();
 });
+
+test("a Player asks to leave and takes it back, a Manager declines one and accepts another, withdraws a Team directly, and the close takes both off the ladder", async ({
+  page,
+  browser,
+}, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Leaving Ladder");
+  const players = ["Una Leaves", "Vic Leaves", "Wes Leaves", "Xan Leaves"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `leaves-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [una, vic, wes, xan] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  await createLeague(page, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+
+  // Vic asks to leave from his card on Leagues, takes it back, and asks again.
+  const vicContext = await browser.newContext();
+  const vicPage = await vicContext.newPage();
+  await logIn(vicPage, testInfo, vic.email);
+  await vicPage.goto("/leagues");
+  const vicCard = vicPage.getByRole("region", { name: league });
+  const ask = async () => {
+    await vicCard.getByRole("button", { name: "Ask to leave" }).click();
+    await expect(vicPage.getByRole("dialog", { name: `Leave ${league}?` })).toContainText("until Stage 1 closes");
+    await vicPage.getByRole("button", { name: `Ask to leave ${league}` }).click();
+    await expect(vicCard.getByText("Asked to leave")).toBeVisible();
+  };
+  await ask();
+  await expectNoSeriousA11yViolations(vicPage);
+  await vicCard.getByRole("button", { name: `Take back the request to leave ${league}` }).click();
+  await expect(vicCard.getByRole("button", { name: "Ask to leave" })).toBeVisible();
+  await ask();
+
+  // Wes asks too; the Manager declines his, and Wes sees it.
+  const wesContext = await browser.newContext();
+  const wesPage = await wesContext.newPage();
+  await logIn(wesPage, testInfo, wes.email);
+  await wesPage.goto("/leagues");
+  const wesCard = wesPage.getByRole("region", { name: league });
+  await wesCard.getByRole("button", { name: "Ask to leave" }).click();
+  await wesPage.getByRole("button", { name: `Ask to leave ${league}` }).click();
+  await expect(wesCard.getByText("Asked to leave")).toBeVisible();
+
+  await page.goto(leaguePage);
+  const requests = page.getByRole("list", { name: "Requests to leave" }).getByRole("listitem");
+  await expect(requests).toHaveText([new RegExp(vic.name), new RegExp(wes.name)]);
+  await expectNoSeriousA11yViolations(page);
+  await page.getByRole("button", { name: `Decline ${wes.name}'s request to leave` }).click();
+  await expect(requests).toHaveText([new RegExp(vic.name)]);
+  await wesPage.reload();
+  await expect(wesCard.getByText(/A manager kept you in the league/)).toBeVisible();
+  await wesContext.close();
+
+  // The Manager accepts Vic's, after a sheet that says what follows, and withdraws Xan directly.
+  await page.getByRole("button", { name: `Accept ${vic.name} leaving` }).click();
+  await expect(page.getByRole("dialog", { name: `${vic.name} leaving?` })).toContainText("Its games without a score go to your to-do");
+  await page.getByRole("button", { name: `Accept: ${vic.name} leaves the league` }).click();
+  await expect(page.getByRole("list", { name: "Requests to leave" })).toHaveCount(0);
+  const playerRow = (name: string) => page.getByRole("list", { name: "Players in the league" }).getByRole("listitem").filter({ hasText: name });
+  await expect(playerRow(vic.name)).toContainText("Withdrawn");
+  await playerRow(xan.name).getByRole("button", { name: `Withdraw ${xan.name}` }).click();
+  await page.getByRole("button", { name: "Withdraw from the league" }).click();
+  await expect(playerRow(xan.name)).toContainText("Withdrawn");
+  await expect(playerRow(una.name).getByRole("button", { name: `Withdraw ${una.name}` })).toBeVisible();
+  await expect(playerRow(vic.name).getByRole("button", { name: `Withdraw ${vic.name}` })).toHaveCount(0);
+
+  // Vic's card says he has left; on the ladder he's marked, and his Games say why they won't be played.
+  await vicPage.reload();
+  await expect(vicCard.getByText(/You left this league on .*The place stays on the ladder until Stage 1 closes/)).toBeVisible();
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings.filter({ hasText: vic.name })).toContainText("Withdrawn");
+  await expect(standings.filter({ hasText: una.name })).not.toContainText("Withdrawn");
+  await page.getByRole("list", { name: "Division 1 Games" }).getByRole("link", { name: new RegExp(`${una.name} v ${vic.name}|${vic.name} v ${una.name}`) }).click();
+  await expect(page.getByRole("note").filter({ hasText: "left the league, so this game won't be played" })).toContainText(vic.name);
+  await expectNoSeriousA11yViolations(page);
+
+  // The Manager marks every Game left not played, then closes: Vic and Xan leave, nobody else moves.
+  await page.goto(leaguePage);
+  const toDo = page.getByRole("region", { name: "To do" });
+  for (let left = 6; left > 0; left--) {
+    await toDo.getByRole("link", { name: "Settle" }).first().click();
+    await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+    await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+    await page.goto(leaguePage);
+  }
+  await toDo.getByRole("link", { name: "Close Stage 1" }).click();
+  const order = page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem");
+  await expect(order.filter({ hasText: vic.name })).toContainText("leaves");
+  await expect(order.filter({ hasText: xan.name })).toContainText("leaves");
+  await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toBeVisible();
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  await expect(standings).toHaveText([new RegExp(una.name), new RegExp(wes.name)]);
+  await vicPage.reload();
+  await expect(vicCard.getByText(/You left this league on .*Results already played stay\./)).toBeVisible();
+  await vicContext.close();
+});

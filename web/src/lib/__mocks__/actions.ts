@@ -6,9 +6,9 @@
  * An action never finishes, so a pressed button stays in its pending state.
  * `createLeague` answers with a refusal, so the setup form shows its errors.
  */
-import type { CloseStageState, CreateLeagueState, JoinRefusal, SubmitScoreState } from "../actions";
+import type { CloseStageState, CreateLeagueState, JoinRefusal, SubmitScoreState, WithdrawalRefusal } from "../actions";
 
-export type { CloseStageState, CreateLeagueState, JoinRefusal, SubmitScoreState };
+export type { CloseStageState, CreateLeagueState, JoinRefusal, SubmitScoreState, WithdrawalRefusal };
 
 const pending = () => new Promise<never>(() => {});
 
@@ -44,6 +44,10 @@ export const approveLeagueJoinRequest = pending;
 export const rejectLeagueJoinRequest = pending;
 export const addLeagueParticipant = pending;
 export const removeLeagueParticipant = pending;
+export const askToWithdraw = pending;
+export const cancelWithdrawal = pending;
+export const decideWithdrawal = pending;
+export const withdrawTeam = pending;
 export const renameLeague = pending;
 export const startLeague = pending;
 

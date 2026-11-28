@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { DivisionMark } from "@/components/division-mark";
 import { GamesToSettle } from "@/components/games-to-settle";
 import { TeamPairingForm } from "@/components/team-pairing-form";
+import { WithdrawalConsequences, WithdrawalRequests } from "@/components/withdrawal-requests";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { ButtonRow } from "@/components/ui/button-stack";
@@ -23,6 +24,7 @@ import {
   renameLeague,
   unassignLeagueManager,
   unpairTeam,
+  withdrawTeam,
 } from "@/lib/actions";
 import type { components } from "@/lib/api/schema";
 import { apiWithSession } from "@/lib/api/server";
@@ -110,12 +112,22 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
   const canStart = !stage && league.structure === "Divisional";
   const teamOf = (teamId: string | null) => league.teams.find((team) => team.id === teamId);
   const onLadder = (teamId: string | null) => teamOf(teamId)?.position != null;
+  const teamName = (teamId: string | null) => teamOf(teamId)?.playerIds.map(nameOf).join(" & ") ?? "";
+  // A Withdrawn Team (#21) keeps its place until the close, then leaves the ladder.
   const placeBadge = (teamId: string | null) => {
     if (!stage) return null;
     const team = teamOf(teamId);
-    if (team?.position == null) return <Badge>Not on the ladder</Badge>;
-    return <DivisionMark division={Number(team.division)} />;
+    const withdrawn = team?.withdrawn && <Badge>Withdrawn</Badge>;
+    if (team?.position == null) return withdrawn || <Badge>Not on the ladder</Badge>;
+    return (
+      <>
+        <DivisionMark division={Number(team.division)} /> {withdrawn}
+      </>
+    );
   };
+  // Withdrawing (#21): a Team on the ladder of a Stage still open, that hasn't already.
+  const canWithdraw = (teamId: string | null) => Boolean(stage && !ladder?.ended && onLadder(teamId) && !teamOf(teamId)?.withdrawn);
+  const foursomes = league.type === "Foursomes";
 
   return (
     <>
@@ -217,13 +229,22 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
       {error === "on-the-ladder" && (
         <ErrorState
           title="They're on the ladder"
-          description="Once the league has started, a team on its ladder stays together and in the league. Leaving it is a withdrawal, which isn't built yet."
+          description="Once the league has started, a team on its ladder stays together and in the league. To take it out, withdraw it: it leaves the ladder when the Stage closes."
         />
       )}
       {error === "not-in-club" && (
         <ErrorState
           title="That wasn't given"
           description="Only someone with a player in the club can run one of its leagues, and they may have left it since."
+        />
+      )}
+      {error === "withdrawal-decided" && (
+        <ErrorState title="That request was already decided" description="Another manager accepted or declined it first. The lists below are up to date." />
+      )}
+      {error === "withdrawal-off-ladder" && (
+        <ErrorState
+          title="That team can't withdraw now"
+          description="It isn't on the ladder of an open Stage any more: the Stage has closed, or the league has ended."
         />
       )}
       {error === "conflict" && (
@@ -246,6 +267,19 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
           </dl>
         </Card>
 
+        {stage && (
+          <WithdrawalRequests
+            leagueId={league.id}
+            stageNumber={Number(stage.number)}
+            foursomes={foursomes}
+            requests={league.withdrawalRequests.map((request) => ({
+              id: request.id,
+              playerName: request.playerName,
+              teamName: teamName(request.teamId) || request.playerName,
+              requestedAt: request.requestedAt,
+            }))}
+          />
+        )}
         <Card title="Join requests" aside={pending.length > 0 && <Badge tone="warning">{`${pending.length} waiting`}</Badge>}>
           {pending.length === 0 ? (
             <p className="text-sm text-fg-muted">Nobody is waiting.</p>
@@ -315,7 +349,30 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                     <p className="text-sm text-fg-muted">Joined {formatDate(participant.joinedAt.slice(0, 10))}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    {/* Behind a sheet: removing is one tap away from a name in a list. On the ladder, leaving is a Withdrawal (#21). */}
+                    {/* On the ladder, leaving is a Withdrawal (#21), behind a sheet that says what follows. */}
+                    {stage && canWithdraw(participant.teamId) && (
+                      <Sheet
+                        title={`Withdraw ${teamName(participant.teamId)}?`}
+                        triggerIcon="leave"
+                        triggerTone="danger"
+                        triggerWord="Withdraw"
+                        trigger={`Withdraw ${teamName(participant.teamId)}`}
+                      >
+                        <WithdrawalConsequences
+                          teamName={teamName(participant.teamId)}
+                          stageNumber={Number(stage.number)}
+                          foursomes={foursomes}
+                        />
+                        <form action={withdrawTeam}>
+                          <input type="hidden" name="leagueId" value={league.id} />
+                          <input type="hidden" name="teamId" value={participant.teamId ?? ""} />
+                          <SubmitButton variant="danger" fullWidth pendingLabel="Withdrawing…">
+                            Withdraw from the league
+                          </SubmitButton>
+                        </form>
+                      </Sheet>
+                    )}
+                    {/* Behind a sheet: removing is one tap away from a name in a list. */}
                     {!onLadder(participant.teamId) && (
                     <Sheet
                       title={`Remove ${participant.name}?`}

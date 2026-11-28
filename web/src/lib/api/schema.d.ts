@@ -1094,6 +1094,8 @@ export interface components {
             players: components["schemas"]["GamePlayer"][];
             /** Format: uuid */
             partnerTeamId?: null | string;
+            /** @default false */
+            withdrawn: boolean;
         };
         GameStage: {
             /** Format: int32 */

@@ -420,6 +420,8 @@ export const handlers = [
       teamId: teams[0],
       players: sidePlayers(division, teams),
       partnerTeamId: teams[1] ?? null,
+      // As the API says it (#21): a side whose Team, or in Foursomes either Player's, has withdrawn.
+      withdrawn: teams.some((teamId) => division.competitors.some((c) => c.teamId === teamId && c.withdrawn)),
     }));
     const yourPlayerIds = sides.flatMap((side) => side.players).filter((p) => mine.has(p.playerId)).map((p) => p.playerId);
     const canManage = rolesOf(email).runs(league);

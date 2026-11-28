@@ -203,6 +203,7 @@ export default async function LadderPage({ params, searchParams }: PageProps<"/l
                   standings={division.standings}
                   names={divisionNames}
                   mine={division.competitors.filter(isMe).map((competitor) => competitor.teamId)}
+                  withdrawn={division.competitors.filter((competitor) => competitor.withdrawn).map((competitor) => competitor.teamId)}
                 />
                 {/* A Foursomes tie its Players settle (#14 part 3): theirs to say; everyone else reads it. */}
                 {division.playersTies.map((playersTie) =>
