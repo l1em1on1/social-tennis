@@ -29,6 +29,7 @@ const running: PlayerLeague = {
   stage: { number: 1, startDate: "2026-12-01", endDate: "2026-12-31" },
   place: { division: 2, opponents: [{ teamId: "t2", names: ["Omar Ali"] }] },
   withdrawal: null,
+  ended: false,
 };
 
 const meta = {
@@ -128,5 +129,24 @@ export const NotStarted: Story = {
   args: { league: { ...running, stage: null, place: null } },
   play: async ({ canvas }) => {
     await expect(canvas.queryByRole("button", { name: "Ask to leave" })).toBeNull();
+  },
+};
+
+/** The League has ended (#277 review): its last Stage's place is still there, but there's nothing to leave. */
+export const Ended: Story = {
+  args: { league: { ...running, ended: true } },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByRole("button", { name: "Ask to leave" })).toBeNull();
+  },
+};
+
+/** Withdrawn in the last Stage, after it closed: no "until Stage 1 closes", only that results stay. */
+export const WithdrawnInAnEndedLeague: Story = {
+  args: {
+    league: { ...running, ended: true, withdrawal: { status: "Accepted", requestedAt: "2026-12-10T09:00:00Z", decidedAt: "2026-12-11T18:00:00Z" } },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/You left this league on 11 Dec 2026\. Results already played stay\./)).toBeVisible();
+    await expect(canvas.queryByText(/until Stage 1 closes/)).toBeNull();
   },
 };

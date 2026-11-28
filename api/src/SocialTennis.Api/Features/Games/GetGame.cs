@@ -60,7 +60,7 @@ public static class GetGame
                         Players = s.Team.Members
                             .OrderBy(m => m.JoinedAt)
                             .ThenBy(m => m.PlayerId)
-                            .Select(m => new GamePlayer(m.PlayerId, m.Player.Name))
+                            .Select(m => new GamePlayer(m.PlayerId, m.Player.Name, s.Team.WithdrawnAt != null))
                             .ToList(),
                     })
                     .ToList(),

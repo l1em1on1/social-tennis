@@ -19,10 +19,11 @@ export function hasWithdrawn(league: PlayerLeague) {
  * Team has withdrawn, that it has; otherwise, for a Team on an open Stage's
  * ladder, a waiting request to take back, or Ask to leave behind a sheet
  * (with a Manager's earlier "no" above it). Before the start, or off the
- * ladder, a Player leaves by asking a Manager to take them out (#159).
+ * ladder, a Player leaves by asking a Manager to take them out (#159); once
+ * the League has ended, there's nothing left to leave.
  */
 export function LeagueWithdrawal({ league, playerId }: { league: PlayerLeague; playerId: string }) {
-  const { withdrawal, stage, place, partnerName } = league;
+  const { withdrawal, stage, place, partnerName, ended } = league;
   const who = partnerName ? `You and ${partnerName}` : "You";
 
   if (withdrawal?.status === "Accepted") {
@@ -31,14 +32,14 @@ export function LeagueWithdrawal({ league, playerId }: { league: PlayerLeague; p
         <Badge>Withdrawn</Badge>{" "}
         <span className="text-fg-muted">
           {who} left this league on {day(withdrawal.decidedAt)}.{" "}
-          {stage && place
+          {stage && place && !ended
             ? `The place stays on the ladder until Stage ${stage.number} closes, but the games without a score won't be played: a manager marks them not played. Results already played stay.`
             : "Results already played stay."}
         </span>
       </p>
     );
   }
-  if (!stage || !place) return null;
+  if (!stage || !place || ended) return null;
 
   if (withdrawal?.status === "Pending") {
     return (

@@ -1071,6 +1071,8 @@ export interface components {
             /** Format: uuid */
             playerId: string;
             name: string;
+            /** @default false */
+            withdrawn: boolean;
         };
         GameScore: {
             /** Format: date */
@@ -1568,6 +1570,8 @@ export interface components {
             stage: null | components["schemas"]["LeagueStageSummary"];
             place: null | components["schemas"]["PlayerLeaguePlace"];
             withdrawal?: null | components["schemas"]["PlayerLeagueWithdrawal"];
+            /** @default false */
+            ended: boolean;
         };
         PlayerLeagueJoinRequest: {
             status: components["schemas"]["LeagueJoinRequestStatus"];

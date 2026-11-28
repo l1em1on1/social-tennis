@@ -66,8 +66,11 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
   const manager = game.canManage;
   const { score, stage } = game;
   // A side that has withdrawn (#21): its Game isn't played, so nobody arranges it. A score from before still goes in.
-  const withdrawn = game.sides.filter((side) => side.withdrawn).map((side) => side.players.map((player) => player.name).join(" & "));
-  const leaving = !score && !game.notPlayed && withdrawn.length > 0;
+  // It names who left: in Foursomes, one Player of the pair, not their partner for this Game.
+  const withdrawn = game.sides
+    .map((side) => side.players.filter((player) => player.withdrawn).map((player) => player.name).join(" & "))
+    .filter((names) => names !== "");
+  const leaving = !score && !game.notPlayed && game.sides.some((side) => side.withdrawn);
   const stageName = `Stage ${stage.number}`;
   const refusals: Record<string, string> = {
     "already-scored": "Someone entered this game's score first. Here it is.",

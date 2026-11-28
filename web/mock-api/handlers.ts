@@ -117,6 +117,13 @@ const namesOf = (division: Schemas["LadderDivision"], teamId: string) =>
 /** A Side's Players: one Team's, or in Foursomes a pair of Teams of one (#14, ADR-0036). */
 const sidePlayers = (division: Schemas["LadderDivision"], teams: string[]) => teams.flatMap((teamId) => namesOf(division, teamId));
 
+/** As the Match screen gets them (#21): each Player, and whether their Team has withdrawn. */
+const gamePlayers = (division: Schemas["LadderDivision"], teams: string[]) =>
+  teams.flatMap((teamId) => {
+    const withdrawn = division.competitors.some((c) => c.teamId === teamId && c.withdrawn);
+    return namesOf(division, teamId).map((player) => ({ ...player, withdrawn }));
+  });
+
 export const handlers = [
   // In place of an email, as the real API's Log provider does: whoever runs the mock opens the link from its log.
   http.post("/auth/magic-link", async ({ request, response }) => {
@@ -262,6 +269,8 @@ export const handlers = [
               }
             : null,
         partnerRequest: namedIn ? { playerId: namedIn.playerId, name: namedIn.name, requestedAt: namedIn.requestedAt } : null,
+        // As its ladder says (#21): an ended League has nothing left to leave.
+        ended: ladder?.ended ?? false,
       };
     });
     return response(200).json({ leagues, page: wholeList(leagues.length) });
@@ -418,7 +427,7 @@ export const handlers = [
     const sides = sidesOf(game).map((teams, index) => ({
       side: index + 1,
       teamId: teams[0],
-      players: sidePlayers(division, teams),
+      players: gamePlayers(division, teams),
       partnerTeamId: teams[1] ?? null,
       // As the API says it (#21): a side whose Team, or in Foursomes either Player's, has withdrawn.
       withdrawn: teams.some((teamId) => division.competitors.some((c) => c.teamId === teamId && c.withdrawn)),
