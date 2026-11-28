@@ -34,8 +34,10 @@ function months(first: string, last: string): { name: string; days: Date[] }[] {
  * 2026-11-27: whole days), as a calendar of tick boxes from the Stage's start
  * to the last day it takes, past days included: a past tick does no harm, as
  * shared days start from today. Saving sends every ticked day, replacing the
- * last list. Real checkboxes, so it works without script and each day reads
- * as its full date.
+ * last list, as free any time. The Player's own windows and not-free days
+ * (#276), which it can't show as they are, go back as they were in hidden
+ * fields unless their tick changed (`saveAvailability`). Real checkboxes, so
+ * it works without script and each day reads as its full date.
  */
 export function AvailabilityForm({
   leagueId,
