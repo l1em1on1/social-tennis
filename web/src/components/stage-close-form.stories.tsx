@@ -133,3 +133,13 @@ export const LastStage: Story = {
     await expect(canvas.getByRole("button", { name: "Close Stage 1 and end the League" })).toBeEnabled();
   },
 };
+
+/** Foursomes with nobody waiting (#279 review): it says so, and the close waits until a Player is added. */
+export const FoursomesNobodyWaiting: Story = {
+  args: { ...TeamWithdrawn.args, foursomes: true, waiting: [], replaceable: [] },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Nobody is waiting for a place")).toBeVisible();
+    await expect(canvas.getByText(/Add a player to the league on its page first/)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeDisabled();
+  },
+};

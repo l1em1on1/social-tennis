@@ -93,6 +93,8 @@ export function StageCloseForm({
   const withdrawn = divisions.flatMap((division) => division.teams.filter((team) => team.withdrawn));
   const nameOf = (teamId: string) => replaceable.find((team) => team.teamId === teamId)?.name ?? "";
   const replacing = Object.values(replacements);
+  // Foursomes needs a Player for every place (#279 review): with too few waiting, the close can't go ahead yet.
+  const tooFewWaiting = !ends && foursomes && withdrawn.length > replaceable.length;
   // A Team takes one place: not two withdrawn Teams' places, and not a place and a joiner's too.
   const canReplace = (teamId: string, forTeam: string) =>
     !joining.includes(teamId) && !Object.entries(replacements).some(([withdrawnId, id]) => id === teamId && withdrawnId !== forTeam);
@@ -182,6 +184,12 @@ export function StageCloseForm({
       {!ends && withdrawn.length > 0 && (
         <fieldset className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
           <legend className="px-1 text-base font-semibold">Places left by withdrawn Teams</legend>
+          {tooFewWaiting && (
+            <ErrorState
+              title={replaceable.length === 0 ? "Nobody is waiting for a place" : `Only ${replaceable.length} waiting for ${withdrawn.length} places`}
+              description="Add a player to the league on its page first, then come back to close the Stage."
+            />
+          )}
           <p className="text-sm text-fg-muted">
             {foursomes
               ? "Name a player waiting for a place to take each one, so the Division stays 4."
@@ -275,7 +283,7 @@ export function StageCloseForm({
         </div>
       )}
 
-      <SubmitButton fullWidth pendingLabel="Closing…">
+      <SubmitButton fullWidth pendingLabel="Closing…" disabled={tooFewWaiting}>
         {ends ? `Close Stage ${stageNumber} and end the League` : `Close Stage ${stageNumber} and open Stage ${stageNumber + 1}`}
       </SubmitButton>
     </form>
