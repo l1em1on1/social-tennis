@@ -43,6 +43,7 @@ export function AvailabilityForm({
   firstDay,
   lastDay,
   dates,
+  kept = [],
 }: {
   leagueId: string;
   /** The Acting Player. */
@@ -53,12 +54,17 @@ export function AvailabilityForm({
   lastDay: string;
   /** The days already ticked. */
   dates: string[];
+  /** The Player's own days this form can't show as they are (#276): a window, or not free. They go back as they were. */
+  kept?: { date: string; free: boolean; from: string | null; to: string | null }[];
 }) {
   const ticked = new Set(dates);
   return (
     <form action={saveAvailability} className="flex flex-col gap-4">
       <input type="hidden" name="leagueId" value={leagueId} />
       <input type="hidden" name="playerId" value={playerId} />
+      {kept.map((day) => (
+        <input key={day.date} type="hidden" name="kept" value={JSON.stringify(day)} />
+      ))}
       {months(firstDay, lastDay).map((month) => (
         <fieldset key={month.name} className="flex flex-col gap-1">
           <legend className="mb-2 font-semibold">{month.name}</legend>
