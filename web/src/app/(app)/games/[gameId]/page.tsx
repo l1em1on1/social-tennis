@@ -5,6 +5,7 @@ import { ResultStatusBadge } from "@/components/result-status-badge";
 import { ScoreHistory } from "@/components/score-history";
 import { ScoreTable } from "@/components/score-table";
 import { TieMarkForm, markedOtherWay } from "@/components/tie-mark-form";
+import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { ButtonStack } from "@/components/ui/button-stack";
 import { ErrorState } from "@/components/ui/states";
@@ -64,6 +65,12 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
   const playing = acting ? game.yourPlayerIds.includes(acting.id) : false;
   const manager = game.canManage;
   const { score, stage } = game;
+  // A side that has withdrawn (#21): its Game isn't played, so nobody arranges it. A score from before still goes in.
+  // It names who left: in Foursomes, one Player of the pair, not their partner for this Game.
+  const withdrawn = game.sides
+    .map((side) => side.players.filter((player) => player.withdrawn).map((player) => player.name).join(" & "))
+    .filter((names) => names !== "");
+  const leaving = !score && !game.notPlayed && game.sides.some((side) => side.withdrawn);
   const stageName = `Stage ${stage.number}`;
   const refusals: Record<string, string> = {
     "already-scored": "Someone entered this game's score first. Here it is.",
@@ -135,8 +142,15 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           />
         ))}
 
+      {leaving && (
+        <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
+          <Badge>Withdrawn</Badge> {withdrawn.join(" and ")} left the league, so this game won&apos;t be played: a manager marks it
+          not played. If it was played before, its score can still go in.
+        </p>
+      )}
+
       {/* Arranging it (#9): its own Players, while it has no score; everyone else reads the agreed Date. */}
-      {!score && !game.notPlayed && acting && playing && game.availability && (
+      {!score && !game.notPlayed && !leaving && acting && playing && game.availability && (
         <GameArrangement
           gameId={game.id}
           leagueId={game.leagueId}
@@ -148,7 +162,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           stageStart={stage.startDate}
         />
       )}
-      {!score && !game.notPlayed && !playing && game.date && (
+      {!score && !game.notPlayed && !leaving && !playing && game.date && (
         <p role="note" className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
           {describeArrangement(game.date, game.court)}
         </p>

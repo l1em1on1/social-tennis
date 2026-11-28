@@ -83,7 +83,9 @@ public static class GetPlayerLeagues
                     .OrderBy(r => r.Status)
                     .ThenByDescending(r => r.RequestedAt)
                     .Select(r => new PlayerLeagueWithdrawal(r.Status, r.RequestedAt, r.DecidedAt))
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                // As the ladder says it: the latest Stage is closed, so the League has ended.
+                l.Stages.OrderByDescending(s => s.Number).Select(s => s.ClosedAt != null).FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         // Where the Player is on each started League's ladder (#7): their

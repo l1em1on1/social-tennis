@@ -12,6 +12,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Stage">The current Stage; null until the League starts (#7).</param>
 /// <param name="Place">The Player's place in that Stage; null if they aren't on its ladder (#7).</param>
 /// <param name="Withdrawal">The withdrawal request that matters to the Player's Team (#21); none if there's been none.</param>
+/// <param name="Ended">Its last Stage has closed: nothing is played any more, and nobody withdraws (#21).</param>
 public record PlayerLeague(
     Guid Id,
     Guid ClubId,
@@ -33,4 +34,5 @@ public record PlayerLeague(
     PlayerLeaguePartnerRequest? PartnerRequest,
     LeagueStageSummary? Stage,
     PlayerLeaguePlace? Place,
-    PlayerLeagueWithdrawal? Withdrawal = null);
+    PlayerLeagueWithdrawal? Withdrawal = null,
+    bool Ended = false);

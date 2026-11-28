@@ -718,6 +718,94 @@ export async function removeLeagueParticipant(formData: FormData) {
 }
 
 /**
+ * A Player asks to leave a running League (#21): their Team withdraws if a
+ * Manager accepts. A 409 (asked already, already withdrawn, or no longer on
+ * an open Stage's ladder) and a 404 need no message: the refreshed card shows
+ * where things stand.
+ */
+export async function askToWithdraw(formData: FormData) {
+  const path = leagueAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.POST("/leagues/{leagueId}/withdrawals", {
+    params: { path: { leagueId: path.leagueId } },
+    body: { playerId: path.playerId },
+  });
+  if (!response.ok && response.status !== 404 && response.status !== 409) {
+    throw new Error(`Asking to leave league ${path.leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** A Player takes back their waiting request to leave (#21). A 404 means a Manager decided it first, which the refreshed card shows. */
+export async function cancelWithdrawal(formData: FormData) {
+  const path = leagueAndPlayer(formData);
+  if (!path) return;
+
+  const api = await apiWithSession();
+  const { response } = await api.DELETE("/leagues/{leagueId}/players/{playerId}/withdrawal", { params: { path } });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Taking back the request to leave league ${path.leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/** Why a withdrawal didn't go through, for the League's Manager page (#21). */
+export type WithdrawalRefusal = "withdrawal-decided" | "withdrawal-off-ladder";
+
+function withdrawalRefusal(type: string | null | undefined): WithdrawalRefusal | null {
+  return type === "already-decided" ? "withdrawal-decided" : type === "not-on-the-ladder" ? "withdrawal-off-ladder" : null;
+}
+
+/**
+ * A Manager accepts or declines a request to leave (#21). `accept` must be
+ * "true" or "false": a missing or mistyped one is dropped, never read as a
+ * decline. A 409 goes back to the page as a message (another Manager decided
+ * first, or the Stage has closed since); a 404 means it's gone.
+ */
+export async function decideWithdrawal(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const requestId = formData.get("requestId");
+  const decision = formData.get("accept");
+  if (!isId(leagueId) || !isId(requestId) || (decision !== "true" && decision !== "false")) return;
+
+  const api = await apiWithSession();
+  const { error, response } = await api.PUT("/leagues/{leagueId}/withdrawals/{requestId}", {
+    params: { path: { leagueId, requestId } },
+    body: { accept: decision === "true" },
+  });
+  if (response.status === 409) {
+    redirect(`/manage/leagues/${leagueId}?error=${withdrawalRefusal(error?.type) ?? "conflict"}`);
+  }
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Deciding a request to leave league ${leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
+ * A Manager withdraws a Team straight away, with no request (#21). Already
+ * withdrawn is what they wanted, so only a Team no longer on an open Stage's
+ * ladder gets a message.
+ */
+export async function withdrawTeam(formData: FormData) {
+  const leagueId = formData.get("leagueId");
+  const teamId = formData.get("teamId");
+  if (!isId(leagueId) || !isId(teamId)) return;
+
+  const api = await apiWithSession();
+  const { error, response } = await api.PUT("/leagues/{leagueId}/teams/{teamId}/withdrawal", { params: { path: { leagueId, teamId } } });
+  if (response.status === 409 && error?.type !== "already-withdrawn") {
+    redirect(`/manage/leagues/${leagueId}?error=${withdrawalRefusal(error?.type) ?? "conflict"}`);
+  }
+  if (!response.ok && response.status !== 404 && response.status !== 409) {
+    throw new Error(`Withdrawing team ${teamId} from league ${leagueId} failed with ${response.status}`);
+  }
+  revalidatePath("/", "layout");
+}
+
+/**
  * A Manager makes a Team of two unpaired Players in a doubles League (#6). A
  * Player already paired, or no longer in the League, comes back as a conflict;
  * the same Player twice, as a bad pairing.

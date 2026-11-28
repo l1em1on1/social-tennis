@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { hasWithdrawn, LeagueWithdrawal } from "@/components/league-withdrawal";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -260,7 +261,9 @@ export default async function LeaguesPage({ searchParams }: PageProps<"/leagues"
                   )}
                 </p>
               )}
-              <LadderState league={league} />
+              {/* Once the Team has withdrawn (#21), that's where the Player stands: no Division to play in. */}
+              {!hasWithdrawn(league) && <LadderState league={league} />}
+              <LeagueWithdrawal league={league} playerId={actingPlayer.id} />
               <div className="mt-3">
                 <ButtonLink href={`/leagues/${league.id}`} variant="secondary" aria-label={`Open the ladder of ${league.name}`}>
                   Open the ladder

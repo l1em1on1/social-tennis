@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import type { components } from "@/lib/api/schema";
 import { cx } from "@/lib/cx";
 import { STANDINGS_MODES } from "@/lib/league";
@@ -42,6 +43,7 @@ export function StandingsTable({
   standings,
   names,
   mine = [],
+  withdrawn = [],
   foursomes,
 }: {
   number: number;
@@ -52,6 +54,8 @@ export function StandingsTable({
   names: Record<string, string>;
   /** The Acting Player's Team, shown in bold. */
   mine?: string[];
+  /** Teams that have withdrawn (#21): marked beside their name until the close takes them off the ladder. */
+  withdrawn?: string[];
 }) {
   const results = standings.some((standing) => Number(standing.played) > 0);
   // The API sends points only where they rank (StandingsMode.BonusPoints). Their column fits a
@@ -115,6 +119,12 @@ export function StandingsTable({
               </td>
               <th scope="row" className="py-1.5 pr-2 font-[weight:inherit] wrap-anywhere">
                 {names[standing.teamId] ?? ""}
+                {withdrawn.includes(standing.teamId) && (
+                  <>
+                    {" "}
+                    <Badge>Withdrawn</Badge>
+                  </>
+                )}
               </th>
               <td className="py-1.5 text-center tabular-nums">{Number(standing.played)}</td>
               {foursomes ? (

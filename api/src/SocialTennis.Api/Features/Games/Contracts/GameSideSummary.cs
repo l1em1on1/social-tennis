@@ -4,4 +4,5 @@ namespace SocialTennis.Api.Features.Games.Contracts;
 /// <param name="TeamId">Its Team; in Foursomes (#14, ADR-0036), the Team of one of its Player higher on the ladder.</param>
 /// <param name="Players">One in singles, two in doubles, in the order they joined the Team. In Foursomes, the pair for this Game, the higher on the ladder first.</param>
 /// <param name="PartnerTeamId">In Foursomes, the other Player's Team of one; null otherwise.</param>
-public record GameSideSummary(int Side, Guid TeamId, IReadOnlyList<GamePlayer> Players, Guid? PartnerTeamId = null);
+/// <param name="Withdrawn">Its Team has withdrawn from the League (#21), so the Game won't be played; in Foursomes, either of its Players' Teams.</param>
+public record GameSideSummary(int Side, Guid TeamId, IReadOnlyList<GamePlayer> Players, Guid? PartnerTeamId = null, bool Withdrawn = false);

@@ -18,9 +18,11 @@ public partial class ScoreTests
     private static Task<HttpResponseMessage> DecideAsync(HttpClient manager, Guid leagueId, Guid requestId, bool accept) =>
         manager.PutAsJsonAsync($"/leagues/{leagueId}/withdrawals/{requestId}", new { accept });
 
+    private static async Task<PlayerLeague> MyLeagueAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId) =>
+        (await player.Client.GetFromJsonAsync<GetPlayerLeaguesResponse>($"/players/{player.PlayerId}/leagues"))!.Leagues.Single(l => l.Id == leagueId);
+
     private static async Task<PlayerLeagueWithdrawal?> MyWithdrawalAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId) =>
-        (await player.Client.GetFromJsonAsync<GetPlayerLeaguesResponse>($"/players/{player.PlayerId}/leagues"))!
-            .Leagues.Single(l => l.Id == leagueId).Withdrawal;
+        (await MyLeagueAsync(player, leagueId)).Withdrawal;
 
     [Fact]
     public async Task A_Player_asks_to_withdraw_and_can_cancel_and_the_Manager_declines_or_accepts()
@@ -75,6 +77,22 @@ public partial class ScoreTests
         Assert.Equal(HttpStatusCode.NotFound, (await AskToWithdrawAsync(game.Una, Guid.NewGuid())).StatusCode);
         var league = await ManagedAsync(game.Manager, game.LeagueId);
         Assert.Equal("not-on-the-ladder", await ProblemTypeAsync(await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{TeamOf(league, game.Wes.PlayerId)}/withdrawal", null), HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task The_Match_screen_says_which_side_has_withdrawn()
+    {
+        var game = await SinglesAsync(OneSetOf6);
+        var league = await ManagedAsync(game.Manager, game.LeagueId);
+        var vic = TeamOf(league, game.Vic.PlayerId);
+        Assert.All((await GameAsync(game.Una.Client, game.GameId)).Sides, side => Assert.False(side.Withdrawn));
+
+        (await game.Manager.PutAsync($"/leagues/{game.LeagueId}/teams/{vic}/withdrawal", null)).EnsureSuccessStatusCode();
+
+        // Una, his opponent, sees that Vic has left: their Game won't be played.
+        Assert.Equal(
+            [(vic, true)],
+            (await GameAsync(game.Una.Client, game.GameId)).Sides.Where(side => side.Withdrawn).Select(side => (side.TeamId, side.Withdrawn)));
     }
 
     [Fact]
@@ -228,6 +246,10 @@ public partial class ScoreTests
         (await manager.PutAsync($"/leagues/{leagueId}/teams/{teams[3]}/withdrawal", null)).EnsureSuccessStatusCode();
         var order = Order([.. teams[..4]], [.. teams[4..8]]);
 
+        // Dan's side can't play, but only Dan has left: not Ann, his partner for that Game (#277 review).
+        var annAndDan = (await GameAsync(manager, PairedGame(ladder.Divisions[0], teams, 0, 3).Id)).Sides.Single(side => side.Withdrawn);
+        Assert.Equal([(players[0].PlayerId, false), (players[3].PlayerId, true)], annAndDan.Players.Select(p => (p.PlayerId, p.Withdrawn)).OrderBy(p => p.Withdrawn));
+
         Assert.Equal(
             ["A Foursomes Division is always 4: name a replacement for each Player who has withdrawn."],
             (await ErrorsAsync(await CloseAsync(manager, leagueId, order, start: $"{Year}-08-01", end: $"{Year}-08-31")))["replacements"]);
@@ -297,8 +319,11 @@ public partial class ScoreTests
         (await AskToWithdrawAsync(players[2], leagueId)).EnsureSuccessStatusCode();
 
         // Closing the last Stage carries nobody into another: the League ends, and Cal's request with it.
+        Assert.False((await MyLeagueAsync(players[0], leagueId)).Ended);
         (await CloseAsync(manager, leagueId, Order([teams[0], teams[1]], [teams[2], teams[3]]))).EnsureSuccessStatusCode();
         Assert.True((await LadderOfAsync(manager, leagueId)).Ended);
+        // Each Player's Leagues say so too, so nobody is offered Ask to leave an ended League (#277 review).
+        Assert.True((await MyLeagueAsync(players[0], leagueId)).Ended);
         Assert.Empty((await ManagedAsync(manager, leagueId)).WithdrawalRequests);
         Assert.Null(await MyWithdrawalAsync(players[2], leagueId));
     }
