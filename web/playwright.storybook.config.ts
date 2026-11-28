@@ -21,6 +21,11 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 360, height: 780 },
+    // British, as the Club is (#275). `locale` sets the page's language and dates, but a
+    // native date or time box follows the browser's own language: hence the flag.
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    launchOptions: { args: ["--lang=en-GB"], env: { LANGUAGE: "en_GB" } },
   },
   webServer: {
     // Serves the build as it is (Vite docs, `vite preview`).

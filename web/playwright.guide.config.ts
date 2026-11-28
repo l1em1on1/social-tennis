@@ -25,7 +25,8 @@ export default defineConfig({
     hasTouch: true,
     colorScheme: "light",
     locale: "en-GB",
-    // Date boxes follow the browser's own language, not the page's locale.
+    timezoneId: "Europe/London",
+    // Date boxes follow the browser's own language, not the page's locale (#275).
     launchOptions: { args: ["--lang=en-GB"], env: { LANGUAGE: "en_GB" } },
   },
 });

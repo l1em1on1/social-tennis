@@ -44,7 +44,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // CSP guide: "all pages must be dynamically rendered").
   await connection();
   return (
-    <html lang="en" className={`${figtree.variable} ${geistMono.variable} ${bigShoulders.variable} h-full antialiased`}>
+    <html lang="en-GB" className={`${figtree.variable} ${geistMono.variable} ${bigShoulders.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

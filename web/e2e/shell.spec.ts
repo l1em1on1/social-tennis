@@ -133,3 +133,15 @@ test("switching the acting Player survives navigation", async ({ page }, testInf
   await expect(page.getByRole("listitem").filter({ hasText: "Alex Junior" })).toContainText("Playing as");
   await expectNoSeriousA11yViolations(page);
 });
+
+test("the pages are British English, and so is the browser the tests run: its time boxes are 24-hour (#275)", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-GB");
+  // `locale` alone gives navigator.language and the page's own dates, but a native date or time box follows the
+  // browser's language: `--lang` in playwright.config.ts. Its text can't be read, but its width shows it. A 24-hour
+  // time box ("18:30") is about two thirds as wide as a date box; one with AM/PM ("06:30 PM") over four fifths
+  // (71 and 89px against 108px, tried in #278). The date box then reads 05/03/2027, not 03/05/2027.
+  await page.setContent('<input type="time" value="18:30"> <input type="date" value="2027-03-05">');
+  const width = (type: string) => page.locator(`input[type=${type}]`).evaluate((box) => box.getBoundingClientRect().width);
+  expect((await width("time")) / (await width("date"))).toBeLessThan(0.75);
+});
