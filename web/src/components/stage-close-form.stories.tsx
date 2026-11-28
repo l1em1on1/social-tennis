@@ -168,3 +168,19 @@ export const DivisionTooSmallUntilReplaced: Story = {
     await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeEnabled();
   },
 };
+
+/** Ann, top of Division 1, withdraws, and the only Team waiting is ticked to join Division 2 (#279 review): untick it. */
+export const DivisionTooSmallJoinerTicked: Story = {
+  args: {
+    divisions: [
+      { number: 1, teams: [team("a", "Ann Cole", 1, "1–0, +4", true), team("b", "Bob Hart", 2, "0–1, -4")], ties: [] },
+      { number: 2, teams: [team("c", "Cat Moss", 1, "1–0, +4"), team("d", "Dan Ford", 2, "0–1, -4")], ties: [] },
+    ],
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(canvas.getByText("Division 1 would have one Team")).toBeVisible();
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Dev Shah" }));
+    await expect(canvas.getByText(/untick a joining Team, or change a pick, to name it here/)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeDisabled();
+  },
+};

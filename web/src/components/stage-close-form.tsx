@@ -104,7 +104,9 @@ export function StageCloseForm({
           .map((division, index) => ({ number: index + 1, size: division.filter((id) => !withdrawnIds.has(id) || replacements[id]).length }))
           .filter((division) => division.size < 2)
       : [];
-  const nobodyLeft = replaceable.every((team) => replacing.includes(team.teamId) || joining.includes(team.teamId));
+  // What to tell the Manager for such a Division: nobody waits at all, or everyone waiting is already joining or
+  // taking another place (#279 review), or there's still a Team to name.
+  const freeToName = replaceable.some((team) => !replacing.includes(team.teamId) && !joining.includes(team.teamId));
   // A Team takes one place: not two withdrawn Teams' places, and not a place and a joiner's too.
   const canReplace = (teamId: string, forTeam: string) =>
     !joining.includes(teamId) && !Object.entries(replacements).some(([withdrawnId, id]) => id === teamId && withdrawnId !== forTeam);
@@ -199,9 +201,11 @@ export function StageCloseForm({
               key={division.number}
               title={`Division ${division.number} would have ${division.size === 0 ? "no Teams" : "one Team"}`}
               description={
-                nobodyLeft
+                replaceable.length === 0
                   ? "Nobody is waiting for a place: add a Team to the league on its page first, then come back to close the Stage."
-                  : "A Division needs at least 2: name a Team waiting for a place to take a withdrawn Team's place there."
+                  : freeToName
+                    ? "A Division needs at least 2: name a Team waiting for a place to take a withdrawn Team's place there."
+                    : "A Division needs at least 2, and every Team waiting is joining or taking another place: untick a joining Team, or change a pick, to name it here."
               }
             />
           ))}
