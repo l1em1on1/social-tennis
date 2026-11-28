@@ -64,14 +64,28 @@ public static class Standings
     /// <paramref name="games"/>, every one of the Stage's, scored or not. Teams
     /// still tied share a rank, in ladder order.
     /// </summary>
+    /// <remarks>
+    /// A Game not played against a Team that has withdrawn (#21, <paramref name="withdrawn"/>) doesn't count
+    /// among its opponent's Games, so it doesn't cost them the bonus point for playing them all (owner, 2026-11-27).
+    /// </remarks>
     public static IReadOnlyList<Standing> Rank(
-        IReadOnlyList<Guid> teams, IReadOnlyList<StandingsGame> games, StandingsMode mode = StandingsMode.Standard)
+        IReadOnlyList<Guid> teams,
+        IReadOnlyList<StandingsGame> games,
+        StandingsMode mode = StandingsMode.Standard,
+        IReadOnlySet<Guid>? withdrawn = null)
     {
         var rows = teams.ToDictionary(team => team, team => new Tally());
         foreach (var game in games)
         {
-            rows[game.FirstTeamId].Games++;
-            rows[game.SecondTeamId].Games++;
+            if (!(game.NotPlayed && withdrawn?.Contains(game.SecondTeamId) == true))
+            {
+                rows[game.FirstTeamId].Games++;
+            }
+
+            if (!(game.NotPlayed && withdrawn?.Contains(game.FirstTeamId) == true))
+            {
+                rows[game.SecondTeamId].Games++;
+            }
             if (game.Result is not { } result)
             {
                 continue;
@@ -320,7 +334,8 @@ public static class Standings
 }
 
 /// <summary>A Division's Game, for its Standings: none if it has no Score.</summary>
-public sealed record StandingsGame(Guid FirstTeamId, Guid SecondTeamId, StandingsResult? Result);
+/// <param name="NotPlayed">A Manager marked it not played (#10).</param>
+public sealed record StandingsGame(Guid FirstTeamId, Guid SecondTeamId, StandingsResult? Result, bool NotPlayed = false);
 
 /// <summary>
 /// A Foursomes Game, for its Division's Standings (#14): the two Players on

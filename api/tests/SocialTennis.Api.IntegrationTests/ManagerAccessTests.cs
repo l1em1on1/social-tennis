@@ -92,6 +92,10 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         ["PUT /leagues/{leagueId}/join-requests/{playerId}/rejection"] = Policies.LeagueManager,
         // The League's Players and its managers: the handler asks the same rule, and answers 404 to anyone else.
         ["GET /leagues/{leagueId}/ladder"] = SignedIn,
+        ["POST /leagues/{leagueId}/withdrawals"] = SignedIn,
+        ["DELETE /leagues/{leagueId}/players/{playerId}/withdrawal"] = SignedIn,
+        ["PUT /leagues/{leagueId}/withdrawals/{requestId}"] = Policies.LeagueManager,
+        ["PUT /leagues/{leagueId}/teams/{teamId}/withdrawal"] = Policies.LeagueManager,
         ["PUT /leagues/{leagueId}/tie-marks"] = SignedIn,
         ["GET /leagues/{leagueId}/players/{playerId}/availability"] = SignedIn,
         ["PUT /leagues/{leagueId}/players/{playerId}/availability"] = SignedIn,

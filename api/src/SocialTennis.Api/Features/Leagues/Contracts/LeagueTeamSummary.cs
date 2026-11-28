@@ -8,4 +8,5 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// </param>
 /// <param name="Position">Its place on the current Stage's ladder, 1 at the top; null if it isn't on it (left out, or came in after the start) or the League hasn't started.</param>
 /// <param name="Division">Its Division on that ladder (ADR-0031); null with no place.</param>
-public record LeagueTeamSummary(Guid Id, IReadOnlyList<Guid> PlayerIds, double Rating, int? Position, int? Division);
+/// <param name="Withdrawn">Its withdrawal was accepted (#21): it leaves the ladder at the close.</param>
+public record LeagueTeamSummary(Guid Id, IReadOnlyList<Guid> PlayerIds, double Rating, int? Position, int? Division, bool Withdrawn = false);

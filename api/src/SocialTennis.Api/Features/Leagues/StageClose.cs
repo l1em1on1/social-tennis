@@ -42,6 +42,14 @@ public static class StageClose
             type: "stage-closed",
             title: "This League's last Stage has closed: the League has ended.");
 
+    /// <summary>A Team that has withdrawn is still on the ladder (#21): the close that takes it off is still to come.</summary>
+    public static ProblemHttpResult WithdrawnOnLadder() =>
+        TypedResults.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            type: "withdrawn-on-ladder",
+            title: "A Team that has withdrawn is still on the ladder.",
+            detail: "Closing a Stage with one, and naming a replacement, is still to be built.");
+
     /// <summary>ADR-0017's own example: a Stage can't close while anything waits on the Manager.</summary>
     public static ProblemHttpResult QueueNotEmpty() =>
         TypedResults.Problem(
@@ -126,6 +134,12 @@ public static class StageClose
         }
 
         var next = StageDates.Next(stage.EndDate, league.EndDate, league.StageLength);
+        // A Team that has withdrawn leaves the ladder at the close, or a replacement takes its place (#21, part 2).
+        // Until that is built, the close waits rather than carry it into a next Stage; the last Stage carries nobody.
+        if (next is not null && divisions.Any(d => d.Competitors.Any(c => c.Withdrawn)))
+        {
+            return new CloseResult(CloseRefusal.WithdrawnOnLadder);
+        }
         var waiting = next is null ? [] : await WaitingAsync(db, leagueId, stage.Id, league.Type, cancellationToken);
         if (joining.Distinct().Count() != joining.Count
             || !joining.All(team => waiting.Any(w => w.TeamId == team)))
@@ -175,6 +189,14 @@ public static class StageClose
             };
             db.Stages.Add(opened);
             StageLadder.Place(opened, leagueId, league.Type, Relegation.Next(order, joining));
+        }
+        else
+        {
+            // The League has ended (#21): a request to withdraw still waiting means nothing now, so it goes,
+            // as if taken back, rather than wait on the Manager for good.
+            await db.WithdrawalRequests
+                .Where(r => r.LeagueId == leagueId && r.Status == WithdrawalStatus.Pending)
+                .ExecuteDeleteAsync(cancellationToken);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -228,6 +250,7 @@ public enum CloseRefusal
     StandingsChanged,
     LeagueChanged,
     InvalidDates,
+    WithdrawnOnLadder,
 }
 
 /// <summary>A close's outcome: refused or not, and the dates' problems by wire name.</summary>

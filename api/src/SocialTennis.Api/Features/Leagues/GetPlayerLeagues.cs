@@ -75,7 +75,15 @@ public static class GetPlayerLeagues
                     .OrderByDescending(s => s.Number)
                     .Select(s => new LeagueStageSummary(s.Number, s.StartDate, s.EndDate))
                     .FirstOrDefault(),
-                null))
+                null,
+                // The withdrawal request that matters to the Player's Team (#21): one waiting, else the accepted one,
+                // else the latest declined (Pending, Accepted and Declined sort in that order).
+                db.WithdrawalRequests
+                    .Where(r => r.LeagueId == l.Id && l.Participants.Any(p => p.PlayerId == playerId && p.TeamId == r.TeamId))
+                    .OrderBy(r => r.Status)
+                    .ThenByDescending(r => r.RequestedAt)
+                    .Select(r => new PlayerLeagueWithdrawal(r.Status, r.RequestedAt, r.DecidedAt))
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         // Where the Player is on each started League's ladder (#7): their
