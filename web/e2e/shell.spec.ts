@@ -133,3 +133,13 @@ test("switching the acting Player survives navigation", async ({ page }, testInf
   await expect(page.getByRole("listitem").filter({ hasText: "Alex Junior" })).toContainText("Playing as");
   await expectNoSeriousA11yViolations(page);
 });
+
+test("the pages are British English, and so is the browser the tests run, whose date boxes read DD/MM/YYYY (#275)", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-GB");
+  // A native date box follows the browser's own language (`--lang` in playwright.config.ts), as on a phone set to English (UK).
+  expect(await page.evaluate(() => [navigator.language, new Date(Date.UTC(2027, 2, 5, 12)).toLocaleDateString()])).toEqual([
+    "en-GB",
+    "05/03/2027",
+  ]);
+});

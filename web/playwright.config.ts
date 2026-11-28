@@ -37,6 +37,11 @@ export default defineConfig<ChromaticConfig>({
     isMobile: true,
     hasTouch: true,
     trace: "retain-on-failure",
+    // British, as the Club is (#275). `locale` sets the page's language and dates, but a
+    // native date or time box follows the browser's own language: hence the flag.
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    launchOptions: { args: ["--lang=en-GB"], env: { LANGUAGE: "en_GB" } },
   },
   projects: [
     { name: "mock", testMatch: SCREENS, use: { browserName: "chromium", baseURL: mockUrl } },
