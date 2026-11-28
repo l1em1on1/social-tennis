@@ -1170,8 +1170,9 @@ const isDay = (value: unknown): value is string => typeof value === "string" && 
 
 /**
  * A Player saves the days they're free in their League's current Stage (#9),
- * every one ticked, replacing the last list. The Player is the one this
- * login acts as, checked against the ones it holds; the API checks again.
+ * every one ticked, as free any time (#276), replacing the last list; a day
+ * not ticked follows their usual week. The Player is the one this login acts
+ * as, checked against the ones it holds; the API checks again.
  */
 export async function saveAvailability(formData: FormData) {
   const leagueId = formData.get("leagueId");
@@ -1184,7 +1185,7 @@ export async function saveAvailability(formData: FormData) {
   const api = await apiWithSession();
   const { response } = await api.PUT("/leagues/{leagueId}/players/{playerId}/availability", {
     params: { path: { leagueId, playerId } },
-    body: { dates },
+    body: { days: dates.map((date) => ({ date, free: true, from: null, to: null })) },
   });
   // 400: a day the Stage no longer takes; 404/409: the Stage closed meanwhile. The page shows how things stand.
   if (response.status === 400 || response.status === 404 || response.status === 409) {
@@ -1218,7 +1219,8 @@ export async function arrangeGame(formData: FormData) {
   const api = await apiWithSession();
   const { error, response } = await api.PUT("/games/{gameId}/date", {
     params: { path: { gameId } },
-    body: { playerId, date: isDay(date) ? date : null, court: typeof court === "string" && court.trim() ? court : null },
+    // No start time (#276): the form doesn't ask for one, so the Game keeps its Date alone, as before times.
+    body: { playerId, date: isDay(date) ? date : null, startTime: null, court: typeof court === "string" && court.trim() ? court : null },
   });
   if (response.status === 400) {
     redirect(`/games/${gameId}?refused=arrange-invalid`);

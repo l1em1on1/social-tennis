@@ -8,6 +8,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="FirstPartnerTeamId">In Foursomes, Side 1's other Player (their Team of one, ADR-0036); null otherwise.</param>
 /// <param name="SecondPartnerTeamId">In Foursomes, Side 2's other Player; null otherwise.</param>
 /// <param name="Date">The Date its Players agreed (#9); none until one of them sets it.</param>
+/// <param name="StartTime">When it starts on its Date, in the Club's time zone (#276); none until agreed, or for a Game arranged before #276.</param>
 /// <param name="Court">Where, as its Players noted it; none if they didn't.</param>
 public record LadderGame(
     Guid Id,
@@ -18,4 +19,5 @@ public record LadderGame(
     Guid? FirstPartnerTeamId = null,
     Guid? SecondPartnerTeamId = null,
     DateOnly? Date = null,
+    TimeOnly? StartTime = null,
     string? Court = null);

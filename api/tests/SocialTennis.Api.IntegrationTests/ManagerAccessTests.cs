@@ -62,6 +62,8 @@ public partial class ManagerAccessTests(ManagerAccessTests.Factory factory) : IC
         ["GET /players"] = SignedIn,
         ["POST /players"] = SignedIn,
         ["PUT /players/{playerId}"] = SignedIn,
+        ["GET /players/{playerId}/usual-week"] = SignedIn,
+        ["PUT /players/{playerId}/usual-week"] = SignedIn,
         ["PUT /players/{playerId}/rating"] = Policies.PlayerManager,
         ["DELETE /players/{playerId}/clubs/{clubId}"] = SignedIn,
         ["GET /players/{playerId}/leagues"] = SignedIn,

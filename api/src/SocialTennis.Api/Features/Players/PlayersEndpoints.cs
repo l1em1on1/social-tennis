@@ -29,6 +29,14 @@ public static class PlayersEndpoints
             .ValidatesBody<UpdatePlayerRequest, UpdatePlayerRequest.Validator>()
             .WithName(nameof(UpdatePlayer));
 
+        // A Player's usual week (#276): when they're usually free, in every League; the holder's alone.
+        group.MapGet("/{playerId:guid}/usual-week", GetUsualWeek.HandleAsync)
+            .WithName(nameof(GetUsualWeek));
+
+        group.MapPut("/{playerId:guid}/usual-week", SetUsualWeek.HandleAsync)
+            .ValidatesBody<SetUsualWeekRequest, SetUsualWeekRequest.Validator>()
+            .WithName(nameof(SetUsualWeek));
+
         // The one route here that isn't the holder's: Rating is a Manager's to
         // set, for a Player in a Club they run.
         group.MapPut("/{playerId:guid}/rating", SetPlayerRating.HandleAsync)

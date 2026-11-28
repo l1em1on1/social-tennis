@@ -15,14 +15,26 @@ public partial class ScoreTests
 
     private static DateOnly On(int month, int day) => new(Year, month, day);
 
+    /// <summary>Sets these dates free any time; every other date follows the usual week.</summary>
     private static Task<HttpResponseMessage> FreeOnAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId, params string[] dates) =>
-        player.Client.PutAsJsonAsync($"/leagues/{leagueId}/players/{player.PlayerId}/availability", new { dates });
+        SetDaysAsync(player, leagueId, [.. dates.Select(date => (object)new { date, free = true })]);
+
+    private static Task<HttpResponseMessage> SetDaysAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId, object[] days) =>
+        player.Client.PutAsJsonAsync($"/leagues/{leagueId}/players/{player.PlayerId}/availability", new { days });
+
+    private static Task<HttpResponseMessage> UsualWeekAsync((HttpClient Client, Guid PlayerId) player, params object[] days) =>
+        player.Client.PutAsJsonAsync($"/players/{player.PlayerId}/usual-week", new { days });
+
+    private static DateOnly[] SharedDates(GameAvailability availability) => [.. availability.Shared.Select(day => day.Date)];
+
+    private static DateOnly[] FreeDates(GetAvailabilityResponse availability) => [.. availability.Days.Where(day => day.Free).Select(day => day.Date)];
 
     private static async Task<GetAvailabilityResponse> FreeDaysOfAsync((HttpClient Client, Guid PlayerId) player, Guid leagueId) =>
         (await player.Client.GetFromJsonAsync<GetAvailabilityResponse>($"/leagues/{leagueId}/players/{player.PlayerId}/availability"))!;
 
-    private static Task<HttpResponseMessage> ArrangeAsync((HttpClient Client, Guid PlayerId) player, Guid gameId, string? date, string? court = null) =>
-        player.Client.PutAsJsonAsync($"/games/{gameId}/date", new { playerId = player.PlayerId, date, court });
+    private static Task<HttpResponseMessage> ArrangeAsync(
+        (HttpClient Client, Guid PlayerId) player, Guid gameId, string? date, string? court = null, string? startTime = null) =>
+        player.Client.PutAsJsonAsync($"/games/{gameId}/date", new { playerId = player.PlayerId, date, startTime, court });
 
     [Fact]
     public async Task A_singles_Game_suggests_the_days_both_Players_are_free_from_today()
@@ -33,26 +45,26 @@ public partial class ScoreTests
         (await FreeOnAsync(game.Una, game.LeagueId, Day(7, 5), Day(7, 15), Day(7, 20), Day(7, 12))).EnsureSuccessStatusCode();
         // Vic hasn't said: nothing can suit both, and the Game says why.
         var waiting = (await GameAsync(game.Una.Client, game.GameId)).Availability!;
-        Assert.Empty(waiting.SharedDates);
+        Assert.Empty(waiting.Shared);
         Assert.Equal(["Vic"], waiting.NotGiven.Select(name => name.Split(' ')[0]));
 
         (await FreeOnAsync(game.Vic, game.LeagueId, Day(7, 5), Day(7, 20), Day(7, 15), Day(7, 25))).EnsureSuccessStatusCode();
         // 5 July suits both, but it's gone: only today on counts.
         var shared = (await GameAsync(game.Vic.Client, game.GameId)).Availability!;
-        Assert.Equal([On(7, 15), On(7, 20)], shared.SharedDates);
+        Assert.Equal([On(7, 15), On(7, 20)], SharedDates(shared));
         Assert.Empty(shared.NotGiven);
         // Each sees only their own days; a Manager, or another Player in the League, sees no one's.
-        Assert.Equal([On(7, 5), On(7, 12), On(7, 15), On(7, 20)], (await FreeDaysOfAsync(game.Una, game.LeagueId)).Dates);
+        Assert.Equal([On(7, 5), On(7, 12), On(7, 15), On(7, 20)], FreeDates(await FreeDaysOfAsync(game.Una, game.LeagueId)));
         Assert.Null((await GameAsync(game.Manager, game.GameId)).Availability);
         Assert.Null((await GameAsync(game.Wes.Client, game.GameId)).Availability);
         Assert.Equal(HttpStatusCode.NotFound, (await game.Una.Client.GetAsync($"/leagues/{game.LeagueId}/players/{game.Vic.PlayerId}/availability")).StatusCode);
 
         // Saving again replaces them; a day outside the Stage is refused.
         (await FreeOnAsync(game.Una, game.LeagueId, Day(7, 25))).EnsureSuccessStatusCode();
-        Assert.Equal([On(7, 25)], (await GameAsync(game.Una.Client, game.GameId)).Availability!.SharedDates);
+        Assert.Equal([On(7, 25)], SharedDates((await GameAsync(game.Una.Client, game.GameId)).Availability!));
         Assert.Equal(
             [$"Pick days in Stage 1: from 1 Jul {Year} to 31 Jul {Year}."],
-            (await ErrorsAsync(await FreeOnAsync(game.Una, game.LeagueId, Day(8, 1))))["dates"]);
+            (await ErrorsAsync(await FreeOnAsync(game.Una, game.LeagueId, Day(8, 1))))["days"]);
     }
 
     [Fact]
@@ -67,7 +79,7 @@ public partial class ScoreTests
         }
         (await FreeOnAsync(players[3], leagueId, Day(7, 21))).EnsureSuccessStatusCode();
 
-        Assert.Equal([On(7, 21)], (await GameAsync(players[0].Client, game.Id)).Availability!.SharedDates);
+        Assert.Equal([On(7, 21)], SharedDates((await GameAsync(players[0].Client, game.Id)).Availability!));
     }
 
     [Fact]
@@ -95,10 +107,10 @@ public partial class ScoreTests
 
         // Dan, Cat's partner, hasn't said: no day suits all four.
         var availability = (await GameAsync(players[1].Client, gameId)).Availability!;
-        Assert.Empty(availability.SharedDates);
+        Assert.Empty(availability.Shared);
         Assert.Equal(["Dan"], availability.NotGiven.Select(name => name.Split(' ')[0]));
         (await FreeOnAsync(players[3], leagueId, Day(7, 16))).EnsureSuccessStatusCode();
-        Assert.Equal([On(7, 16)], (await GameAsync(players[1].Client, gameId)).Availability!.SharedDates);
+        Assert.Equal([On(7, 16)], SharedDates((await GameAsync(players[1].Client, gameId)).Availability!));
     }
 
     [Fact]
@@ -155,7 +167,7 @@ public partial class ScoreTests
 
         var next = await FreeDaysOfAsync(players[0], leagueId);
         Assert.Equal(2, next.Stage.Number);
-        Assert.Empty(next.Dates);
+        Assert.DoesNotContain(next.Days, day => day.Own || day.Free);
     }
 
     [Fact]
@@ -199,13 +211,13 @@ public partial class ScoreTests
         var game = await SinglesAsync(OneSetOf6);
         (await FreeOnAsync(game.Una, game.LeagueId, Day(7, 20))).EnsureSuccessStatusCode();
         (await FreeOnAsync(game.Vic, game.LeagueId, Day(7, 20))).EnsureSuccessStatusCode();
-        Assert.Equal([On(7, 20)], (await GameAsync(game.Vic.Client, game.GameId)).Availability!.SharedDates);
+        Assert.Equal([On(7, 20)], SharedDates((await GameAsync(game.Vic.Client, game.GameId)).Availability!));
 
         Assert.Equal(HttpStatusCode.NoContent, (await DeleteUserAsync(await UserIdAsync(game.Una.Client))).StatusCode);
 
         // Una is a Former player now, with no days: nothing suits both any more.
         var availability = (await GameAsync(game.Vic.Client, game.GameId)).Availability!;
-        Assert.Empty(availability.SharedDates);
+        Assert.Empty(availability.Shared);
         Assert.Equal([SocialTennis.Api.Domain.Player.FormerPlayerName], availability.NotGiven);
     }
 
@@ -221,7 +233,7 @@ public partial class ScoreTests
         (await FreeOnAsync(game.Una, game.LeagueId, Day(8, 10))).EnsureSuccessStatusCode();
         (await FreeOnAsync(game.Vic, game.LeagueId, Day(8, 10), Day(8, 12))).EnsureSuccessStatusCode();
 
-        Assert.Equal([On(8, 10)], (await GameAsync(game.Una.Client, game.GameId)).Availability!.SharedDates);
-        Assert.True((await ErrorsAsync(await FreeOnAsync(game.Una, game.LeagueId, Day(10, 1)))).ContainsKey("dates"));
+        Assert.Equal([On(8, 10)], SharedDates((await GameAsync(game.Una.Client, game.GameId)).Availability!));
+        Assert.True((await ErrorsAsync(await FreeOnAsync(game.Una, game.LeagueId, Day(10, 1)))).ContainsKey("days"));
     }
 }

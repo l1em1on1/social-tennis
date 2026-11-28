@@ -40,11 +40,13 @@ public static class GetGame
                 g.Stage.League.Type,
                 g.Stage.League.ScoreFormat,
                 Stage = new GameStage(g.Stage.Number, g.Stage.StartDate, g.Stage.EndDate, g.Stage.ClosedAt != null),
+                LeagueEndDate = g.Stage.League.EndDate,
                 g.Division,
                 InLeague = g.Stage.League.Participants.Any(p => p.Player.UserId == userId),
                 NotPlayed = g.VoidedAt != null,
                 g.StageId,
                 g.Date,
+                g.StartTime,
                 g.Court,
                 DateSetBy = g.DateSetBy == null ? null : g.DateSetBy.Name,
                 // Every Player it needs, on both Sides (#9): their free days make its shared ones.
@@ -99,18 +101,24 @@ public static class GetGame
         var managers = await LeagueManagerList.NamesAsync(db, game.LeagueId, cancellationToken);
         var today = ClubCalendar.Today(game.TimeZone, clock);
 
-        // The days that suit everyone (#9), for the Game's own Players while there's still a Stage to play it in.
+        // The days that suit everyone (#9, #276), for the Game's own Players while there's still a Stage to play it in:
+        // from today, or the Stage's start if later, to the last day its Players can set (Availability.CurrentStage).
         GameAvailability? availability = null;
         if (game.Yours.Count > 0 && !game.Stage.Closed)
         {
             var needed = game.Needed.Select(p => p.PlayerId).ToList();
-            var free = await db.AvailableDays
+            var own = await db.AvailableDays.AsNoTracking()
                 .Where(d => d.StageId == game.StageId && needed.Contains(d.PlayerId))
-                .Select(d => new { d.PlayerId, d.Date })
                 .ToListAsync(cancellationToken);
+            var usual = await db.UsualDays.AsNoTracking().Where(d => needed.Contains(d.PlayerId)).ToListAsync(cancellationToken);
+            var times = game.Needed.DistinctBy(p => p.PlayerId).ToDictionary(
+                p => p.PlayerId,
+                p => PlayerFreeTime.Of(own.Where(d => d.PlayerId == p.PlayerId), usual.Where(d => d.PlayerId == p.PlayerId)));
+            var first = today > game.Stage.StartDate ? today : game.Stage.StartDate;
+            var last = StageDates.DeadlinePassed(game.Stage.EndDate, game.TimeZone, clock) ? game.LeagueEndDate : game.Stage.EndDate;
             availability = new GameAvailability(
-                [.. free.Where(d => d.Date >= today).GroupBy(d => d.Date).Where(day => day.Count() == needed.Count).Select(day => day.Key).Order()],
-                [.. game.Needed.Where(p => free.All(d => d.PlayerId != p.PlayerId)).Select(p => p.Name)]);
+                [.. FreeTime.Shared(times.Values, first, last).Select(day => new SharedTime(day.Date, day.Window.From, day.Window.To))],
+                [.. game.Needed.Where(p => !times[p.PlayerId].Given).Select(p => p.Name)]);
         }
         var score = game.Score is { } s
             ? new GameScore(s.PlayedOn, SetScore.Of(game.ScoreFormat, s.Sets), s.Winner, s.Retired, s.SubmittedBy, s.RecordedByManager, s.SubmittedAt, s.Version)
@@ -166,6 +174,7 @@ public static class GetGame
             game.TimeZone,
             today,
             game.Date,
+            game.StartTime,
             game.Court,
             game.DateSetBy,
             availability));

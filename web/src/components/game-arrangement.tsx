@@ -45,7 +45,7 @@ export function GameArrangement({
   /** The first day it can be played. */
   stageStart: string;
 }) {
-  const shared = availability.sharedDates;
+  const shared = availability.shared.map((day) => day.date);
   return (
     <Card title="When to play" aria-label="When to play">
       <div className="flex flex-col gap-3 text-sm">

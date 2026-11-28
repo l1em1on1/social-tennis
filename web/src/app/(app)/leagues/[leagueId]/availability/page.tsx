@@ -60,7 +60,7 @@ export default async function AvailabilityPage({ params, searchParams }: PagePro
         playerId={acting.id}
         firstDay={stage.startDate}
         lastDay={data.lastDay}
-        dates={data.dates}
+        dates={data.days.filter((day) => day.free).map((day) => day.date)}
       />
       <div>
         <ButtonLink href={`/leagues/${leagueId}`} variant="secondary">

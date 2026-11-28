@@ -41,6 +41,12 @@ public class Game
     /// </summary>
     public DateOnly? Date { get; set; }
 
+    /// <summary>
+    /// When it starts on its <see cref="Date"/>, in the Club's time zone (#276). Set with the Date, and cleared
+    /// with it. A Game arranged before #276 keeps its Date with none.
+    /// </summary>
+    public TimeOnly? StartTime { get; set; }
+
     /// <summary>Where, as the Players note it for themselves ("6 - astro"): free text, required nowhere (ADR-0006).</summary>
     public string? Court { get; set; }
 

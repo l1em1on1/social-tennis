@@ -34,11 +34,25 @@ namespace SocialTennis.Api.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<TimeOnly?>("From")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("NotFree")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly?>("To")
+                        .HasColumnType("time without time zone");
+
                     b.HasKey("StageId", "PlayerId", "Date");
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("AvailableDays");
+                    b.ToTable("AvailableDays", t =>
+                        {
+                            t.HasCheckConstraint("CK_AvailableDays_NotFree", "NOT \"NotFree\" OR \"From\" IS NULL");
+
+                            t.HasCheckConstraint("CK_AvailableDays_Window", "(\"From\" IS NULL AND \"To\" IS NULL) OR (\"From\" IS NOT NULL AND \"To\" IS NOT NULL AND \"From\" < \"To\")");
+                        });
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.Club", b =>
@@ -193,6 +207,9 @@ namespace SocialTennis.Api.Migrations
 
                     b.Property<Guid>("StageId")
                         .HasColumnType("uuid");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time without time zone");
 
                     b.Property<DateTimeOffset?>("VoidedAt")
                         .HasColumnType("timestamp with time zone");
@@ -779,6 +796,28 @@ namespace SocialTennis.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("SocialTennis.Api.Domain.UsualDay", b =>
+                {
+                    b.Property<Guid>("PlayerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Weekday")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly?>("From")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("To")
+                        .HasColumnType("time without time zone");
+
+                    b.HasKey("PlayerId", "Weekday");
+
+                    b.ToTable("UsualDays", t =>
+                        {
+                            t.HasCheckConstraint("CK_UsualDays_Window", "(\"From\" IS NULL AND \"To\" IS NULL) OR (\"From\" IS NOT NULL AND \"To\" IS NOT NULL AND \"From\" < \"To\")");
+                        });
+                });
+
             modelBuilder.Entity("SocialTennis.Api.Domain.WithdrawalRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1158,6 +1197,17 @@ namespace SocialTennis.Api.Migrations
                     b.Navigation("MarkedBy");
 
                     b.Navigation("Stage");
+                });
+
+            modelBuilder.Entity("SocialTennis.Api.Domain.UsualDay", b =>
+                {
+                    b.HasOne("SocialTennis.Api.Domain.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("SocialTennis.Api.Domain.WithdrawalRequest", b =>

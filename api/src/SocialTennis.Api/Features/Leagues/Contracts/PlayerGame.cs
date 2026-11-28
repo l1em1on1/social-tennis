@@ -7,6 +7,7 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// <param name="Score">None until it's entered.</param>
 /// <param name="NotPlayed">A Manager marked it not played (#10): it counts for nothing.</param>
 /// <param name="Date">The Date its Players agreed (#9); none until one of them sets it.</param>
+/// <param name="StartTime">When it starts on its Date, in the Club's time zone (#276); none until agreed, or for a Game arranged before #276.</param>
 /// <param name="Court">Where, as its Players noted it; none if they didn't.</param>
 public record PlayerGame(
     Guid GameId,
@@ -16,4 +17,5 @@ public record PlayerGame(
     LadderGameScore? Score,
     bool NotPlayed,
     DateOnly? Date,
+    TimeOnly? StartTime,
     string? Court);

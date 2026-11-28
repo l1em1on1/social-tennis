@@ -9,7 +9,13 @@ const meta = {
     gameId: "00000000-0000-4000-8000-000000000001",
     leagueId: "00000000-0000-4000-8000-000000000002",
     playerId: "00000000-0000-4000-8000-000000000003",
-    availability: { sharedDates: ["2026-11-24", "2026-11-27"], notGiven: [] },
+    availability: {
+      shared: [
+        { date: "2026-11-24", from: null, to: null },
+        { date: "2026-11-27", from: null, to: null },
+      ],
+      notGiven: [],
+    },
     stageStart: "2026-11-01",
   },
 } satisfies Meta<typeof GameArrangement>;
@@ -38,7 +44,7 @@ export const Agreed: Story = {
 
 /** No day suits everyone yet, because someone hasn't said: it names them. */
 export const Waiting: Story = {
-  args: { availability: { sharedDates: [], notGiven: ["Ella Grant"] } },
+  args: { availability: { shared: [], notGiven: ["Ella Grant"] } },
   play: async ({ canvas }) => {
     await expect(canvas.getByText(/^None yet: waiting for Ella Grant to say which days they're free\./)).toBeVisible();
   },

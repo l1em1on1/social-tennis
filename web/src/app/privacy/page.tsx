@@ -51,7 +51,8 @@ export default async function PrivacyPage() {
           <li>For each of your players: name, gender, level and rating.</li>
           <li>
             Which clubs and leagues each player is in or has asked to join or leave, the answers, and their games and scores: the
-            days they say they&apos;re free to play, and the date and court note agreed for a game.
+            days and times they say they&apos;re free to play, with their usual week, and the date, start time and court
+            note agreed for a game.
           </li>
           <li>An email address a Manager pre-approves for a club, before that person has signed in.</li>
           <li>Each sign-in link, with the address it went to, until the nightly clean-up after it&apos;s used or expires.</li>
@@ -101,11 +102,11 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Other members: players&apos; names in clubs and leagues, and their games and scores. A league says who runs it,
-            by name. A game&apos;s agreed date and court note are seen by its league.
+            by name. A game&apos;s agreed date, start time and court note are seen by its league.
           </li>
           <li>
-            The other players in a game: the days that suit everyone in it, which shows them which of your free days they
-            share. Your whole list of free days is seen by you alone.
+            The other players in a game: the days and times that suit everyone in it, which shows them where your free
+            times overlap with theirs. Your usual week and your whole list of free days are seen by you alone.
           </li>
         </ul>
         <p>
@@ -125,7 +126,7 @@ export default async function PrivacyPage() {
       <Section title="Seeing, correcting or deleting your data">
         <p>
           Email {contact}, and we&apos;ll do it. When an account is deleted, its login goes, and its players are kept as
-          &ldquo;Former player&rdquo;, so other members&apos; results stay correct. The days they said they were free go.
+          &ldquo;Former player&rdquo;, so other members&apos; results stay correct. The days and usual week they said they were free go.
         </p>
       </Section>
 

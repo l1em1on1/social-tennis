@@ -47,6 +47,7 @@ public static class StageLadder
                 Score = g.Score == null ? null : new { g.Score.Winner, g.Score.Retired, g.Score.Sets },
                 NotPlayed = g.VoidedAt != null,
                 g.Date,
+                g.StartTime,
                 g.Court,
             })
             .AsSplitQuery()
@@ -64,6 +65,7 @@ public static class StageLadder
                 g.Score,
                 g.NotPlayed,
                 g.Date,
+                g.StartTime,
                 g.Court,
             })
             .ToList();
@@ -155,6 +157,7 @@ public static class StageLadder
                             g.First.Count > 1 ? g.First[1] : null,
                             g.Second.Count > 1 ? g.Second[1] : null,
                             g.Date,
+                            g.StartTime,
                             g.Court)),
                     ],
                     [

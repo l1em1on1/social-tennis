@@ -739,12 +739,18 @@ const snapshot = (gameScore: Schemas["LadderGameScore"], playedOn: string) => ({
 export const fixtureDateSetBy: Record<string, string> = { [G.chrisAlex]: chris.name };
 
 /**
- * The days that suit everyone in a Game (#9), as its own Players see them,
- * by Game id: Chris and Alex share two, and Ella hasn't said which days she's free.
+ * The days that suit everyone in a Game (#9, #276), as its own Players see them,
+ * by Game id: Chris and Alex share two, any time, and Ella hasn't said which days she's free.
  */
 export const fixtureGameAvailability: Record<string, Schemas["GameAvailability"]> = {
-  [G.chrisAlex]: { sharedDates: ["2026-11-24", "2026-11-27"], notGiven: [] },
-  [G.ellaNia]: { sharedDates: [], notGiven: [ella.name] },
+  [G.chrisAlex]: {
+    shared: [
+      { date: "2026-11-24", from: null, to: null },
+      { date: "2026-11-27", from: null, to: null },
+    ],
+    notGiven: [],
+  },
+  [G.ellaNia]: { shared: [], notGiven: [ella.name] },
 };
 
 /** Each Player's free days in a League's current Stage (#9), by League and Player: Alex's in Summer Ladder. */
