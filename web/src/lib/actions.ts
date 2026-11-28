@@ -989,9 +989,6 @@ export async function closeStage(_previous: CloseStageState, formData: FormData)
   if (refusal === "stage-queue-not-empty") {
     redirect(`/manage/leagues/${leagueId}/close?error=queue`);
   }
-  if (refusal === "withdrawn-on-ladder") {
-    redirect(`/manage/leagues/${leagueId}/close?error=withdrawn`);
-  }
   if (!response.ok && response.status !== 404 && response.status !== 409) {
     throw new Error(`POST /leagues/${leagueId}/close failed with ${response.status}`);
   }

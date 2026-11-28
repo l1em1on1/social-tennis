@@ -14,6 +14,10 @@ namespace SocialTennis.Api.Features.Leagues.Contracts;
 /// </param>
 /// <param name="Waiting">Teams off the ladder that can join at the bottom of the bottom Division.</param>
 /// <param name="NextStage">None when this Stage is the League's last: closing it ends the League, and nobody moves.</param>
+/// <param name="Replaceable">
+/// Teams off the ladder that can take a withdrawn Team's place in the next Stage (#21), in Foursomes too;
+/// none when this Stage is the League's last.
+/// </param>
 public record GetStageCloseResponse(
     LeagueStageSummary Stage,
     DateOnly LeagueEndDate,
@@ -21,4 +25,5 @@ public record GetStageCloseResponse(
     IReadOnlyList<LadderDivision> Divisions,
     LadderAwaiting Awaiting,
     IReadOnlyList<CloseWaitingTeam> Waiting,
-    CloseNextStage? NextStage);
+    CloseNextStage? NextStage,
+    IReadOnlyList<CloseWaitingTeam> Replaceable);

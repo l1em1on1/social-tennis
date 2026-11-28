@@ -76,12 +76,6 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
         />
       )}
       {error === "queue" && <ErrorState title="A game still has no score" description="Settle it below, then close the Stage." />}
-      {error === "withdrawn" && (
-        <ErrorState
-          title="A team that has withdrawn is still on the ladder"
-          description="Closing a Stage with one, and naming a replacement, is still to be built (#21)."
-        />
-      )}
 
       {unscored.length > 0 ? (
         <Card title="Settle these first" aria-label="Settle these first">
@@ -109,6 +103,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
                 teamId: standing.teamId,
                 name: teamName(standing.teamId),
                 rank: Number(standing.rank),
+                withdrawn: division.competitors.some((competitor) => competitor.teamId === standing.teamId && competitor.withdrawn),
                 // Points first where they rank (#214): "5 pts, 2–0, +5". In Foursomes, the games banked that rank them (#14).
                 record:
                   foursomes
