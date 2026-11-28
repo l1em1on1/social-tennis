@@ -1438,6 +1438,10 @@ test("a Player asks to leave and takes it back, a Manager declines one and accep
   await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toBeVisible();
   await page.getByRole("link", { name: "See the ladder" }).click();
   await expect(standings).toHaveText([new RegExp(una.name), new RegExp(wes.name)]);
+  // On the Manager page, Vic stays as he was: Withdrawn, with nothing to press (#277 review).
+  await page.goto(leaguePage);
+  await expect(playerRow(vic.name)).toContainText("Withdrawn");
+  await expect(playerRow(vic.name).getByRole("button")).toHaveCount(0);
   await vicPage.reload();
   await expect(vicCard.getByText(/You left this league on .*Results already played stay\./)).toBeVisible();
   await vicContext.close();

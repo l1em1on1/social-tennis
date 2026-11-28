@@ -107,11 +107,14 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
     league.type === "DoublesMix" && request.gender !== null && request.gender === request.partner?.gender;
   // Starting (#7): only a Divisional League, once (Foursomes too, #14).
   // Afterwards a Team on the ladder is fixed: no Unpair, and no Remove for its
-  // Players (a Withdrawal, #21). Anyone not on it can still come and go.
+  // Players (a Withdrawal, #21). Anyone not on it can still come and go, except
+  // a Withdrawn Team the close took off: it played, so it stays as it was.
   const stage = league.stage;
   const canStart = !stage && league.structure === "Divisional";
   const teamOf = (teamId: string | null) => league.teams.find((team) => team.id === teamId);
   const onLadder = (teamId: string | null) => teamOf(teamId)?.position != null;
+  // Remove and Unpair: never for a Team on the ladder, nor a Withdrawn one off it (#277 review: its results keep it).
+  const canLeave = (teamId: string | null) => !onLadder(teamId) && !teamOf(teamId)?.withdrawn;
   const teamName = (teamId: string | null) => teamOf(teamId)?.playerIds.map(nameOf).join(" & ") ?? "";
   // A Withdrawn Team (#21) keeps its place until the close, then leaves the ladder.
   const placeBadge = (teamId: string | null) => {
@@ -373,7 +376,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                       </Sheet>
                     )}
                     {/* Behind a sheet: removing is one tap away from a name in a list. */}
-                    {!onLadder(participant.teamId) && (
+                    {canLeave(participant.teamId) && (
                     <Sheet
                       title={`Remove ${participant.name}?`}
                       triggerIcon="trash"
@@ -416,7 +419,7 @@ export default async function LeaguePage({ params, searchParams }: PageProps<"/m
                       <p className="min-w-0 font-medium break-words">
                         {names} {placeBadge(team.id)}
                       </p>
-                      {team.position == null && (
+                      {canLeave(team.id) && (
                         <form action={unpairTeam}>
                           <input type="hidden" name="leagueId" value={league.id} />
                           <input type="hidden" name="teamId" value={team.id} />
