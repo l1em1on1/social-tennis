@@ -95,6 +95,16 @@ export function StageCloseForm({
   const replacing = Object.values(replacements);
   // Foursomes needs a Player for every place (#279 review): with too few waiting, the close can't go ahead yet.
   const tooFewWaiting = !ends && foursomes && withdrawn.length > replaceable.length;
+  // Elsewhere a Division may shrink, but not under 2 (`League.MinDivisionSize`, #279 review): count each one next
+  // Stage, joiners in, withdrawn Teams nobody replaces out.
+  const withdrawnIds = new Set(withdrawn.map((team) => team.teamId));
+  const tooSmall =
+    next && !foursomes
+      ? next
+          .map((division, index) => ({ number: index + 1, size: division.filter((id) => !withdrawnIds.has(id) || replacements[id]).length }))
+          .filter((division) => division.size < 2)
+      : [];
+  const nobodyLeft = replaceable.every((team) => replacing.includes(team.teamId) || joining.includes(team.teamId));
   // A Team takes one place: not two withdrawn Teams' places, and not a place and a joiner's too.
   const canReplace = (teamId: string, forTeam: string) =>
     !joining.includes(teamId) && !Object.entries(replacements).some(([withdrawnId, id]) => id === teamId && withdrawnId !== forTeam);
@@ -183,7 +193,18 @@ export function StageCloseForm({
 
       {!ends && withdrawn.length > 0 && (
         <fieldset className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
-          <legend className="px-1 text-base font-semibold">Places left by withdrawn Teams</legend>
+          <legend className="px-1 text-base font-semibold">{foursomes ? "Places left by withdrawn players" : "Places left by withdrawn Teams"}</legend>
+          {tooSmall.map((division) => (
+            <ErrorState
+              key={division.number}
+              title={`Division ${division.number} would have ${division.size === 0 ? "no Teams" : "one Team"}`}
+              description={
+                nobodyLeft
+                  ? "Nobody is waiting for a place: add a Team to the league on its page first, then come back to close the Stage."
+                  : "A Division needs at least 2: name a Team waiting for a place to take a withdrawn Team's place there."
+              }
+            />
+          ))}
           {tooFewWaiting && (
             <ErrorState
               title={replaceable.length === 0 ? "Nobody is waiting for a place" : `Only ${replaceable.length} waiting for ${withdrawn.length} places`}
@@ -193,7 +214,7 @@ export function StageCloseForm({
           <p className="text-sm text-fg-muted">
             {foursomes
               ? "Name a player waiting for a place to take each one, so the Division stays 4."
-              : "A player waiting for a place can take each one, moving up or down as it would have. Otherwise the Division is one smaller."}
+              : "A Team waiting for a place can take each one, moving up or down as the withdrawn Team would have. Otherwise the Division is one smaller."}
           </p>
           {withdrawn.map((team) => {
             const to = divisionOf(team.teamId);
@@ -283,7 +304,7 @@ export function StageCloseForm({
         </div>
       )}
 
-      <SubmitButton fullWidth pendingLabel="Closing…" disabled={tooFewWaiting}>
+      <SubmitButton fullWidth pendingLabel="Closing…" disabled={tooFewWaiting || tooSmall.length > 0}>
         {ends ? `Close Stage ${stageNumber} and end the League` : `Close Stage ${stageNumber} and open Stage ${stageNumber + 1}`}
       </SubmitButton>
     </form>
