@@ -88,7 +88,7 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
         <StageCloseForm
           // Rebuilt from what it shows: after a "things changed" refusal the URL changes only its query, so
           // Next keeps the form mounted, and its order and ticks must start again from the new data (#217 review).
-          key={JSON.stringify([close.divisions.map((division) => division.standings), close.waiting])}
+          key={JSON.stringify([close.divisions.map((division) => division.standings), close.waiting, close.replaceable])}
           leagueId={leagueId}
           stageNumber={Number(stage.number)}
           stageEnd={stage.endDate}
@@ -118,6 +118,8 @@ export default async function CloseStagePage({ params, searchParams }: PageProps
             ].filter((tie, index, all) => all.findIndex((other) => sameTeams(other, tie)) === index),
           }))}
           waiting={close.waiting.map((team) => ({ teamId: team.teamId, name: name(team.players) }))}
+          replaceable={close.replaceable.map((team) => ({ teamId: team.teamId, name: name(team.players) }))}
+          foursomes={foursomes}
           nextStage={
             close.nextStage
               ? { startDate: typed(start) ?? close.nextStage.startDate, endDate: typed(end) ?? close.nextStage.endDate }

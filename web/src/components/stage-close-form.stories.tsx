@@ -18,6 +18,8 @@ const meta = {
       { number: 2, teams: [team("c", "Omar Ali", 1, "0–0, 0"), team("d", "Tom Reid", 1, "0–0, 0")], ties: [["c", "d"]] },
     ],
     waiting: [{ teamId: "e", name: "Dev Shah" }],
+    replaceable: [{ teamId: "e", name: "Dev Shah" }],
+    foursomes: false,
     nextStage: { startDate: "2026-12-01", endDate: "2026-12-31" },
   },
 } satisfies Meta<typeof StageCloseForm>;
@@ -72,6 +74,45 @@ export const TeamWithdrawn: Story = {
     await expect(order(canvas, 1)[2]).toHaveTextContent("Cat Moss · 0–2, -8leaves");
     await expect(order(canvas, 1)[1]).toHaveTextContent("Bob Hart · 1–1, 0stays");
     await expect(order(canvas, 2)[0]).toHaveTextContent("Dan Ford · 2–0, +8▲ to Division 1");
+    // Nobody named yet: the place goes, and the Division is one smaller.
+    await expect(canvas.getByLabelText("Cat Moss's place")).toHaveValue("");
+    await expect(canvas.getByText("In Division 2 next Stage.")).toBeVisible();
+  },
+};
+
+/** Dev, waiting, takes Cat's place: where Cat would have gone, Division 2; he can't also join at the bottom. */
+export const ReplacementNamed: Story = {
+  args: TeamWithdrawn.args,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.selectOptions(canvas.getByLabelText("Cat Moss's place"), "Dev Shah");
+    await expect(order(canvas, 1)[2]).toHaveTextContent("Cat Moss · 0–2, -8replaced");
+    await expect(canvas.getByText("Dev Shah starts Stage 2 in Division 2.")).toBeVisible();
+    await expect(canvas.getByRole("checkbox", { name: "Dev Shah" })).toBeDisabled();
+  },
+};
+
+/** A waiting Team ticked to join can't also take a place. */
+export const JoinerCantReplace: Story = {
+  args: TeamWithdrawn.args,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Dev Shah" }));
+    await expect(canvas.getByRole("option", { name: "Dev Shah" })).toBeDisabled();
+  },
+};
+
+/** Foursomes: a Player who withdrew must be replaced, so the choice starts at "Pick a player" and is required. */
+export const FoursomesReplacement: Story = {
+  args: {
+    ...TeamWithdrawn.args,
+    foursomes: true,
+    waiting: [],
+    replaceable: [{ teamId: "g", name: "Ivy Park" }],
+  },
+  play: async ({ canvas }) => {
+    const place = canvas.getByLabelText("Cat Moss's place");
+    await expect(place).toBeRequired();
+    await expect(within(place).getByRole("option", { name: "Pick a player" })).toBeInTheDocument();
+    await expect(canvas.getByText(/so the Division stays 4/)).toBeVisible();
   },
 };
 

@@ -1053,6 +1053,12 @@ export async function closeStage(_previous: CloseStageState, formData: FormData)
   const leagueId = formData.get("leagueId");
   const divisions = formData.getAll("division").map((value) => (typeof value === "string" && value ? value.split(",") : []));
   const joining = formData.getAll("joining").filter(isId);
+  // Who takes each withdrawn Team's place (#21), as "withdrawnTeamId:replacementTeamId".
+  const replacements = formData
+    .getAll("replacement")
+    .map((value) => (typeof value === "string" ? value.split(":") : []))
+    .filter((pair): pair is [string, string] => pair.length === 2 && pair.every(isId))
+    .map(([teamId, replacementTeamId]) => ({ teamId, replacementTeamId }));
   const start = formData.get("nextStartDate");
   const end = formData.get("nextEndDate");
   const date = (value: FormDataEntryValue | null) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
@@ -1063,7 +1069,7 @@ export async function closeStage(_previous: CloseStageState, formData: FormData)
   const api = await apiWithSession();
   const { error, response } = await api.POST("/leagues/{leagueId}/close", {
     params: { path: { leagueId } },
-    body: { divisions, joining, nextStartDate: date(start), nextEndDate: date(end) },
+    body: { divisions, joining, nextStartDate: date(start), nextEndDate: date(end), replacements },
   });
   if (response.status === 400 && error && "errors" in error) {
     return { errors: (error.errors ?? {}) as Record<string, string[]> };

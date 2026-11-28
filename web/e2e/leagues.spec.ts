@@ -1446,3 +1446,60 @@ test("a Player asks to leave and takes it back, a Manager declines one and accep
   await expect(vicCard.getByText(/You left this league on .*Results already played stay\./)).toBeVisible();
   await vicContext.close();
 });
+
+test("at the close, a Player waiting for a place takes a withdrawn Team's place, not a joiner's too", async ({ page }, testInfo) => {
+  test.slow();
+  const league = uniqueName(testInfo, "Replacing Ladder");
+  const players = ["Abe Replaced", "Bo Replaced", "Cy Replaced", "Dee Replaced"].map((name) => ({
+    name: uniqueName(testInfo, name),
+    email: personaEmail(testInfo, `replaced-${name.split(" ")[0].toLowerCase()}`),
+  }));
+  const [abe, bo, cy, dee] = players;
+
+  await logIn(page, testInfo, personaEmail(testInfo, "manager"));
+  for (const { name, email } of players) await addClubPlayer(page, name, email);
+  await createLeague(page, league, undefined, { starts: "2026-11-01", ends: "2030-12-31", stageMonths: 12 });
+  for (const { name, email } of players) {
+    await page.getByLabel("Player", { exact: true }).selectOption({ label: `${name} (${email})` });
+    await page.getByRole("button", { name: "Add to league" }).click();
+    await expect(page.getByRole("list", { name: "Players in the league" })).toContainText(name);
+  }
+  // Dee waits off the ladder; Abe, Bo and Cy play in one Division.
+  await page.getByRole("link", { name: "Start the league" }).click();
+  await page.getByRole("button", { name: `Leave out ${dee.name}` }).click();
+  await page.getByRole("button", { name: "Confirm and start" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "has started" })).toBeVisible();
+  const leaguePage = page.url();
+
+  // Cy withdraws, and every Game is marked not played.
+  const playerRow = (name: string) => page.getByRole("list", { name: "Players in the league" }).getByRole("listitem").filter({ hasText: name });
+  await playerRow(cy.name).getByRole("button", { name: `Withdraw ${cy.name}` }).click();
+  await page.getByRole("button", { name: "Withdraw from the league" }).click();
+  await expect(playerRow(cy.name)).toContainText("Withdrawn");
+  const toDo = page.getByRole("region", { name: "To do" });
+  for (let left = 3; left > 0; left--) {
+    await toDo.getByRole("link", { name: "Settle" }).first().click();
+    await page.getByRole("button", { name: "Mark not played (manager)" }).click();
+    await expect(page.getByRole("region", { name: "Not played" })).toBeVisible();
+    await page.goto(leaguePage);
+  }
+
+  // On the close screen, Dee can join at the bottom or take Cy's place, not both.
+  await toDo.getByRole("link", { name: "Close Stage 1" }).click();
+  const place = page.getByLabel(`${cy.name}'s place`);
+  await expect(place).toHaveValue("");
+  await page.getByRole("checkbox", { name: dee.name }).check();
+  await expect(place.getByRole("option", { name: dee.name })).toBeDisabled();
+  await page.getByRole("checkbox", { name: dee.name }).uncheck();
+  await place.selectOption({ label: dee.name });
+  await expect(page.getByRole("checkbox", { name: dee.name })).toBeDisabled();
+  await expect(page.getByRole("list", { name: "Division 1 order" }).getByRole("listitem").filter({ hasText: cy.name })).toContainText("replaced");
+  await expectNoSeriousA11yViolations(page);
+  await page.getByRole("button", { name: "Close Stage 1 and open Stage 2" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Stage 1 is closed" })).toBeVisible();
+
+  // Stage 2: Dee in Cy's place, at the bottom where Cy was; nobody else moved.
+  await page.getByRole("link", { name: "See the ladder" }).click();
+  const standings = page.getByRole("table", { name: "Division 1 standings" }).getByRole("row").filter({ has: page.getByRole("rowheader") });
+  await expect(standings).toHaveText([new RegExp(abe.name), new RegExp(bo.name), new RegExp(dee.name)]);
+});
