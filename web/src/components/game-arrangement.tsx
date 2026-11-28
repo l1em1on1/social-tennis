@@ -30,6 +30,7 @@ export function GameArrangement({
   playerId,
   availability,
   date,
+  startTime,
   court,
   dateSetBy,
   stageStart,
@@ -40,12 +41,14 @@ export function GameArrangement({
   playerId: string;
   availability: Availability;
   date?: string | null;
+  /** Its start time (#276), kept while the Date stays the same: the form doesn't ask for one. */
+  startTime?: string | null;
   court?: string | null;
   dateSetBy?: string | null;
   /** The first day it can be played. */
   stageStart: string;
 }) {
-  const shared = availability.sharedDates;
+  const shared = availability.shared.map((day) => day.date);
   return (
     <Card title="When to play" aria-label="When to play">
       <div className="flex flex-col gap-3 text-sm">
@@ -89,6 +92,12 @@ export function GameArrangement({
         <form action={arrangeGame} className="flex flex-col gap-3 border-t border-border pt-3">
           <input type="hidden" name="gameId" value={gameId} />
           <input type="hidden" name="playerId" value={playerId} />
+          {date && startTime && (
+            <>
+              <input type="hidden" name="agreedDate" value={date} />
+              <input type="hidden" name="startTime" value={startTime} />
+            </>
+          )}
           <Field id="game-date" label="Agreed date" hint="Any of you can set it or change it. Leave it empty to clear it.">
             {(control) => <Input {...control} name="date" type="date" min={stageStart} defaultValue={date ?? shared[0] ?? ""} />}
           </Field>

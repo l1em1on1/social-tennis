@@ -356,6 +356,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/players/{playerId}/usual-week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetUsualWeek"];
+        put: operations["SetUsualWeek"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/players/{playerId}/rating": {
         parameters: {
             query?: never;
@@ -908,6 +924,8 @@ export interface components {
             playerId: string;
             /** Format: date */
             date: null | string;
+            /** Format: time */
+            startTime: null | string;
             court: null | string;
         };
         AskToJoinLeagueRequest: {
@@ -919,6 +937,25 @@ export interface components {
         AskToWithdrawRequest: {
             /** Format: uuid */
             playerId: string;
+        };
+        AvailabilityDay: {
+            /** Format: date */
+            date: string;
+            own: boolean;
+            free: boolean;
+            /** Format: time */
+            from: null | string;
+            /** Format: time */
+            to: null | string;
+        };
+        AvailabilityDaySetting: {
+            /** Format: date */
+            date: string;
+            free: boolean;
+            /** Format: time */
+            from: null | string;
+            /** Format: time */
+            to: null | string;
         };
         CloseNextStage: {
             /** Format: date */
@@ -1064,7 +1101,7 @@ export interface components {
             accept: null | boolean;
         };
         GameAvailability: {
-            sharedDates: string[];
+            shared: components["schemas"]["SharedTime"][];
             notGiven: string[];
         };
         GamePlayer: {
@@ -1114,7 +1151,7 @@ export interface components {
         };
         GetAvailabilityResponse: {
             stage: components["schemas"]["LeagueStageSummary"];
-            dates: string[];
+            days: components["schemas"]["AvailabilityDay"][];
             /** Format: date */
             lastDay: string;
         };
@@ -1164,6 +1201,8 @@ export interface components {
             today: string;
             /** Format: date */
             date: null | string;
+            /** Format: time */
+            startTime: null | string;
             court: null | string;
             dateSetBy: null | string;
             availability: null | components["schemas"]["GameAvailability"];
@@ -1306,6 +1345,8 @@ export interface components {
             secondPartnerTeamId?: null | string;
             /** Format: date */
             date?: null | string;
+            /** Format: time */
+            startTime?: null | string;
             court?: null | string;
         };
         LadderGameScore: {
@@ -1523,6 +1564,8 @@ export interface components {
             notPlayed: boolean;
             /** Format: date */
             date: null | string;
+            /** Format: time */
+            startTime: null | string;
             court: null | string;
         };
         PlayerGamesLeague: {
@@ -1679,7 +1722,7 @@ export interface components {
             retired: boolean;
         };
         SetAvailabilityRequest: {
-            dates: string[];
+            days: components["schemas"]["AvailabilityDaySetting"][];
         };
         SetPlayerRatingRequest: {
             /** Format: int32 */
@@ -1695,6 +1738,17 @@ export interface components {
             /** Format: int32 */
             secondTiebreak: null | number | string;
             matchTiebreak: boolean;
+        };
+        SetUsualWeekRequest: {
+            days: components["schemas"]["UsualWeekDay"][];
+        };
+        SharedTime: {
+            /** Format: date */
+            date: string;
+            /** Format: time */
+            from: null | string;
+            /** Format: time */
+            to: null | string;
         };
         StageLength: {
             /** Format: int32 */
@@ -1753,6 +1807,18 @@ export interface components {
             lastAdmin: boolean;
             players: components["schemas"]["UserPlayer"][];
         };
+        UsualWeek: {
+            days: components["schemas"]["UsualWeekDay"][];
+        };
+        UsualWeekDay: {
+            weekday: components["schemas"]["Weekday"];
+            /** Format: time */
+            from: null | string;
+            /** Format: time */
+            to: null | string;
+        };
+        /** @enum {unknown} */
+        Weekday: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
         /** @enum {unknown} */
         WithdrawalStatus: "Pending" | "Accepted" | "Declined";
     };
@@ -2987,6 +3053,93 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdatePlayerRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetUsualWeek: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsualWeek"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetUsualWeek: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                playerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUsualWeekRequest"];
             };
         };
         responses: {

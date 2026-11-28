@@ -19,9 +19,10 @@ namespace SocialTennis.Api.Features.Games.Contracts;
 /// <param name="TimeZone">The Club's IANA time zone, which the history's times are shown in (ADR-0016).</param>
 /// <param name="Today">Today in the Club's time zone: a Game can't have been played after it.</param>
 /// <param name="Date">The Date its Players agreed (#9); none until one of them sets it.</param>
+/// <param name="StartTime">When it starts on its Date, in the Club's time zone (#276); none until agreed, or for a Game arranged before #276.</param>
 /// <param name="Court">Where, as its Players noted it; free text, none if they didn't.</param>
 /// <param name="DateSetBy">The Player who set the Date last ("Former player" once their account is deleted); none if nobody has.</param>
-/// <param name="Availability">The days that suit everyone in it: only for its own Players, while its Stage is open.</param>
+/// <param name="Availability">The days and times that suit everyone in it: only for its own Players, while its Stage is open.</param>
 public record GetGameResponse(
     Guid Id,
     Guid LeagueId,
@@ -41,6 +42,7 @@ public record GetGameResponse(
     string TimeZone,
     DateOnly Today,
     DateOnly? Date,
+    TimeOnly? StartTime,
     string? Court,
     string? DateSetBy,
     GameAvailability? Availability);

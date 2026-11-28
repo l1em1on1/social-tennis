@@ -10,8 +10,8 @@ using SocialTennis.Api.Features.Games.Contracts;
 namespace SocialTennis.Api.Features.Games;
 
 /// <summary>
-/// A Player in a League Game sets the Date its Players agreed, and may note
-/// the Court (#9). Any of them may, and the last change stands (owner,
+/// A Player in a League Game sets the Date its Players agreed, with its start
+/// time (#276), and may note the Court (#9). Any of them may, and the last change stands (owner,
 /// 2026-11-27). Courts are the Players' business (ADR-0006): the note is
 /// theirs, and a Manager doesn't set either.
 /// </summary>
@@ -103,6 +103,7 @@ public static class ArrangeGame
             .ExecuteUpdateAsync(
                 set => set
                     .SetProperty(g => g.Date, request.Date)
+                    .SetProperty(g => g.StartTime, request.Date is null ? null : request.StartTime)
                     .SetProperty(g => g.Court, string.IsNullOrEmpty(court) ? null : court)
                     .SetProperty(g => g.DateSetById, request.Date is null ? (Guid?)null : request.PlayerId),
                 cancellationToken);

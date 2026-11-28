@@ -60,7 +60,12 @@ export default async function AvailabilityPage({ params, searchParams }: PagePro
         playerId={acting.id}
         firstDay={stage.startDate}
         lastDay={data.lastDay}
-        dates={data.dates}
+        // Only the days the Player set free themselves: a day free through their usual week (#276) isn't
+        // theirs to untick here, and saving it would fix it as free any time.
+        dates={data.days.filter((day) => day.own && day.free).map((day) => day.date)}
+        kept={data.days
+          .filter((day) => day.own && (!day.free || day.from !== null))
+          .map(({ date, free, from, to }) => ({ date, free, from, to }))}
       />
       <div>
         <ButtonLink href={`/leagues/${leagueId}`} variant="secondary">

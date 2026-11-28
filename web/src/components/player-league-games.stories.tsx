@@ -11,6 +11,7 @@ const game = (gameId: string, opponents: string[], extra: Record<string, unknown
   score: null,
   notPlayed: false,
   date: null,
+  startTime: null,
   court: null,
   ...extra,
 });

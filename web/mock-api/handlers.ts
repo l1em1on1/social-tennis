@@ -202,6 +202,7 @@ export const handlers = [
                   score: game.score,
                   notPlayed: game.notPlayed,
                   date: game.date ?? null,
+                  startTime: game.startTime ?? null,
                   court: game.court ?? null,
                 };
               }),
@@ -212,7 +213,8 @@ export const handlers = [
     return response(200).json({ leagues, page: wholeList(leagues.length) });
   }),
 
-  // A Player's own free days in a League's current Stage (#9). Saving them is a write: the server answers 501.
+  // A Player's own days in a League's current Stage (#9, #276), each with what counts on it: the fixture's free days
+  // are their own, free any time, and every other day isn't free (no usual week). Saving them is a write: 501.
   http.get("/leagues/{leagueId}/players/{playerId}/availability", ({ request, params, response }) => {
     const league = fixtureLeaguePages[params.leagueId];
     const ladder = fixtureLadders[params.leagueId];
@@ -224,11 +226,13 @@ export const handlers = [
     ) {
       return response(404).empty();
     }
-    return response(200).json({
-      stage: ladder.stage,
-      dates: fixtureFreeDays[params.leagueId]?.[params.playerId] ?? [],
-      lastDay: ladder.stage.endDate,
-    });
+    const free = new Set(fixtureFreeDays[params.leagueId]?.[params.playerId] ?? []);
+    const days = [];
+    for (let day = Date.parse(`${ladder.stage.startDate}T00:00:00Z`); day <= Date.parse(`${ladder.stage.endDate}T00:00:00Z`); day += 86_400_000) {
+      const date = new Date(day).toISOString().slice(0, 10);
+      days.push({ date, own: free.has(date), free: free.has(date), from: null, to: null });
+    }
+    return response(200).json({ stage: ladder.stage, days, lastDay: ladder.stage.endDate });
   }),
 
   // The Leagues of the Player's Clubs, and the ones they're in (#5, #7).
@@ -457,11 +461,12 @@ export const handlers = [
       today: FIXTURE_TODAY,
       // Arranging it (#9): the days that suit everyone reach only its own Players, while it has no score.
       date: game.date ?? null,
+      startTime: game.startTime ?? null,
       court: game.court ?? null,
       dateSetBy: fixtureDateSetBy[game.id] ?? null,
       availability:
         yourPlayerIds.length > 0 && !game.score && !game.notPlayed && !STAGE_CLOSED[league.id]
-          ? (fixtureGameAvailability[game.id] ?? { sharedDates: [], notGiven: [] })
+          ? (fixtureGameAvailability[game.id] ?? { shared: [], notGiven: [] })
           : null,
     });
   }),

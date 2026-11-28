@@ -85,6 +85,7 @@ public static class GetPlayerGames
                             g.Game.Score,
                             g.Game.NotPlayed,
                             g.Game.Date,
+                            g.Game.StartTime,
                             g.Game.Court);
                     })
                     .ToList();

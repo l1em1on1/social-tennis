@@ -47,6 +47,11 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
 
     public DbSet<AvailableDay> AvailableDays => Set<AvailableDay>();
 
+    public DbSet<UsualDay> UsualDays => Set<UsualDay>();
+
+    /// <summary>A time window (#276): any time (no ends), or both ends, the second after the first. Quoted: both names are SQL keywords.</summary>
+    private const string WindowCheck = """("From" IS NULL AND "To" IS NULL) OR ("From" IS NOT NULL AND "To" IS NOT NULL AND "From" < "To")""";
+
     public DbSet<WithdrawalRequest> WithdrawalRequests => Set<WithdrawalRequest>();
 
     public DbSet<ScoreChange> ScoreChanges => Set<ScoreChange>();
@@ -218,6 +223,19 @@ public class TennisDbContext(DbContextOptions<TennisDbContext> options) : DbCont
             day.HasKey(d => new { d.StageId, d.PlayerId, d.Date });
             day.HasOne(d => d.Stage).WithMany().HasForeignKey(d => d.StageId).OnDelete(DeleteBehavior.Cascade);
             day.HasOne(d => d.Player).WithMany().HasForeignKey(d => d.PlayerId).OnDelete(DeleteBehavior.Cascade);
+            // A window has both ends, the second after the first (#276); a date not free has none.
+            day.ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_AvailableDays_Window", WindowCheck);
+                table.HasCheckConstraint("CK_AvailableDays_NotFree", """NOT "NotFree" OR "From" IS NULL""");
+            });
+        });
+        // A Player's usual week (#276): one row per weekday they're usually free, theirs alone, as their free days.
+        modelBuilder.Entity<UsualDay>(day =>
+        {
+            day.HasKey(d => new { d.PlayerId, d.Weekday });
+            day.HasOne(d => d.Player).WithMany().HasForeignKey(d => d.PlayerId).OnDelete(DeleteBehavior.Cascade);
+            day.ToTable(table => table.HasCheckConstraint("CK_UsualDays_Window", WindowCheck));
         });
         // A Team plays a Game once. A Side is one Team, or in Foursomes two
         // Players' Teams of one (#14, ADR-0036), so the key is the Team, not the Side.
