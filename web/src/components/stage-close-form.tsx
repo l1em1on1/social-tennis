@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { DivisionMark } from "@/components/division-mark";
 import { Card } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { IconButton } from "@/components/ui/icon-button";
 import { ErrorState } from "@/components/ui/states";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -37,6 +38,10 @@ export interface StageCloseFormProps {
   divisions: CloseDivision[];
   /** Teams off the ladder the Manager can add. */
   waiting: { teamId: string; name: string }[];
+  /** Teams off the ladder that can take a withdrawn Team's place (#21): in Foursomes, Players. */
+  replaceable: { teamId: string; name: string }[];
+  /** Foursomes: a withdrawn Player must be replaced, so the Division stays 4. */
+  foursomes: boolean;
   /** The next Stage's proposed dates; none when this Stage is the League's last. */
   nextStage: { startDate: string; endDate: string } | null;
 }
@@ -57,14 +62,27 @@ function destination(from: number, to: number) {
  * Closing a Stage (#10, wireframe M6): each Division in its final order, with
  * ▲ ▼ to order the Teams of a tie that decides who moves, and where each
  * Team goes, as the close will do it (`relegate`), or that it leaves, where
- * it has withdrawn; the Teams waiting for a place to tick; and the next
- * Stage's dates. Confirming sends that order, and the API refuses it if the
- * Standings have changed since.
+ * it has withdrawn; who takes each withdrawn Team's place, if anyone (#21:
+ * in Foursomes someone must); the Teams waiting for a place to tick; and the
+ * next Stage's dates. Confirming sends that order, and the API refuses it if
+ * the Standings have changed since.
  */
-export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, divisions, waiting, nextStage }: StageCloseFormProps) {
+export function StageCloseForm({
+  leagueId,
+  stageNumber,
+  stageEnd,
+  leagueEnd,
+  divisions,
+  waiting,
+  replaceable,
+  foursomes,
+  nextStage,
+}: StageCloseFormProps) {
   const [state, action] = useActionState<CloseStageState, FormData>(closeStage, { errors: {} });
   const [orders, setOrders] = useState(() => divisions.map((division) => division.teams.map((team) => team.teamId)));
   const [joining, setJoining] = useState<string[]>([]);
+  // Who takes each withdrawn Team's place (#21), by its Team id: none until the Manager picks one.
+  const [replacements, setReplacements] = useState<Record<string, string>>({});
   // Controlled, so a refusal keeps what the Manager typed: React resets a form's uncontrolled fields when its
   // action finishes, and the next close would otherwise use the proposal unseen (#217 review).
   const [startDate, setStartDate] = useState(nextStage?.startDate ?? "");
@@ -72,6 +90,26 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
   const ends = nextStage === null;
   const next = ends ? null : relegate(orders, joining);
   const divisionOf = (teamId: string) => (next ? next.findIndex((division) => division.includes(teamId)) + 1 : 0);
+  const withdrawn = divisions.flatMap((division) => division.teams.filter((team) => team.withdrawn));
+  const nameOf = (teamId: string) => replaceable.find((team) => team.teamId === teamId)?.name ?? "";
+  const replacing = Object.values(replacements);
+  // Foursomes needs a Player for every place (#279 review): with too few waiting, the close can't go ahead yet.
+  const tooFewWaiting = !ends && foursomes && withdrawn.length > replaceable.length;
+  // Elsewhere a Division may shrink, but not under 2 (`League.MinDivisionSize`, #279 review): count each one next
+  // Stage, joiners in, withdrawn Teams nobody replaces out.
+  const withdrawnIds = new Set(withdrawn.map((team) => team.teamId));
+  const tooSmall =
+    next && !foursomes
+      ? next
+          .map((division, index) => ({ number: index + 1, size: division.filter((id) => !withdrawnIds.has(id) || replacements[id]).length }))
+          .filter((division) => division.size < 2)
+      : [];
+  // What to tell the Manager for such a Division: nobody waits at all, or everyone waiting is already joining or
+  // taking another place (#279 review), or there's still a Team to name.
+  const freeToName = replaceable.some((team) => !replacing.includes(team.teamId) && !joining.includes(team.teamId));
+  // A Team takes one place: not two withdrawn Teams' places, and not a place and a joiner's too.
+  const canReplace = (teamId: string, forTeam: string) =>
+    !joining.includes(teamId) && !Object.entries(replacements).some(([withdrawnId, id]) => id === teamId && withdrawnId !== forTeam);
 
   const swap = (division: number, at: number, by: -1 | 1) =>
     setOrders((current) =>
@@ -92,8 +130,11 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
       {joining.map((teamId) => (
         <input key={teamId} type="hidden" name="joining" value={teamId} />
       ))}
+      {Object.entries(replacements).map(([withdrawnId, teamId]) => (
+        <input key={withdrawnId} type="hidden" name="replacement" value={`${withdrawnId}:${teamId}`} />
+      ))}
       {state.errors.form && <ErrorState title="The Stage didn't close" description={state.errors.form.join(" ")} />}
-      {/* A withdrawn Team's place (#21): naming a replacement on this screen comes in part 3. */}
+      {/* Who takes a withdrawn Team's place (#21): a Foursomes Player unreplaced, or a Division left under 2. */}
       {state.errors.replacements && <ErrorState title="The Stage didn't close" description={state.errors.replacements.join(" ")} />}
 
       {ends && (
@@ -126,7 +167,7 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
                         <span className="flex shrink-0 items-center gap-2">
                           {next &&
                             (team.withdrawn ? (
-                              <span className="whitespace-nowrap text-fg-muted">leaves</span>
+                              <span className="whitespace-nowrap text-fg-muted">{replacements[teamId] ? "replaced" : "leaves"}</span>
                             ) : (
                               destination(division.number, divisionOf(teamId))
                             ))}
@@ -152,6 +193,70 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
         })}
       </ol>
 
+      {!ends && withdrawn.length > 0 && (
+        <fieldset className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
+          <legend className="px-1 text-base font-semibold">{foursomes ? "Places left by withdrawn players" : "Places left by withdrawn Teams"}</legend>
+          {tooSmall.map((division) => (
+            <ErrorState
+              key={division.number}
+              title={`Division ${division.number} would have ${division.size === 0 ? "no Teams" : "one Team"}`}
+              description={
+                replaceable.length === 0
+                  ? "Nobody is waiting for a place: add a Team to the league on its page first, then come back to close the Stage."
+                  : freeToName
+                    ? "A Division needs at least 2: name a Team waiting for a place to take a withdrawn Team's place there."
+                    : "A Division needs at least 2, and every Team waiting is joining or taking another place: untick a joining Team, or change a pick, to name it here."
+              }
+            />
+          ))}
+          {tooFewWaiting && (
+            <ErrorState
+              title={replaceable.length === 0 ? "Nobody is waiting for a place" : `Only ${replaceable.length} waiting for ${withdrawn.length} places`}
+              description="Add a player to the league on its page first, then come back to close the Stage."
+            />
+          )}
+          <p className="text-sm text-fg-muted">
+            {foursomes
+              ? "Name a player waiting for a place to take each one, so the Division stays 4."
+              : "A Team waiting for a place can take each one, moving up or down as the withdrawn Team would have. Otherwise the Division is one smaller."}
+          </p>
+          {withdrawn.map((team) => {
+            const to = divisionOf(team.teamId);
+            const chosen = replacements[team.teamId];
+            return (
+              <Field
+                key={team.teamId}
+                id={`replace-${team.teamId}`}
+                label={`${team.name}'s place`}
+                hint={chosen ? `${nameOf(chosen)} starts Stage ${stageNumber + 1} in Division ${to}.` : `In Division ${to} next Stage.`}
+              >
+                {(control) => (
+                  <Select
+                    {...control}
+                    value={chosen ?? ""}
+                    required={foursomes}
+                    onChange={(event) => {
+                      const picked = event.target.value;
+                      setReplacements((current) => {
+                        const others = Object.fromEntries(Object.entries(current).filter(([withdrawnId]) => withdrawnId !== team.teamId));
+                        return picked ? { ...others, [team.teamId]: picked } : others;
+                      });
+                    }}
+                  >
+                    <option value="">{foursomes ? "Pick a player" : "Nobody: the Division is one smaller"}</option>
+                    {replaceable.map((candidate) => (
+                      <option key={candidate.teamId} value={candidate.teamId} disabled={!canReplace(candidate.teamId, team.teamId)}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            );
+          })}
+        </fieldset>
+      )}
+
       {!ends && waiting.length > 0 && (
         <fieldset className="flex flex-col gap-2 rounded-md border border-border bg-surface p-4">
           <legend className="px-1 text-base font-semibold">Teams waiting for a place</legend>
@@ -162,6 +267,8 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
                 type="checkbox"
                 className="size-5 accent-accent"
                 checked={joining.includes(team.teamId)}
+                // Taking a withdrawn Team's place, it isn't also joining at the bottom.
+                disabled={replacing.includes(team.teamId)}
                 onChange={(event) =>
                   setJoining((current) => (event.target.checked ? [...current, team.teamId] : current.filter((id) => id !== team.teamId)))
                 }
@@ -201,7 +308,7 @@ export function StageCloseForm({ leagueId, stageNumber, stageEnd, leagueEnd, div
         </div>
       )}
 
-      <SubmitButton fullWidth pendingLabel="Closing…">
+      <SubmitButton fullWidth pendingLabel="Closing…" disabled={tooFewWaiting || tooSmall.length > 0}>
         {ends ? `Close Stage ${stageNumber} and end the League` : `Close Stage ${stageNumber} and open Stage ${stageNumber + 1}`}
       </SubmitButton>
     </form>

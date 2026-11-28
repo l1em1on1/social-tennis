@@ -18,6 +18,8 @@ const meta = {
       { number: 2, teams: [team("c", "Omar Ali", 1, "0–0, 0"), team("d", "Tom Reid", 1, "0–0, 0")], ties: [["c", "d"]] },
     ],
     waiting: [{ teamId: "e", name: "Dev Shah" }],
+    replaceable: [{ teamId: "e", name: "Dev Shah" }],
+    foursomes: false,
     nextStage: { startDate: "2026-12-01", endDate: "2026-12-31" },
   },
 } satisfies Meta<typeof StageCloseForm>;
@@ -72,6 +74,45 @@ export const TeamWithdrawn: Story = {
     await expect(order(canvas, 1)[2]).toHaveTextContent("Cat Moss · 0–2, -8leaves");
     await expect(order(canvas, 1)[1]).toHaveTextContent("Bob Hart · 1–1, 0stays");
     await expect(order(canvas, 2)[0]).toHaveTextContent("Dan Ford · 2–0, +8▲ to Division 1");
+    // Nobody named yet: the place goes, and the Division is one smaller.
+    await expect(canvas.getByLabelText("Cat Moss's place")).toHaveValue("");
+    await expect(canvas.getByText("In Division 2 next Stage.")).toBeVisible();
+  },
+};
+
+/** Dev, waiting, takes Cat's place: where Cat would have gone, Division 2; he can't also join at the bottom. */
+export const ReplacementNamed: Story = {
+  args: TeamWithdrawn.args,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.selectOptions(canvas.getByLabelText("Cat Moss's place"), "Dev Shah");
+    await expect(order(canvas, 1)[2]).toHaveTextContent("Cat Moss · 0–2, -8replaced");
+    await expect(canvas.getByText("Dev Shah starts Stage 2 in Division 2.")).toBeVisible();
+    await expect(canvas.getByRole("checkbox", { name: "Dev Shah" })).toBeDisabled();
+  },
+};
+
+/** A waiting Team ticked to join can't also take a place. */
+export const JoinerCantReplace: Story = {
+  args: TeamWithdrawn.args,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Dev Shah" }));
+    await expect(canvas.getByRole("option", { name: "Dev Shah" })).toBeDisabled();
+  },
+};
+
+/** Foursomes: a Player who withdrew must be replaced, so the choice starts at "Pick a player" and is required. */
+export const FoursomesReplacement: Story = {
+  args: {
+    ...TeamWithdrawn.args,
+    foursomes: true,
+    waiting: [],
+    replaceable: [{ teamId: "g", name: "Ivy Park" }],
+  },
+  play: async ({ canvas }) => {
+    const place = canvas.getByLabelText("Cat Moss's place");
+    await expect(place).toBeRequired();
+    await expect(within(place).getByRole("option", { name: "Pick a player" })).toBeInTheDocument();
+    await expect(canvas.getByText(/so the Division stays 4/)).toBeVisible();
   },
 };
 
@@ -90,5 +131,56 @@ export const LastStage: Story = {
     await expect(canvas.getByRole("note")).toHaveTextContent("Closing it ends the League, and nobody moves.");
     await expect(canvas.queryByLabelText("Starts")).not.toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: "Close Stage 1 and end the League" })).toBeEnabled();
+  },
+};
+
+/** Foursomes with nobody waiting (#279 review): it says so, and the close waits until a Player is added. */
+export const FoursomesNobodyWaiting: Story = {
+  args: { ...TeamWithdrawn.args, foursomes: true, waiting: [], replaceable: [] },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Nobody is waiting for a place")).toBeVisible();
+    await expect(canvas.getByText(/Add a player to the league on its page first/)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeDisabled();
+  },
+};
+
+/** A Division of 2 where one Team withdraws (#279 review): nobody instead would leave one Team, so it says so and waits. */
+export const DivisionTooSmall: Story = {
+  args: {
+    divisions: [{ number: 1, teams: [team("a", "Ann Cole", 1, "1–0, +4"), team("b", "Bob Hart", 2, "0–1, -4", true)], ties: [] }],
+    waiting: [],
+    replaceable: [],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Division 1 would have one Team")).toBeVisible();
+    await expect(canvas.getByText(/Nobody is waiting for a place: add a Team to the league/)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeDisabled();
+  },
+};
+
+/** The same Division with a Team waiting: naming it fixes the size, and the close can go ahead. */
+export const DivisionTooSmallUntilReplaced: Story = {
+  args: { ...DivisionTooSmall.args, waiting: [{ teamId: "e", name: "Dev Shah" }], replaceable: [{ teamId: "e", name: "Dev Shah" }] },
+  play: async ({ canvas, userEvent }) => {
+    await expect(canvas.getByText(/A Division needs at least 2: name a Team waiting for a place/)).toBeVisible();
+    await userEvent.selectOptions(canvas.getByLabelText("Bob Hart's place"), "Dev Shah");
+    await expect(canvas.queryByText("Division 1 would have one Team")).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeEnabled();
+  },
+};
+
+/** Ann, top of Division 1, withdraws, and the only Team waiting is ticked to join Division 2 (#279 review): untick it. */
+export const DivisionTooSmallJoinerTicked: Story = {
+  args: {
+    divisions: [
+      { number: 1, teams: [team("a", "Ann Cole", 1, "1–0, +4", true), team("b", "Bob Hart", 2, "0–1, -4")], ties: [] },
+      { number: 2, teams: [team("c", "Cat Moss", 1, "1–0, +4"), team("d", "Dan Ford", 2, "0–1, -4")], ties: [] },
+    ],
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(canvas.getByText("Division 1 would have one Team")).toBeVisible();
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Dev Shah" }));
+    await expect(canvas.getByText(/untick a joining Team, or change a pick, to name it here/)).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Close Stage 1 and open Stage 2" })).toBeDisabled();
   },
 };
