@@ -157,6 +157,7 @@ export default async function MatchPage({ params, searchParams }: PageProps<"/ga
           playerId={acting.id}
           availability={game.availability}
           date={game.date}
+          startTime={game.startTime}
           court={game.court}
           dateSetBy={game.dateSetBy}
           stageStart={stage.startDate}

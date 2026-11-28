@@ -1200,7 +1200,8 @@ export async function saveAvailability(formData: FormData) {
 
 /**
  * A Player in a Game sets the Date its Players agreed, and the Court note
- * (#9); an empty Date clears it. The last change stands. Back to the Game,
+ * (#9); an empty Date clears it. A start time set for that Date stays; a
+ * new Date has none, as the form doesn't ask for one yet (#276). The last change stands. Back to the Game,
  * which says how it went.
  */
 export async function arrangeGame(formData: FormData) {
@@ -1208,6 +1209,12 @@ export async function arrangeGame(formData: FormData) {
   const playerId = formData.get("playerId");
   const date = formData.get("date");
   const court = formData.get("court");
+  // The Game's start time (#276), sent back while the Date stays the one it's for: the form has no time field.
+  const startTime = formData.get("startTime");
+  const keptTime =
+    typeof startTime === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(startTime) && isDay(date) && date === formData.get("agreedDate")
+      ? startTime
+      : null;
   if (!isId(gameId) || !isId(playerId)) return;
   const viewer = await getViewer();
   if (!viewer.players.some((player) => player.id === playerId)) return;
@@ -1219,8 +1226,7 @@ export async function arrangeGame(formData: FormData) {
   const api = await apiWithSession();
   const { error, response } = await api.PUT("/games/{gameId}/date", {
     params: { path: { gameId } },
-    // No start time (#276): the form doesn't ask for one, so the Game keeps its Date alone, as before times.
-    body: { playerId, date: isDay(date) ? date : null, startTime: null, court: typeof court === "string" && court.trim() ? court : null },
+    body: { playerId, date: isDay(date) ? date : null, startTime: keptTime, court: typeof court === "string" && court.trim() ? court : null },
   });
   if (response.status === 400) {
     redirect(`/games/${gameId}?refused=arrange-invalid`);
